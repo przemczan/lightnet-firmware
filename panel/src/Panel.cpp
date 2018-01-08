@@ -7,6 +7,17 @@ Panel::Panel(Bus *_bus): bus(_bus)
 {
 }
 
+void Panel::startListening()
+{
+    if (!this->isReady()) {
+        PRINTLN("Can not start listening when not ready.");
+
+        return;
+    }
+
+    this->bus->begin(this->id + 10);
+}
+
 uint16_t Panel::addBorder(volatile uint8_t *port, uint8_t pinNo)
 {
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
@@ -77,8 +88,9 @@ void Panel::checkForWellcome()
                 this->setState(Panel::STATE_PINGED);
                 this->rootBorderIndex = index;
 
-                Serial.print("Root border wellcome: ");
-                Serial.println(index);
+                PRINTKV("Parent border connected", index);
+
+                return;
             }
         }
     }
@@ -91,11 +103,8 @@ void Panel::registerPanel()
     this->bus->end();
 
     if (!this->id) {
-        //this->setState(Panel::STATE_ERROR);
+        this->setState(Panel::STATE_ERROR);
     }
-
-    Serial.print("got ID: ");
-    Serial.println(this->id);
 }
 
 void Panel::respondForWellcome()
@@ -134,7 +143,6 @@ void Panel::pingChildBorders()
 
 void Panel::setState(uint8_t state)
 {
-    Serial.print("Panel state change: ");
-    Serial.println(state);
+    PRINTKV("Panel state change", state);
     this->state = state;
 }

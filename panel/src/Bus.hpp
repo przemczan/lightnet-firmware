@@ -2,6 +2,11 @@
 
 #include <Arduino.h>
 #include "Protocol.hpp"
+#include "Macros.hpp"
+#include <Wire.h>
+#include "Bus.hpp"
+#include "Config.hpp"
+#include "Crc.hpp"
 
 class Bus
 {

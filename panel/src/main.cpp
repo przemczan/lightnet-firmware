@@ -25,10 +25,10 @@ void setup()
     panel.addBorder(&PORTB, 1);
     panel.addBorder(&PORTB, 2);
 
-    Serial.println("Panel SETUP");
-
     attachInterrupt(0, updateBordersStates, HIGH);
     sei();
+
+    PRINTLN("PANEL setup completed.");
 }
 
 void loop()
@@ -40,12 +40,13 @@ void loop()
 
             if (panel.isReady()) {
                 state = STATE_READY;
-                Serial.println("Panel READY");
+                panel.startListening();
+                PRINTLN("Panel is READY");
             }
         break;
 
         case STATE_READY:
-
+            // nothing to do for now because panel is using interrupts to communicate
         break;
     }
 }

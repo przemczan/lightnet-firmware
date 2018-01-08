@@ -1,1 +1,4 @@
-#define DEBUG 0
+#define DEBUG 1
+#define SIMULATION 0
+
+#include "Debug.hpp"

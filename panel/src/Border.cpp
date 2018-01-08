@@ -1,7 +1,7 @@
 #include "Border.hpp"
 #include "Macros.hpp"
 
-Border::Border(volatile uint8_t *_port, uint8_t _pinNo):
+Border::Border(volatile uint8_t *_port, volatile uint8_t _pinNo):
     port(_port),
     pinNo(_pinNo)
 {
@@ -68,7 +68,7 @@ void Border::sendPing()
 {
     cli();
 
-    Serial.print("Sending ping...");
+    PRINT("Sending ping...");
 
     SET_PIN_AS_OUTPUT(*this->port, this->pinNo);
     SET_PIN_HIGH(*this->port, this->pinNo);
@@ -76,7 +76,7 @@ void Border::sendPing()
 
     listenForPing();
 
-    Serial.println("ok");
+    PRINTLN(" done.");
 
     this->pingSentAt = millis();
     this->hasPing = false;
@@ -120,7 +120,6 @@ bool Border::isReady()
 
 void Border::setState(uint8_t state)
 {
-    Serial.print("Border state change: ");
-    Serial.println(state);
+    PRINTKV("Border state change", state);
     this->state = state;
 }

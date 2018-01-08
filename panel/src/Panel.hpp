@@ -3,6 +3,7 @@
 #include "Border.hpp"
 #include "List.hpp"
 #include "Bus.hpp"
+#include "Macros.hpp"
 
 class Panel
 {
@@ -34,4 +35,5 @@ class Panel
         void updateBordersStates();
         bool isReady();
         void boot();
+        void startListening();
 };

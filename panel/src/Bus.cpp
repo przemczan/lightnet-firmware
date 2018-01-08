@@ -1,7 +1,4 @@
-#include <Wire.h>
 #include "Bus.hpp"
-#include "Config.hpp"
-#include "Crc.hpp"
 
 using namespace Protocol;
 
@@ -28,6 +25,8 @@ uint8_t Bus::registerPanel(uint8_t bordersNumber, uint8_t parentBorder)
     registerPanelPacket.bordersNumber = bordersNumber;
     registerPanelPacket.parentBorder = parentBorder;
 
+    PRINT("Sending register request... ");
+
     uint8_t result = this->sendPacketWithResponse(
         CONTROLLER_ADDRESS,
         &registerPanelPacket,
@@ -38,8 +37,12 @@ uint8_t Bus::registerPanel(uint8_t bordersNumber, uint8_t parentBorder)
     );
 
     if (result == 0) {
+        PRINTKV("success", response.panelId);
+
         return response.panelId;
     }
+
+    PRINTLN("failed.");
 
     return 0;
 }
@@ -57,13 +60,6 @@ uint8_t Bus::sendPacket(uint8_t address, void *packet, uint8_t size, uint8_t typ
 uint8_t Bus::requestPacket(uint8_t address, void *buffer, uint8_t size)
 {
     uint8_t receivedSize = Wire.requestFrom(address, size, (uint8_t)true);
-    Serial.print("received: "); Serial.println(receivedSize);
-        //
-        // for (uint8_t i = 0; i < receivedSize; i++) {
-        //     Serial.print(Wire.read(), 16);
-        //     Serial.print(" ");
-        // }
-        // Serial.println("");
 
     if (receivedSize != size) {
         return 1;
