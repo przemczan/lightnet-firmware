@@ -15,8 +15,11 @@ class Bus
         void begin(uint8_t address);
         void begin();
         void end();
+        void setOnReceive((void *)(*)(PacketMeta *) callback);
 
     private:
+        (void *)(*)(PacketMeta *) onReceiveCallback = null;
+
         uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, uint8_t type);
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         uint8_t sendPacketWithResponse(

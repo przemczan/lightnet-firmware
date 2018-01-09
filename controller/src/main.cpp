@@ -3,25 +3,20 @@
 #include "Protocol.hpp"
 #include "List.hpp"
 #include "Crc.hpp"
+#include "PanelList.hpp"
+#include "InitializationPhase.hpp"
 
 #define STATE_BOOT 0
 #define STATE_READY 1
 
 uint8_t state = STATE_BOOT;
 
-struct Panel
-{
-    uint8_t id;
-    uint8_t bordersNumber;
-    uint8_t parentBorder;
-};
+PanelList panelList;
 
-volatile uint8_t lastId = 0;
-volatile Panel *currentPanel = 0;
-List<Panel*> panels;
-
-void handlePacket(Protocol::PacketMeta *packet, uint16_t size)
+void onPacketReceived(Protocol::PacketMeta *packet, uint16_t size)
 {
+    lastPacketType = packet->header.type;
+
     switch (packet->header.type)
     {
         case Protocol::PACKET_REGISTER_PANEL:
@@ -40,11 +35,16 @@ void handlePacket(Protocol::PacketMeta *packet, uint16_t size)
 
 void onRequest()
 {
-    if (lastId) {
-        Protocol::RegisterPanelResponse response;
-        Protocol::setPacketMeta(&response, Protocol::PACKET_REGISTER_PANEL_RESPONSE);
-        response.panelId = lastId;
-        Wire.write((uint8_t *)&response, sizeof(response));
+    switch (lastPacketType)
+    {
+        case Protocol::PACKET_REGISTER_PANEL:
+            if (lastId) {
+                Protocol::RegisterPanelResponse response;
+                Protocol::setPacketMeta(&response, Protocol::PACKET_REGISTER_PANEL_RESPONSE);
+                response.panelId = lastId;
+                Wire.write((uint8_t *)&response, sizeof(response));
+            }
+            break;
     }
 }
 
@@ -54,7 +54,7 @@ void onReceive(int size)
     Wire.readBytes(&buffer[0], size);
 
     if (Protocol::validatePacket(&buffer[0], size) == 0) {
-        handlePacket((Protocol::PacketMeta *)&buffer, size);
+        onPacketReceived((Protocol::PacketMeta *)&buffer, size);
     }
 }
 

@@ -47,6 +47,12 @@ uint8_t Bus::registerPanel(uint8_t bordersNumber, uint8_t parentBorder)
     return 0;
 }
 
+void Bus::setOnReceive((void *)(*)(PacketMeta *) callback)
+{
+    this->onReceiveCallback = callback;
+    Wire.onReceive(this->onReceive);
+}
+
 uint8_t Bus::sendPacket(uint8_t address, void *packet, uint8_t size, uint8_t type)
 {
     setPacketMeta(packet, type);

@@ -28,6 +28,7 @@ class Panel
         void pingChildBorders();
         void setState(uint8_t state);
         void registerPanel();
+        void onPacketReceived(PacketMeta *packet);
 
     public:
         Panel(Bus *_bus);

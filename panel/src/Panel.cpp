@@ -7,17 +7,6 @@ Panel::Panel(Bus *_bus): bus(_bus)
 {
 }
 
-void Panel::startListening()
-{
-    if (!this->isReady()) {
-        PRINTLN("Can not start listening when not ready.");
-
-        return;
-    }
-
-    this->bus->begin(this->id + 10);
-}
-
 uint16_t Panel::addBorder(volatile uint8_t *port, uint8_t pinNo)
 {
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
@@ -96,6 +85,18 @@ void Panel::checkForWellcome()
     }
 }
 
+void Panel::startListening()
+{
+    if (!this->isReady()) {
+        PRINTLN("Can not start listening when not ready.");
+
+        return;
+    }
+
+    this->bus->begin(this->id + 10);
+    this->bus->setOnReceive(&this->onPacketReceived);
+}
+
 void Panel::registerPanel()
 {
     this->bus->begin();
@@ -145,4 +146,12 @@ void Panel::setState(uint8_t state)
 {
     PRINTKV("Panel state change", state);
     this->state = state;
+}
+
+void Panel::onPacketReceived(PacketMeta *packet)
+{
+    switch (packet->header.id)
+    {
+
+    }
 }
