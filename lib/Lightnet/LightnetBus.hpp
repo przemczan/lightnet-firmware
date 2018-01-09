@@ -14,6 +14,7 @@ class LightnetBus
 
         LightnetBus();
         uint8_t registerPanel(uint8_t edgesNumber, uint8_t parentEdge);
+        uint8_t respondToRegisterPanel(uint8_t id);
         void begin(uint8_t address);
         void begin();
         void end();
@@ -27,6 +28,7 @@ class LightnetBus
         static void onReceive(int size);
         static void onRequest();
         uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, uint8_t type);
+        uint8_t sendResponsePacket(void *packet, uint8_t size, uint8_t type);
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         uint8_t sendPacketWithResponse(
             uint8_t address,

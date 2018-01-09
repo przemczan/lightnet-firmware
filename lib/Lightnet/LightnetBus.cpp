@@ -34,7 +34,7 @@ uint8_t LightnetBus::registerPanel(uint8_t edgesNumber, uint8_t parentEdge)
     uint8_t result = this->sendPacketWithResponse(
         Protocol::CONTROLLER_ADDRESS,
         &registerPanelPacket,
-        sizeof(Protocol::RegisterPanel),
+        sizeof(registerPanelPacket),
         Protocol::PACKET_REGISTER_PANEL,
         &response,
         sizeof(Protocol::RegisterPanelResponse)
@@ -49,6 +49,16 @@ uint8_t LightnetBus::registerPanel(uint8_t edgesNumber, uint8_t parentEdge)
     PRINTLN("failed.");
 
     return 0;
+}
+
+uint8_t LightnetBus::respondToRegisterPanel(uint8_t id)
+{
+    Protocol::RegisterPanelResponse response;
+    response.panelId = id;
+
+    uint8_t result = this->sendResponsePacket(&response, sizeof(response), Protocol::PACKET_REGISTER_PANEL_RESPONSE);
+
+    return result;
 }
 
 void LightnetBus::onReceive(int size)
@@ -88,6 +98,13 @@ uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, uin
     Wire.write((uint8_t *)packet, size);
 
     return Wire.endTransmission();
+}
+
+uint8_t LightnetBus::sendResponsePacket(void *packet, uint8_t size, uint8_t type)
+{
+    Protocol::setPacketMeta(packet, type);
+
+    Wire.write((uint8_t *)packet, size);
 }
 
 uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)

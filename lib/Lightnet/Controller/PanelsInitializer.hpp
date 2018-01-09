@@ -10,19 +10,19 @@ class PanelsInitializer
         typedef struct {
             uint8_t id;
             uint8_t edgesNumber;
-            uint8_t parentEdgeNumber;
+            uint8_t parentEdge;
         } Panel;
 
         void start();
         void doInitialize();
-        List<PanelsInitializer::Panel *> *getPanels();
+        List<Panel *> *getPanels();
 
     private:
-        volatile uint8_t lastPacketType = 0;
-        List<PanelsInitializer::Panel *> panels;
-        volatile Panel lastPanel;
+        static volatile uint8_t lastPacketType;
+        static List<Panel *> panels;
+        static volatile Panel lastPanel;
 
-        static void onPacketReceived(Protocol::PacketMeta *packet);
+        static void onPacketReceived(Protocol::PacketMeta *packetMeta);
         static void onPacketRequested();
 };
 
