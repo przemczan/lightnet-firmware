@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <stdlib.h>
 
 #define ITEM_SIZE sizeof(item)

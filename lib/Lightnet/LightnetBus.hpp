@@ -4,22 +4,28 @@
 #include "Protocol.hpp"
 #include "Macros.hpp"
 #include <Wire.h>
-#include "Bus.hpp"
-#include "Config.hpp"
 #include "Crc.hpp"
 
-class Bus
+class LightnetBus
 {
     public:
-        uint8_t registerPanel(uint8_t bordersNumber, uint8_t parentBorder);
+        typedef void (*onPacketReceived_t)(Protocol::PacketMeta *packet);
+        typedef void (*onPacketRequested_t)();
+
+        LightnetBus();
+        uint8_t registerPanel(uint8_t edgesNumber, uint8_t parentEdge);
         void begin(uint8_t address);
         void begin();
         void end();
-        void setOnReceive((void *)(*)(PacketMeta *) callback);
+        void setOnPacketReceived(onPacketReceived_t callback);
+        void setOnPacketRequested(onPacketRequested_t callback);
 
     private:
-        (void *)(*)(PacketMeta *) onReceiveCallback = null;
+        static onPacketReceived_t onPacketReceivedCallback;
+        static onPacketRequested_t onPacketRequestedCallback;
 
+        static void onReceive(int size);
+        static void onRequest();
         uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, uint8_t type);
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         uint8_t sendPacketWithResponse(
@@ -32,3 +38,5 @@ class Bus
         );
         void flush();
 };
+
+extern LightnetBus LNBus;

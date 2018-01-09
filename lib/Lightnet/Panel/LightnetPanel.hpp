@@ -1,11 +1,12 @@
 #pragma once
 
-#include "Border.hpp"
+#include "LightnetPanelEdge.hpp"
 #include "List.hpp"
-#include "Bus.hpp"
+#include "LightnetBus.hpp"
 #include "Macros.hpp"
+#include "Protocol.hpp"
 
-class Panel
+class LightnetPanel
 {
     private:
         static const uint8_t STATE_IDLE       = 0;
@@ -15,26 +16,26 @@ class Panel
         static const uint8_t STATE_READY      = 4;
         static const uint8_t STATE_ERROR      = 0xFF;
 
-        Bus *bus;
-        List<Border*> borders;
+        List<LightnetPanelEdge*> edges;
         uint8_t state = this->STATE_IDLE;
-        uint16_t rootBorderIndex = 0;
-        uint16_t currentChildBorderIndex = 0;
+        uint16_t rootEdgeIndex = 0;
+        uint16_t currentChildEdgeIndex = 0;
         uint8_t id;
 
-        void startWatchingBorders();
+        void startWatchingEdges();
         void respondForWellcome();
         void checkForWellcome();
-        void pingChildBorders();
+        void pingChildEdges();
         void setState(uint8_t state);
         void registerPanel();
-        void onPacketReceived(PacketMeta *packet);
+        static void onPacketReceived(Protocol::PacketMeta *packet);
 
     public:
-        Panel(Bus *_bus);
-        uint16_t addBorder(volatile uint8_t *port, uint8_t pinNo);
-        void updateBordersStates();
+        uint16_t addEdge(volatile uint8_t pinNo);
+        void updateEdgesStates();
         bool isReady();
         void boot();
         void startListening();
 };
+
+extern LightnetPanel LNPanel;

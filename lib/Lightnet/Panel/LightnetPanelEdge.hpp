@@ -1,7 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
-#include "Config.hpp"
+
+#ifndef SIMULATION
+    #define SIMULATION 0
+#endif
 
 #if SIMULATION
     #define PING_DURATION_MULTIPLIER 500
@@ -9,7 +12,7 @@
     #define PING_DURATION_MULTIPLIER 1
 #endif
 
-class Border
+class LightnetPanelEdge
 {
     private:
         const unsigned long PING_DURATION_MILLS = 1 * PING_DURATION_MULTIPLIER;
@@ -23,12 +26,11 @@ class Border
         static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 10;
         static const unsigned long BOOT_TIMEOUT_MILLS              = 5000;
 
-        volatile uint8_t *port;
         volatile uint8_t pinNo;
         volatile bool busState = false;
         volatile bool hasPing = false;
         unsigned long pingSentAt = 0;
-        uint8_t state = Border::STATE_IDLE;
+        uint8_t state = LightnetPanelEdge::STATE_IDLE;
 
         void listenForPing();
         void sendWellcome();
@@ -37,7 +39,7 @@ class Border
         void setState(uint8_t state);
 
     public:
-        Border(volatile uint8_t *_port, volatile uint8_t _pinNo);
+        LightnetPanelEdge(volatile uint8_t _pinNo);
         void readBusState();
         void sendPing();
         bool wasPinged();

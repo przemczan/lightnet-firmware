@@ -29,8 +29,8 @@ namespace Protocol
     typedef struct
     {
         PacketMeta meta;
-        uint8_t parentBorder;
-        uint8_t bordersNumber;
+        uint8_t parentEdge;
+        uint8_t edgesNumber;
     } RegisterPanel;
 
     typedef struct
