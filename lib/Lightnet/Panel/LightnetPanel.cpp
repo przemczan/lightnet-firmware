@@ -42,6 +42,7 @@ void LightnetPanel::updateEdgesStates()
     uint16_t index = this->edges.getSize();
 
     while (index--) {
+        PRINT("E"); PRINT(index); PRINT(": ");
         this->edges.get(index)->readBusState();
     }
 }

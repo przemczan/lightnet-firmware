@@ -9,11 +9,35 @@ LightnetPanelEdge::LightnetPanelEdge(uint8_t _pinNo):
 
 void LightnetPanelEdge::readBusState()
 {
+    PRINTLN(digitalRead(this->pinNo));
     if (this->busState && !digitalRead(this->pinNo)) {
         this->hasPing = true;
     }
 
     this->busState = digitalRead(this->pinNo);
+}
+
+void LightnetPanelEdge::sendPing()
+{
+    noInterrupts();
+
+    delay(5);
+
+    this->hasPing = false;
+    this->pingSentAt = millis();
+
+    PRINT("Sending ping...");
+
+    pinMode(this->pinNo, OUTPUT);
+    digitalWrite(this->pinNo, HIGH);
+    delayMicroseconds(100);
+    digitalWrite(this->pinNo, LOW);
+
+    listenForPing();
+
+    interrupts();
+
+    PRINTLN(" done.");
 }
 
 bool LightnetPanelEdge::wasPinged()
@@ -50,37 +74,10 @@ void LightnetPanelEdge::boot()
             this->checkWellcomeResponded();
             break;
 
-        case LightnetPanelEdge::STATE_NOT_CONNECTED:
-            // do nothing, no panel is connected to this lnEdge
-            break;
-
         case LightnetPanelEdge::STATE_BOOTING:
             this->checkBootStatus();
             break;
-
-        case LightnetPanelEdge::STATE_READY:
-            break;
     }
-}
-
-void LightnetPanelEdge::sendPing()
-{
-    noInterrupts();
-
-    PRINT("Sending ping...");
-
-    pinMode(this->pinNo, OUTPUT);
-    digitalWrite(this->pinNo, HIGH);
-    delay(this->PING_DURATION_MILLS);
-
-    listenForPing();
-
-    PRINTLN(" done.");
-
-    this->pingSentAt = millis();
-    this->hasPing = false;
-
-    interrupts();
 }
 
 void LightnetPanelEdge::listenForPing()
@@ -96,19 +93,19 @@ void LightnetPanelEdge::sendWellcome()
 
 void LightnetPanelEdge::checkWellcomeResponded()
 {
-    if ((this->pingSentAt + LightnetPanelEdge::WELLCOME_RESPONSE_TIMEOUT_MILLS) < millis()) {
-        this->setState(LightnetPanelEdge::STATE_NOT_CONNECTED);
-    } else if (this->wasPinged()) {
+    if (this->wasPinged()) {
         this->setState(LightnetPanelEdge::STATE_BOOTING);
+    } else if ((this->pingSentAt + LightnetPanelEdge::WELLCOME_RESPONSE_TIMEOUT_MILLS) < millis()) {
+        this->setState(LightnetPanelEdge::STATE_NOT_CONNECTED);
     }
 }
 
 void LightnetPanelEdge::checkBootStatus()
 {
-    if ((this->pingSentAt + LightnetPanelEdge::BOOT_TIMEOUT_MILLS) < millis()) {
-        this->setState(LightnetPanelEdge::STATE_NOT_CONNECTED);
-    } else if (this->wasPinged()) {
-        this->setState(LightnetPanelEdge::STATE_READY);
+    if (this->wasPinged()) {
+       this->setState(LightnetPanelEdge::STATE_READY);
+    } else if ((this->pingSentAt + LightnetPanelEdge::BOOT_TIMEOUT_MILLS) < millis()) {
+        this->setState(LightnetPanelEdge::STATE_BOOT_TIMEOUT);
     }
 }
 

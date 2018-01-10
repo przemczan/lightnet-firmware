@@ -15,13 +15,12 @@
 class LightnetPanelEdge
 {
     private:
-        const unsigned long PING_DURATION_MILLS = 1 * PING_DURATION_MULTIPLIER;
-
         static const uint8_t STATE_IDLE                = 0;
         static const uint8_t STATE_WELLCOME_SENT       = 1;
         static const uint8_t STATE_NOT_CONNECTED       = 2;
         static const uint8_t STATE_BOOTING             = 3;
-        static const uint8_t STATE_READY               = 4;
+        static const uint8_t STATE_BOOT_TIMEOUT        = 4;
+        static const uint8_t STATE_READY               = 5;
 
         static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 10;
         static const unsigned long BOOT_TIMEOUT_MILLS              = 5000;

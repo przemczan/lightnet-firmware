@@ -16,10 +16,11 @@ void setup() {
     Serial.begin(9600);
     Serial.println("CONTROLLER");
 
+    delay(200);
+    LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);
+
     attachInterrupt(0, updateEdgeState, CHANGE);
     interrupts();
-
-    LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);
 }
 
 void loop() {
@@ -30,6 +31,7 @@ void loop() {
 
             if (LNPanelsInitializer.isReady()) {
                 state = STATE_READY;
+                PRINTLN("CONTROLLER is ready!");
             }
         break;
 
