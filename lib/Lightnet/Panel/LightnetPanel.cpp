@@ -134,7 +134,13 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet)
 {
     switch (packet->header.type)
     {
+        case Protocol::PACKET_TURN_ON_OFF:
+            // turn on/off the panel
+            break;
 
+        case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
+            // set color/brightness
+            break;
     }
 }
 

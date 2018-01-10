@@ -61,6 +61,25 @@ uint8_t LightnetBus::respondToRegisterPanel(uint8_t id)
     return result;
 }
 
+uint8_t LightnetBus::setColorAndBrightness(uint8_t address, Protocol::Color *color, uint8_t brightness)
+{
+    Protocol::SetColorAndBrightness packet;
+
+    packet.color = *color;
+    packet.brightness = brightness;
+
+    this->sendPacket(address, &packet, sizeof(packet), Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS);
+}
+
+uint8_t LightnetBus::turnOnOff(uint8_t address, uint8_t on)
+{
+    Protocol::TurnOnOff packet;
+
+    packet.on = on;
+
+    this->sendPacket(address, &packet, sizeof(packet), Protocol::PACKET_TURN_ON_OFF);
+}
+
 void LightnetBus::onReceive(int size)
 {
     if (LightnetBus::onPacketReceivedCallback) {
@@ -90,7 +109,7 @@ void LightnetBus::setOnPacketRequested(onPacketRequested_t callback)
     LightnetBus::onPacketRequestedCallback = callback;
 }
 
-uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, uint8_t type)
+uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
 {
     Protocol::setPacketMeta(packet, type);
 
@@ -100,7 +119,7 @@ uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, uin
     return Wire.endTransmission();
 }
 
-uint8_t LightnetBus::sendResponsePacket(void *packet, uint8_t size, uint8_t type)
+uint8_t LightnetBus::sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type)
 {
     Protocol::setPacketMeta(packet, type);
 
@@ -128,7 +147,7 @@ uint8_t LightnetBus::sendPacketWithResponse(
     uint8_t address,
     void *packet,
     uint8_t packetSize,
-    uint8_t packetType,
+    Protocol::packetType_t packetType,
     void *responseBuffer,
     uint8_t responseSize
 ) {

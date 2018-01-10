@@ -16,7 +16,7 @@ uint8_t Protocol::validatePacket(void *packet, uint8_t size)
     return 0;
 }
 
-void Protocol::setPacketMeta(void *packet, uint8_t type)
+void Protocol::setPacketMeta(void *packet, Protocol::packetType_t type)
 {
     PacketMeta *meta = (PacketMeta *)packet;
 
