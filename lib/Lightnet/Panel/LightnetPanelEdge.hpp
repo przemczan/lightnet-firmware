@@ -39,7 +39,7 @@ class LightnetPanelEdge
         void setState(uint8_t state);
 
     public:
-        LightnetPanelEdge(volatile uint8_t _pinNo);
+        LightnetPanelEdge(uint8_t _pinNo);
         void readBusState();
         void sendPing();
         bool wasPinged();

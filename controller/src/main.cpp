@@ -1,8 +1,5 @@
+#include "Config.hpp"
 #include <Arduino.h>
-#include <Wire.h>
-#include "Protocol.hpp"
-#include "List.hpp"
-#include "Crc.hpp"
 #include "PanelsInitializer.hpp"
 
 #define STATE_BOOT 0
@@ -14,13 +11,18 @@ void setup() {
     Serial.begin(9600);
     Serial.println("CONTROLLER");
 
-    LNPanelsInitializer.start();
+    LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);
 }
 
 void loop() {
     switch (state)
     {
         case STATE_BOOT:
+            LNPanelsInitializer.doInitialize();
+
+            if (LNPanelsInitializer.isReady()) {
+                state = STATE_READY;
+            }
         break;
 
         case STATE_READY:

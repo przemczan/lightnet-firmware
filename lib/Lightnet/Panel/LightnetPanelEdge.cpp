@@ -1,7 +1,7 @@
 #include "LightnetPanelEdge.hpp"
 #include "Macros.hpp"
 
-LightnetPanelEdge::LightnetPanelEdge(volatile uint8_t _pinNo):
+LightnetPanelEdge::LightnetPanelEdge(uint8_t _pinNo):
     pinNo(_pinNo)
 {
     listenForPing();

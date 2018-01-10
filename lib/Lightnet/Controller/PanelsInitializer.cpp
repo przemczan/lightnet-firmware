@@ -4,7 +4,7 @@ volatile uint8_t PanelsInitializer::lastPacketType;
 List<PanelsInitializer::Panel *> PanelsInitializer::panels;
 volatile PanelsInitializer::Panel PanelsInitializer::lastPanel;
 
-void PanelsInitializer::start()
+void PanelsInitializer::start(uint8_t edgePinNo)
 {
     memset((void *)&PanelsInitializer::lastPanel, 0, sizeof(PanelsInitializer::lastPanel));
     PanelsInitializer::lastPacketType = 0;
@@ -12,10 +12,13 @@ void PanelsInitializer::start()
     LNBus.begin(Protocol::CONTROLLER_ADDRESS);
     LNBus.setOnPacketRequested((LightnetBus::onPacketRequested_t)&PanelsInitializer::onPacketRequested);
     LNBus.setOnPacketReceived((LightnetBus::onPacketReceived_t)&PanelsInitializer::onPacketReceived);
+
+    PanelsInitializer::edge = new LightnetPanelEdge(edgePinNo);
 }
 
 void PanelsInitializer::doInitialize()
 {
+    this->edge->boot();
 }
 
 void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
@@ -55,6 +58,11 @@ void PanelsInitializer::onPacketRequested()
 List<PanelsInitializer::Panel *> *PanelsInitializer::getPanels()
 {
     return &PanelsInitializer::panels;
+}
+
+uint8_t PanelsInitializer::isReady()
+{
+    return this->edge->isReady();
 }
 
 PanelsInitializer LNPanelsInitializer;

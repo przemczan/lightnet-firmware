@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LightnetBus.hpp"
+#include "LightnetPanelEdge.hpp"
 #include "Protocol.hpp"
 #include "List.hpp"
 
@@ -13,14 +14,16 @@ class PanelsInitializer
             uint8_t parentEdge;
         } Panel;
 
-        void start();
+        void start(uint8_t edgePinNo);
         void doInitialize();
+        uint8_t isReady();
         List<Panel *> *getPanels();
 
     private:
         static volatile uint8_t lastPacketType;
         static List<Panel *> panels;
         static volatile Panel lastPanel;
+        LightnetPanelEdge *edge;
 
         static void onPacketReceived(Protocol::PacketMeta *packetMeta);
         static void onPacketRequested();
