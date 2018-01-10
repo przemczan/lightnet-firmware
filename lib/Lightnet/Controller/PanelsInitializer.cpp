@@ -21,6 +21,11 @@ void PanelsInitializer::doInitialize()
     this->edge->boot();
 }
 
+void PanelsInitializer::updateEdgeState()
+{
+    this->edge->readBusState();
+}
+
 void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
 {
     PanelsInitializer::lastPacketType = packetMeta->header.type;

@@ -18,6 +18,7 @@ class PanelsInitializer
         void doInitialize();
         uint8_t isReady();
         List<Panel *> *getPanels();
+        void updateEdgeState();
 
     private:
         static volatile uint8_t lastPacketType;
