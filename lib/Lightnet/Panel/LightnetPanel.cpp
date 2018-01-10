@@ -14,8 +14,6 @@ bool LightnetPanel::isReady()
 
 void LightnetPanel::boot()
 {
-    this->updateEdgesStates();
-
     switch (this->state)
     {
         case LightnetPanel::STATE_IDLE:
@@ -72,7 +70,7 @@ void LightnetPanel::checkForWellcome()
 void LightnetPanel::startListening()
 {
     if (!this->isReady()) {
-        PRINTLN("Can not start listening when panel not ready.");
+        PRINTLN("Can not start listening when panel is not ready.");
 
         return;
     }
