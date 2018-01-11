@@ -1,16 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-
-#ifndef SIMULATION
-    #define SIMULATION 0
-#endif
-
-#if SIMULATION
-    #define PING_DURATION_MULTIPLIER 500
-#else
-    #define PING_DURATION_MULTIPLIER 1
-#endif
+#include "Macros.hpp"
 
 class LightnetPanelEdge
 {
@@ -22,8 +13,8 @@ class LightnetPanelEdge
         static const uint8_t STATE_BOOT_TIMEOUT        = 4;
         static const uint8_t STATE_READY               = 5;
 
-        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 10;
-        static const unsigned long BOOT_TIMEOUT_MILLS              = 5000;
+        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 50;
+        static const unsigned long BOOT_TIMEOUT_MILLS              = 10000;
 
         volatile uint8_t pinNo;
         volatile bool busState = false;

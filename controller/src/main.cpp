@@ -16,7 +16,7 @@ void setup() {
     Serial.begin(9600);
     Serial.println("CONTROLLER");
 
-    delay(200);
+    delay(500);
     LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);
 
     attachInterrupt(0, updateEdgeState, CHANGE);

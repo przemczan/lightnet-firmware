@@ -1,5 +1,4 @@
 #include "LightnetPanelEdge.hpp"
-#include "Macros.hpp"
 
 LightnetPanelEdge::LightnetPanelEdge(uint8_t _pinNo):
     pinNo(_pinNo)
@@ -9,28 +8,28 @@ LightnetPanelEdge::LightnetPanelEdge(uint8_t _pinNo):
 
 void LightnetPanelEdge::readBusState()
 {
-    PRINTLN(digitalRead(this->pinNo));
-    if (this->busState && !digitalRead(this->pinNo)) {
+    register uint8_t state = digitalRead(this->pinNo);
+
+    if (this->busState && !state) {
         this->hasPing = true;
     }
 
-    this->busState = digitalRead(this->pinNo);
+    this->busState = state;
 }
 
 void LightnetPanelEdge::sendPing()
 {
     noInterrupts();
 
-    delay(5);
-
-    this->hasPing = false;
-    this->pingSentAt = millis();
-
     PRINT("Sending ping...");
 
     pinMode(this->pinNo, OUTPUT);
     digitalWrite(this->pinNo, HIGH);
-    delayMicroseconds(100);
+
+    delayMicroseconds(50);
+    this->hasPing = false;
+    this->pingSentAt = millis();
+
     digitalWrite(this->pinNo, LOW);
 
     listenForPing();
@@ -45,6 +44,9 @@ bool LightnetPanelEdge::wasPinged()
     bool state = this->hasPing;
     this->hasPing = false;
 
+    if (state) {
+        PRINTKV("was pinged", state);
+    }
     return state;
 }
 

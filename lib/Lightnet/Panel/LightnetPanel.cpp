@@ -21,7 +21,7 @@ void LightnetPanel::boot()
             break;
 
         case LightnetPanel::STATE_WAITING:
-            // check for a lnEdge to be pinged by root panel
+            // check for an edge to be pinged by root panel
             this->checkForWellcome();
             break;
 
@@ -42,7 +42,6 @@ void LightnetPanel::updateEdgesStates()
     uint16_t index = this->edges.getSize();
 
     while (index--) {
-        PRINT("E"); PRINT(index); PRINT(": ");
         this->edges.get(index)->readBusState();
     }
 }
@@ -61,11 +60,18 @@ void LightnetPanel::checkForWellcome()
             this->setState(LightnetPanel::STATE_PINGED);
             this->rootEdgeIndex = index;
 
-            PRINTKV("Parent lnEdge connected", index);
+            PRINTKV("Parent edge connected", index);
 
             return;
         }
     }
+}
+
+void LightnetPanel::respondForWellcome()
+{
+    delayMicroseconds(50);
+    this->edges.get(this->rootEdgeIndex)->sendPing();
+    this->setState(LightnetPanel::STATE_PINGING);
 }
 
 void LightnetPanel::startListening()
@@ -91,15 +97,9 @@ void LightnetPanel::registerPanel()
     }
 }
 
-void LightnetPanel::respondForWellcome()
-{
-    this->edges.get(this->rootEdgeIndex)->sendPing();
-    this->setState(LightnetPanel::STATE_PINGING);
-}
-
 void LightnetPanel::pingChildEdges()
 {
-    // do not try to initialize root lnEdge
+    // do not try to initialize root edge
     if (this->currentChildEdgeIndex == this->rootEdgeIndex) {
         this->currentChildEdgeIndex++;
     }
