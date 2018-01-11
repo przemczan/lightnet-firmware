@@ -13,8 +13,10 @@ void updateEdgeState()
 }
 
 void setup() {
+    #if DEBUG
     Serial.begin(9600);
     Serial.println("CONTROLLER");
+    #endif
 
     delay(500);
     LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);

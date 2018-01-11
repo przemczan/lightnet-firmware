@@ -40,7 +40,7 @@ namespace Protocol
     typedef struct
     {
         colorMode_t mode;
-        union color
+        union
         {
             ColorRGB rgb;
             ColorHSB hsb;

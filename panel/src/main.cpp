@@ -16,7 +16,9 @@ void updateEdgesStates()
 
 void setup()
 {
+    #if DEBUG
     Serial.begin(9600);
+    #endif
 
     LNPanel.addEdge(8);
     LNPanel.addEdge(9);

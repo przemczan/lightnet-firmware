@@ -140,7 +140,6 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet)
             break;
 
         case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
-            // set color/brightness
             break;
     }
 }
