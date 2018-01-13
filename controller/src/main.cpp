@@ -7,6 +7,8 @@
 
 uint8_t state = STATE_BOOT;
 
+Protocol::Color c;
+
 void updateEdgeState()
 {
     LNPanelsInitializer.updateEdgeState();
@@ -38,6 +40,22 @@ void loop() {
         break;
 
         case STATE_READY:
+
+        if (c.rgb.r) {
+            c.rgb.b++;
+            if (c.rgb.b == 255) {
+                c.rgb.r = 0;
+            }
+        } else {
+            c.rgb.b--;
+            if (c.rgb.b == 0) {
+                c.rgb.r = 1;
+            }
+        }
+
+        LNBus.setColorAndBrightness(11, &c, 128);
+        delay(2);
+
         break;
     }
 }

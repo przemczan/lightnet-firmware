@@ -20,6 +20,8 @@ void setup()
     Serial.begin(9600);
     #endif
 
+    LNPanel.init(3, 3, 3);
+
     LNPanel.addEdge(8);
     LNPanel.addEdge(9);
     //LNPanel.addEdge(10);

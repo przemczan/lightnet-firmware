@@ -5,6 +5,7 @@
 #include "LightnetBus.hpp"
 #include "Macros.hpp"
 #include "Protocol.hpp"
+#include "RGBController.hpp"
 
 class LightnetPanel
 {
@@ -21,6 +22,7 @@ class LightnetPanel
         uint16_t rootEdgeIndex = 0;
         uint16_t currentChildEdgeIndex = 0;
         uint8_t id;
+        static RGBController *rgbController;
 
         void startWatchingEdges();
         void respondForWellcome();
@@ -31,6 +33,7 @@ class LightnetPanel
         static void onPacketReceived(Protocol::PacketMeta *packet);
 
     public:
+        void init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo);
         uint16_t addEdge(volatile uint8_t pinNo);
         void updateEdgesStates();
         bool isReady();

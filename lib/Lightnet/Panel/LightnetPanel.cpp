@@ -1,5 +1,12 @@
 #include "LightnetPanel.hpp"
 
+RGBController *LightnetPanel::rgbController;
+
+void LightnetPanel::init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo)
+{
+    LightnetPanel::rgbController = new RGBController(rPinNo, gPinNo, bPinNo);
+}
+
 uint16_t LightnetPanel::addEdge(volatile uint8_t pinNo)
 {
     this->edges.push(new LightnetPanelEdge(pinNo));
@@ -33,6 +40,10 @@ void LightnetPanel::boot()
 
         case LightnetPanel::STATE_PINGING:
             this->pingChildEdges();
+            break;
+
+        case LightnetPanel::STATE_READY:
+            // do nothing... for now
             break;
     }
 }
@@ -140,6 +151,8 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet)
             break;
 
         case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
+            Protocol::SetColorAndBrightness *colorAndBrightness = (Protocol::SetColorAndBrightness *)packet;
+            LightnetPanel::rgbController->setColor(&colorAndBrightness->color.rgb);
             break;
     }
 }
