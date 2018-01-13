@@ -22,7 +22,7 @@ void setup()
 
     LNPanel.addEdge(8);
     LNPanel.addEdge(9);
-    LNPanel.addEdge(10);
+    //LNPanel.addEdge(10);
 
     attachInterrupt(0, updateEdgesStates, CHANGE);
     interrupts();

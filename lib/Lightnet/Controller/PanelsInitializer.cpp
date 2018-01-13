@@ -43,7 +43,7 @@ void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
             memcpy(panel, (void *)&lastPanel, sizeof(panel));
             panels.push(panel);
 
-            PRINTKV("Register", panel->id);
+            PRINTLN4("New panel [id,parent,edges]:", panel->id, panel->parentEdge, panel->edgesNumber);
             break;
     }
 }
