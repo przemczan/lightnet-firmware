@@ -87,7 +87,7 @@ void LightnetBus::onReceive(int size)
         Wire.readBytes(&buffer[0], size);
 
         if (Protocol::validatePacket(&buffer[0], size) == 0) {
-            LightnetBus::onPacketReceivedCallback((Protocol::PacketMeta *)&buffer);
+            LightnetBus::onPacketReceivedCallback((Protocol::PacketMeta *)&buffer, size);
         }
     }
 }

@@ -47,7 +47,7 @@ void loop()
         break;
 
         case STATE_READY:
-            // nothing to do for now because LNPanel is using interrupts to communicate
+            LNPanel.run();
         break;
     }
 }

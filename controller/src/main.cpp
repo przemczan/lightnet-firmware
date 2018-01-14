@@ -1,6 +1,7 @@
 #include "Config.hpp"
 #include <Arduino.h>
 #include "PanelsInitializer.hpp"
+#include "Macros.hpp"
 
 #define STATE_BOOT 0
 #define STATE_READY 1
@@ -54,7 +55,7 @@ void loop() {
         }
 
         LNBus.setColorAndBrightness(11, &c, 128);
-        delay(2);
+        delay(1);
 
         break;
     }

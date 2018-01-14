@@ -9,7 +9,7 @@
 class LightnetBus
 {
     public:
-        typedef void (*onPacketReceived_t)(Protocol::PacketMeta *packet);
+        typedef void (*onPacketReceived_t)(Protocol::PacketMeta *packet, int size);
         typedef void (*onPacketRequested_t)();
 
         LightnetBus();

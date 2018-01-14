@@ -1,10 +1,10 @@
 #include "LightnetPanel.hpp"
 
-RGBController *LightnetPanel::rgbController;
+volatile List<Protocol::PacketMeta *> LightnetPanel::packetsQueue;
 
 void LightnetPanel::init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo)
 {
-    LightnetPanel::rgbController = new RGBController(rPinNo, gPinNo, bPinNo);
+    this->rgbController = new RGBController(rPinNo, gPinNo, bPinNo);
 }
 
 uint16_t LightnetPanel::addEdge(volatile uint8_t pinNo)
@@ -142,19 +142,57 @@ void LightnetPanel::setState(uint8_t state)
     this->state = state;
 }
 
-void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet)
+void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
+{
+    Protocol::PacketMeta *queuedPacket = malloc(size);
+    memcpy(queuedPacket, packet, size);
+    LightnetPanel::packetsQueue.push(queuedPacket);
+}
+
+void LightnetPanel::run()
+{
+    noInterrupts();
+
+    uint16_t index = LightnetPanel::packetsQueue.getSize();
+    Protocol::PacketMeta *packet;
+
+    while (index--) {
+        packet = LightnetPanel::packetsQueue.get(index);
+        this->handlePacket(packet);
+        free(packet);
+    }
+
+    LightnetPanel::packetsQueue.clear();
+
+    interrupts();
+}
+
+void LightnetPanel::handlePacket(Protocol::PacketMeta *packet)
 {
     switch (packet->header.type)
     {
         case Protocol::PACKET_TURN_ON_OFF:
-            // turn on/off the panel
+            this->handleTurnOnOf((Protocol::TurnOnOff *)packet);
             break;
 
         case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
-            Protocol::SetColorAndBrightness *colorAndBrightness = (Protocol::SetColorAndBrightness *)packet;
-            LightnetPanel::rgbController->setColor(&colorAndBrightness->color.rgb);
+            this->handleSetColorAndBrightness((Protocol::SetColorAndBrightness *)packet);
             break;
     }
+}
+
+void LightnetPanel::handleTurnOnOf(Protocol::TurnOnOff *packet)
+{
+    if (packet->on) {
+        this->rgbController->turnOn();
+    } else {
+        this->rgbController->turnOff();
+    }
+}
+
+void LightnetPanel::handleSetColorAndBrightness(Protocol::SetColorAndBrightness *packet)
+{
+    this->rgbController->setColor(&packet->color.rgb);
 }
 
 LightnetPanel LNPanel;

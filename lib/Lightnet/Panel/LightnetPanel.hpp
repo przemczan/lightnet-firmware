@@ -22,7 +22,8 @@ class LightnetPanel
         uint16_t rootEdgeIndex = 0;
         uint16_t currentChildEdgeIndex = 0;
         uint8_t id;
-        static RGBController *rgbController;
+        RGBController *rgbController;
+        static volatile List<Protocol::PacketMeta *> packetsQueue;
 
         void startWatchingEdges();
         void respondForWellcome();
@@ -30,7 +31,11 @@ class LightnetPanel
         void pingChildEdges();
         void setState(uint8_t state);
         void registerPanel();
-        static void onPacketReceived(Protocol::PacketMeta *packet);
+        static void onPacketReceived(Protocol::PacketMeta *packet, int size);
+        void handlePacket(Protocol::PacketMeta *packet);
+
+        void handleTurnOnOf(Protocol::TurnOnOff *packet);
+        void handleSetColorAndBrightness(Protocol::SetColorAndBrightness *packet);
 
     public:
         void init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo);
@@ -39,6 +44,7 @@ class LightnetPanel
         bool isReady();
         void boot();
         void startListening();
+        void run();
 };
 
 extern LightnetPanel LNPanel;
