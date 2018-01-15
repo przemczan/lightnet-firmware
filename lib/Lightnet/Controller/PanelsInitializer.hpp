@@ -19,6 +19,7 @@ class PanelsInitializer
         uint8_t isReady();
         List<Panel *> *getPanels();
         void updateEdgeState();
+        void startMastering();
 
     private:
         static volatile uint8_t lastPacketType;

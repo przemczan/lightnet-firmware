@@ -37,6 +37,8 @@ void loop() {
             if (LNPanelsInitializer.isReady()) {
                 state = STATE_READY;
                 PRINTLN("CONTROLLER is ready!");
+
+                LNPanelsInitializer.startMastering();
             }
         break;
 

@@ -70,4 +70,10 @@ uint8_t PanelsInitializer::isReady()
     return this->edge->isReady();
 }
 
+void PanelsInitializer::startMastering()
+{
+    LNBus.end();
+    LNBus.begin();
+}
+
 PanelsInitializer LNPanelsInitializer;
