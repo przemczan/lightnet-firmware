@@ -6,6 +6,7 @@
 #include "Macros.hpp"
 #include "Protocol.hpp"
 #include "RGBController.hpp"
+#include "CircularQueue.hpp"
 
 class LightnetPanel
 {
