@@ -1,11 +1,11 @@
 #pragma once
 
 #include "LightnetPanelEdge.hpp"
-#include "List.hpp"
 #include "LightnetBus.hpp"
 #include "Macros.hpp"
 #include "Protocol.hpp"
 #include "RGBController.hpp"
+#include "List.hpp"
 #include "CircularQueue.hpp"
 
 class LightnetPanel
@@ -24,7 +24,7 @@ class LightnetPanel
         uint16_t currentChildEdgeIndex = 0;
         uint8_t id;
         RGBController *rgbController;
-        static volatile List<Protocol::PacketMeta *> packetsQueue;
+        static volatile CircularQueue packetsQueue;
 
         void startWatchingEdges();
         void respondForWellcome();

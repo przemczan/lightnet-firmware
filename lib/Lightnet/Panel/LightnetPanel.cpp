@@ -1,6 +1,6 @@
 #include "LightnetPanel.hpp"
 
-volatile List<Protocol::PacketMeta *> LightnetPanel::packetsQueue;
+volatile CircularQueue LightnetPanel::packetsQueue(250);
 
 void LightnetPanel::init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo)
 {
@@ -144,25 +144,19 @@ void LightnetPanel::setState(uint8_t state)
 
 void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 {
-    Protocol::PacketMeta *queuedPacket = malloc(size);
-    memcpy(queuedPacket, packet, size);
-    LightnetPanel::packetsQueue.push(queuedPacket);
+    LightnetPanel::packetsQueue.enqueue(packet, size);
 }
 
 void LightnetPanel::run()
 {
     noInterrupts();
 
-    uint16_t index = LightnetPanel::packetsQueue.getSize();
     Protocol::PacketMeta *packet;
+    uint16_t size;
 
-    while (index--) {
-        packet = LightnetPanel::packetsQueue.get(index);
+    while (LightnetPanel::packetsQueue.dequeue((void *&)packet, size)) {
         this->handlePacket(packet);
-        free(packet);
     }
-
-    LightnetPanel::packetsQueue.clear();
 
     interrupts();
 }
