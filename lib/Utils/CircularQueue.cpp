@@ -2,7 +2,6 @@
 
 CircularQueue::CircularQueue(uint16_t bufferSize)
 {
-    this->bufferSize = bufferSize;
     this->head = malloc(bufferSize);
     this->tail = this->head + bufferSize;
     this->softTail = this->tail;
