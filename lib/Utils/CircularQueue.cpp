@@ -72,6 +72,7 @@ void CircularQueue::readData(void *&data, uint16_t &size)
 {
     if (this->readPointer == this->softTail) {
         this->readPointer = this->head;
+        this->softTail = this->tail;
     }
 
     size = *(uint16_t *)this->readPointer;
