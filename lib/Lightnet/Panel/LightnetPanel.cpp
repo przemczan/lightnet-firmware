@@ -1,6 +1,6 @@
 #include "LightnetPanel.hpp"
 
-volatile CircularQueue LightnetPanel::packetsQueue(250);
+CircularQueue LightnetPanel::packetsQueue(250);
 
 void LightnetPanel::init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo)
 {

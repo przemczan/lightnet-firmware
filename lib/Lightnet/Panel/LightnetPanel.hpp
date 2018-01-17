@@ -24,7 +24,7 @@ class LightnetPanel
         uint16_t currentChildEdgeIndex = 0;
         uint8_t id;
         RGBController *rgbController;
-        static volatile CircularQueue packetsQueue;
+        static CircularQueue packetsQueue;
 
         void startWatchingEdges();
         void respondForWellcome();
