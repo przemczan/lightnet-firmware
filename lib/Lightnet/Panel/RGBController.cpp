@@ -27,7 +27,7 @@ void RGBController::turnOff()
 }
 
 
-void RGBController::setValues(uint8_t r, uint8_t g, uint8_t b)
+void RGBController::setColor(uint8_t r, uint8_t g, uint8_t b)
 {
     this->values.r = r;
     this->values.b = g;
@@ -43,9 +43,22 @@ void RGBController::setColor(Protocol::ColorRGB *color)
     this->updateOutputs();
 }
 
+void RGBController::setBrightness(uint8_t brightness)
+{
+    this->brightness = brightness;
+
+    this->updateOutputs();
+}
+
 void RGBController::updateOutputs()
 {
-    analogWrite(rPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - this->values.r));
-    analogWrite(gPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - this->values.g));
-    analogWrite(bPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - this->values.b));
+    Protocol::ColorRGB color;
+
+    color.r = map(this->values.r, 1, this->brightness, 1, 0xFF);
+    color.g = map(this->values.g, 1, this->brightness, 1, 0xFF);
+    color.b = map(this->values.b, 1, this->brightness, 1, 0xFF);
+
+    analogWrite(rPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.r));
+    analogWrite(gPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.g));
+    analogWrite(bPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.b));
 }
