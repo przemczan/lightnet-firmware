@@ -187,6 +187,7 @@ void LightnetPanel::handleTurnOnOf(Protocol::TurnOnOff *packet)
 void LightnetPanel::handleSetColorAndBrightness(Protocol::SetColorAndBrightness *packet)
 {
     this->rgbController->setColor(&packet->color.rgb);
+    this->rgbController->setBrightness(packet->brightness);
 }
 
 LightnetPanel LNPanel;

@@ -44,20 +44,37 @@ void loop() {
 
         case STATE_READY:
 
-        if (c.rgb.r) {
-            c.rgb.b++;
-            if (c.rgb.b == 255) {
-                c.rgb.r = 0;
-            }
-        } else {
-            c.rgb.b--;
-            if (c.rgb.b == 0) {
-                c.rgb.r = 1;
-            }
-        }
+        c.rgb.b = 0;
+        c.rgb.r = 1;
 
-        LNBus.setColorAndBrightness(11, &c, 128);
-        delay(1);
+        do {
+            if (c.rgb.r) {
+                c.rgb.b++;
+                if (c.rgb.b == 255) {
+                    c.rgb.r = 0;
+                }
+            } else {
+                c.rgb.b--;
+                if (c.rgb.b == 0) {
+                    c.rgb.r = 1;
+                }
+            }
+
+            LNBus.setColorAndBrightness(11, &c, 128);
+            delay(1);
+        } while (c.rgb.b);
+
+        delay(1000);
+        c.rgb.b = 255;
+        c.rgb.g = 255;
+        LNBus.setColorAndBrightness(11, &c, c.rgb.g);
+        delay(1000);
+
+        do {
+            c.rgb.g--;
+            LNBus.setColorAndBrightness(11, &c, c.rgb.g);
+            delay(2);
+        } while (c.rgb.g);
 
         break;
     }
