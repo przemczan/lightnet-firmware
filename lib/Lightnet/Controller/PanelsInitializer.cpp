@@ -33,7 +33,7 @@ void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
     switch (packetMeta->header.type)
     {
         case Protocol::PACKET_REGISTER_PANEL:
-            Protocol::RegisterPanel *packet = (Protocol::RegisterPanel *)packetMeta;
+            Protocol::PacketRegisterPanel *packet = (Protocol::PacketRegisterPanel *)packetMeta;
 
             lastPanel.id++;
             lastPanel.edgesNumber = packet->edgesNumber;

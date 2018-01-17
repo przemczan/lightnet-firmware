@@ -39,42 +39,45 @@ void loop() {
                 PRINTLN("CONTROLLER is ready!");
 
                 LNPanelsInitializer.startMastering();
+                delay(2000);
             }
         break;
 
         case STATE_READY:
 
-        c.rgb.b = 0;
-        c.rgb.r = 1;
+        c.rgb.b = 255;
+        LNBus.setColorAndBrightness(11, &c, 255);
+        LNBus.turnOn(11);
+        delay(250);
+        LNBus.turnOff(11);
+        delay(250);
+        LNBus.turnOn(11);
+        delay(1000);
+
+        uint8_t index = 255;
 
         do {
-            if (c.rgb.r) {
-                c.rgb.b++;
-                if (c.rgb.b == 255) {
-                    c.rgb.r = 0;
-                }
-            } else {
-                c.rgb.b--;
-                if (c.rgb.b == 0) {
-                    c.rgb.r = 1;
-                }
-            }
-
-            LNBus.setColorAndBrightness(11, &c, 128);
-            delay(1);
+            c.rgb.b--;
+            LNBus.setColor(11, &c);
+            delay(5);
         } while (c.rgb.b);
 
-        delay(1000);
+        do {
+            c.rgb.b++;
+            LNBus.setColor(11, &c);
+            delay(5);
+        } while (c.rgb.b < 255);
+
         c.rgb.b = 255;
-        c.rgb.g = 255;
-        LNBus.setColorAndBrightness(11, &c, c.rgb.g);
+        LNBus.setColor(11, &c);
         delay(1000);
 
+        index = 255;
         do {
-            c.rgb.g--;
-            LNBus.setColorAndBrightness(11, &c, c.rgb.g);
-            delay(2);
-        } while (c.rgb.g);
+            LNBus.setBrightness(11, --index);
+            delay(5);
+        } while (index);
+        delay(2000);
 
         break;
     }

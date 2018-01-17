@@ -166,16 +166,24 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet)
     switch (packet->header.type)
     {
         case Protocol::PACKET_TURN_ON_OFF:
-            this->handleTurnOnOf((Protocol::TurnOnOff *)packet);
+            this->handleTurnOnOf((Protocol::PacketTurnOnOff *)packet);
+            break;
+
+        case Protocol::PACKET_SET_COLOR:
+            this->handleSetColor((Protocol::PacketSetColor *)packet);
+            break;
+
+        case Protocol::PACKET_SET_BRIGHTNESS:
+            this->handleSetBrightness((Protocol::PacketSetBrightness *)packet);
             break;
 
         case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
-            this->handleSetColorAndBrightness((Protocol::SetColorAndBrightness *)packet);
+            this->handleSetColorAndBrightness((Protocol::PacketSetColorAndBrightness *)packet);
             break;
     }
 }
 
-void LightnetPanel::handleTurnOnOf(Protocol::TurnOnOff *packet)
+void LightnetPanel::handleTurnOnOf(Protocol::PacketTurnOnOff *packet)
 {
     if (packet->on) {
         this->rgbController->turnOn();
@@ -184,9 +192,19 @@ void LightnetPanel::handleTurnOnOf(Protocol::TurnOnOff *packet)
     }
 }
 
-void LightnetPanel::handleSetColorAndBrightness(Protocol::SetColorAndBrightness *packet)
+void LightnetPanel::handleSetColorAndBrightness(Protocol::PacketSetColorAndBrightness *packet)
 {
     this->rgbController->setColor(&packet->color.rgb);
+    this->rgbController->setBrightness(packet->brightness);
+}
+
+void LightnetPanel::handleSetColor(Protocol::PacketSetColor *packet)
+{
+    this->rgbController->setColor(&packet->color.rgb);
+}
+
+void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
+{
     this->rgbController->setBrightness(packet->brightness);
 }
 

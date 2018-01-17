@@ -12,14 +12,15 @@ namespace Protocol
     const uint8_t CONTROLLER_ADDRESS = 100;
 
     enum colorMode_t {
-        COLOR_MODE_RGB,
-        COLOR_MODE_HSB
+        COLOR_MODE_RGB
     };
 
     enum packetType_t {
         PACKET_REGISTER_PANEL,
         PACKET_REGISTER_PANEL_RESPONSE,
         PACKET_TURN_ON_OFF,
+        PACKET_SET_COLOR,
+        PACKET_SET_BRIGHTNESS,
         PACKET_SET_COLOR_AND_BRIGHTNESS
     };
 
@@ -32,18 +33,10 @@ namespace Protocol
 
     typedef struct
     {
-        uint8_t hue;
-        uint8_t saturation;
-        uint8_t brightness;
-    } ColorHSB;
-
-    typedef struct
-    {
         colorMode_t mode;
         union
         {
             ColorRGB rgb;
-            ColorHSB hsb;
         };
     } Color;
 
@@ -64,26 +57,38 @@ namespace Protocol
         PacketMeta meta;
         uint8_t parentEdge;
         uint8_t edgesNumber;
-    } RegisterPanel;
+    } PacketRegisterPanel;
 
     typedef struct
     {
         PacketMeta meta;
         uint8_t panelId;
-    } RegisterPanelResponse;
+    } PacketRegisterPanelResponse;
 
     typedef struct
     {
         PacketMeta meta;
         uint8_t on;
-    } TurnOnOff;
+    } PacketTurnOnOff;
+
+    typedef struct
+    {
+        PacketMeta meta;
+        Color color;
+    } PacketSetColor;
+
+    typedef struct
+    {
+        PacketMeta meta;
+        uint8_t brightness;
+    } PacketSetBrightness;
 
     typedef struct
     {
         PacketMeta meta;
         Color color;
         uint8_t brightness;
-    } SetColorAndBrightness;
+    } PacketSetColorAndBrightness;
 
     uint8_t validatePacket(void *packet, uint8_t size);
     void setPacketMeta(void *packet, packetType_t type);

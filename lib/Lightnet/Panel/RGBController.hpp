@@ -48,6 +48,7 @@ class RGBController
 
         Protocol::ColorRGB values;
         uint8_t brightness = 125;
+        bool on = false;
 
     private:
         void updateOutputs();

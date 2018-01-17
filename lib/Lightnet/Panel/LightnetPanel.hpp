@@ -35,8 +35,10 @@ class LightnetPanel
         static void onPacketReceived(Protocol::PacketMeta *packet, int size);
         void handlePacket(Protocol::PacketMeta *packet);
 
-        void handleTurnOnOf(Protocol::TurnOnOff *packet);
-        void handleSetColorAndBrightness(Protocol::SetColorAndBrightness *packet);
+        void handleTurnOnOf(Protocol::PacketTurnOnOff *packet);
+        void handleSetColor(Protocol::PacketSetColor *packet);
+        void handleSetBrightness(Protocol::PacketSetBrightness *packet);
+        void handleSetColorAndBrightness(Protocol::PacketSetColorAndBrightness *packet);
 
     public:
         void init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo);

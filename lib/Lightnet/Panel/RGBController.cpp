@@ -7,20 +7,22 @@ RGBController::RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo):
     this->values.g = 0;
     this->values.b = 0;
 
-    this->turnOn();
-}
-
-void RGBController::turnOn()
-{
     pinMode(rPinNo, OUTPUT);
     pinMode(gPinNo, OUTPUT);
     pinMode(bPinNo, OUTPUT);
 
+    this->turnOff();
+}
+
+void RGBController::turnOn()
+{
+    this->on = true;
     this->updateOutputs();
 }
 
 void RGBController::turnOff()
 {
+    this->on = false;
     digitalWrite(rPinNo, LOW);
     digitalWrite(gPinNo, LOW);
     digitalWrite(bPinNo, LOW);
@@ -52,11 +54,15 @@ void RGBController::setBrightness(uint8_t brightness)
 
 void RGBController::updateOutputs()
 {
+    if (!this->on) {
+        return;
+    }
+    
     Protocol::ColorRGB color;
 
-    color.r = map(this->values.r, 1, this->brightness, 1, 0xFF);
-    color.g = map(this->values.g, 1, this->brightness, 1, 0xFF);
-    color.b = map(this->values.b, 1, this->brightness, 1, 0xFF);
+    color.r = map(this->values.r, 0, 0xFF, 0, this->brightness);
+    color.g = map(this->values.g, 0, 0xFF, 0, this->brightness);
+    color.b = map(this->values.b, 0, 0xFF, 0, this->brightness);
 
     analogWrite(rPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.r));
     analogWrite(gPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.g));
