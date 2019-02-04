@@ -70,6 +70,34 @@ void PanelsInitializer::poll()
     }
 }
 
+void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
+{
+    Panel *panel = panels->get(packet->panelIndex);
+
+    if (!panel) {
+        return this->registerPanel(packet);
+    }
+
+    Edge *edge = new Edge(panel, packet->edgeIndex);
+
+    panel->edges->push(edge);
+
+    this->lastActiveEdge = edge;
+}
+
+void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
+{
+    Panel *panel = new Panel(packet->panelIndex);
+    Edge *edge = new Edge(panel, this->lastActiveEdge, packet->edgeIndex);
+
+    panel->edges->push(edge);
+    this->panels->push(panel);
+
+    if (this->lastActiveEdge) {
+        this->lastActiveEdge->connectedEdge = edge;
+    }
+}
+
 void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
 {
     this->lastPacketType = packetMeta->header.type;
@@ -85,36 +113,14 @@ void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
     }
 }
 
-void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
-{
-    Panel *panel = new Panel(packet->panelIndex);
-    Edge *edge = new Edge(panel, this->lastActiveEdge, packet->edgeIndex);
-
-    panel->edges->push(edge);
-
-    this->panels->push(panel);
-}
-
-void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
-{
-    Panel *panel = panels->get(packet->panelIndex);
-
-    if (!panel) {
-        this->registerPanel(packet);
-
-        return;
-    }
-
-    Edge *edge = new Edge(panel, packet->edgeIndex);
-
-    panel->edges->push(edge);
-
-    this->lastActiveEdge = edge;
-}
-
 uint8_t PanelsInitializer::isReady()
 {
     return this->pingEdge->isReady();
+}
+
+List<Panel *> * PanelsInitializer::getPanels()
+{
+    return this->panels;
 }
 
 PanelsInitializer LNPanelsInitializer;

@@ -51,35 +51,35 @@ void loop() {
         case STATE_READY:
 
         c.rgb.b = 255;
-        LNController.setColorAndBrightness(11, &c, 255);
-        LNController.turnOn(11);
+        LNController.setColorAndBrightness(0, &c, 255);
+        LNController.turnOn(0);
         delay(250);
-        LNController.turnOff(11);
+        LNController.turnOff(0);
         delay(250);
-        LNController.turnOn(11);
+        LNController.turnOn(0);
         delay(1000);
 
         uint8_t index = 255;
 
         do {
             c.rgb.b--;
-            LNController.setColor(11, &c);
+            LNController.setColor(0, &c);
             delay(5);
         } while (c.rgb.b);
 
         do {
             c.rgb.b++;
-            LNController.setColor(11, &c);
+            LNController.setColor(0, &c);
             delay(5);
         } while (c.rgb.b < 255);
 
         c.rgb.b = 255;
-        LNController.setColor(11, &c);
+        LNController.setColor(0, &c);
         delay(1000);
 
         index = 255;
         do {
-            LNController.setBrightness(11, --index);
+            LNController.setBrightness(0, --index);
             delay(5);
         } while (index);
         delay(2000);

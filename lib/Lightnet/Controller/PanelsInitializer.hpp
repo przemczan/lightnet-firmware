@@ -18,6 +18,7 @@ class PanelsInitializer
         void doInitialize();
         uint8_t isReady();
         void updateEdgeState();
+        List<Panel *> *getPanels();
 
     private:
         List<Panel *> *panels;
