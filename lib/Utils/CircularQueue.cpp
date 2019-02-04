@@ -2,12 +2,9 @@
 
 CircularQueue::CircularQueue(uint16_t bufferSize)
 {
+    this->bufferSize = bufferSize;
     this->head = (uint8_t *)malloc(bufferSize);
-    this->tail = this->head + bufferSize;
-    this->softTail = this->tail;
-
-    this->readPointer = this->head;
-    this->writePointer = this->head;
+    this->reset();
 }
 
 CircularQueue::~CircularQueue()
@@ -25,18 +22,18 @@ bool CircularQueue::enqueue(void *data, uint16_t size)
     }
 
     if (this->writePointer >= this->readPointer) {
-        if (this->tail - this->writePointer < dataSize
-            && this->readPointer - this->head < dataSize
+        if ((unsigned long)this->tail - (unsigned long)this->writePointer < dataSize
+            && (unsigned long)this->readPointer - (unsigned long)this->head < dataSize
         ) {
             // no space till the end and from the beginning of buffer
             return false;
         }
-        if (this->tail - this->writePointer < dataSize) {
+        if ((unsigned long)this->tail - (unsigned long)this->writePointer < dataSize) {
             this->softTail = this->writePointer;
             this->writePointer = this->head;
         }
     } else {
-        if (this->readPointer - this->writePointer < dataSize) {
+        if ((unsigned long)this->readPointer - (unsigned long)this->writePointer < dataSize) {
             // no space before read buffer
             return false;
         }
@@ -64,7 +61,7 @@ void CircularQueue::writeData(void *data, uint16_t size)
 {
     *(uint16_t *)this->writePointer = size;
     this->writePointer += SIZE_BYTES;
-    memcpy(this->writePointer, data, size);
+    memcpyToVolatile(this->writePointer, (uint8_t *)data, size);
     this->writePointer += size;
 }
 
@@ -77,6 +74,20 @@ void CircularQueue::readData(void *&data, uint16_t &size)
 
     size = *(uint16_t *)this->readPointer;
     this->readPointer += SIZE_BYTES;
-    data = this->readPointer;
+    data = (void *)this->readPointer;
     this->readPointer += size;
+}
+
+void CircularQueue::reset()
+{
+    this->tail = this->head + bufferSize;
+    this->softTail = this->tail;
+    this->readPointer = this->head;
+    this->writePointer = this->head;
+    this->itemsCount = 0;
+}
+
+uint16_t CircularQueue::size()
+{
+    return this->itemsCount;
 }

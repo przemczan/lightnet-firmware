@@ -2,13 +2,18 @@
 #include <Arduino.h>
 #include "PanelsInitializer.hpp"
 #include "Macros.hpp"
+#include "PanelsController.hpp"
 
 #define STATE_BOOT 0
 #define STATE_READY 1
 
 uint8_t state = STATE_BOOT;
 
+#define CONTROLLER_EDGE_PIN_NO 8
+#define CONTROLLER_EDGE_INTERRUPT_PIN_NO 2
+
 Protocol::Color c;
+PanelsController LNController;
 
 void updateEdgeState()
 {
@@ -17,14 +22,15 @@ void updateEdgeState()
 
 void setup() {
     #if DEBUG
-    Serial.begin(9600);
+    Serial.begin(115200);
     Serial.println("CONTROLLER");
     #endif
 
     delay(500);
     LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);
 
-    attachInterrupt(0, updateEdgeState, CHANGE);
+    pinMode(CONTROLLER_EDGE_INTERRUPT_PIN_NO, INPUT);
+    attachInterrupt(digitalPinToInterrupt(CONTROLLER_EDGE_INTERRUPT_PIN_NO), updateEdgeState, CHANGE);
     interrupts();
 }
 
@@ -38,7 +44,6 @@ void loop() {
                 state = STATE_READY;
                 PRINTLN("CONTROLLER is ready!");
 
-                LNPanelsInitializer.startMastering();
                 delay(2000);
             }
         break;
@@ -46,35 +51,35 @@ void loop() {
         case STATE_READY:
 
         c.rgb.b = 255;
-        LNBus.setColorAndBrightness(11, &c, 255);
-        LNBus.turnOn(11);
+        LNController.setColorAndBrightness(11, &c, 255);
+        LNController.turnOn(11);
         delay(250);
-        LNBus.turnOff(11);
+        LNController.turnOff(11);
         delay(250);
-        LNBus.turnOn(11);
+        LNController.turnOn(11);
         delay(1000);
 
         uint8_t index = 255;
 
         do {
             c.rgb.b--;
-            LNBus.setColor(11, &c);
+            LNController.setColor(11, &c);
             delay(5);
         } while (c.rgb.b);
 
         do {
             c.rgb.b++;
-            LNBus.setColor(11, &c);
+            LNController.setColor(11, &c);
             delay(5);
         } while (c.rgb.b < 255);
 
         c.rgb.b = 255;
-        LNBus.setColor(11, &c);
+        LNController.setColor(11, &c);
         delay(1000);
 
         index = 255;
         do {
-            LNBus.setBrightness(11, --index);
+            LNController.setBrightness(11, --index);
             delay(5);
         } while (index);
         delay(2000);

@@ -2,9 +2,7 @@
 
 #include <Arduino.h>
 #include "Protocol.hpp"
-#include "Macros.hpp"
-#include <Wire.h>
-#include "Crc.hpp"
+#include "Wire.h"
 
 class LightnetBus
 {
@@ -14,39 +12,23 @@ class LightnetBus
 
         LightnetBus();
 
-        uint8_t registerPanel(uint8_t edgesNumber, uint8_t parentEdge);
-        uint8_t respondToRegisterPanel(uint8_t id);
-        uint8_t setColorAndBrightness(uint8_t address, Protocol::Color *color, uint8_t brightness);
-        uint8_t setColor(uint8_t address, Protocol::Color *color);
-        uint8_t setBrightness(uint8_t address, uint8_t brightness);
-        uint8_t turnOnOff(uint8_t address, uint8_t on);
-        uint8_t turnOn(uint8_t address);
-        uint8_t turnOff(uint8_t address);
-
         void begin(uint8_t address);
         void begin();
         void end();
+        uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
+        uint8_t sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type);
+        uint8_t requestData(uint8_t address, void *buffer, uint8_t maxSize);
+        uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         void setOnPacketReceived(onPacketReceived_t callback);
         void setOnPacketRequested(onPacketRequested_t callback);
 
     private:
-        static onPacketReceived_t onPacketReceivedCallback;
-        static onPacketRequested_t onPacketRequestedCallback;
-
-        static void onReceive(int size);
-        static void onRequest();
-        uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
-        uint8_t sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type);
-        uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
-        uint8_t sendPacketWithResponse(
-            uint8_t address,
-            void *packet,
-            uint8_t packetSize,
-            Protocol::packetType_t packetType,
-            void *responseBuffer,
-            uint8_t responseSize
-        );
-        void flush();
+        onPacketReceived_t onPacketReceivedCallback;
+        onPacketRequested_t onPacketRequestedCallback;
+        void onReceive(int size);
+        void onRequest();
+        static void onReceiveService(int size);
+        static void onRequestService();
 };
 
 extern LightnetBus LNBus;

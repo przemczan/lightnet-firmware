@@ -3,8 +3,6 @@
 #include <Arduino.h>
 #include <stdlib.h>
 
-#define ITEM_SIZE sizeof(item)
-
 template<typename T>
 class List
 {
@@ -15,7 +13,7 @@ class List
 
         item *items = NULL;
         void (*clearCallback)(T);
-        uint16_t size = 0;
+        volatile uint16_t size = 0;
 
     public:
         List(void (*clearCallback)(T) = NULL);
@@ -29,7 +27,6 @@ class List
         void clear();
         uint16_t getSize();
 };
-
 
 template<typename T>
 List<T>::List(void (*clearCallback)(T))
@@ -46,7 +43,7 @@ List<T>::~List()
 template<typename T>
 void List<T>::push(T data)
 {
-    this->items = (item *)realloc(this->items, (++this->size) * ITEM_SIZE);
+    this->items = (item *)realloc(this->items, (++this->size) * sizeof(item));
     this->items[this->size - 1].data = data;
 }
 
@@ -67,10 +64,10 @@ void List<T>::removeByIndex(uint16_t index)
             memmove(
                 &this->items[index],
                 &this->items[index + 1],
-                (this->size - (index + 1)) * ITEM_SIZE
+                (this->size - (index + 1)) * sizeof(item)
             );
         }
-        this->items = (item *)realloc(this->items, --this->size * ITEM_SIZE);
+        this->items = (item *)realloc(this->items, --this->size * sizeof(item));
         if (!this->size) {
             this->items = 0;
         }

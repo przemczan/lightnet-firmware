@@ -1,168 +1,202 @@
 #include "LightnetPanel.hpp"
 
-CircularQueue LightnetPanel::packetsQueue(250);
-
-void LightnetPanel::init(uint8_t rPinNo, uint8_t gPinNo, uint8_t bPinNo)
+LightnetPanel::LightnetPanel()
 {
-    this->rgbController = new RGBController(rPinNo, gPinNo, bPinNo);
+    this->incomingPackets = new CircularQueue(INCOMING_BUFFER_SIZE);
+    this->edges = new List<LightnetPanelEdge *>();
 }
 
-uint16_t LightnetPanel::addEdge(volatile uint8_t pinNo)
+LightnetPanel::~LightnetPanel()
 {
-    this->edges.push(new LightnetPanelEdge(pinNo));
-
-    return this->edges.getSize();
+    delete this->incomingPackets;
+    delete this->edges;
 }
 
-bool LightnetPanel::isReady()
+void LightnetPanel::configure(configuration_t config)
 {
-    return this->state == LightnetPanel::STATE_READY;
-}
+    this->rgbController = new RGBController(config.rPinNo, config.gPinNo, config.bPinNo);
 
-void LightnetPanel::boot()
-{
-    switch (this->state)
-    {
-        case LightnetPanel::STATE_IDLE:
-            this->startWatchingEdges();
-            break;
-
-        case LightnetPanel::STATE_WAITING:
-            // check for an edge to be pinged by root panel
-            this->checkForWellcome();
-            break;
-
-        case LightnetPanel::STATE_PINGED:
-            // respond to the root panel that we are connected
-            this->respondForWellcome();
-            this->registerPanel();
-            break;
-
-        case LightnetPanel::STATE_PINGING:
-            this->pingChildEdges();
-            break;
-
-        case LightnetPanel::STATE_READY:
-            // do nothing... for now
-            break;
-    }
+    LNBus.setOnPacketReceived(LightnetPanel::onPacketReceivedService);
+    LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);
 }
 
 void LightnetPanel::updateEdgesStates()
 {
-    uint16_t index = this->edges.getSize();
+    uint16_t index = this->edges->getSize();
 
     while (index--) {
-        this->edges.get(index)->readBusState();
+        this->edges->get(index)->readBusState();
     }
 }
 
-void LightnetPanel::startWatchingEdges()
+uint16_t LightnetPanel::addEdge(volatile uint8_t pinNo)
 {
-    this->setState(LightnetPanel::STATE_WAITING);
+    this->edges->push(new LightnetPanelEdge(pinNo));
+
+    return this->edges->getSize();
 }
 
-void LightnetPanel::checkForWellcome()
+void LightnetPanel::run()
 {
-    uint16_t index = this->edges.getSize();
+    switch (this->state)
+    {
+        case STATE_IDLE:
+            this->setState(STATE_WAIT_FOR_WELLCOME_PING);
+            break;
+
+        case STATE_WAIT_FOR_WELLCOME_PING:
+            this->checkForWellcomePing();
+            break;
+
+        case STATE_RESPOND_TO_WELLCOME_PING:
+            this->respondToWellcomePing();
+            break;
+
+        case STATE_REGISTER_EDGES:
+            this->registerEdges();
+            break;
+
+        case STATE_RETURN_TO_PARENT:
+            this->returnToParent();
+            break;
+
+        case STATE_READY:
+            this->handleIncomingPackets();
+            break;
+    }
+}
+
+void LightnetPanel::checkForWellcomePing()
+{
+    uint16_t index = this->edges->getSize();
 
     while (index--) {
-        if (this->edges.get(index)->wasPinged()) {
-            this->setState(LightnetPanel::STATE_PINGED);
-            this->rootEdgeIndex = index;
-
-            PRINTKV("Parent edge connected", index);
-
-            return;
+        if (this->edges->get(index)->wasPinged()) {
+            this->setState(STATE_RESPOND_TO_WELLCOME_PING);
+            this->parentEdgeIndex = index;
         }
     }
 }
 
-void LightnetPanel::respondForWellcome()
+void LightnetPanel::respondToWellcomePing()
 {
     delayMicroseconds(50);
-    this->edges.get(this->rootEdgeIndex)->sendPing();
-    this->setState(LightnetPanel::STATE_PINGING);
+    this->edges->get(this->parentEdgeIndex)->sendPing();
+    this->setState(STATE_REGISTER_EDGES);
 }
 
-void LightnetPanel::startListening()
+void LightnetPanel::returnToParent()
 {
-    if (!this->isReady()) {
-        PRINTLN("Can not start listening when panel is not ready.");
+    this->edges->get(this->parentEdgeIndex)->sendPing();
+    this->setState(STATE_READY);
+}
+
+void LightnetPanel::registerEdges()
+{
+    switch (this->registerState)
+    {
+        case REGISTER_STATE_BEGIN:
+            this->beginEdgeRegistration();
+            break;
+
+        case REGISTER_STATE_SEND:
+            // everything is done in receive/request callbacks
+            break;
+
+        case REGISTER_STATE_END:
+            this->endEdgeRegistration();
+            break;
+
+        case REGISTER_STATE_BOOT:
+            this->bootEdge();
+            break;
+
+        case REGISTER_STATE_READY:
+            this->setState(STATE_RETURN_TO_PARENT);
+            break;
+    }
+}
+
+void LightnetPanel::beginEdgeRegistration()
+{
+    if (!this->edges->get(this->nextEdgeToRegister)) {
+        this->setRegisterState(REGISTER_STATE_READY);
 
         return;
     }
 
-    LNBus.begin(this->id + 10);
-    LNBus.setOnPacketReceived((LightnetBus::onPacketReceived_t)&onPacketReceived);
+    LNBus.begin(Protocol::POLLING_ADDRESS);
+    this->setRegisterState(REGISTER_STATE_SEND);
 }
 
-void LightnetPanel::registerPanel()
+void LightnetPanel::endEdgeRegistration()
 {
-    LNBus.begin();
-    this->id = LNBus.registerPanel(this->edges.getSize(), this->rootEdgeIndex);
     LNBus.end();
-
-    if (!this->id) {
-        this->setState(LightnetPanel::STATE_ERROR);
-    }
+    this->setRegisterState(REGISTER_STATE_BOOT);
 }
 
-void LightnetPanel::pingChildEdges()
+void LightnetPanel::bootEdge()
 {
-    // do not try to initialize root edge
-    if (this->currentChildEdgeIndex == this->rootEdgeIndex) {
-        this->currentChildEdgeIndex++;
-    }
-
-    LightnetPanelEdge *childEdge = this->edges.get(this->currentChildEdgeIndex);
-
-    // if there are no other edges to initialize then the panel is ready
-    if (!childEdge) {
-        // send second ping to the root panel so it knows when this branch was booted
-        this->edges.get(this->rootEdgeIndex)->sendPing();
-        this->setState(LightnetPanel::STATE_READY);
+    if (this->parentEdgeIndex == this->nextEdgeToRegister) {
+        this->nextEdgeToRegister++;
+        this->setRegisterState(REGISTER_STATE_BEGIN);
 
         return;
     }
 
-    childEdge->boot();
+    LightnetPanelEdge *edge = this->edges->get(this->nextEdgeToRegister);
 
-    if (
-        childEdge->isReady() ||
-        (!childEdge->isConnecting() && !childEdge->isConnected())
-    ) {
-        this->currentChildEdgeIndex++;
+    edge->boot();
+
+    if (edge->isReady() || (!edge->isConnecting() && !edge->isConnected())) {
+        this->nextEdgeToRegister++;
+        this->setRegisterState(REGISTER_STATE_BEGIN);
     }
 }
 
-void LightnetPanel::setState(uint8_t state)
+void LightnetPanel::setRegisterState(register_state_t state)
+{
+    PRINTKV("Panel register state change", state);
+    this->registerState = state;
+}
+
+void LightnetPanel::setState(state_t state)
 {
     PRINTKV("Panel state change", state);
     this->state = state;
 }
 
-void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
+void LightnetPanel::handleIncomingPackets()
 {
-    LightnetPanel::packetsQueue.enqueue(packet, size);
-}
+    if (!this->incomingPackets->size()) {
+        return;
+    }
 
-void LightnetPanel::run()
-{
     noInterrupts();
 
     Protocol::PacketMeta *packet;
     uint16_t size;
 
-    while (LightnetPanel::packetsQueue.dequeue((void *&)packet, size)) {
-        this->handlePacket(packet);
+    while (this->incomingPackets->dequeue((void *&)packet, size)) {
+        this->handlePacket(packet, size);
     }
 
     interrupts();
 }
 
-void LightnetPanel::handlePacket(Protocol::PacketMeta *packet)
+void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
 {
+    if (STATE_REGISTER_EDGES == this->state) {
+        switch (packet->header.type)
+        {
+            case Protocol::PACKET_INITIALIZATION_POLL:
+                this->index = ((Protocol::PacketInitializationPoll *)packet)->panelIndex;
+                break;
+        }
+
+        return;
+    }
+
     switch (packet->header.type)
     {
         case Protocol::PACKET_TURN_ON_OFF:
@@ -207,5 +241,41 @@ void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
 {
     this->rgbController->setBrightness(packet->brightness);
 }
+
+void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
+{
+    this->incomingPackets->enqueue(packet, size);
+}
+
+void LightnetPanel::onPacketRequested()
+{
+    if (this->index) {
+        if (STATE_REGISTER_EDGES == this->state && REGISTER_STATE_SEND == this->registerState) {
+            Protocol::PacketRegisterEdge packetRegisterEdge;
+
+            packetRegisterEdge.panelIndex = this->index;
+            packetRegisterEdge.edgeIndex = this->nextEdgeToRegister;
+
+            LNBus.sendResponsePacket(
+                &packetRegisterEdge,
+                sizeof(packetRegisterEdge),
+                Protocol::PACKET_REGISTER_EDGE
+            );
+
+            return;
+        }
+    }
+}
+
+void LightnetPanel::onPacketReceivedService(Protocol::PacketMeta *packet, int size)
+{
+    LNPanel.onPacketReceived(packet, size);
+}
+
+void LightnetPanel::onPacketRequestedService()
+{
+    LNPanel.onPacketRequested();
+}
+
 
 LightnetPanel LNPanel;

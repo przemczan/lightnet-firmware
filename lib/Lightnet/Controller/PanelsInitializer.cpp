@@ -1,79 +1,120 @@
 #include "PanelsInitializer.hpp"
 
-volatile uint8_t PanelsInitializer::lastPacketType;
-List<PanelsInitializer::Panel *> PanelsInitializer::panels;
-volatile PanelsInitializer::Panel PanelsInitializer::lastPanel;
+PanelsInitializer::PanelsInitializer()
+{
+    this->pollBuffer = (uint8_t *)malloc(POLL_BUFFER_SIZE);
+    this->nextPolling = micros();
+    this->panels = new List<Panel *>();
+}
+
+PanelsInitializer::~PanelsInitializer()
+{
+    free(this->pollBuffer);
+}
 
 void PanelsInitializer::start(uint8_t edgePinNo)
 {
-    memset((void *)&PanelsInitializer::lastPanel, 0, sizeof(PanelsInitializer::lastPanel));
-    PanelsInitializer::lastPacketType = 0;
+    LNBus.begin();
 
-    LNBus.begin(Protocol::CONTROLLER_ADDRESS);
-    LNBus.setOnPacketRequested((LightnetBus::onPacketRequested_t)&PanelsInitializer::onPacketRequested);
-    LNBus.setOnPacketReceived((LightnetBus::onPacketReceived_t)&PanelsInitializer::onPacketReceived);
+    this->pingEdge = new LightnetPanelEdge(edgePinNo);
 
-    PanelsInitializer::edge = new LightnetPanelEdge(edgePinNo);
+    lastActiveEdge = NULL;
+    lastPacketType = 0;
 }
 
 void PanelsInitializer::doInitialize()
 {
-    this->edge->boot();
+    this->pingEdge->boot();
+
+    if (micros() > this->nextPolling) {
+        this->poll();
+
+        this->nextPolling = micros() + POLL_INTERVAL_US;
+    }
 }
 
 void PanelsInitializer::updateEdgeState()
 {
-    this->edge->readBusState();
+    this->pingEdge->readBusState();
+}
+
+void PanelsInitializer::poll()
+{
+    Protocol::PacketInitializationPoll pollPacket;
+
+    pollPacket.panelIndex= this->lastActiveEdge ? this->lastActiveEdge->panel->index : 0;
+
+    uint8_t error = LNBus.sendPacket(
+        Protocol::POLLING_ADDRESS,
+        &pollPacket,
+        sizeof(pollPacket),
+        Protocol::PACKET_INITIALIZATION_POLL
+    );
+
+    if (error) {
+        return;
+    }
+
+    uint8_t size = LNBus.requestData(
+        Protocol::POLLING_ADDRESS,
+        this->pollBuffer,
+        PanelsInitializer::POLL_BUFFER_SIZE
+    );
+
+    if (!size) {
+        return;
+    }
+
+    if (Protocol::validatePacket(this->pollBuffer, size) == 0) {
+        this->onPacketReceived((Protocol::PacketMeta *)this->pollBuffer);
+    }
 }
 
 void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
 {
-    PanelsInitializer::lastPacketType = packetMeta->header.type;
+    this->lastPacketType = packetMeta->header.type;
 
-    switch (packetMeta->header.type)
-    {
-        case Protocol::PACKET_REGISTER_PANEL:
-            Protocol::PacketRegisterPanel *packet = (Protocol::PacketRegisterPanel *)packetMeta;
-
-            lastPanel.id++;
-            lastPanel.edgesNumber = packet->edgesNumber;
-            lastPanel.parentEdge = packet->parentEdge;
-
-            Panel *panel = new Panel();
-            memcpy(panel, (void *)&lastPanel, sizeof(panel));
-            panels.push(panel);
-
-            PRINTLN4("New panel [id,parent,edges]:", panel->id, panel->parentEdge, panel->edgesNumber);
-            break;
+    if (this->isReady()) {
+    } else {
+        switch (this->lastPacketType)
+        {
+            case Protocol::PACKET_REGISTER_EDGE:
+                LNPanelsInitializer.registerEdge((Protocol::PacketRegisterEdge *)packetMeta);
+                break;
+        }
     }
 }
 
-void PanelsInitializer::onPacketRequested()
+void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
 {
-    switch (PanelsInitializer::lastPacketType)
-    {
-        case Protocol::PACKET_REGISTER_PANEL:
-            if (PanelsInitializer::lastPanel.id) {
-                LNBus.respondToRegisterPanel(PanelsInitializer::lastPanel.id);
-            }
-            break;
-    }
+    Panel *panel = new Panel(packet->panelIndex);
+    Edge *edge = new Edge(panel, this->lastActiveEdge, packet->edgeIndex);
+
+    panel->edges->push(edge);
+
+    this->panels->push(panel);
 }
 
-List<PanelsInitializer::Panel *> *PanelsInitializer::getPanels()
+void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
 {
-    return &PanelsInitializer::panels;
+    Panel *panel = panels->get(packet->panelIndex);
+
+    if (!panel) {
+        this->registerPanel(packet);
+
+        return;
+    }
+
+    Edge *edge = new Edge(panel, packet->edgeIndex);
+
+    panel->edges->push(edge);
+
+    this->lastActiveEdge = edge;
 }
 
 uint8_t PanelsInitializer::isReady()
 {
-    return this->edge->isReady();
-}
-
-void PanelsInitializer::startMastering()
-{
-    LNBus.end();
-    LNBus.begin();
+    return this->pingEdge->isReady();
 }
 
 PanelsInitializer LNPanelsInitializer;

@@ -4,6 +4,10 @@
 #include "Protocol.hpp"
 #include "Macros.hpp"
 
+#ifdef ARDUINO_ARCH_ESP32
+#include "analogWrite.h"
+#endif
+
 const uint8_t gammaMapping8bit[] PROGMEM = {
     255, 254, 254, 254, 254, 254, 254, 254,
     254, 254, 253, 253, 253, 253, 253, 253,

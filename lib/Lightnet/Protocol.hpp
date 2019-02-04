@@ -2,22 +2,22 @@
 
 #include <Arduino.h>
 
-#define MAX_PACKET_SIZE 50
-#define MIN_PACKET_SIZE sizeof(Protocol::PacketMeta)
-
 namespace Protocol
 {
     const uint8_t VERSION = 1;
 
-    const uint8_t CONTROLLER_ADDRESS = 100;
+    const uint8_t MAX_PACKET_SIZE = 50;
+
+    const uint8_t CONTROLLER_ADDRESS = 200;
+    const uint8_t POLLING_ADDRESS = 201;
 
     enum colorMode_t {
         COLOR_MODE_RGB
     };
 
     enum packetType_t {
-        PACKET_REGISTER_PANEL,
-        PACKET_REGISTER_PANEL_RESPONSE,
+        PACKET_INITIALIZATION_POLL = 1,
+        PACKET_REGISTER_EDGE,
         PACKET_TURN_ON_OFF,
         PACKET_SET_COLOR,
         PACKET_SET_BRIGHTNESS,
@@ -40,6 +40,7 @@ namespace Protocol
         };
     } Color;
 
+    // BEGIN Common packet structures
     typedef struct
     {
         packetType_t type;
@@ -51,19 +52,21 @@ namespace Protocol
         PacketHeader header;
         uint16_t headerCrc;
     } PacketMeta;
+    // END
+
+    // BEGIN Packets definitions
+    typedef struct
+    {
+        PacketMeta meta;
+        uint16_t panelIndex;
+    } PacketInitializationPoll;
 
     typedef struct
     {
         PacketMeta meta;
-        uint8_t parentEdge;
-        uint8_t edgesNumber;
-    } PacketRegisterPanel;
-
-    typedef struct
-    {
-        PacketMeta meta;
-        uint8_t panelId;
-    } PacketRegisterPanelResponse;
+        uint16_t panelIndex;
+        uint16_t edgeIndex;
+    } PacketRegisterEdge;
 
     typedef struct
     {
@@ -89,7 +92,10 @@ namespace Protocol
         Color color;
         uint8_t brightness;
     } PacketSetColorAndBrightness;
+    // END
 
     uint8_t validatePacket(void *packet, uint8_t size);
     void setPacketMeta(void *packet, packetType_t type);
+
+    const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);
 }

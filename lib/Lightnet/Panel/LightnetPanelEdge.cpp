@@ -1,14 +1,14 @@
 #include "LightnetPanelEdge.hpp"
 
-LightnetPanelEdge::LightnetPanelEdge(uint8_t _pinNo):
-    pinNo(_pinNo)
+LightnetPanelEdge::LightnetPanelEdge(uint8_t _pinNo)
 {
+    Serial.println(this->pinNo = _pinNo);
     listenForPing();
 }
 
 void LightnetPanelEdge::readBusState()
 {
-    register uint8_t state = digitalRead(this->pinNo);
+    uint8_t state = digitalRead(this->pinNo);
 
     if (this->busState && !state) {
         this->hasPing = true;

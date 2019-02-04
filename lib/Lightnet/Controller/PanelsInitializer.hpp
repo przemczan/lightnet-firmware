@@ -4,31 +4,33 @@
 #include "LightnetPanelEdge.hpp"
 #include "Protocol.hpp"
 #include "List.hpp"
+#include "Panel.hpp"
 
 class PanelsInitializer
 {
-    public:
-        typedef struct {
-            uint8_t id;
-            uint8_t edgesNumber;
-            uint8_t parentEdge;
-        } Panel;
+    const uint8_t POLL_BUFFER_SIZE = 100;
+    const unsigned long POLL_INTERVAL_US = 100000;
 
+    public:
+        PanelsInitializer();
+        ~PanelsInitializer();
         void start(uint8_t edgePinNo);
         void doInitialize();
         uint8_t isReady();
-        List<Panel *> *getPanels();
         void updateEdgeState();
-        void startMastering();
 
     private:
-        static volatile uint8_t lastPacketType;
-        static List<Panel *> panels;
-        static volatile Panel lastPanel;
-        LightnetPanelEdge *edge;
+        List<Panel *> *panels;
+        Edge *lastActiveEdge;
+        uint8_t lastPacketType;
+        LightnetPanelEdge *pingEdge;
+        uint8_t *pollBuffer;
+        unsigned long nextPolling;
 
-        static void onPacketReceived(Protocol::PacketMeta *packetMeta);
-        static void onPacketRequested();
+        void registerPanel(Protocol::PacketRegisterEdge *packet);
+        void registerEdge(Protocol::PacketRegisterEdge *packet);
+        void poll();
+        void onPacketReceived(Protocol::PacketMeta *packetMeta);
 };
 
 extern PanelsInitializer LNPanelsInitializer;
