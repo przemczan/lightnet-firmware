@@ -8,8 +8,7 @@ namespace Protocol
 
     const uint8_t MAX_PACKET_SIZE = 50;
 
-    const uint8_t CONTROLLER_ADDRESS = 200;
-    const uint8_t POLLING_ADDRESS = 201;
+    const uint8_t POLLING_ADDRESS = 120;
 
     enum colorMode_t {
         COLOR_MODE_RGB
@@ -17,11 +16,11 @@ namespace Protocol
 
     enum packetType_t {
         PACKET_INITIALIZATION_POLL = 1,
-        PACKET_REGISTER_EDGE,
-        PACKET_TURN_ON_OFF,
-        PACKET_SET_COLOR,
-        PACKET_SET_BRIGHTNESS,
-        PACKET_SET_COLOR_AND_BRIGHTNESS
+        PACKET_REGISTER_EDGE = 2,
+        PACKET_TURN_ON_OFF = 3,
+        PACKET_SET_COLOR = 4,
+        PACKET_SET_BRIGHTNESS = 5,
+        PACKET_SET_COLOR_AND_BRIGHTNESS = 6
     };
 
     typedef struct

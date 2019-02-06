@@ -11,23 +11,24 @@ class LightnetPanel
     const uint16_t INCOMING_BUFFER_SIZE = 200;
 
     typedef struct {
-        uint8_t rPinNo;
-        uint8_t gPinNo;
-        uint8_t bPinNo;
+        uint8_t redPinNo;
+        uint8_t greenPinNo;
+        uint8_t bluePinNo;
+        uint8_t interruptPinNo;
     } configuration_t;
 
     enum state_t {
-        STATE_IDLE,
-        STATE_WAIT_FOR_WELLCOME_PING,
-        STATE_RESPOND_TO_WELLCOME_PING,
-        STATE_REGISTER_EDGES,
-        STATE_RETURN_TO_PARENT,
-        STATE_READY,
-        STATE_ERROR,
+        STATE_IDLE, // 0
+        STATE_WAIT_FOR_WELLCOME_PING, // 1
+        STATE_RESPOND_TO_WELLCOME_PING, // 2
+        STATE_REGISTER_EDGES, // 3
+        STATE_RETURN_TO_PARENT, // 4
+        STATE_READY, // 5
+        STATE_ERROR, // 6
+        STATE_WORKING, // 7
     };
 
     enum register_state_t {
-        REGISTER_STATE_PICK_EDGE,
         REGISTER_STATE_BEGIN,
         REGISTER_STATE_SEND,
         REGISTER_STATE_END,
@@ -40,13 +41,14 @@ class LightnetPanel
 
          List<LightnetPanelEdge *> *edges;
         volatile state_t state = STATE_IDLE;
-        volatile register_state_t registerState = REGISTER_STATE_PICK_EDGE;
+        volatile register_state_t registerState = REGISTER_STATE_BEGIN;
         volatile uint16_t nextEdgeToRegister = 0;
         volatile uint16_t parentEdgeIndex = 0;
         volatile uint16_t initializingChildEdgeIndex = 0;
         volatile uint16_t index;
         RGBController *rgbController;
         CircularQueue *incomingPackets;
+        configuration_t config;
 
         void checkForWellcomePing();
         void respondToWellcomePing();
@@ -69,11 +71,12 @@ class LightnetPanel
         void onPacketRequested();
         static void onPacketReceivedService(Protocol::PacketMeta *packet, int size);
         static void onPacketRequestedService();
+        static void onInterrupt();
 
     public:
         LightnetPanel();
         ~LightnetPanel();
-        void configure(configuration_t config);
+        void configure(configuration_t _config);
         uint16_t addEdge(volatile uint8_t pinNo);
         void updateEdgesStates();
         void run();

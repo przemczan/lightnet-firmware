@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "Protocol.hpp"
 #include "Wire.h"
+#include "Debug.hpp"
 
 class LightnetBus
 {
@@ -21,6 +22,7 @@ class LightnetBus
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         void setOnPacketReceived(onPacketReceived_t callback);
         void setOnPacketRequested(onPacketRequested_t callback);
+        void flush();
 
     private:
         onPacketReceived_t onPacketReceivedCallback;

@@ -9,29 +9,28 @@
 
 uint8_t state = STATE_BOOT;
 
-#define CONTROLLER_EDGE_PIN_NO 8
-#define CONTROLLER_EDGE_INTERRUPT_PIN_NO 2
+#ifdef ARDUINO_ARCH_ESP32
+    #define CONTROLLER_EDGE_PIN_NO 7
+    #define CONTROLLER_EDGE_INTERRUPT_PIN_NO 6
+#else
+    #define CONTROLLER_EDGE_PIN_NO 8
+    #define CONTROLLER_EDGE_INTERRUPT_PIN_NO 2
+#endif
 
 Protocol::Color c;
 PanelsController LNController;
 
-void updateEdgeState()
-{
-    LNPanelsInitializer.updateEdgeState();
-}
-
 void setup() {
     #if DEBUG
     Serial.begin(115200);
-    Serial.println("CONTROLLER");
     #endif
 
-    delay(500);
-    LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO);
+    PRINTLN("");
 
-    pinMode(CONTROLLER_EDGE_INTERRUPT_PIN_NO, INPUT);
-    attachInterrupt(digitalPinToInterrupt(CONTROLLER_EDGE_INTERRUPT_PIN_NO), updateEdgeState, CHANGE);
-    interrupts();
+    delay(1000);
+    LNPanelsInitializer.start(CONTROLLER_EDGE_PIN_NO, CONTROLLER_EDGE_INTERRUPT_PIN_NO);
+
+    PRINTLN("===> [CONTROLLER]");
 }
 
 void loop() {
@@ -50,39 +49,43 @@ void loop() {
 
         case STATE_READY:
 
-        c.rgb.b = 255;
-        LNController.setColorAndBrightness(0, &c, 255);
-        LNController.turnOn(0);
-        delay(250);
-        LNController.turnOff(0);
-        delay(250);
-        LNController.turnOn(0);
-        delay(1000);
+            for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
+                uint8_t panelIndex = LNPanelsInitializer.getPanels()->get(i)->index;
 
-        uint8_t index = 255;
+                PRINTKV("Testing", panelIndex);
 
-        do {
-            c.rgb.b--;
-            LNController.setColor(0, &c);
-            delay(5);
-        } while (c.rgb.b);
+                c.rgb.b = 255;
+                LNController.setColorAndBrightness(panelIndex, &c, 100);
+                LNController.turnOn(panelIndex);
+                delay(300);
+                LNController.turnOff(panelIndex);
+                delay(100);
 
-        do {
-            c.rgb.b++;
-            LNController.setColor(0, &c);
-            delay(5);
-        } while (c.rgb.b < 255);
-
-        c.rgb.b = 255;
-        LNController.setColor(0, &c);
-        delay(1000);
-
-        index = 255;
-        do {
-            LNController.setBrightness(0, --index);
-            delay(5);
-        } while (index);
-        delay(2000);
+                // uint8_t index = 255;
+                //
+                // do {
+                //     c.rgb.b--;
+                //     LNController.setColor(panelIndex, &c);
+                //     delay(2);
+                // } while (c.rgb.b);
+                //
+                // do {
+                //     c.rgb.b++;
+                //     LNController.setColor(panelIndex, &c);
+                //     delay(2);
+                // } while (c.rgb.b < 255);
+                //
+                // c.rgb.b = 255;
+                // LNController.setColor(panelIndex, &c);
+                // delay(1000);
+                //
+                // index = 255;
+                // do {
+                //     LNController.setBrightness(panelIndex, --index);
+                //     delay(5);
+                // } while (index);
+                // delay(2000);
+            }
 
         break;
     }

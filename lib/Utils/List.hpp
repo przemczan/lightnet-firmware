@@ -24,6 +24,7 @@ class List
         T get(uint16_t index);
         bool find(T data);
         bool find(T data, uint16_t *outIndex);
+        bool filterOne(bool (*callback)(T), uint16_t *outIndex);
         void clear();
         uint16_t getSize();
 };
@@ -102,6 +103,19 @@ bool List<T>::find(T data, uint16_t *outIndex)
     uint16_t index = this->size;
     while (index--) {
         if (this->items[index].data == data) {
+            *outIndex = index;
+            return true;
+        }
+    }
+    return false;
+}
+
+template<typename T>
+bool List<T>::filterOne(bool (*callback)(T), uint16_t *outIndex)
+{
+    uint16_t index = this->size;
+    while (index--) {
+        if (callback(this->items[index])) {
             *outIndex = index;
             return true;
         }

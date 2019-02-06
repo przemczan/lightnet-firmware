@@ -13,6 +13,10 @@ uint8_t Protocol::validatePacket(void *packet, uint8_t size)
         return 2;
     }
 
+    if (meta->header.protocolVersion != Protocol::VERSION) {
+        return 3;
+    }
+
     return 0;
 }
 

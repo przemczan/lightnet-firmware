@@ -21,6 +21,8 @@ void LightnetBus::onRequestService()
 void LightnetBus::onReceive(int size)
 {
     if (!this->onPacketReceivedCallback) {
+        this->flush();
+
         return;
     }
 
@@ -28,7 +30,7 @@ void LightnetBus::onReceive(int size)
 
     Wire.readBytes(&buffer[0], size);
 
-    if (Protocol::validatePacket(&buffer[0], size)) {
+    if (!Protocol::validatePacket(&buffer[0], size)) {
         this->onPacketReceivedCallback((Protocol::PacketMeta *)&buffer[0], size);
     }
 }
@@ -62,7 +64,7 @@ void LightnetBus::begin()
 
 void LightnetBus::end()
 {
-    Wire.endTransmission(true);
+    Wire.end();
 }
 
 uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
@@ -102,12 +104,20 @@ uint8_t LightnetBus::requestData(uint8_t address, void *buffer, uint8_t maxSize)
     uint8_t receivedSize = Wire.requestFrom(address, maxSize, (uint8_t)true);
 
     if (receivedSize > maxSize) {
+        PRINTLN("Max data length exceeded");
         return 0;
     }
 
     Wire.readBytes((uint8_t *)buffer, receivedSize);
 
     return receivedSize;
+}
+
+void LightnetBus::flush()
+{
+    while (Wire.available()) {
+        Wire.read();
+    }
 }
 
 LightnetBus LNBus;
