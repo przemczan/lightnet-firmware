@@ -6,8 +6,8 @@
 class LightnetPinger
 {
     private:
-        static const unsigned long PING_DURATION_MS = 10;
-        static const unsigned long PING_DELAY_MS = 10;
+        static const unsigned long PING_DURATION_MS = 3;
+        static const unsigned long PING_DELAY_MS = 1;
 
         volatile uint8_t pinNo;
         volatile bool busState = false;

@@ -123,10 +123,22 @@ void PanelsInitializer::onPacketReceived(Protocol::PacketMeta *packetMeta)
         switch (this->lastPacketType)
         {
             case Protocol::PACKET_REGISTER_EDGE:
-                LNPanelsInitializer.registerEdge((Protocol::PacketRegisterEdge *)packetMeta);
+                this->registerEdge((Protocol::PacketRegisterEdge *)packetMeta);
+                this->sendRegisterAck();
                 break;
         }
     }
+}
+
+void PanelsInitializer::sendRegisterAck()
+{
+    Protocol::PacketRegisterEdgeAck ackPacket;
+    LNBus.sendPacket(
+        Protocol::POLLING_ADDRESS,
+        &ackPacket,
+        sizeof(ackPacket),
+        Protocol::PACKET_REGISTER_EDGE_ACK
+    );
 }
 
 uint8_t PanelsInitializer::isReady()
@@ -152,6 +164,8 @@ Panel *PanelsInitializer::getPanelByIndex(uint16_t panelIndex)
             return this->panels->get(index);
         }
     }
+
+    return NULL;
 }
 
 PanelsInitializer LNPanelsInitializer;

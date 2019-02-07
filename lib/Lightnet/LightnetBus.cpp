@@ -2,10 +2,11 @@
 
 LightnetBus::LightnetBus()
 {
-#ifndef ARDUINO_ARCH_ESP32
+#if !IS_ESP
     Wire.onReceive(LightnetBus::onReceiveService);
     Wire.onRequest(LightnetBus::onRequestService);
 #endif
+    Wire.setClock(400000);
 }
 
 void LightnetBus::onReceiveService(int size)
@@ -64,7 +65,11 @@ void LightnetBus::begin()
 
 void LightnetBus::end()
 {
+#if IS_ESP
+    //twi_stop();
+#else
     Wire.end();
+#endif
 }
 
 uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)

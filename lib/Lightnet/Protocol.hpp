@@ -20,7 +20,8 @@ namespace Protocol
         PACKET_TURN_ON_OFF = 3,
         PACKET_SET_COLOR = 4,
         PACKET_SET_BRIGHTNESS = 5,
-        PACKET_SET_COLOR_AND_BRIGHTNESS = 6
+        PACKET_SET_COLOR_AND_BRIGHTNESS = 6,
+        PACKET_REGISTER_EDGE_ACK = 7,
     };
 
     typedef struct
@@ -66,6 +67,11 @@ namespace Protocol
         uint16_t panelIndex;
         uint16_t edgeIndex;
     } PacketRegisterEdge;
+
+    typedef struct
+    {
+        PacketMeta meta;
+    } PacketRegisterEdgeAck;
 
     typedef struct
     {

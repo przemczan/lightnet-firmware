@@ -7,10 +7,10 @@
 class LightnetPanelEdge
 {
     private:
-        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 100;
+        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 10;
         static const unsigned long BOOT_TIMEOUT_MILLS              = 5000;
 
-        volatile LightnetPinger *pinger;
+        LightnetPinger *pinger;
         uint8_t state = LightnetPanelEdge::STATE_IDLE;
 
         void sendWellcome();

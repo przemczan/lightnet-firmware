@@ -5,6 +5,12 @@
 #include "Wire.h"
 #include "Debug.hpp"
 
+#define IS_ESP (defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266))
+
+#if IS_ESP
+//#include <twi.h>
+#endif
+
 class LightnetBus
 {
     public:

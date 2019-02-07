@@ -43,7 +43,7 @@ void loop() {
                 state = STATE_READY;
                 PRINTLN("CONTROLLER is ready!");
 
-                delay(2000);
+                delay(500);
             }
         break;
 
@@ -57,9 +57,8 @@ void loop() {
                 c.rgb.b = 255;
                 LNController.setColorAndBrightness(panelIndex, &c, 100);
                 LNController.turnOn(panelIndex);
-                delay(300);
-                LNController.turnOff(panelIndex);
                 delay(100);
+                LNController.turnOff(panelIndex);
 
                 // uint8_t index = 255;
                 //

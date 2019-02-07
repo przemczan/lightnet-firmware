@@ -9,7 +9,7 @@
 class PanelsInitializer
 {
     const uint8_t POLL_BUFFER_SIZE = 100;
-    const unsigned long POLL_INTERVAL_MS = 100;
+    const unsigned long POLL_INTERVAL_MS = 10;
 
     public:
         PanelsInitializer();
@@ -34,6 +34,7 @@ class PanelsInitializer
         void registerEdge(Protocol::PacketRegisterEdge *packet);
         void poll();
         void onPacketReceived(Protocol::PacketMeta *packetMeta);
+        void sendRegisterAck();
 
         static void onInterrupt();
 };

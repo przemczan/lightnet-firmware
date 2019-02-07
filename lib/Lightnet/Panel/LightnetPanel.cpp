@@ -104,9 +104,6 @@ void LightnetPanel::returnToParent()
 
 void LightnetPanel::registerEdges()
 {
-    // TODO find out why the delay is needed here!
-    delay(30);
-
     switch (this->registerState)
     {
         case REGISTER_STATE_BEGIN:
@@ -141,8 +138,8 @@ void LightnetPanel::beginEdgeRegistration()
         return;
     }
 
-    this->setRegisterState(REGISTER_STATE_SEND);
     LNBus.begin(Protocol::POLLING_ADDRESS);
+    this->setRegisterState(REGISTER_STATE_SEND);
 }
 
 void LightnetPanel::endEdgeRegistration()
@@ -263,6 +260,10 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
                     PRINTKV("[EDGE][REGISTER] Got index", this->index);
                 }
                 break;
+
+            case Protocol::PACKET_REGISTER_EDGE_ACK:
+                this->setRegisterState(REGISTER_STATE_END);
+                break;
         }
 
         return;
@@ -288,8 +289,6 @@ void LightnetPanel::onPacketRequested()
             sizeof(packetRegisterEdge),
             Protocol::PACKET_REGISTER_EDGE
         );
-
-        this->setRegisterState(REGISTER_STATE_END);
 
         return;
     }

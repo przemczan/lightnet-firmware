@@ -43,7 +43,7 @@ void LightnetPinger::ping()
 }
 
 bool LightnetPinger::getAndResetPingStatus()
-{
+{    
     noInterrupts();
     bool state = this->hasPing;
     this->hasPing = false;
