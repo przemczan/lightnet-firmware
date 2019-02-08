@@ -22,6 +22,7 @@ namespace Protocol
         PACKET_SET_BRIGHTNESS = 5,
         PACKET_SET_COLOR_AND_BRIGHTNESS = 6,
         PACKET_REGISTER_EDGE_ACK = 7,
+        PACKET_RESET_DEVICE = 222,
     };
 
     typedef struct
@@ -97,6 +98,11 @@ namespace Protocol
         Color color;
         uint8_t brightness;
     } PacketSetColorAndBrightness;
+
+    typedef struct
+    {
+        PacketMeta meta;
+    } PacketResetDevice;
     // END
 
     uint8_t validatePacket(void *packet, uint8_t size);

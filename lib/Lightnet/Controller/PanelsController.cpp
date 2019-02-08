@@ -46,3 +46,11 @@ uint8_t PanelsController::turnOff(uint8_t address)
 {
     return this->turnOnOff(address, 0);
 }
+
+uint8_t PanelsController::resetDevices(uint16_t maxAddress = 1000)
+{
+    Protocol::PacketResetDevice resetPacket;
+    do {
+        LNBus.sendPacket(maxAddress, &resetPacket, sizeof(resetPacket), Protocol::PACKET_RESET_DEVICE);
+    } while (maxAddress--);
+}

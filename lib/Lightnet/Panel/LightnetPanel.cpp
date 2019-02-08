@@ -221,6 +221,11 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
         case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
             this->handleSetColorAndBrightness((Protocol::PacketSetColorAndBrightness *)packet);
             break;
+
+        case Protocol::PACKET_RESET_DEVICE:
+            wdt_enable(WDTO_1S);
+            delay(2000);
+            break;
     }
 }
 

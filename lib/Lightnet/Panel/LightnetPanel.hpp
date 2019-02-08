@@ -5,6 +5,7 @@
 #include "List.hpp"
 #include "RGBController.hpp"
 #include "CircularQueue.hpp"
+#include <avr/wdt.h>
 
 class LightnetPanel
 {

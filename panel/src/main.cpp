@@ -1,9 +1,12 @@
 #include "Config.hpp"
 #include <Arduino.h>
 #include "LightnetPanel.hpp"
+#include <avr/wdt.h>
 
 void setup()
 {
+    wdt_disable();
+
     #if DEBUG
     Serial.begin(115200);
     #endif
@@ -15,9 +18,9 @@ void setup()
     LNPanel.addEdge(10);
 
     LNPanel.configure({
-        .redPinNo = 13,
-        .greenPinNo = 13,
-        .bluePinNo = 13,
+        .redPinNo = 3,
+        .greenPinNo = 3,
+        .bluePinNo = 3,
         .interruptPinNo = 2
     });
 

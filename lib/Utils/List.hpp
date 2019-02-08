@@ -22,6 +22,8 @@ class List
         void remove(T data);
         void removeByIndex(uint16_t index);
         T get(uint16_t index);
+        T first();
+        T last();
         bool find(T data);
         bool find(T data, uint16_t *outIndex);
         bool filterOne(bool (*callback)(T), uint16_t *outIndex);
@@ -80,6 +82,26 @@ T List<T>::get(uint16_t index)
 {
     if (index < this->size) {
         return this->items[index].data;
+    }
+
+    return NULL;
+}
+
+template<typename T>
+T List<T>::first()
+{
+    if (this->size) {
+        return this->items[0].data;
+    }
+
+    return NULL;
+}
+
+template<typename T>
+T List<T>::last()
+{
+    if (this->size) {
+        return this->items[this->size - 1].data;
     }
 
     return NULL;
