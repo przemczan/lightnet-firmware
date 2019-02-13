@@ -6,7 +6,6 @@ LightnetBus::LightnetBus()
     Wire.onReceive(LightnetBus::onReceiveService);
     Wire.onRequest(LightnetBus::onRequestService);
 #endif
-    Wire.setClock(400000);
 }
 
 void LightnetBus::onReceiveService(int size)
@@ -56,11 +55,39 @@ void LightnetBus::setOnPacketRequested(onPacketRequested_t callback)
 void LightnetBus::begin(uint8_t address)
 {
     Wire.begin(address);
+    Wire.setClock(BUS_FREQUENCY);
+}
+
+void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
+{
+    Wire.begin(sdaPin, sclPin, address);
+    Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::begin()
 {
+#if IS_ESP
     Wire.begin();
+    #if IS_ESP8266
+    Wire.setClockStretchLimit(15000);
+    #endif
+#else
+    Wire.begin();
+#endif
+    Wire.setClock(BUS_FREQUENCY);
+}
+
+void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
+{
+#if IS_ESP
+    Wire.begin(sdaPin, sclPin);
+    #if IS_ESP8266
+    Wire.setClockStretchLimit(15000);
+    #endif
+#else
+    Wire.begin(sdaPin, sclPin);
+#endif
+    Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::end()

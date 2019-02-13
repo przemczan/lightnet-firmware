@@ -2,7 +2,7 @@
 
 LightnetPinger::LightnetPinger(uint8_t _pinNo): pinNo(_pinNo)
 {
-    PRINTKV("Init edge pin as input", _pinNo);
+    PRINTKV("Init edge pin as IO", _pinNo);
     pinMode(this->pinNo, INPUT);
 }
 
@@ -43,7 +43,7 @@ void LightnetPinger::ping()
 }
 
 bool LightnetPinger::getAndResetPingStatus()
-{    
+{
     noInterrupts();
     bool state = this->hasPing;
     this->hasPing = false;

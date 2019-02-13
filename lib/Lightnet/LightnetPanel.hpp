@@ -5,7 +5,10 @@
 #include "List.hpp"
 #include "RGBController.hpp"
 #include "CircularQueue.hpp"
+
+#if !IS_ESP
 #include <avr/wdt.h>
+#endif
 
 class LightnetPanel
 {
@@ -16,6 +19,8 @@ class LightnetPanel
         uint8_t greenPinNo;
         uint8_t bluePinNo;
         uint8_t interruptPinNo;
+        uint8_t sdaPinNo;
+        uint8_t sclPinNo;
     } configuration_t;
 
     enum state_t {

@@ -2,19 +2,19 @@
 
 #include <Arduino.h>
 
+#define PACK __attribute__((__packed__))
+
 namespace Protocol
 {
     const uint8_t VERSION = 1;
-
-    const uint8_t MAX_PACKET_SIZE = 50;
-
+    const uint8_t MAX_PACKET_SIZE = 32;
     const uint8_t POLLING_ADDRESS = 120;
 
-    enum colorMode_t {
+    enum colorMode_t: uint8_t {
         COLOR_MODE_RGB
     };
 
-    enum packetType_t {
+    enum packetType_t: uint8_t {
         PACKET_INITIALIZATION_POLL = 1,
         PACKET_REGISTER_EDGE = 2,
         PACKET_TURN_ON_OFF = 3,
@@ -22,17 +22,20 @@ namespace Protocol
         PACKET_SET_BRIGHTNESS = 5,
         PACKET_SET_COLOR_AND_BRIGHTNESS = 6,
         PACKET_REGISTER_EDGE_ACK = 7,
-        PACKET_RESET_DEVICE = 222,
+        PACKET_GET_FIRST_PANEL_EDGE_INFO = 8,
+        PACKET_GET_NEXT_PANEL_EDGE_INFO = 9,
+        PACKET_PANEL_EDGE_INFO = 10,
+        PACKET_RESET_DEVICE = 200,
     };
 
-    typedef struct
+    typedef struct PACK
     {
         uint8_t r;
         uint8_t g;
         uint8_t b;
     } ColorRGB;
 
-    typedef struct
+    typedef struct PACK
     {
         colorMode_t mode;
         union
@@ -42,13 +45,13 @@ namespace Protocol
     } Color;
 
     // BEGIN Common packet structures
-    typedef struct
+    typedef struct PACK
     {
         packetType_t type;
         uint8_t protocolVersion;
     } PacketHeader;
 
-    typedef struct
+    typedef struct PACK
     {
         PacketHeader header;
         uint16_t headerCrc;
@@ -56,53 +59,51 @@ namespace Protocol
     // END
 
     // BEGIN Packets definitions
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
         uint16_t panelIndex;
     } PacketInitializationPoll;
 
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
         uint16_t panelIndex;
         uint16_t edgeIndex;
     } PacketRegisterEdge;
 
-    typedef struct
-    {
-        PacketMeta meta;
-    } PacketRegisterEdgeAck;
-
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
         uint8_t on;
     } PacketTurnOnOff;
 
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
         Color color;
     } PacketSetColor;
 
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
         uint8_t brightness;
     } PacketSetBrightness;
 
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
         Color color;
         uint8_t brightness;
     } PacketSetColorAndBrightness;
 
-    typedef struct
+    typedef struct PACK
     {
         PacketMeta meta;
-    } PacketResetDevice;
+        uint16_t panelIndex;
+        uint8_t edgeIndex;
+        uint16_t connectedPanelIndex;
+    } PacketPanelEdgeInfo;
     // END
 
     uint8_t validatePacket(void *packet, uint8_t size);

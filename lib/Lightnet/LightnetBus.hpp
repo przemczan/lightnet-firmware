@@ -5,14 +5,14 @@
 #include "Wire.h"
 #include "Debug.hpp"
 
-#define IS_ESP (defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266))
-
-#if IS_ESP
-//#include <twi.h>
-#endif
+#define IS_ESP8266 defined(ARDUINO_ARCH_ESP8266)
+#define IS_ESP32 defined(ARDUINO_ARCH_ESP32)
+#define IS_ESP (IS_ESP8266 || IS_ESP32)
 
 class LightnetBus
 {
+    const uint32_t BUS_FREQUENCY = 100000;
+
     public:
         typedef void (*onPacketReceived_t)(Protocol::PacketMeta *packet, int size);
         typedef void (*onPacketRequested_t)();
@@ -20,7 +20,9 @@ class LightnetBus
         LightnetBus();
 
         void begin(uint8_t address);
+        void begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address);
         void begin();
+        void begin(uint8_t sdaPin, uint8_t sclPin);
         void end();
         uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
         uint8_t sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type);

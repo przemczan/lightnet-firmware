@@ -13,5 +13,5 @@ class PanelsController
         uint8_t turnOnOff(uint8_t address, uint8_t on);
         uint8_t turnOn(uint8_t address);
         uint8_t turnOff(uint8_t address);
-        uint8_t resetDevices(uint16_t maxIndex = 1000);
+        void resetDevices(uint16_t maxIndex);
 };

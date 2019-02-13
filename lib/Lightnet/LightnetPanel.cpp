@@ -65,7 +65,7 @@ void LightnetPanel::run()
             break;
 
         case STATE_READY:
-            LNBus.begin(this->index);
+            LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, this->index);
             this->setState(STATE_WORKING);
             PRINTKV("===> [READY]", this->index);
             break;
@@ -138,7 +138,7 @@ void LightnetPanel::beginEdgeRegistration()
         return;
     }
 
-    LNBus.begin(Protocol::POLLING_ADDRESS);
+    LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, Protocol::POLLING_ADDRESS);
     this->setRegisterState(REGISTER_STATE_SEND);
 }
 
@@ -223,7 +223,9 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             break;
 
         case Protocol::PACKET_RESET_DEVICE:
+#if !IS_ESP
             wdt_enable(WDTO_1S);
+#endif
             delay(2000);
             break;
     }
