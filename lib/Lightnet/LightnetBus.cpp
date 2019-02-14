@@ -60,7 +60,9 @@ void LightnetBus::begin(uint8_t address)
 
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 {
+    #if !IS_ESP
     Wire.begin(sdaPin, sclPin, address);
+    #endif
     Wire.setClock(BUS_FREQUENCY);
 }
 

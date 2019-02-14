@@ -6,13 +6,13 @@
 // #define STATE_READY 1
 //uint8_t state = STATE_BOOT;
 
-#ifdef ARDUINO_ARCH_ESP32
-    #define INITIALIZER_EDGE_PIN_NO 4
-    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 5
-    #define DRIVER_READY_PIN_NO 7
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+    #define INITIALIZER_EDGE_PIN_NO 12
+    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
+    #define DRIVER_READY_PIN_NO 15
     #define LED_PIN 2
-    #define IIC_SDA_PIN 21
-    #define IIC_SCL_PIN 22
+    #define IIC_SDA_PIN 4
+    #define IIC_SCL_PIN 5
 #else
     #define INITIALIZER_EDGE_PIN_NO 8
     #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 2
@@ -24,8 +24,8 @@
 
 Protocol::Color c;
 PanelsController LNController;
-//float R;
-//uint8_t brightnessMap[256];
+float R;
+uint8_t brightnessMap[256];
 
 void setup() {
     #if DEBUG
@@ -51,12 +51,13 @@ void setup() {
     delay(500);
 
     PRINTLN("===> [INITIALIZER]");
-    // R = 255 * log10(2) / log10(255);
-    //
-    // uint8_t index = 255;
-    // do {
-    //     brightnessMap[index] = pow(2, index / R) - 1;
-    // } while (index--);
+
+    R = 255 * log10(2) / log10(255);
+
+    uint8_t index = 255;
+    do {
+        brightnessMap[index] = pow(2, index / R) - 1;
+    } while (index--);
 
     digitalWrite(LED_PIN, HIGH);
 }
@@ -65,8 +66,37 @@ void loop() {
 
     LNPanelsInitializer.doInitialize();
 
+    uint8_t val;
+    uint8_t brightness1, brightness2;
+    uint16_t prevIndex;
+
     if (LNPanelsInitializer.isReady()) {
          digitalWrite(LED_PIN, LOW);
+
+         for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
+             uint8_t panelIndex = LNPanelsInitializer.getPanels()->get(i)->index;
+
+             prevIndex = i
+                 ? LNPanelsInitializer.getPanels()->get(i - 1)->index
+                 : LNPanelsInitializer.getPanels()->last()->index;
+
+             PRINTLN3("Testing", panelIndex, prevIndex);
+
+             c.rgb.r = 255;
+             c.rgb.g = 255;
+             c.rgb.b = 255;
+
+             LNController.setColorAndBrightness(panelIndex, &c, 0);
+             LNController.turnOn(panelIndex);
+             delay(5);
+
+             brightness1 = 0;
+             brightness2 = 255;
+             do {
+                 LNController.setBrightness(panelIndex, brightnessMap[brightness1++]);
+                 LNController.setBrightness(prevIndex, brightnessMap[brightness2--]);
+             } while (brightness1 != 0);
+         }
     }
 
     //

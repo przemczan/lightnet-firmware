@@ -9,7 +9,7 @@
 class PanelsInitializer
 {
     const uint8_t POLL_BUFFER_SIZE = 100;
-    const unsigned long POLL_INTERVAL_MS = 10;
+    const unsigned long POLL_INTERVAL_MS = 10000;
 
     enum state_t {
         STATE_IDLE = 0,

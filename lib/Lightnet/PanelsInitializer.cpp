@@ -64,10 +64,10 @@ void PanelsInitializer::boot()
     this->pingEdge->boot();
 
     if (this->pingEdge->getState() == LightnetPanelEdge::STATE_BOOTING) {
-        if (millis() > this->nextPolling) {
+        if (micros() > this->nextPolling) {
             this->poll();
 
-            this->nextPolling = millis() + POLL_INTERVAL_MS;
+            this->nextPolling = micros() + POLL_INTERVAL_MS;
         }
     }
 

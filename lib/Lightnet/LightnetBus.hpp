@@ -11,7 +11,7 @@
 
 class LightnetBus
 {
-    const uint32_t BUS_FREQUENCY = 100000;
+    const uint32_t BUS_FREQUENCY = 400000;
 
     public:
         typedef void (*onPacketReceived_t)(Protocol::PacketMeta *packet, int size);
