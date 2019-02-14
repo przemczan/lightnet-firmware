@@ -9,14 +9,12 @@
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
     #define INITIALIZER_EDGE_PIN_NO 12
     #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
-    #define DRIVER_READY_PIN_NO 15
     #define LED_PIN 2
     #define IIC_SDA_PIN 4
     #define IIC_SCL_PIN 5
 #else
     #define INITIALIZER_EDGE_PIN_NO 8
     #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 2
-    #define DRIVER_READY_PIN_NO 3
     #define LED_PIN 13
     #define IIC_SDA_PIN 4
     #define IIC_SCL_PIN 5
@@ -38,8 +36,10 @@ void setup() {
     LNPanelsInitializer.configure({
         .sdaPinNo = IIC_SDA_PIN,
         .sclPinNo = IIC_SCL_PIN,
+        .edgePinNo = INITIALIZER_EDGE_PIN_NO,
+        .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO
     });
-    LNPanelsInitializer.start(INITIALIZER_EDGE_PIN_NO, INITIALIZER_EDGE_INTERRUPT_PIN_NO, DRIVER_READY_PIN_NO);
+    LNPanelsInitializer.start();
 
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
@@ -60,6 +60,9 @@ void setup() {
     } while (index--);
 
     digitalWrite(LED_PIN, HIGH);
+
+    delay(2000);
+    PRINTLN("Initializing...");
 }
 
 void loop() {

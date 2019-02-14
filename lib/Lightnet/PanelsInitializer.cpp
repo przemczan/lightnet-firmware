@@ -23,17 +23,12 @@ void PanelsInitializer::configure(configuration_t config)
     this->config = config;
 }
 
-void PanelsInitializer::start(uint8_t edgePinNo, uint8_t interruptPinNo, uint8_t readyPinNo)
+void PanelsInitializer::start()
 {
-    this->interruptPinNo = interruptPinNo;
-    pinMode(interruptPinNo, INPUT);
-    attachInterrupt(digitalPinToInterrupt(interruptPinNo), PanelsInitializer::onInterrupt, CHANGE);
+    pinMode(this->config.intPinNo, INPUT);
+    attachInterrupt(digitalPinToInterrupt(this->config.intPinNo), PanelsInitializer::onInterrupt, CHANGE);
 
-    this->readyPinNo = readyPinNo;
-    pinMode(readyPinNo, OUTPUT);
-    digitalWrite(readyPinNo, LOW);
-
-    this->pingEdge = new LightnetPanelEdge(edgePinNo);
+    this->pingEdge = new LightnetPanelEdge(this->config.edgePinNo);
 
     LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo);
 
@@ -80,14 +75,12 @@ void PanelsInitializer::endBoot()
 {
     LNBus.end();
 
-    detachInterrupt(digitalPinToInterrupt(this->interruptPinNo));
+    detachInterrupt(digitalPinToInterrupt(this->config.intPinNo));
     LNBus.setOnPacketReceived(PanelsInitializer::onPacketReceivedService);
     LNBus.setOnPacketRequested(PanelsInitializer::onPacketRequestedService);
 
     LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, Protocol::POLLING_ADDRESS);
     this->state = STATE_READY;
-
-    digitalWrite(this->readyPinNo, HIGH);
 }
 
 void PanelsInitializer::updateEdgeState()

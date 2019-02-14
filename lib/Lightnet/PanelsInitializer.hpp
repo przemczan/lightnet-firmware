@@ -21,12 +21,14 @@ class PanelsInitializer
     typedef struct {
         uint8_t sdaPinNo;
         uint8_t sclPinNo;
+        uint8_t edgePinNo;
+        uint8_t intPinNo;
     } configuration_t;
 
     public:
         PanelsInitializer();
         ~PanelsInitializer();
-        void start(uint8_t edgePinNo, uint8_t interruptPinNo, uint8_t readyPinNo);
+        void start();
         void doInitialize();
         bool isReady();
         void updateEdgeState();
@@ -42,7 +44,6 @@ class PanelsInitializer
         uint8_t *pollBuffer;
         unsigned long nextPolling;
         uint16_t currentPanelIndex = 1;
-        uint8_t readyPinNo;
         uint8_t state = STATE_IDLE;
         uint8_t interruptPinNo;
         uint16_t nextPanelToSend = 0;
