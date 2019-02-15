@@ -149,6 +149,12 @@ void LightnetPanel::endEdgeRegistration()
     LNBus.end();
 
     PRINTLN("[EDGE][BOOT] begin");
+
+    LightnetPanelEdge *edge = this->edges->get(this->nextEdgeToRegister);
+    edge->setBootTimeout(edge->getBootTimeout() / this->index);
+
+    PRINTKV("[EDGE][REGISTER] timeout is", edge->getBootTimeout());
+
     this->setRegisterState(REGISTER_STATE_BOOT);
 }
 
@@ -284,6 +290,8 @@ void LightnetPanel::onPacketRequested()
     if (!this->index) {
         return;
     }
+
+    //PRINTLN("[EDGE][REGISTER] got request");
 
     if (REGISTER_STATE_SEND == this->registerState) {
         Protocol::PacketRegisterEdge packetRegisterEdge;

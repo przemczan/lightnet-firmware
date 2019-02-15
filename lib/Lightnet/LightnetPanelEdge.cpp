@@ -62,7 +62,7 @@ void LightnetPanelEdge::checkBootStatus()
 {
     if (this->getAndResetPingStatus()) {
        this->setState(LightnetPanelEdge::STATE_READY);
-   } else if ((this->pinger->lastPingSentAt() + LightnetPanelEdge::BOOT_TIMEOUT_MILLS) < millis()) {
+   } else if ((this->pinger->lastPingSentAt() + this->bootTimeoutMs) < millis()) {
         this->setState(LightnetPanelEdge::STATE_BOOT_TIMEOUT);
     }
 }
@@ -89,4 +89,14 @@ void LightnetPanelEdge::setState(uint8_t state)
 uint8_t LightnetPanelEdge::getState()
 {
     return this->state;
+}
+
+void LightnetPanelEdge::setBootTimeout(uint16_t timeoutMs)
+{
+  this->bootTimeoutMs = timeoutMs;
+}
+
+uint16_t LightnetPanelEdge::getBootTimeout()
+{
+  return this->bootTimeoutMs;
 }

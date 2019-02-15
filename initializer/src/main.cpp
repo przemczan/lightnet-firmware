@@ -25,6 +25,23 @@ PanelsController LNController;
 float R;
 uint8_t brightnessMap[256];
 
+
+// void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) { // When a WebSocket message is received
+//   switch (type) {
+//     case WStype_DISCONNECTED:             // if the websocket is disconnected
+//       Serial.printf("[%u] Disconnected!\n", num);
+//       break;
+//     case WStype_CONNECTED: {              // if a new websocket connection is established
+//         IPAddress ip = webSocket.remoteIP(num);
+//         Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+//       }
+//       break;
+//     case WStype_TEXT:                     // if new text data is received
+//       Serial.printf("[%u] get Text: %s\n", num, payload);
+//       break;
+//   }
+// }
+
 void setup() {
     #if DEBUG
     Serial.begin(115200);
@@ -77,6 +94,11 @@ void loop() {
          digitalWrite(LED_PIN, LOW);
 
          for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
+             LNController.turnOn(LNPanelsInitializer.getPanels()->get(i)->index);
+             LNController.turnOn(LNPanelsInitializer.getPanels()->get(i)->index);
+         }
+
+         for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
              uint8_t panelIndex = LNPanelsInitializer.getPanels()->get(i)->index;
 
              prevIndex = i
@@ -90,7 +112,6 @@ void loop() {
              c.rgb.b = 255;
 
              LNController.setColorAndBrightness(panelIndex, &c, 0);
-             LNController.turnOn(panelIndex);
              delay(5);
 
              brightness1 = 0;
@@ -101,73 +122,4 @@ void loop() {
              } while (brightness1 != 0);
          }
     }
-
-    //
-    // uint8_t val;
-    // uint8_t brightness1, brightness2;
-    // uint16_t prevIndex;
-    //
-    // switch (state)
-    // {
-    //     case STATE_BOOT:
-    //
-    //         LNPanelsInitializer.doInitialize();
-    //
-    //         if (LNPanelsInitializer.isReady()) {
-    //             state = STATE_READY;
-    //             digitalWrite(13, LOW);
-    //             PRINTLN("INITIALIZER is ready!");
-    //
-    //             delay(500);
-    //         }
-    //     break;
-    //
-    //     case STATE_READY:
-    //
-    //         for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
-    //             uint8_t panelIndex = LNPanelsInitializer.getPanels()->get(i)->index;
-    //
-    //             prevIndex = i
-    //                 ? LNPanelsInitializer.getPanels()->get(i - 1)->index
-    //                 : LNPanelsInitializer.getPanels()->last()->index;
-    //
-    //             PRINTLN3("Testing", panelIndex, prevIndex);
-    //
-    //             c.rgb.r = 255;
-    //             c.rgb.g = 255;
-    //             c.rgb.b = 255;
-    //
-    //             LNController.setColorAndBrightness(panelIndex, &c, 0);
-    //             LNController.turnOn(panelIndex);
-    //             delay(5);
-    //             // delay(100);
-    //             // LNController.turnOff(panelIndex);
-    //
-    //             //
-    //             // do {
-    //             //     c.rgb.b--;
-    //             //     LNController.setColor(panelIndex, &c);
-    //             //     delay(2);
-    //             // } while (c.rgb.b);
-    //             //
-    //             // do {
-    //             //     c.rgb.b++;
-    //             //     LNController.setColor(panelIndex, &c);
-    //             //     delay(2);
-    //             // } while (c.rgb.b < 255);
-    //             //
-    //             // c.rgb.b = 255;
-    //             // LNController.setColor(panelIndex, &c);
-    //             // delay(1000);
-    //
-    //             brightness1 = 0;
-    //             brightness2 = 255;
-    //             do {
-    //                 LNController.setBrightness(panelIndex, brightnessMap[brightness1++]);
-    //                 LNController.setBrightness(prevIndex, brightnessMap[brightness2--]);
-    //             } while (brightness1 != 0);
-    //         }
-    //
-    //     break;
-    // }
 }

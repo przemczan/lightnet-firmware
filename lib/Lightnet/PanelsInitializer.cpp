@@ -3,7 +3,7 @@
 PanelsInitializer::PanelsInitializer()
 {
     this->pollBuffer = (uint8_t *)malloc(POLL_BUFFER_SIZE);
-    this->nextPolling = micros();
+    this->nextPolling = millis();
     this->panels = new List<Panel *>();
 }
 
@@ -29,6 +29,7 @@ void PanelsInitializer::start()
     attachInterrupt(digitalPinToInterrupt(this->config.intPinNo), PanelsInitializer::onInterrupt, CHANGE);
 
     this->pingEdge = new LightnetPanelEdge(this->config.edgePinNo);
+    this->pingEdge->setBootTimeout(BOOT_TIMEOUT_MS);
 
     LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo);
 
@@ -59,10 +60,10 @@ void PanelsInitializer::boot()
     this->pingEdge->boot();
 
     if (this->pingEdge->getState() == LightnetPanelEdge::STATE_BOOTING) {
-        if (micros() > this->nextPolling) {
+        if (millis() > this->nextPolling) {
             this->poll();
 
-            this->nextPolling = micros() + POLL_INTERVAL_MS;
+            this->nextPolling = millis() + POLL_INTERVAL_US;
         }
     }
 
@@ -142,6 +143,9 @@ void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
 
 void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
 {
+    if (!packet->panelIndex) {
+      PRINTLN("[ERROR] Got panel with index = 0.");
+    }
     PRINTLN3("[REGISTER] panel", packet->panelIndex, packet->edgeIndex);
 
     Panel *panel = new Panel(packet->panelIndex);

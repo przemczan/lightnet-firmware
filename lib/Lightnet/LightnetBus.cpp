@@ -60,8 +60,10 @@ void LightnetBus::begin(uint8_t address)
 
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 {
-    #if !IS_ESP
+    #if IS_ESP32
     Wire.begin(sdaPin, sclPin, address);
+    #else
+    Wire.begin(address);
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -87,7 +89,7 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
     Wire.setClockStretchLimit(15000);
     #endif
 #else
-    Wire.begin(sdaPin, sclPin);
+    Wire.begin();
 #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -95,7 +97,7 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 void LightnetBus::end()
 {
 #if IS_ESP
-    //twi_stop();
+    twi_stop();
 #else
     Wire.end();
 #endif

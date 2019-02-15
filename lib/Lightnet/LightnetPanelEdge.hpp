@@ -7,11 +7,12 @@
 class LightnetPanelEdge
 {
     private:
-        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 10;
-        static const unsigned long BOOT_TIMEOUT_MILLS              = 5000;
+        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 8;
+        static const unsigned long BOOT_TIMEOUT_MILLS              = 10000;
 
         LightnetPinger *pinger;
         uint8_t state = LightnetPanelEdge::STATE_IDLE;
+        uint16_t bootTimeoutMs = BOOT_TIMEOUT_MILLS;
 
         void sendWellcome();
         void checkWellcomeResponded();
@@ -35,4 +36,6 @@ class LightnetPanelEdge
         bool isReady();
         bool isFinished();
         uint8_t getState();
+        void setBootTimeout(uint16_t timeoutMs);
+        uint16_t getBootTimeout();
 };

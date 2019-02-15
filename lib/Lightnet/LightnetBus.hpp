@@ -9,6 +9,10 @@
 #define IS_ESP32 defined(ARDUINO_ARCH_ESP32)
 #define IS_ESP (IS_ESP8266 || IS_ESP32)
 
+#if IS_ESP
+#include <twi.h>
+#endif
+
 class LightnetBus
 {
     const uint32_t BUS_FREQUENCY = 400000;
