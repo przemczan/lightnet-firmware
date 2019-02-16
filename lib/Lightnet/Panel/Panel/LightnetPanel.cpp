@@ -4,6 +4,7 @@ LightnetPanel::LightnetPanel()
 {
     this->incomingPackets = new CircularQueue(INCOMING_BUFFER_SIZE);
     this->edges = new List<LightnetPanelEdge *>();
+    Protocol::setPacketMeta(&this->ackPacket, Protocol::PACKET_ACK);
 }
 
 LightnetPanel::~LightnetPanel()
@@ -151,9 +152,9 @@ void LightnetPanel::endEdgeRegistration()
     PRINTLN("[EDGE][BOOT] begin");
 
     LightnetPanelEdge *edge = this->edges->get(this->nextEdgeToRegister);
-    edge->setBootTimeout(edge->getBootTimeout() / this->index);
+    edge->setBootTimeout(edge->getBootTimeout() / this->index / this->edges->getSize());
 
-    PRINTKV("[EDGE][REGISTER] timeout is", edge->getBootTimeout());
+    PRINTKV("[EDGE][BOOT] timeout is", edge->getBootTimeout());
 
     this->setRegisterState(REGISTER_STATE_BOOT);
 }
@@ -196,13 +197,16 @@ void LightnetPanel::handleIncomingPackets()
         return;
     }
 
+    //delayMicroseconds(500);
     noInterrupts();
 
     Protocol::PacketMeta *packet;
     uint16_t size;
 
     while (this->incomingPackets->dequeue((void *&)packet, size)) {
-        this->handlePacket(packet, size);
+        if (!Protocol::validatePacket(packet, size)) {
+            this->handlePacket(packet, size);
+        }
     }
 
     interrupts();
@@ -291,8 +295,6 @@ void LightnetPanel::onPacketRequested()
         return;
     }
 
-    //PRINTLN("[EDGE][REGISTER] got request");
-
     if (REGISTER_STATE_SEND == this->registerState) {
         Protocol::PacketRegisterEdge packetRegisterEdge;
 
@@ -307,6 +309,8 @@ void LightnetPanel::onPacketRequested()
 
         return;
     }
+
+    LNBus.sendResponseData(&this->ackPacket, sizeof(this->ackPacket));
 }
 
 void LightnetPanel::onPacketReceivedService(Protocol::PacketMeta *packet, int size)

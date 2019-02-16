@@ -28,8 +28,19 @@ class LightnetBus
         void begin();
         void begin(uint8_t sdaPin, uint8_t sclPin);
         void end();
-        uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
+        uint8_t sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type, bool end);
+        uint8_t sendPacketAck(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
+        uint8_t sendPacketNack(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
+        uint8_t sendPacketWithResponse(
+            uint8_t address,
+            void *packet,
+            uint8_t packetSize,
+            Protocol::packetType_t packetType,
+            void *responseBuffer,
+            uint8_t responseSize
+        );
         uint8_t sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type);
+        uint8_t sendResponseData(void *data, uint8_t size);
         uint8_t requestData(uint8_t address, void *buffer, uint8_t maxSize);
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         void setOnPacketReceived(onPacketReceived_t callback);

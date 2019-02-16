@@ -2,10 +2,10 @@
 
 LightnetBus::LightnetBus()
 {
-#if !IS_ESP
-    Wire.onReceive(LightnetBus::onReceiveService);
-    Wire.onRequest(LightnetBus::onRequestService);
-#endif
+    #if !IS_ESP
+        Wire.onReceive(LightnetBus::onReceiveService);
+        Wire.onRequest(LightnetBus::onRequestService);
+    #endif
 }
 
 void LightnetBus::onReceiveService(int size)
@@ -30,9 +30,7 @@ void LightnetBus::onReceive(int size)
 
     Wire.readBytes(&buffer[0], size);
 
-    if (!Protocol::validatePacket(&buffer[0], size)) {
-        this->onPacketReceivedCallback((Protocol::PacketMeta *)&buffer[0], size);
-    }
+    this->onPacketReceivedCallback((Protocol::PacketMeta *)&buffer[0], size);
 }
 
 void LightnetBus::onRequest()
@@ -61,56 +59,90 @@ void LightnetBus::begin(uint8_t address)
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 {
     #if IS_ESP32
-    Wire.begin(sdaPin, sclPin, address);
+        Wire.begin(sdaPin, sclPin, address);
     #else
-    Wire.begin(address);
+        Wire.begin(address);
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::begin()
 {
-#if IS_ESP
-    Wire.begin();
-    #if IS_ESP8266
-    Wire.setClockStretchLimit(15000);
+    #if IS_ESP
+        Wire.begin();
+        #if IS_ESP8266
+            Wire.setClockStretchLimit(1500);
+        #endif
+    #else
+        Wire.begin();
     #endif
-#else
-    Wire.begin();
-#endif
     Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 {
-#if IS_ESP
-    Wire.begin(sdaPin, sclPin);
-    #if IS_ESP8266
-    Wire.setClockStretchLimit(15000);
+    #if IS_ESP
+        Wire.begin(sdaPin, sclPin);
+        #if IS_ESP8266
+            Wire.setClockStretchLimit(1500);
+        #endif
+    #else
+        Wire.begin();
     #endif
-#else
-    Wire.begin();
-#endif
     Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::end()
 {
-#if IS_ESP
-    twi_stop();
-#else
-    Wire.end();
-#endif
+    #if IS_ESP
+        twi_stop();
+    #else
+        Wire.end();
+    #endif
 }
 
-uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
+uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type, bool end)
 {
+    delayMicroseconds(3);
     Protocol::setPacketMeta(packet, type);
 
     Wire.beginTransmission(address);
     Wire.write((uint8_t *)packet, size);
 
-    return Wire.endTransmission();
+    return Wire.endTransmission(end);
+}
+
+uint8_t LightnetBus::sendPacketAck(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
+{
+    Protocol::PacketMeta ack;
+
+    return this->sendPacketWithResponse(address, packet, size, type, &ack, sizeof(ack));
+}
+
+uint8_t LightnetBus::sendPacketNack(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
+{
+    return this->sendPacket(address, packet, size, type, true);
+}
+
+uint8_t LightnetBus::sendPacketWithResponse(
+    uint8_t address,
+    void *packet,
+    uint8_t packetSize,
+    Protocol::packetType_t packetType,
+    void *responseBuffer,
+    uint8_t responseSize
+) {
+    if (this->sendPacket(address, packet, packetSize, packetType, false) != 0) {
+        return 1;
+    }
+
+    delayMicroseconds(3);
+
+    if (this->requestPacket(address, responseBuffer, responseSize) != 0) {
+        return 2;
+    }
+
+    return 0;
 }
 
 uint8_t LightnetBus::sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type)
@@ -118,6 +150,11 @@ uint8_t LightnetBus::sendResponsePacket(void *packet, uint8_t size, Protocol::pa
     Protocol::setPacketMeta(packet, type);
 
     return Wire.write((uint8_t *)packet, size);
+}
+
+uint8_t LightnetBus::sendResponseData(void *data, uint8_t size)
+{
+    return Wire.write((uint8_t *)data, size);
 }
 
 uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)

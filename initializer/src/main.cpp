@@ -1,10 +1,4 @@
-#include <Arduino.h>
-#include "PanelsInitializer.hpp"
-#include "PanelsController.hpp"
-
-// #define STATE_BOOT 0
-// #define STATE_READY 1
-//uint8_t state = STATE_BOOT;
+#include "main.h"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
     #define INITIALIZER_EDGE_PIN_NO 12
@@ -24,23 +18,9 @@ Protocol::Color c;
 PanelsController LNController;
 float R;
 uint8_t brightnessMap[256];
-
-
-// void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) { // When a WebSocket message is received
-//   switch (type) {
-//     case WStype_DISCONNECTED:             // if the websocket is disconnected
-//       Serial.printf("[%u] Disconnected!\n", num);
-//       break;
-//     case WStype_CONNECTED: {              // if a new websocket connection is established
-//         IPAddress ip = webSocket.remoteIP(num);
-//         Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-//       }
-//       break;
-//     case WStype_TEXT:                     // if new text data is received
-//       Serial.printf("[%u] get Text: %s\n", num, payload);
-//       break;
-//   }
-// }
+WiFiManager wifiManager;
+uint8_t state = 0;
+WebSocketApi wsApi(81);
 
 void setup() {
     #if DEBUG
@@ -76,50 +56,65 @@ void setup() {
         brightnessMap[index] = pow(2, index / R) - 1;
     } while (index--);
 
+    c.rgb.r = 255;
+    c.rgb.g = 255;
+    c.rgb.b = 255;
+
     digitalWrite(LED_PIN, HIGH);
 
     delay(2000);
     PRINTLN("Initializing...");
+
+    wifiManager.autoConnect();
+    wsApi.start();
 }
 
 void loop() {
+    wsApi.loop();
 
-    LNPanelsInitializer.doInitialize();
+    LNPanelsInitializer.boot();
 
     uint8_t val;
-    uint8_t brightness1, brightness2;
+    uint16_t brightness1, brightness2;
     uint16_t prevIndex;
 
     if (LNPanelsInitializer.isReady()) {
-         digitalWrite(LED_PIN, LOW);
+        digitalWrite(LED_PIN, LOW);
 
-         for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
-             LNController.turnOn(LNPanelsInitializer.getPanels()->get(i)->index);
-             LNController.turnOn(LNPanelsInitializer.getPanels()->get(i)->index);
-         }
+        switch (state) {
+            case 0:
+                delay(1000);
 
-         for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
-             uint8_t panelIndex = LNPanelsInitializer.getPanels()->get(i)->index;
+                for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
+                    LNController.turnOn(LNPanelsInitializer.getPanels()->get(i)->index);
+                }
 
-             prevIndex = i
-                 ? LNPanelsInitializer.getPanels()->get(i - 1)->index
-                 : LNPanelsInitializer.getPanels()->last()->index;
+                state = 1;
 
-             PRINTLN3("Testing", panelIndex, prevIndex);
+                break;
 
-             c.rgb.r = 255;
-             c.rgb.g = 255;
-             c.rgb.b = 255;
+            case 1:
+                for (uint8_t i = 0; i < LNPanelsInitializer.getPanels()->getSize(); i++) {
+                    uint8_t panelIndex = LNPanelsInitializer.getPanels()->get(i)->index;
 
-             LNController.setColorAndBrightness(panelIndex, &c, 0);
-             delay(5);
+                    prevIndex = i
+                        ? LNPanelsInitializer.getPanels()->get(i - 1)->index
+                        : LNPanelsInitializer.getPanels()->last()->index;
 
-             brightness1 = 0;
-             brightness2 = 255;
-             do {
-                 LNController.setBrightness(panelIndex, brightnessMap[brightness1++]);
-                 LNController.setBrightness(prevIndex, brightnessMap[brightness2--]);
-             } while (brightness1 != 0);
-         }
+                    PRINTKV("Testing", panelIndex);
+
+                    LNController.setColorAndBrightness(panelIndex, &c, 0);
+
+                    brightness1 = 0;
+                    brightness2 = 255;
+                    do {
+                        LNController.setBrightness(panelIndex, brightnessMap[brightness1]);
+                        LNController.setBrightness(prevIndex, brightnessMap[brightness2]);
+                        brightness2 -= 1;
+                        brightness1 += 1;
+                    } while (brightness1 < 250);
+                }
+                break;
+        }
     }
 }

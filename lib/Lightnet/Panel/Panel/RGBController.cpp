@@ -1,5 +1,7 @@
 #include "RGBController.hpp"
 
+#define RGBC_DEBUG 0
+
 RGBController::RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo):
     rPinNo(_rPinNo), gPinNo(_gPinNo), bPinNo(_gPinNo)
 {
@@ -16,12 +18,18 @@ RGBController::RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo):
 
 void RGBController::turnOn()
 {
+    #if RGBC_DEBUG
+    PRINTLN("on");
+    #endif
     this->on = true;
     this->updateOutputs();
 }
 
 void RGBController::turnOff()
 {
+    #if RGBC_DEBUG
+    PRINTLN("off");
+    #endif
     this->on = false;
     digitalWrite(rPinNo, LOW);
     digitalWrite(gPinNo, LOW);
@@ -31,6 +39,9 @@ void RGBController::turnOff()
 
 void RGBController::setColor(uint8_t r, uint8_t g, uint8_t b)
 {
+    #if RGBC_DEBUG
+    PRINTLN4('c', r, g, b);
+    #endif
     this->values.r = r;
     this->values.b = g;
     this->values.b = b;
@@ -40,6 +51,9 @@ void RGBController::setColor(uint8_t r, uint8_t g, uint8_t b)
 
 void RGBController::setColor(Protocol::ColorRGB *color)
 {
+    #if RGBC_DEBUG
+    PRINTLN4('c', color->r, color->g, color->b);
+    #endif
     this->values = *color;
 
     this->updateOutputs();
@@ -47,6 +61,9 @@ void RGBController::setColor(Protocol::ColorRGB *color)
 
 void RGBController::setBrightness(uint8_t brightness)
 {
+    #if RGBC_DEBUG
+    PRINTKV('b', brightness);
+    #endif
     this->brightness = brightness;
 
     this->updateOutputs();

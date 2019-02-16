@@ -10,14 +10,7 @@ class PanelsInitializer
 {
     const uint8_t POLL_BUFFER_SIZE = 100;
     const unsigned long POLL_INTERVAL_US = 30;
-    const uint16_t BOOT_TIMEOUT_MS = 10000;
-
-    enum state_t {
-        STATE_IDLE = 0,
-        STATE_BOOTING = 1,
-        STATE_BOOTING_FINISHED = 2,
-        STATE_READY = 3,
-    };
+    const uint16_t BOOT_TIMEOUT_MS = 15000;
 
     typedef struct {
         uint8_t sdaPinNo;
@@ -30,12 +23,12 @@ class PanelsInitializer
         PanelsInitializer();
         ~PanelsInitializer();
         void start();
-        void doInitialize();
         bool isReady();
         void updateEdgeState();
         List<Panel *> *getPanels();
         Panel *getPanelByIndex(uint16_t panelIndex);
         void configure(configuration_t config);
+        void boot();
 
     private:
         List<Panel *> *panels;
@@ -45,7 +38,6 @@ class PanelsInitializer
         uint8_t *pollBuffer;
         unsigned long nextPolling;
         uint16_t currentPanelIndex = 1;
-        uint8_t state = STATE_IDLE;
         uint8_t interruptPinNo;
         uint16_t nextPanelToSend = 0;
         uint8_t nextPanelEdgeToSend = 0;
@@ -55,16 +47,9 @@ class PanelsInitializer
         void registerEdge(Protocol::PacketRegisterEdge *packet);
         void poll();
         void onPacketResponded(Protocol::PacketMeta *packetMeta);
-        void onPacketReceived(Protocol::PacketMeta *packet, int size);
-        void onPacketRequested();
         void sendRegisterAck();
-        void boot();
-        void endBoot();
-        void respondWithEmtyPanelInfo();
 
         static void onInterrupt();
-        static void onPacketReceivedService(Protocol::PacketMeta *packet, int size);
-        static void onPacketRequestedService();
 };
 
 extern PanelsInitializer LNPanelsInitializer;

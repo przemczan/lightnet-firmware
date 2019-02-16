@@ -25,6 +25,7 @@ namespace Protocol
         PACKET_GET_FIRST_PANEL_EDGE_INFO = 8,
         PACKET_GET_NEXT_PANEL_EDGE_INFO = 9,
         PACKET_PANEL_EDGE_INFO = 10,
+        PACKET_ACK = 11,
         PACKET_RESET_DEVICE = 200,
     };
 

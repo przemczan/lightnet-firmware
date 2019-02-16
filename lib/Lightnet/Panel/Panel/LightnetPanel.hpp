@@ -55,6 +55,7 @@ class LightnetPanel
         RGBController *rgbController;
         CircularQueue *incomingPackets;
         configuration_t config;
+        Protocol::PacketMeta ackPacket;
 
         void checkForWellcomePing();
         void respondToWellcomePing();
