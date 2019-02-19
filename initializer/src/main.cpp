@@ -67,7 +67,7 @@ void fadeIn(uint16_t panelIndex) {
 
     while (++brightness < 0xFF) {
         LNController.setBrightness(panelIndex, brightness);
-        delayMicroseconds(50);
+        delayMicroseconds(25);
     }
 }
 
@@ -77,7 +77,7 @@ void fadeOut(uint16_t panelIndex) {
 
     while (brightness--) {
         LNController.setBrightness(panelIndex, brightness);
-        delayMicroseconds(50);
+        delayMicroseconds(25);
     }
 }
 
@@ -87,26 +87,26 @@ void selfTest()
 
     Panel *panel;
     uint16_t panelCount = LNPanelsInitializer.getPanels()->getSize();
-    uint16_t panelNum = panelCount;
-
-    while (panelNum--) {
-        panel = LNPanelsInitializer.getPanels()->get(panelNum);
-
-        LNController.turnOn(panel->index);
-        fadeIn(panel->index);
-    }
-
-    delay(500);
-
-    panelNum = 0;
+    uint16_t panelNum = 0;
 
     while (panelNum < panelCount) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
 
         LNController.turnOn(panel->index);
-        fadeOut(panel->index);
+        fadeIn(panel->index);
 
         panelNum++;
+    }
+
+    delay(250);
+
+    panelNum = panelCount;
+
+    while (panelNum--) {
+        panel = LNPanelsInitializer.getPanels()->get(panelNum);
+
+        LNController.turnOn(panel->index);
+        fadeOut(panel->index);
     }
 
     PRINTLN("[SELF TEST END]");

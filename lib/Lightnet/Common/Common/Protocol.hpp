@@ -26,6 +26,7 @@ namespace Protocol
 		PACKET_GET_NEXT_PANEL_EDGE_INFO = 9,
 		PACKET_PANEL_EDGE_INFO = 10,
 		PACKET_ACK = 11,
+        PACKET_FETCH_STATE = 12,
 		PACKET_RESET_DEVICE = 200,
 	};
 
@@ -40,6 +41,13 @@ namespace Protocol
 			ColorRGB rgb;
 		};
 	} Color;
+
+    typedef struct PACK {
+        uint16_t panelIndex;
+        uint8_t state;
+		ColorRGB color;
+		uint8_t brightness;
+    } PanelState;
 
 // BEGIN Common packet structures
 	typedef struct PACK {
@@ -92,6 +100,11 @@ namespace Protocol
 		uint8_t edgeIndex;
 		uint16_t connectedPanelIndex;
 	} PacketPanelEdgeInfo;
+
+	typedef struct PACK {
+		PacketMeta meta;
+		PanelState panelState;
+	} PacketPanelState;
 // END
 
 	uint8_t validatePacket(void *packet, uint8_t size);

@@ -56,6 +56,7 @@ class LightnetPanel
         CircularQueue *incomingPackets;
         configuration_t config;
         Protocol::PacketMeta ackPacket;
+        Protocol::packetType_t lastPacketType = NULL;
 
         void checkForWellcomePing();
         void respondToWellcomePing();

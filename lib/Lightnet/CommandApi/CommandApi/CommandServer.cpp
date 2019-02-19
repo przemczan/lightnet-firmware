@@ -3,6 +3,7 @@
 CommandServer::CommandServer(AsyncWebServer *server) : server(server)
 {
     this->cmdQueue = new CircularQueue(QUEUE_SIZE);
+    this->executionQueue = new CircularQueue(QUEUE_SIZE);
     this->onEventWrapper =
         [ = ](AsyncWebSocket *ws, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
             this->onEvent(ws, client, type, arg, data, len);
@@ -31,6 +32,8 @@ void CommandServer::start()
 
     this->socket->onEvent(this->onEventWrapper);
     server->addHandler(this->socket);
+
+    this->cmdHandler = new CommandHandler(this->socket);
 }
 
 void CommandServer::loop()
@@ -45,21 +48,21 @@ void CommandServer::handleIncommingCommands()
     }
 
     noInterrupts();
+    CircularQueue *temp = this->cmdQueue;
+    this->cmdQueue = this->executionQueue;
+    this->executionQueue = temp;
+    interrupts();
 
-    CommandApi::Command *command;
-    uint16_t size;
+    PRINTKV("[CMD] handling messages", this->executionQueue->size());
+
+    CommandApi::InternalMessageWithPayload *message;
+    size_t size;
     uint8_t error;
 
-    while (this->cmdQueue->dequeue((void *&)command, size)) {
-        error = CommandHandler::validateCommand(command, size);
-        PRINTKV("[CMD] validation result", error);
-
-        if (!error) {
-            CommandHandler::handleCommand(command, size);
-        }
+    while (this->executionQueue->dequeue((void *&)message, size)) {
+        error = this->cmdHandler->handleMessage(message, size);
+        PRINTKV("[CMD] message handled", error);
     }
-
-    interrupts();
 }
 
 void CommandServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
@@ -68,31 +71,36 @@ void CommandServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, Aw
         AwsFrameInfo *info = (AwsFrameInfo *)arg;
 
         if (info->final && info->index == 0 && info->len == len) {
-            PRINTF(
-                "[CMD] %s-message [%s][%u][%u]: ",
-                (info->opcode == WS_TEXT) ? "text" : "binary",
-                ws->url(),
-                client->id(),
-                info->len
-            );
+            PRINT("[CMD] message: ");
 
-            if (info->opcode == WS_TEXT) {
-                data[len] = 0;
-                PRINTF("%s\n", (char *)data);
-            } else {
+            if (info->opcode == WS_BINARY) {
                 for (size_t i = 0; i < info->len; i++) {
                     PRINTF("%02x ", data[i]);
                 }
 
                 PRINTLN("");
-                this->onMessage(data, len);
+                this->onMessage(client, data, len);
             }
         }
     }
 }
 
-void CommandServer::onMessage(uint8_t *payload, size_t size)
+void CommandServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, size_t size)
 {
-    this->cmdQueue->enqueue(payload, size);
-    PRINTKV("[CMD] enqueued", size);
+    size_t messageSize = sizeof(CommandApi::InternalMessage) + size;
+    uint8_t buffer[messageSize];
+
+    CommandApi::InternalMessage *message = (CommandApi::InternalMessage *)&buffer[0];
+    uint8_t *messagePayload = (uint8_t *)&buffer[sizeof(CommandApi::InternalMessage)];
+
+    message->clientId = client->id();
+    message->size = size;
+
+    memcpy(messagePayload, payload, size);
+
+    if (!this->cmdQueue->enqueue(message, messageSize)) {
+        PRINTLN("[CMD][ERROR] queue full");
+    } else {
+        PRINTKV("[CMD] enqueued", size);
+    }
 }

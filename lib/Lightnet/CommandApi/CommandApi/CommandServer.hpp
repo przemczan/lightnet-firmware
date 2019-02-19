@@ -13,16 +13,18 @@
 
 class CommandServer
 {
-    const uint16_t QUEUE_SIZE = 500;
+    const uint16_t QUEUE_SIZE = 1000;
 
     private:
         AsyncWebSocket *socket = NULL;
         AsyncWebServer *server;
-        volatile CircularQueue * cmdQueue;
+        CircularQueue *cmdQueue;
+        CircularQueue *executionQueue;
+        CommandHandler *cmdHandler = NULL;
         std::function<void(AsyncWebSocket *, AsyncWebSocketClient *, AwsEventType, void *, uint8_t *, size_t)> onEventWrapper;
 
         void onEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len);
-        void onMessage(uint8_t *payload, size_t size);
+        void onMessage(AsyncWebSocketClient *client, uint8_t *payload, size_t size);
         void handleIncommingCommands();
 
     public:

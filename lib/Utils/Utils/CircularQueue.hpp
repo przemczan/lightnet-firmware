@@ -4,28 +4,28 @@
 #include "Macros.hpp"
 #include <Mem.hpp>
 
-#define SIZE_BYTES sizeof(uint16_t)
+#define SIZE_BYTES sizeof(size_t)
 
 class CircularQueue
 {
     private:
-        uint8_t * head;
-        volatile uint8_t * volatile tail;
-        volatile uint8_t * volatile softTail;
-        volatile uint8_t * volatile writePointer;
-        volatile uint8_t * volatile readPointer;
-        volatile uint16_t itemsCount = 0;
-        volatile uint16_t bufferSize;
+        uint8_t *head;
+        uint8_t *tail;
+        uint8_t *softTail;
+        uint8_t *writePointer;
+        uint8_t *readPointer;
+        size_t itemsCount = 0;
+        size_t bufferSize;
 
-        void writeData(void *data, uint16_t size) volatile;
-        void readData(void *&data, uint16_t &size) volatile;
+        void writeData(void *data, size_t size);
+        void readData(void *&data, size_t &size);
 
     public:
-        CircularQueue(uint16_t bufferSize);
+        CircularQueue(size_t bufferSize);
         ~CircularQueue();
-        bool enqueue(void *data, uint16_t size) volatile;
-        bool dequeue(void *&data, uint16_t &size) volatile;
-        uint16_t size() volatile;
-        void reset() volatile;
-        void dumpMeta() volatile;
+        bool enqueue(void *data, size_t size);
+        bool dequeue(void *&data, size_t &size);
+        size_t size();
+        void reset();
+        void dumpMeta();
 };

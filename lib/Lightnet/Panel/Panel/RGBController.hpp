@@ -15,9 +15,9 @@ class RGBController
         uint8_t gPinNo;
         uint8_t bPinNo;
 
-        Protocol::ColorRGB values = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
-        uint8_t brightness = 0;
-        bool on = false;
+        Protocol::ColorRGB colorValue = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
+        uint8_t brightnessValue = 0;
+        bool isOn = false;
 
     private:
         void updateOutputs();
@@ -26,7 +26,10 @@ class RGBController
         RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo);
         void turnOn();
         void turnOff();
-        void setColor(uint8_t r, uint8_t g, uint8_t b);
-        void setColor(Protocol::ColorRGB *color);
-        void setBrightness(uint8_t brightness);
+        bool on();
+        Protocol::ColorRGB color();
+        void color(uint8_t r, uint8_t g, uint8_t b);
+        void color(Protocol::ColorRGB *color);
+        uint8_t brightness();
+        void brightness(uint8_t brightness);
 };

@@ -251,41 +251,40 @@ void LightnetPanel::handleTurnOnOf(Protocol::PacketTurnOnOff *packet)
 
 void LightnetPanel::handleSetColorAndBrightness(Protocol::PacketSetColorAndBrightness *packet)
 {
-    this->rgbController->setColor(&packet->color.rgb);
-    this->rgbController->setBrightness(packet->brightness);
+    this->rgbController->color(&packet->color.rgb);
+    this->rgbController->brightness(packet->brightness);
 }
 
 void LightnetPanel::handleSetColor(Protocol::PacketSetColor *packet)
 {
-    this->rgbController->setColor(&packet->color.rgb);
+    this->rgbController->color(&packet->color.rgb);
 }
 
 void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
 {
-    this->rgbController->setBrightness(packet->brightness);
+    this->rgbController->brightness(packet->brightness);
 }
 
 void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 {
-    if (REGISTER_STATE_SEND == this->registerState) {
-        switch (packet->header.type)
-        {
-            case Protocol::PACKET_INITIALIZATION_POLL:
-                if (!this->index) {
-                    this->index = ((Protocol::PacketInitializationPoll *)packet)->panelIndex;
-                    PRINTKV("[EDGE][REGISTER] Got index", this->index);
-                }
-                break;
+    this->lastPacketType = packet->header.type;
 
-            case Protocol::PACKET_REGISTER_EDGE_ACK:
-                this->setRegisterState(REGISTER_STATE_END);
-                break;
-        }
+    switch (packet->header.type)
+    {
+        case Protocol::PACKET_INITIALIZATION_POLL:
+            if (!this->index) {
+                this->index = ((Protocol::PacketInitializationPoll *)packet)->panelIndex;
+                PRINTKV("[EDGE][REGISTER] Got index", this->index);
+            }
+            break;
 
-        return;
+        case Protocol::PACKET_REGISTER_EDGE_ACK:
+            this->setRegisterState(REGISTER_STATE_END);
+            break;
+
+        default:
+            this->incomingPackets->enqueue(packet, size);
     }
-
-    this->incomingPackets->enqueue(packet, size);
 }
 
 void LightnetPanel::onPacketRequested()
@@ -294,22 +293,34 @@ void LightnetPanel::onPacketRequested()
         return;
     }
 
-    if (REGISTER_STATE_SEND == this->registerState) {
-        Protocol::PacketRegisterEdge packetRegisterEdge;
+    switch (this->lastPacketType) {
+        case Protocol::PACKET_INITIALIZATION_POLL:
+            Protocol::PacketRegisterEdge packetRegisterEdge;
 
-        packetRegisterEdge.panelIndex = this->index;
-        packetRegisterEdge.edgeIndex = this->nextEdgeToRegister;
+            packetRegisterEdge.panelIndex = this->index;
+            packetRegisterEdge.edgeIndex = this->nextEdgeToRegister;
 
-        LNBus.sendResponsePacket(
-            &packetRegisterEdge,
-            sizeof(packetRegisterEdge),
-            Protocol::PACKET_REGISTER_EDGE
-        );
+            LNBus.sendResponsePacket(
+                &packetRegisterEdge,
+                sizeof(packetRegisterEdge),
+                Protocol::PACKET_REGISTER_EDGE
+            );
+            break;
 
-        return;
+        case Protocol::PACKET_FETCH_STATE:
+            Protocol::PacketPanelState packet;
+
+            packet.panelState.panelIndex = this->index;
+            packet.panelState.state = this->rgbController->on();
+            packet.panelState.color = this->rgbController->color();
+            packet.panelState.brightness = this->rgbController->brightness();
+
+            LNBus.sendResponsePacket(&packet, sizeof(packet), Protocol::PACKET_FETCH_STATE);
+            break;
+
+        default:
+            LNBus.sendResponseData(&this->ackPacket, sizeof(this->ackPacket));
     }
-
-    LNBus.sendResponseData(&this->ackPacket, sizeof(this->ackPacket));
 }
 
 void LightnetPanel::onPacketReceivedService(Protocol::PacketMeta *packet, int size)

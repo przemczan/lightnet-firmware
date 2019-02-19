@@ -1,6 +1,6 @@
 #include "CircularQueue.hpp"
 
-CircularQueue::CircularQueue(uint16_t bufferSize)
+CircularQueue::CircularQueue(size_t bufferSize)
 {
     this->bufferSize = bufferSize;
     this->head = (uint8_t *)malloc(bufferSize);
@@ -13,9 +13,9 @@ CircularQueue::~CircularQueue()
     free(this->head);
 }
 
-bool CircularQueue::enqueue(void *data, uint16_t size) volatile
+bool CircularQueue::enqueue(void *data, size_t size)
 {
-    uint16_t dataSize = size + SIZE_BYTES;
+    size_t dataSize = size + sizeof(size_t);
 
     if (this->writePointer == this->readPointer && this->itemsCount) {
         // write pointer reached read pointer, buffer is full
@@ -29,6 +29,7 @@ bool CircularQueue::enqueue(void *data, uint16_t size) volatile
             // no space till the end and from the beginning of buffer
             return false;
         }
+
         if ((uintptr_t)this->tail - (uintptr_t)this->writePointer < dataSize) {
             this->softTail = this->writePointer;
             this->writePointer = this->head;
@@ -46,7 +47,7 @@ bool CircularQueue::enqueue(void *data, uint16_t size) volatile
     return true;
 }
 
-bool CircularQueue::dequeue(void *&data, uint16_t &size) volatile
+bool CircularQueue::dequeue(void *&data, size_t &size)
 {
     if (!this->itemsCount) {
         return false;
@@ -58,29 +59,39 @@ bool CircularQueue::dequeue(void *&data, uint16_t &size) volatile
     return true;
 }
 
-void CircularQueue::writeData(void *data, uint16_t size) volatile
+void CircularQueue::writeData(void *data, size_t size)
 {
-    this->writePointer[0] = size;
-    this->writePointer[1] = size >> 8;
-    this->writePointer += SIZE_BYTES;
-    memcpyToVolatile(this->writePointer, (uint8_t *)data, size);
+    uint8_t sizeBytes = sizeof(size_t);
+
+    while (sizeBytes--) {
+        this->writePointer[sizeBytes] = size >> (8 * sizeBytes);
+    }
+
+    this->writePointer += sizeof(size_t);
+    memcpy(this->writePointer, (uint8_t *)data, size);
     this->writePointer += size;
 }
 
-void CircularQueue::readData(void *&data, uint16_t &size) volatile
+void CircularQueue::readData(void *&data, size_t &size)
 {
     if (this->readPointer == this->softTail) {
         this->readPointer = this->head;
         this->softTail = this->tail;
     }
 
-    size = this->readPointer[0] + (this->readPointer[1] << 8);
-    this->readPointer += SIZE_BYTES;
+    size = 0;
+    uint8_t sizeBytes = sizeof(size_t);
+
+    while (sizeBytes--) {
+        size += this->readPointer[sizeBytes] << (8 * sizeBytes);
+    }
+
+    this->readPointer += sizeof(size_t);
     data = (void *)this->readPointer;
     this->readPointer += size;
 }
 
-void CircularQueue::reset() volatile
+void CircularQueue::reset()
 {
     this->tail = this->head + bufferSize;
     this->softTail = this->tail;
@@ -89,18 +100,18 @@ void CircularQueue::reset() volatile
     this->itemsCount = 0;
 }
 
-uint16_t CircularQueue::size() volatile
+size_t CircularQueue::size()
 {
     return this->itemsCount;
 }
 
-void CircularQueue::dumpMeta() volatile
+void CircularQueue::dumpMeta()
 {
     PRINTF("\nWri: %u, Rea: %u, Tai: %u, Sof: %u, Cnt: %u\n",
-        (uintptr_t)this->writePointer - (uintptr_t)this->head,
-        (uintptr_t)this->readPointer - (uintptr_t)this->head,
-        (uintptr_t)this->tail - (uintptr_t)this->head,
-        (uintptr_t)this->softTail - (uintptr_t)this->head,
-        this->itemsCount
+           (uintptr_t)this->writePointer - (uintptr_t)this->head,
+           (uintptr_t)this->readPointer - (uintptr_t)this->head,
+           (uintptr_t)this->tail - (uintptr_t)this->head,
+           (uintptr_t)this->softTail - (uintptr_t)this->head,
+           this->itemsCount
     );
 }
