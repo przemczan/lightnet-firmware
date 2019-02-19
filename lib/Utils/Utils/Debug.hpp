@@ -1,9 +1,15 @@
 #if DEBUG
     #define PRINT(x)            Serial.print(x)
     #define PRINTLN(x)          Serial.println(x)
+    #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+        #define PRINTF              Serial.printf
+    #else
+        #define PRINTF              
+    #endif
 #else
     #define PRINT(x)
     #define PRINTLN(x)
+    #define PRINTF
 #endif
 
 #define PRINT2(x, y)            PRINT(x); PRINT(" "); PRINT(y)

@@ -30,6 +30,9 @@
 #include <ESP8266WiFi.h>
 #endif
 
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncTCPbuffer.h>
+
 #include "WebSockets.h"
 
 #ifndef WEBSOCKETS_SERVER_CLIENT_MAX

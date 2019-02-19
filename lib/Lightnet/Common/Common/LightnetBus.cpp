@@ -103,11 +103,17 @@ void LightnetBus::end()
 
 uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type, bool end)
 {
-    delayMicroseconds(3);
     Protocol::setPacketMeta(packet, type);
 
+    return this->sendData(address, packet, size, end);
+}
+
+uint8_t LightnetBus::sendData(uint8_t address, void *data, uint8_t size, bool end)
+{
+    delayMicroseconds(3);
+
     Wire.beginTransmission(address);
-    Wire.write((uint8_t *)packet, size);
+    Wire.write((uint8_t *)data, size);
 
     return Wire.endTransmission(end);
 }

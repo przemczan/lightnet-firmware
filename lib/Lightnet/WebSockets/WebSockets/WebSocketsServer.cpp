@@ -22,7 +22,6 @@
  *
  */
 
-#include "WebSockets.h"
 #include "WebSocketsServer.h"
 
 WebSocketsServer::WebSocketsServer(uint16_t port, String origin, String protocol) {
@@ -868,6 +867,3 @@ void WebSocketsServer::handleHeader(WSclient_t * client, String * headerLine) {
         }
     }
 }
-
-
-

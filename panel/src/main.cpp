@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "LightnetPanel.hpp"
 #include <avr/wdt.h>
+#include "Crc.hpp"
 
 void setup()
 {
@@ -30,74 +31,3 @@ void loop()
 {
     LNPanel.run();
 }
-
-/**
-
-#include <Arduino.h>
-
-volatile bool led = true;
-volatile uint8_t pinNo = 8;
-volatile bool busState = true;
-volatile bool hasPing = false;
-volatile bool busIsDisabled = false;
-
-void onInterrupt()
-{
-    if (busIsDisabled) {
-        return;
-    }
-
-    uint8_t state = digitalRead(pinNo);
-
-    if (!busState && state) {
-        hasPing = true;
-    }
-
-    busState = state;
-
-    digitalWrite(13, led);
-    led = led ? false : true;
-}
-
-void ping()
-{
-    delay(10);
-
-    busIsDisabled = true;
-
-    pinMode(pinNo, OUTPUT);
-    digitalWrite(pinNo, LOW);
-
-    delay(10);
-
-    pinMode(pinNo, INPUT_PULLUP);
-
-    busIsDisabled = false;
-}
-
-bool getAndResetPingStatus()
-{
-    noInterrupts();
-    bool state = hasPing;
-    hasPing = false;
-    interrupts();
-
-    return state;
-}
-
-void setup()
-{
-    pinMode(13, OUTPUT);
-    pinMode(2, INPUT);
-    attachInterrupt(digitalPinToInterrupt(2), onInterrupt, CHANGE);
-
-    ping();
-}
-
-void loop()
-{
-    if (getAndResetPingStatus()) {
-        ping();
-    }
-}
-*/

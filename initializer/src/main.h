@@ -1,5 +1,6 @@
 #include <Arduino.h>
-#include <WiFiManager.h>
 #include "PanelsInitializer.hpp"
 #include "PanelsController.hpp"
-#include "WebSocketApi.hpp"
+#include "CommandServer.hpp"
+#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWiFiManager.h>

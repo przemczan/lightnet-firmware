@@ -22,7 +22,6 @@
  *
  */
 
-#include "WebSockets.h"
 #include "WebSocketsClient.h"
 
 WebSocketsClient::WebSocketsClient() {
@@ -68,7 +67,7 @@ void WebSocketsClient::begin(const char *host, uint16_t port, const char * url, 
 
     _client.lastPing = 0;
     _client.pongReceived = false;
-    _client.pongTimeoutCount = 0;    
+    _client.pongTimeoutCount = 0;
 
 #ifdef ESP8266
     randomSeed(RANDOM_REG32);
@@ -179,7 +178,7 @@ void WebSocketsClient::loop(void) {
             handleHBPing();
             handleHBTimeout(&_client);
         }
-        
+
     }
 }
 #endif
@@ -254,7 +253,7 @@ bool WebSocketsClient::sendBIN(const uint8_t * payload, size_t length) {
 bool WebSocketsClient::sendPing(uint8_t * payload, size_t length) {
     if(clientIsConnected(&_client)) {
         bool sent = sendFrame(&_client, WSop_ping, payload, length);
-        if (sent) 
+        if (sent)
             _client.lastPing = millis();
         return sent;
     }
@@ -777,7 +776,7 @@ void WebSocketsClient::asyncConnect() {
 
 /**
  * send heartbeat ping to server in set intervals
- */ 
+ */
 void WebSocketsClient::handleHBPing(){
     if (_client.pingInterval == 0) return;
     uint32_t pi = millis() - _client.lastPing;

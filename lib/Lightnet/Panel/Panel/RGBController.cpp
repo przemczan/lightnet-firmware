@@ -5,10 +5,6 @@
 RGBController::RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo):
     rPinNo(_rPinNo), gPinNo(_gPinNo), bPinNo(_gPinNo)
 {
-    this->values.r = 0;
-    this->values.g = 0;
-    this->values.b = 0;
-
     pinMode(rPinNo, OUTPUT);
     pinMode(gPinNo, OUTPUT);
     pinMode(bPinNo, OUTPUT);

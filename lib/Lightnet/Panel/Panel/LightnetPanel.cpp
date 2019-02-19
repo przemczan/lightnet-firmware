@@ -197,7 +197,6 @@ void LightnetPanel::handleIncomingPackets()
         return;
     }
 
-    //delayMicroseconds(500);
     noInterrupts();
 
     Protocol::PacketMeta *packet;
