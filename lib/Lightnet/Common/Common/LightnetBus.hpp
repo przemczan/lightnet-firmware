@@ -9,8 +9,8 @@
 #define IS_ESP32 defined(ARDUINO_ARCH_ESP32)
 #define IS_ESP (IS_ESP8266 || IS_ESP32)
 
-#if IS_ESP
-#include <twi.h>
+#if IS_ESP8266
+    #include <twi.h>
 #endif
 
 class LightnetBus

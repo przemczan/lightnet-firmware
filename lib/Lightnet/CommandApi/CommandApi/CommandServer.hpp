@@ -4,7 +4,6 @@
     #define WEBSOCKETS_NETWORK_TYPE NETWORK_ESP8266_ASYNC
 #endif
 
-#include "ESPAsyncTCP.h"
 #include "ESPAsyncWebServer.h"
 #include "LightnetBus.hpp"
 #include "Debug.hpp"

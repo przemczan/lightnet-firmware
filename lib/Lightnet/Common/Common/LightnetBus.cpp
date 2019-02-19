@@ -94,9 +94,9 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 
 void LightnetBus::end()
 {
-    #if IS_ESP
+    #if IS_ESP8266
         twi_stop();
-    #else
+    #elif !IS_ESP
         Wire.end();
     #endif
 }
