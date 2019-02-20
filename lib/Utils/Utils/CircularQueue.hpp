@@ -4,7 +4,7 @@
 #include "Macros.hpp"
 #include <Mem.hpp>
 
-#define SIZE_BYTES sizeof(size_t)
+#define SIZE_BYTES sizeof(uint16_t)
 
 class CircularQueue
 {
@@ -14,18 +14,19 @@ class CircularQueue
         uint8_t *softTail;
         uint8_t *writePointer;
         uint8_t *readPointer;
-        size_t itemsCount = 0;
-        size_t bufferSize;
+        uint16_t itemsCount = 0;
+        uint16_t bufferSize;
 
-        void writeData(void *data, size_t size);
-        void readData(void *&data, size_t &size);
+        void writeData(void *data, uint16_t size);
+        void readData(void *&data, uint16_t &size);
 
     public:
-        CircularQueue(size_t bufferSize);
+        CircularQueue(uint16_t bufferSize);
         ~CircularQueue();
-        bool enqueue(void *data, size_t size);
-        bool dequeue(void *&data, size_t &size);
-        size_t size();
+        bool enqueue(void *data, uint16_t size);
+        bool dequeue(void *&data, uint16_t &size);
+        uint16_t size();
+        bool empty();
         void reset();
         void dumpMeta();
 };

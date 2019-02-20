@@ -16,7 +16,7 @@ class RGBController
         uint8_t bPinNo;
 
         Protocol::ColorRGB colorValue = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
-        uint8_t brightnessValue = 0;
+        uint8_t brightnessValue = 0xFF;
         bool isOn = false;
 
     private:

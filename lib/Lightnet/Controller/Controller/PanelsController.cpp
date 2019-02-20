@@ -55,16 +55,25 @@ void PanelsController::resetDevices(uint16_t maxAddress)
     } while (maxAddress--);
 }
 
-uint8_t PanelsController::fetchState(uint8_t address, Protocol::PacketPanelState *state)
+uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
 {
     Protocol::PacketMeta packet;
+    Protocol::PacketPanelState response;
 
-    return LNBus.sendPacketWithResponse(
+    uint8_t error = LNBus.sendPacketWithResponse(
         address,
         &packet,
         sizeof(packet),
         Protocol::PACKET_FETCH_STATE,
-        state,
-        sizeof(*state)
+        &response,
+        sizeof(response)
     );
+
+    if (!error) {
+        memcpy(state, &response.panelState, sizeof(*state));
+
+        return 0;
+    }
+
+    return error;
 }

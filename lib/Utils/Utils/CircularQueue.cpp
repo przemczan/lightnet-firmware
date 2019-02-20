@@ -1,6 +1,6 @@
 #include "CircularQueue.hpp"
 
-CircularQueue::CircularQueue(size_t bufferSize)
+CircularQueue::CircularQueue(uint16_t bufferSize)
 {
     this->bufferSize = bufferSize;
     this->head = (uint8_t *)malloc(bufferSize);
@@ -13,9 +13,9 @@ CircularQueue::~CircularQueue()
     free(this->head);
 }
 
-bool CircularQueue::enqueue(void *data, size_t size)
+bool CircularQueue::enqueue(void *data, uint16_t size)
 {
-    size_t dataSize = size + sizeof(size_t);
+    uint32_t dataSize = size + sizeof(uint16_t);
 
     if (this->writePointer == this->readPointer && this->itemsCount) {
         // write pointer reached read pointer, buffer is full
@@ -47,7 +47,7 @@ bool CircularQueue::enqueue(void *data, size_t size)
     return true;
 }
 
-bool CircularQueue::dequeue(void *&data, size_t &size)
+bool CircularQueue::dequeue(void *&data, uint16_t &size)
 {
     if (!this->itemsCount) {
         return false;
@@ -59,20 +59,20 @@ bool CircularQueue::dequeue(void *&data, size_t &size)
     return true;
 }
 
-void CircularQueue::writeData(void *data, size_t size)
+void CircularQueue::writeData(void *data, uint16_t size)
 {
-    uint8_t sizeBytes = sizeof(size_t);
+    uint8_t sizeBytes = sizeof(uint16_t);
 
     while (sizeBytes--) {
         this->writePointer[sizeBytes] = size >> (8 * sizeBytes);
     }
 
-    this->writePointer += sizeof(size_t);
+    this->writePointer += sizeof(uint16_t);
     memcpy(this->writePointer, (uint8_t *)data, size);
     this->writePointer += size;
 }
 
-void CircularQueue::readData(void *&data, size_t &size)
+void CircularQueue::readData(void *&data, uint16_t &size)
 {
     if (this->readPointer == this->softTail) {
         this->readPointer = this->head;
@@ -80,13 +80,13 @@ void CircularQueue::readData(void *&data, size_t &size)
     }
 
     size = 0;
-    uint8_t sizeBytes = sizeof(size_t);
+    uint8_t sizeBytes = sizeof(uint16_t);
 
     while (sizeBytes--) {
         size += this->readPointer[sizeBytes] << (8 * sizeBytes);
     }
 
-    this->readPointer += sizeof(size_t);
+    this->readPointer += sizeof(uint16_t);
     data = (void *)this->readPointer;
     this->readPointer += size;
 }
@@ -100,9 +100,14 @@ void CircularQueue::reset()
     this->itemsCount = 0;
 }
 
-size_t CircularQueue::size()
+uint16_t CircularQueue::size()
 {
     return this->itemsCount;
+}
+
+bool CircularQueue::empty()
+{
+    return this->itemsCount == 0;
 }
 
 void CircularQueue::dumpMeta()

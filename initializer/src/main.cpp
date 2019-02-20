@@ -15,13 +15,13 @@
     #define IIC_SCL_PIN 5
 #endif
 
-PanelsController LNController;
 uint8_t state = 0;
-
-AsyncWebServer *webServer;
 DNSServer dns;
+PanelsController *panelsController;
+AsyncWebServer *webServer;
 AsyncWiFiManager *wifiManager;
-CommandServer *cmdServer;
+MessageServer *messageServer;
+MessageHandler *messageHandler;
 
 void setup()
 {
@@ -45,7 +45,7 @@ void setup()
 
     PRINTLN("[HARDWARE INIT] end");
 
-    //LNController.resetDevices();
+    //panelsController.resetDevices();
 
     delay(500);
 
@@ -56,9 +56,11 @@ void setup()
     delay(500);
     PRINTLN("Initializing...");
 
+    panelsController = new PanelsController();
     webServer = new AsyncWebServer(81);
     wifiManager = new AsyncWiFiManager(webServer, &dns);
-    cmdServer = new CommandServer(webServer);
+    messageServer = new MessageServer(webServer);
+    messageHandler = new MessageHandler(messageServer, panelsController);
 }
 
 void fadeIn(uint16_t panelIndex) {
@@ -66,7 +68,7 @@ void fadeIn(uint16_t panelIndex) {
     uint8_t brightness = 0;
 
     while (++brightness < 0xFF) {
-        LNController.setBrightness(panelIndex, brightness);
+        panelsController->setBrightness(panelIndex, brightness);
         delayMicroseconds(25);
     }
 }
@@ -76,7 +78,7 @@ void fadeOut(uint16_t panelIndex) {
     uint8_t brightness = 0xFF;
 
     while (brightness--) {
-        LNController.setBrightness(panelIndex, brightness);
+        panelsController->setBrightness(panelIndex, brightness);
         delayMicroseconds(25);
     }
 }
@@ -92,7 +94,7 @@ void selfTest()
     while (panelNum < panelCount) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
 
-        LNController.turnOn(panel->index);
+        panelsController->turnOn(panel->index);
         fadeIn(panel->index);
 
         panelNum++;
@@ -104,9 +106,15 @@ void selfTest()
 
     while (panelNum--) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
-
-        LNController.turnOn(panel->index);
         fadeOut(panel->index);
+    }
+
+    panelNum = panelCount;
+
+    while (panelNum--) {
+        panel = LNPanelsInitializer.getPanels()->get(panelNum);
+        panelsController->turnOff(panel->index);
+        panelsController->setBrightness(panel->index, 0xFF);
     }
 
     PRINTLN("[SELF TEST END]");
@@ -128,12 +136,11 @@ void loop()
                 selfTest();
 
                 wifiManager->autoConnect();
-                cmdServer->start();
                 webServer->begin();
                 break;
 
             case 1:
-                cmdServer->loop();
+                messageHandler->handleIncommingMessages();
                 break;
         }
     }

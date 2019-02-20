@@ -1,17 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
+#include "Protocol.hpp"
+#include "Crc.hpp"
 
 #define PACK __attribute__((__packed__))
 
 namespace CommandApi
 {
-    enum command_t: uint8_t {
-        CMD_TOGGLE = 1,
-        CMD_SET_BRIGHTNESS = 2,
-        CMD_SET_COLOR = 3,
-        CMD_GET_PANELS_STATES = 100
-    };
+    const uint16_t VERSION = 0x01;
 
     typedef struct PACK {
         uint8_t r;
@@ -19,52 +16,75 @@ namespace CommandApi
         uint8_t b;
     } ColorRGB;
 
-    typedef struct PACK {
-        command_t type;
-        uint16_t protocolVersion;
-    } CommandHeader;
+    // ========= Commands
 
-    typedef struct PACK {
-        CommandHeader header;
-        uint16_t headerCrc;
-        uint16_t dataCrc;
-    } Command;
+    namespace Cmd {
+        enum command_t: uint8_t {
+            TOGGLE = 1,
+            SET_BRIGHTNESS = 2,
+            SET_COLOR = 3,
+            GET_PANELS_LIST = 100,
+            GET_PANELS_STATES = 101
+        };
 
-    typedef struct PACK {
-        Command meta;
-        uint8_t address;
-        bool state;
-    } CommandToggle;
+        typedef struct PACK {
+            command_t type;
+            uint16_t protocolVersion;
+            uint32_t nonce;
+        } CommandHeader;
 
-    typedef struct PACK {
-        Command meta;
-        uint8_t address;
-        uint8_t brightness;
-    } CommandSetBrightness;
+        typedef struct PACK {
+            CommandHeader header;
+            uint16_t headerCrc;
+            uint16_t payloadCrc;
+            uint16_t payloadSize;
+            uint8_t payload[];
+        } CommandMeta;
 
-    typedef struct PACK {
-        Command meta;
-        uint8_t address;
-        ColorRGB color;
-    } CommandSetColor;
+        typedef struct PACK {
+            CommandMeta meta;
+            uint8_t address;
+            bool state;
+        } Toggle;
 
-    typedef struct PACK {
-        Command meta;
-    } CommandGetPanelsStates;
+        typedef struct PACK {
+            CommandMeta meta;
+            uint8_t address;
+            uint8_t brightness;
+        } SetBrightness;
 
-    typedef struct PACK {
-        uint32_t clientId;
-        size_t size;
-        /* payload */
-    } InternalMessage;
+        typedef struct PACK {
+            CommandMeta meta;
+            uint8_t address;
+            ColorRGB color;
+        } SetColor;
 
-    typedef struct PACK {
-        InternalMessage meta;
-        uint8_t payload;
-    } InternalMessageWithPayload;
+        typedef struct PACK {
+            CommandMeta meta;
+            uint16_t length;
+            Protocol::PanelState states[];
+        } GetPanelsStatesResponse;
 
-    typedef struct PACK {
-        command_t type;
-        uint16_t length;
-    } CommandGetPanelsStatesResponse;
+        typedef struct PACK {
+            CommandMeta meta;
+            uint16_t length;
+        } GetPanelsListResponse;
+
+        void updateMeta(CommandMeta *meta, command_t type, uint16_t payloadSize);
+    }
+
+    // ========== Internal Messages
+
+    namespace Msg {
+        typedef struct PACK {
+            uint32_t clientId;
+            uint16_t payloadSize;
+            uint8_t payload[];
+        } Message;
+
+        typedef struct PACK {
+            Message meta;
+            Cmd::GetPanelsStatesResponse panels;
+        } PanelsStates;
+    }
 }

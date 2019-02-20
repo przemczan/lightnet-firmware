@@ -13,6 +13,6 @@ class PanelsController
         uint8_t turnOnOff(uint8_t address, uint8_t on);
         uint8_t turnOn(uint8_t address);
         uint8_t turnOff(uint8_t address);
-        uint8_t fetchState(uint8_t address, Protocol::PacketPanelState *state);
+        uint8_t fetchState(uint8_t address, Protocol::PanelState *state);
         void resetDevices(uint16_t maxIndex);
 };
