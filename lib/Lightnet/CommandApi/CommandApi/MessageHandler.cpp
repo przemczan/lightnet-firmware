@@ -16,7 +16,7 @@ void MessageHandler::handleIncommingMessages()
 
     PRINTKV("[CMD HANDLER] processing messages", queue->size());
 
-    CommandApi::Msg::Message *message;
+    CommandApi::Msg::MessageMeta *message;
     uint16_t size;
     uint8_t error;
 
@@ -25,9 +25,9 @@ void MessageHandler::handleIncommingMessages()
     }
 }
 
-uint8_t MessageHandler::handleMessage(CommandApi::Msg::Message *message, uint16_t size)
+uint8_t MessageHandler::handleMessage(CommandApi::Msg::MessageMeta *message, uint16_t size)
 {
-    CommandApi::Cmd::CommandMeta *command = (CommandApi::Cmd::CommandMeta *)message->payload;
+    CommandApi::PacketMeta *command = (CommandApi::PacketMeta *)message->payload;
 
     if (size < sizeof(*message) + sizeof(*command)) {
         return ERROR_MESSAGE_SIZE_TOO_SMALL;
@@ -47,29 +47,29 @@ uint8_t MessageHandler::handleMessage(CommandApi::Msg::Message *message, uint16_
     return this->handleCommand(command, message->payloadSize, message->clientId);
 }
 
-uint8_t MessageHandler::handleCommand(CommandApi::Cmd::CommandMeta *command, uint16_t size, uint32_t clientId)
+uint8_t MessageHandler::handleCommand(CommandApi::PacketMeta *command, uint16_t size, uint32_t clientId)
 {
     PRINTF("[CMD HANDLER] handling cmd [client:%u, type:%u]\n", clientId, command->header.type);
     uint8_t error = 0;
 
     switch (command->header.type) {
-        case CommandApi::Cmd::TOGGLE:
+        case CommandApi::TOGGLE:
             error = this->cmdToggle((CommandApi::Cmd::Toggle *)command);
             break;
 
-        case CommandApi::Cmd::SET_BRIGHTNESS:
+        case CommandApi::SET_BRIGHTNESS:
             error = this->cmdSetBrightness((CommandApi::Cmd::SetBrightness *)command);
             break;
 
-        case CommandApi::Cmd::SET_COLOR:
+        case CommandApi::SET_COLOR:
             error = this->cmdSetColor((CommandApi::Cmd::SetColor *)command);
             break;
 
-        case CommandApi::Cmd::GET_PANELS_STATES:
+        case CommandApi::GET_PANELS_STATES:
             error = this->cmdGetPanelsStates(clientId);
             break;
 
-        case CommandApi::Cmd::GET_PANELS_LIST:
+        case CommandApi::GET_PANELS_LIST:
             error = this->cmdGetPanelsList(clientId);
             break;
     }
@@ -132,23 +132,23 @@ uint8_t MessageHandler::cmdGetPanelsStates(uint32_t clientId)
     CommandApi::Msg::PanelsStates *message = (CommandApi::Msg::PanelsStates *)&buffer[0];
 
     message->meta.clientId = clientId;
-    message->meta.payloadSize = sizeof(Protocol::PanelState) * panelsCount + sizeof(message->panels);
-    message->panels.length = panelsCount;
+    message->meta.payloadSize = sizeof(Protocol::PanelState) * panelsCount + sizeof(message->panelsStates);
+    message->panelsStates.length = panelsCount;
 
     Panel *panel;
 
     for (uint16_t idx = 0; idx < panelsCount; idx++) {
         panel = panels->get(idx);
 
-        if (this->panelsController->fetchState(panel->index, &message->panels.states[idx])) {
+        if (this->panelsController->fetchState(panel->index, &message->panelsStates.states[idx])) {
             return 1;
         }
     }
 
-    CommandApi::Cmd::updateMeta(
-        &message->panels.meta,
-        CommandApi::Cmd::GET_PANELS_STATES,
-        sizeof(message->panels.length) + panelsCount * sizeof(Protocol::PanelState)
+    CommandApi::updatePacketMeta(
+        &message->panelsStates.meta,
+        CommandApi::PANELS_STATES,
+        sizeof(message->panelsStates.length) + panelsCount * sizeof(Protocol::PanelState)
     );
 
     this->messageServer->sendMessage(&message->meta);
@@ -163,13 +163,13 @@ uint8_t MessageHandler::cmdGetPanelsList(uint32_t clientId)
 
 uint8_t MessageHandler::validateCommand(void *data, uint16_t size)
 {
-    CommandApi::Cmd::CommandMeta *command = (CommandApi::Cmd::CommandMeta *)data;
+    CommandApi::PacketMeta *command = (CommandApi::PacketMeta *)data;
 
     if (size < sizeof(*command) || command->payloadSize > size - sizeof(*command)) {
         return 1;
     }
 
-    if (crc16(command, sizeof(CommandApi::Cmd::CommandHeader)) != command->headerCrc) {
+    if (crc16(command, sizeof(CommandApi::PacketHeader)) != command->headerCrc) {
         return 2;
     }
 

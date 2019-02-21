@@ -23,8 +23,8 @@ class MessageHandler
         PanelsController *panelsController;
         MessageServer *messageServer;
 
-        uint8_t handleMessage(CommandApi::Msg::Message *message, uint16_t size);
-        uint8_t handleCommand(CommandApi::Cmd::CommandMeta *command, uint16_t size, uint32_t clientId);
+        uint8_t handleMessage(CommandApi::Msg::MessageMeta *message, uint16_t size);
+        uint8_t handleCommand(CommandApi::PacketMeta *command, uint16_t size, uint32_t clientId);
         uint8_t cmdToggle(CommandApi::Cmd::Toggle *command);
         uint8_t cmdSetBrightness(CommandApi::Cmd::SetBrightness *command);
         uint8_t cmdSetColor(CommandApi::Cmd::SetColor *command);

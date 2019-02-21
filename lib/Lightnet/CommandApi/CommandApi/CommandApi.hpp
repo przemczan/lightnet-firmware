@@ -16,75 +16,91 @@ namespace CommandApi
         uint8_t b;
     } ColorRGB;
 
-    // ========= Commands
+    enum packet_t: uint8_t {
+        TOGGLE = 1,
+        SET_BRIGHTNESS = 2,
+        SET_COLOR = 3,
+        GET_PANELS_LIST = 4,
+        GET_PANELS_STATES = 5,
+        PANELS_STATES = 6,
+        PANELS_LIST = 7,
+    };
+
+    typedef struct PACK {
+        packet_t type;
+        uint16_t protocolVersion;
+        uint32_t nonce;
+    } PacketHeader;
+
+    typedef struct PACK {
+        PacketHeader header;
+        uint16_t headerCrc;
+        uint16_t payloadCrc;
+        uint16_t payloadSize;
+        uint8_t payload[];
+    } PacketMeta;
+
+    void updatePacketMeta(PacketMeta *meta, packet_t type, uint16_t payloadSize);
+
+    typedef struct {
+        uint16_t index;
+        uint16_t parentPanelIndex;
+        uint16_t parentEdgeIndex;
+    } PanelEdgeInfo;
+
+    typedef struct {
+        uint16_t index;
+        uint16_t edgesNumber;
+        PanelEdgeInfo edges[];
+    } PanelInfo;
+
+    typedef Protocol::PanelState PanelState;
 
     namespace Cmd {
-        enum command_t: uint8_t {
-            TOGGLE = 1,
-            SET_BRIGHTNESS = 2,
-            SET_COLOR = 3,
-            GET_PANELS_LIST = 100,
-            GET_PANELS_STATES = 101
-        };
 
         typedef struct PACK {
-            command_t type;
-            uint16_t protocolVersion;
-            uint32_t nonce;
-        } CommandHeader;
-
-        typedef struct PACK {
-            CommandHeader header;
-            uint16_t headerCrc;
-            uint16_t payloadCrc;
-            uint16_t payloadSize;
-            uint8_t payload[];
-        } CommandMeta;
-
-        typedef struct PACK {
-            CommandMeta meta;
+            PacketMeta meta;
             uint8_t address;
             bool state;
         } Toggle;
 
         typedef struct PACK {
-            CommandMeta meta;
+            PacketMeta meta;
             uint8_t address;
             uint8_t brightness;
         } SetBrightness;
 
         typedef struct PACK {
-            CommandMeta meta;
+            PacketMeta meta;
             uint8_t address;
             ColorRGB color;
         } SetColor;
-
-        typedef struct PACK {
-            CommandMeta meta;
-            uint16_t length;
-            Protocol::PanelState states[];
-        } GetPanelsStatesResponse;
-
-        typedef struct PACK {
-            CommandMeta meta;
-            uint16_t length;
-        } GetPanelsListResponse;
-
-        void updateMeta(CommandMeta *meta, command_t type, uint16_t payloadSize);
     }
 
-    // ========== Internal Messages
+    namespace Rsp {
+        typedef struct PACK {
+            PacketMeta meta;
+            uint16_t length;
+            PanelState states[];
+        } PanelsStates;
+
+        typedef struct PACK {
+            PacketMeta meta;
+            uint16_t length;
+            PanelInfo panels[];
+        } PanelsList;
+    }
 
     namespace Msg {
         typedef struct PACK {
             uint32_t clientId;
             uint16_t payloadSize;
             uint8_t payload[];
-        } Message;
+        } MessageMeta;
 
         typedef struct PACK {
-            Message meta;
-            Cmd::GetPanelsStatesResponse panels;
+            MessageMeta meta;
+            Rsp::PanelsStates panelsStates;
         } PanelsStates;
     }
 }

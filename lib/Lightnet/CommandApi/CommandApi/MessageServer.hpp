@@ -24,5 +24,5 @@ class MessageServer
         ~MessageServer();
         void start();
         CircularQueue *getIncommingMessages();
-        void sendMessage(CommandApi::Msg::Message *message);
+        void sendMessage(CommandApi::Msg::MessageMeta *message);
 };

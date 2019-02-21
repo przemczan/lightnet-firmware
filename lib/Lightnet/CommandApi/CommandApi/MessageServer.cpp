@@ -36,7 +36,7 @@ CircularQueue *MessageServer::getIncommingMessages()
     return this->executionQueue;
 }
 
-void MessageServer::sendMessage(CommandApi::Msg::Message *message)
+void MessageServer::sendMessage(CommandApi::Msg::MessageMeta *message)
 {
     if (!this->socket->hasClient(message->clientId)) {
         return;
@@ -66,10 +66,10 @@ void MessageServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, Aw
 
 void MessageServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, uint16_t size)
 {
-    size_t messageSize = sizeof(CommandApi::Msg::Message) + size;
+    size_t messageSize = sizeof(CommandApi::Msg::MessageMeta) + size;
     uint8_t buffer[messageSize];
 
-    CommandApi::Msg::Message *message = (CommandApi::Msg::Message *)&buffer[0];
+    CommandApi::Msg::MessageMeta *message = (CommandApi::Msg::MessageMeta *)&buffer[0];
 
     message->clientId = client->id();
     message->payloadSize = size;
