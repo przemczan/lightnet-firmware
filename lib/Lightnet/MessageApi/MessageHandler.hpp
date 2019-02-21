@@ -20,8 +20,8 @@ class MessageHandler
     static const uint8_t ERROR_MESSAGE_INVALID_COMMAND = 0x03;
 
     private:
-        PanelsController *panelsController;
         MessageServer *messageServer;
+        PanelsController *panelsController;
 
         uint8_t handleMessage(MessageApi::Internal::Message *message, uint16_t size);
         uint8_t handleCommand(MessageApi::PacketMeta *command, uint16_t size, uint32_t clientId);
@@ -29,7 +29,7 @@ class MessageHandler
         uint8_t cmdSetBrightness(MessageApi::Cmd::SetBrightness *command);
         uint8_t cmdSetColor(MessageApi::Cmd::SetColor *command);
         uint8_t cmdGetPanelsStates(uint32_t clientId);
-        uint8_t cmdGetPanelsList(uint32_t clientId);
+        uint8_t cmdGetEdgesList(uint32_t clientId);
         uint8_t validateCommand(void *data, uint16_t size);
 
     public:

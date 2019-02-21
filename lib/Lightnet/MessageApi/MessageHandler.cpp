@@ -18,7 +18,6 @@ void MessageHandler::handleIncommingMessages()
 
     MessageApi::Internal::Message *message;
     uint16_t size;
-    uint8_t error;
 
     while (queue->dequeue((void *&)message, size)) {
         this->handleMessage(message, size);
@@ -69,8 +68,8 @@ uint8_t MessageHandler::handleCommand(MessageApi::PacketMeta *command, uint16_t 
             error = this->cmdGetPanelsStates(clientId);
             break;
 
-        case MessageApi::GET_PANELS_LIST:
-            error = this->cmdGetPanelsList(clientId);
+        case MessageApi::GET_EDGES_LIST:
+            error = this->cmdGetEdgesList(clientId);
             break;
     }
 
@@ -89,8 +88,7 @@ uint8_t MessageHandler::cmdToggle(MessageApi::Cmd::Toggle *command)
         command->address,
         &packet,
         sizeof(packet),
-        Protocol::PACKET_TURN_ON_OFF
-    );
+        Protocol::PACKET_TURN_ON_OFF);
 }
 
 uint8_t MessageHandler::cmdSetBrightness(MessageApi::Cmd::SetBrightness *command)
@@ -103,8 +101,7 @@ uint8_t MessageHandler::cmdSetBrightness(MessageApi::Cmd::SetBrightness *command
         command->address,
         &packet,
         sizeof(packet),
-        Protocol::PACKET_SET_BRIGHTNESS
-    );
+        Protocol::PACKET_SET_BRIGHTNESS);
 }
 
 uint8_t MessageHandler::cmdSetColor(MessageApi::Cmd::SetColor *command)
@@ -119,20 +116,19 @@ uint8_t MessageHandler::cmdSetColor(MessageApi::Cmd::SetColor *command)
         command->address,
         &packet,
         sizeof(packet),
-        Protocol::PACKET_SET_COLOR
-    );
+        Protocol::PACKET_SET_COLOR);
 }
 
 uint8_t MessageHandler::cmdGetPanelsStates(uint32_t clientId)
 {
     List<Panel *> *panels = LNPanelsInitializer.getPanels();
     uint16_t panelsCount = panels->getSize();
-    uint16_t bufferSize = sizeof(MessageApi::Internal::PanelsStates) + sizeof(Protocol::PanelState) * panelsCount;
+    uint16_t bufferSize = sizeof(MessageApi::Internal::PanelsStates) + sizeof(MessageApi::PanelState) * panelsCount;
     uint8_t buffer[bufferSize];
     MessageApi::Internal::PanelsStates *message = (MessageApi::Internal::PanelsStates *)&buffer[0];
 
     message->meta.clientId = clientId;
-    message->meta.payloadSize = sizeof(Protocol::PanelState) * panelsCount + sizeof(message->panelsStates);
+    message->meta.payloadSize = sizeof(MessageApi::PanelState) * panelsCount + sizeof(message->panelsStates);
     message->panelsStates.length = panelsCount;
 
     Panel *panel;
@@ -148,16 +144,69 @@ uint8_t MessageHandler::cmdGetPanelsStates(uint32_t clientId)
     MessageApi::updatePacketMeta(
         &message->panelsStates.meta,
         MessageApi::PANELS_STATES,
-        sizeof(message->panelsStates.length) + panelsCount * sizeof(Protocol::PanelState)
-    );
+        sizeof(message->panelsStates.length) + panelsCount * sizeof(MessageApi::PanelState));
 
     this->messageServer->sendMessage(&message->meta);
 
     return 0;
 }
 
-uint8_t MessageHandler::cmdGetPanelsList(uint32_t clientId)
+uint8_t MessageHandler::cmdGetEdgesList(uint32_t clientId)
 {
+    List<Panel *> *panels = LNPanelsInitializer.getPanels();
+    uint16_t panelsCount = panels->getSize();
+    uint16_t edgesTotalCount = 0;
+    Panel *panel;
+    Edge *edge;
+
+    for (uint16_t idx = 0; idx < panelsCount; idx++) {
+        edgesTotalCount += panels->get(idx)->edges->getSize();
+    }
+
+    uint16_t bufferSize =
+        sizeof(MessageApi::Internal::EdgesList) +
+        sizeof(MessageApi::PanelEdgeInfo) * edgesTotalCount;
+
+    uint8_t buffer[bufferSize];
+    memset(buffer, 0, bufferSize);
+
+    MessageApi::Internal::EdgesList *message = (MessageApi::Internal::EdgesList *)&buffer[0];
+
+    message->meta.clientId = clientId;
+    message->meta.payloadSize = bufferSize - sizeof(message->meta);
+    message->edgesList.length = edgesTotalCount;
+
+    uint16_t edgeNum = 0;
+
+    for (uint16_t panelIdx = 0; panelIdx < panelsCount; panelIdx++) {
+        panel = panels->get(panelIdx);
+
+        for (uint16_t edgeIdx = 0; edgeIdx < panel->edges->getSize(); edgeIdx++) {
+            edge = panel->edges->get(edgeIdx);
+
+            message->edgesList.edges[edgeNum].panelIndex = panel->index;
+            message->edgesList.edges[edgeNum].edgeIndex = edge->index;
+
+            if (NULL != edge->connectedEdge) {
+                message->edgesList.edges[edgeNum].connectedPanelIndex = edge->connectedEdge->panel->index;
+                message->edgesList.edges[edgeNum].connectedEdgeIndex =  edge->connectedEdge->index;
+            } else {
+                message->edgesList.edges[edgeNum].connectedPanelIndex = 0;
+                message->edgesList.edges[edgeNum].connectedEdgeIndex =  0;
+            }
+
+            edgeNum++;
+        }
+    }
+
+    MessageApi::updatePacketMeta(
+        &message->edgesList.meta,
+        MessageApi::EDGES_LIST,
+        bufferSize - sizeof(*message) - sizeof(message->edgesList)
+    );
+
+    this->messageServer->sendMessage(&message->meta);
+
     return 0;
 }
 

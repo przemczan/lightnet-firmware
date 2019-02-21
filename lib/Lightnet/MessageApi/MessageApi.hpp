@@ -20,10 +20,10 @@ namespace MessageApi
         TOGGLE = 1,
         SET_BRIGHTNESS = 2,
         SET_COLOR = 3,
-        GET_PANELS_LIST = 4,
+        GET_EDGES_LIST = 4,
         GET_PANELS_STATES = 5,
         PANELS_STATES = 6,
-        PANELS_LIST = 7,
+        EDGES_LIST = 7,
     };
 
     typedef struct PACK {
@@ -42,17 +42,12 @@ namespace MessageApi
 
     void updatePacketMeta(PacketMeta *meta, packet_t type, uint16_t payloadSize);
 
-    typedef struct {
-        uint16_t index;
-        uint16_t parentPanelIndex;
-        uint16_t parentEdgeIndex;
+    typedef struct PACK {
+        uint16_t panelIndex;
+        uint16_t edgeIndex;
+        uint16_t connectedPanelIndex;
+        uint16_t connectedEdgeIndex;
     } PanelEdgeInfo;
-
-    typedef struct {
-        uint16_t index;
-        uint16_t edgesNumber;
-        PanelEdgeInfo edges[];
-    } PanelInfo;
 
     typedef Protocol::PanelState PanelState;
 
@@ -87,8 +82,8 @@ namespace MessageApi
         typedef struct PACK {
             PacketMeta meta;
             uint16_t length;
-            PanelInfo panels[];
-        } PanelsList;
+            PanelEdgeInfo edges[];
+        } EdgesList;
     }
 
     namespace Internal {
@@ -102,5 +97,10 @@ namespace MessageApi
             Message meta;
             Rsp::PanelsStates panelsStates;
         } PanelsStates;
+
+        typedef struct PACK {
+            Message meta;
+            Rsp::EdgesList edgesList;
+        } EdgesList;
     }
 }
