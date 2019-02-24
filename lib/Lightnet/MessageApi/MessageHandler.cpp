@@ -128,7 +128,7 @@ uint8_t MessageHandler::cmdGetPanelsStates(uint32_t clientId)
     MessageApi::Internal::PanelsStates *message = (MessageApi::Internal::PanelsStates *)&buffer[0];
 
     message->meta.clientId = clientId;
-    message->meta.payloadSize = sizeof(MessageApi::PanelState) * panelsCount + sizeof(message->panelsStates);
+    message->meta.payloadSize = bufferSize - sizeof(MessageApi::Internal::Message);
     message->panelsStates.length = panelsCount;
 
     Panel *panel;
@@ -144,7 +144,8 @@ uint8_t MessageHandler::cmdGetPanelsStates(uint32_t clientId)
     MessageApi::updatePacketMeta(
         &message->panelsStates.meta,
         MessageApi::PANELS_STATES,
-        sizeof(message->panelsStates.length) + panelsCount * sizeof(MessageApi::PanelState));
+        bufferSize - sizeof(message->meta) - sizeof(message->panelsStates.meta)
+    );
 
     this->messageServer->sendMessage(&message->meta);
 
@@ -173,7 +174,7 @@ uint8_t MessageHandler::cmdGetEdgesList(uint32_t clientId)
     MessageApi::Internal::EdgesList *message = (MessageApi::Internal::EdgesList *)&buffer[0];
 
     message->meta.clientId = clientId;
-    message->meta.payloadSize = bufferSize - sizeof(message->meta);
+    message->meta.payloadSize = bufferSize - sizeof(MessageApi::Internal::Message);
     message->edgesList.length = edgesTotalCount;
 
     uint16_t edgeNum = 0;
@@ -202,7 +203,7 @@ uint8_t MessageHandler::cmdGetEdgesList(uint32_t clientId)
     MessageApi::updatePacketMeta(
         &message->edgesList.meta,
         MessageApi::EDGES_LIST,
-        bufferSize - sizeof(*message) - sizeof(message->edgesList)
+        bufferSize - sizeof(message->meta) - sizeof(message->edgesList.meta)
     );
 
     this->messageServer->sendMessage(&message->meta);
