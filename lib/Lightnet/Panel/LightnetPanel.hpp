@@ -69,6 +69,7 @@ class LightnetPanel
         void setRegisterState(register_state_t state);
         void handlePacket(Protocol::PacketMeta *packet, int size);
         void returnToParent();
+        void setNextEdgeToRegister();
 
         void handleTurnOnOf(Protocol::PacketTurnOnOff *packet);
         void handleSetColor(Protocol::PacketSetColor *packet);
