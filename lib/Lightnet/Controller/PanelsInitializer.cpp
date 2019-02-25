@@ -108,7 +108,7 @@ void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
     PRINTLN3("[REGISTER] panel", packet->panelIndex, packet->edgeIndex);
 
     Panel *panel = new Panel(packet->panelIndex);
-    Edge *edge = new Edge(panel, this->lastActiveEdge, packet->edgeIndex);
+    Edge *edge = new Edge(panel, packet->edgeIndex);
 
     panel->edges->push(edge);
     this->panels->push(panel);
