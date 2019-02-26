@@ -5,12 +5,11 @@ MessageServer::MessageServer(AsyncWebServer *server) : server(server)
     this->cmdQueue = new CircularQueue(QUEUE_SIZE);
     this->executionQueue = new CircularQueue(QUEUE_SIZE);
 
-    this->socket = new AsyncWebSocket("/");
+    this->socket = new AsyncWebSocket("/ws");
     this->socket->onEvent(
         [ = ](AsyncWebSocket *ws, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
-            this->onEvent(ws, client, type, arg, data, len);
-        }
-    );
+        this->onEvent(ws, client, type, arg, data, len);
+    });
 
     server->addHandler(this->socket);
 }
