@@ -16,6 +16,8 @@
     #define IIC_SCL_PIN 5
 #endif
 
+uint16_t const SERVER_PORT = 80;
+
 uint8_t state = 0;
 DNSServer dns;
 PanelsController *panelsController;
@@ -23,22 +25,20 @@ AsyncWebServer *webServer;
 AsyncWiFiManager *wifiManager;
 MessageServer *messageServer;
 MessageHandler *messageHandler;
+AppServer *appServer;
 
 void setup()
 {
     #if DEBUG
     Serial.begin(115200);
     #endif
-
     PRINTLN("\n[HARDWARE INIT] start");
 
     delay(500);
-    LNPanelsInitializer.configure({
-        .sdaPinNo = IIC_SDA_PIN,
-        .sclPinNo = IIC_SCL_PIN,
-        .edgePinNo = INITIALIZER_EDGE_PIN_NO,
-        .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO
-    });
+    LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
+                                   .sclPinNo = IIC_SCL_PIN,
+                                   .edgePinNo = INITIALIZER_EDGE_PIN_NO,
+                                   .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO});
     LNPanelsInitializer.start();
 
     pinMode(LED_PIN, OUTPUT);
@@ -58,13 +58,15 @@ void setup()
     PRINTLN("Initializing...");
 
     panelsController = new PanelsController();
-    webServer = new AsyncWebServer(81);
+    webServer = new AsyncWebServer(SERVER_PORT);
     wifiManager = new AsyncWiFiManager(webServer, &dns);
     messageServer = new MessageServer(webServer);
     messageHandler = new MessageHandler(messageServer, panelsController);
+    appServer = new AppServer(webServer);
 }
 
-void fadeIn(uint16_t panelIndex) {
+void fadeIn(uint16_t panelIndex)
+{
     PRINTKV("[FADE IN]", panelIndex);
     uint8_t brightness = 0;
 
@@ -74,7 +76,8 @@ void fadeIn(uint16_t panelIndex) {
     }
 }
 
-void fadeOut(uint16_t panelIndex) {
+void fadeOut(uint16_t panelIndex)
+{
     PRINTKV("[FADE OUT]", panelIndex);
     uint8_t brightness = 0xFF;
 
