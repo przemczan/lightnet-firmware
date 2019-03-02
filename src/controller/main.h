@@ -9,6 +9,7 @@
     #include "MessageHandler.hpp"
     #include <ESPAsyncWebServer.h>
     #include <ESPAsyncWiFiManager.h>
+    #include <ESP8266mDNS.h>
     #include "AppServer.hpp"
 
 #endif

@@ -27,6 +27,16 @@ MessageServer *messageServer;
 MessageHandler *messageHandler;
 AppServer *appServer;
 
+void setupMDNS()
+{
+    char buffer[20];
+
+    sprintf(buffer, "lightnet-%04X\0", ESP.getChipId());
+
+    MDNS.begin(&buffer[0]);
+    MDNS.addService("lightnet", "tcp", 80);
+}
+
 void setup()
 {
     #if DEBUG
@@ -63,6 +73,8 @@ void setup()
     messageServer = new MessageServer(webServer);
     messageHandler = new MessageHandler(messageServer, panelsController);
     appServer = new AppServer(webServer);
+
+    setupMDNS();
 }
 
 void fadeIn(uint16_t panelIndex)
@@ -126,6 +138,7 @@ void selfTest()
 
 void loop()
 {
+    MDNS.update();
     LNPanelsInitializer.boot();
 
     if (LNPanelsInitializer.isReady()) {
