@@ -31,7 +31,11 @@ void setupMDNS()
 {
     char buffer[20];
 
+    #ifdef ARDUINO_ARCH_ESP8266
     sprintf(buffer, "lightnet-%04X\0", ESP.getChipId());
+    #else
+    sprintf(buffer, "lightnet-%08X\0", ESP.getEfuseMac());
+    #endif
 
     MDNS.begin(&buffer[0]);
     MDNS.addService("lightnet", "tcp", 80);
@@ -44,7 +48,7 @@ void setup()
     #endif
     PRINTLN("\n[HARDWARE INIT] start");
 
-    delay(500);
+    delay(1000);
     LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
                                    .sclPinNo = IIC_SCL_PIN,
                                    .edgePinNo = INITIALIZER_EDGE_PIN_NO,
@@ -138,7 +142,9 @@ void selfTest()
 
 void loop()
 {
+    #ifdef ARDUINO_ARCH_ESP8266
     MDNS.update();
+    #endif
     LNPanelsInitializer.boot();
 
     if (LNPanelsInitializer.isReady()) {

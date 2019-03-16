@@ -2,7 +2,11 @@
 
 AppServer::AppServer(AsyncWebServer *webServer) : webServer(webServer)
 {
+    #ifdef ARDUINO_ARCH_ESP32
+    SPIFFS.begin(true);
+    #else
     SPIFFS.begin();
+    #endif
 
     webServer->serveStatic("/", SPIFFS, "/app/").setDefaultFile("index.html");
 
