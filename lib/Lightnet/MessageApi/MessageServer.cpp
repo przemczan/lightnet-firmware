@@ -25,12 +25,22 @@ MessageServer::~MessageServer()
 
 CircularQueue *MessageServer::getIncommingMessages()
 {
+    #ifdef ARDUINO_ARCH_ESP32
+    portENTER_CRITICAL(&this->queueMux);
+    #else
     noInterrupts();
+    #endif
+
     CircularQueue *temp = this->cmdQueue;
     this->cmdQueue = this->executionQueue;
     this->executionQueue = temp;
     this->cmdQueue->reset();
+
+    #ifdef ARDUINO_ARCH_ESP32
+    portEXIT_CRITICAL(&this->queueMux);
+    #else
     interrupts();
+    #endif
 
     return this->executionQueue;
 }
@@ -75,7 +85,15 @@ void MessageServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, ui
 
     memcpy(message->payload, payload, size);
 
+    #ifdef ARDUINO_ARCH_ESP32
+    portENTER_CRITICAL(&this->queueMux);
+    #endif
+
     if (!this->cmdQueue->enqueue(message, messageSize)) {
         PRINTLN("[CMD SRV][ERROR] queue full");
     }
+
+    #ifdef ARDUINO_ARCH_ESP32
+    portEXIT_CRITICAL(&this->queueMux);
+    #endif
 }

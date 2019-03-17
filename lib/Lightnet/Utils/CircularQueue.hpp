@@ -14,7 +14,7 @@ class CircularQueue
         uint8_t *softTail;
         uint8_t *writePointer;
         uint8_t *readPointer;
-        uint16_t itemsCount = 0;
+        volatile uint16_t itemsCount = 0;
         uint16_t bufferSize;
 
         void writeData(void *data, uint16_t size);
