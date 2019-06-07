@@ -51,8 +51,10 @@ void MessageServer::sendMessage(MessageApi::Internal::Message *message)
         return;
     }
 
-    PRINT("[CMD SRV] response:");
-    dumpMem(message->payload, message->payloadSize);
+    DEBUG_BLOCK({
+        PRINT("[CMD SRV] response:");
+        dumpMem(message->payload, message->payloadSize);
+    });
 
     this->socket->binary(message->clientId, message->payload, message->payloadSize);
 }
@@ -64,8 +66,10 @@ void MessageServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, Aw
 
         if (info->final && info->index == 0 && info->len == len) {
             if (info->opcode == WS_BINARY) {
-                PRINT("[CMD SRV] message:");
-                dumpMem(data, len);
+                DEBUG_BLOCK({
+                    PRINT("[CMD SRV] message:");
+                    dumpMem(data, len);
+                });
 
                 this->onMessage(client, data, len);
             }
