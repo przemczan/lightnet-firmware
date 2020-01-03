@@ -7,7 +7,7 @@ void setup()
     wdt_disable();
 
     #if DEBUG
-    Serial.begin(115200);
+    Serial.begin(230400);
     #endif
 
     PRINTLN("");

@@ -37,9 +37,10 @@ void LightnetPinger::ping()
     this->pingSentAt = millis();
 
     digitalWrite(this->pinNo, LOW);
-    pinMode(this->pinNo, INPUT);
 
     this->busIsDisabled = false;
+
+    pinMode(this->pinNo, INPUT);
 }
 
 bool LightnetPinger::getAndResetPingStatus()

@@ -44,7 +44,7 @@ void setupMDNS()
 void setup()
 {
     #if DEBUG
-    Serial.begin(115200);
+    Serial.begin(230400);
     #endif
     PRINTLN("\n[HARDWARE INIT] start");
 
@@ -142,12 +142,13 @@ void selfTest()
 
 void loop()
 {
-    #ifdef ARDUINO_ARCH_ESP8266
-    MDNS.update();
-    #endif
     LNPanelsInitializer.boot();
 
     if (LNPanelsInitializer.isReady()) {
+        #ifdef ARDUINO_ARCH_ESP8266
+        MDNS.update();
+        #endif
+
         digitalWrite(LED_PIN, LOW);
 
         switch (state) {

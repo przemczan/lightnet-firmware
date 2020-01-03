@@ -1,15 +1,15 @@
 #include "Edge.hpp"
 
-Edge::Edge(Panel *_panel, Edge *_connectedEdge, uint8_t _index):
-    panel(_panel),
+Edge::Edge(Panel *_panel, Edge *_connectedEdge, uint8_t _index) :
+    index(_index),
     connectedEdge(_connectedEdge),
-    index(_index)
+    panel(_panel)
 {
 }
 
-Edge::Edge(Panel *_panel, uint8_t _index):
-    panel(_panel),
+Edge::Edge(Panel *_panel, uint8_t _index) :
+    index(_index),
     connectedEdge(NULL),
-    index(_index)
+    panel(_panel)
 {
 }
