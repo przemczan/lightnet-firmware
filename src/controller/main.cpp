@@ -38,7 +38,7 @@ void setupMDNS()
     #endif
 
     MDNS.begin(&buffer[0]);
-    MDNS.addService("lightnet", "tcp", 80);
+    MDNS.addService("lightnet", "tcp", SERVER_PORT);
 }
 
 void setup()
@@ -60,7 +60,7 @@ void setup()
 
     PRINTLN("[HARDWARE INIT] end");
 
-    //panelsController.resetDevices();
+    // panelsController->resetDevices(100);
 
     delay(500);
 

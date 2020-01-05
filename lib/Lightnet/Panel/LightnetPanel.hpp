@@ -7,7 +7,7 @@
 #include "../Utils/List.hpp"
 
 #if !IS_ESP
-#include <avr/wdt.h>
+    #include <avr/wdt.h>
 #endif
 
 class LightnetPanel
@@ -43,9 +43,9 @@ class LightnetPanel
     };
 
     private:
-        typedef void (*onInitializationPollReceived_t)(Protocol::PacketInitializationPoll *);
+        typedef void (*onInitializationPullReceived_t)(Protocol::PacketInitializationPull *);
 
-         List<LightnetPanelEdge *> *edges;
+        List<LightnetPanelEdge *> *edges;
         volatile state_t state = STATE_IDLE;
         volatile register_state_t registerState = REGISTER_STATE_BEGIN;
         volatile uint16_t nextEdgeToRegister = 0;
@@ -54,6 +54,7 @@ class LightnetPanel
         volatile uint16_t index;
         RGBController *rgbController;
         CircularQueue *incomingPackets;
+        CircularQueue *packetsToHandle;
         configuration_t config;
         Protocol::PacketMeta ackPacket;
         Protocol::packetType_t lastPacketType = Protocol::PACKET_NOOP;
@@ -67,6 +68,7 @@ class LightnetPanel
         void endEdgeRegistration();
         void bootEdge();
         void setRegisterState(register_state_t state);
+        void fetchIncommingPackets();
         void handlePacket(Protocol::PacketMeta *packet, int size);
         void returnToParent();
         void setNextEdgeToRegister();

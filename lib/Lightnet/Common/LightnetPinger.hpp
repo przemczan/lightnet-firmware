@@ -6,8 +6,9 @@
 class LightnetPinger
 {
     private:
-        static const unsigned long PING_DURATION_MS = 1;
-        static const unsigned long PING_DELAY_MS = 1;
+        // give receiver time to read edges state during ping pulse
+        // NOTE: currently the interrupt code takes ~27us and
+        static const unsigned long PING_DURATION_US = 50;
 
         volatile uint8_t pinNo;
         volatile bool busState = false;

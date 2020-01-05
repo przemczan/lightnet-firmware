@@ -3,8 +3,8 @@
 LightnetBus::LightnetBus()
 {
     #if !IS_ESP
-        Wire.onReceive(LightnetBus::onReceiveService);
-        Wire.onRequest(LightnetBus::onRequestService);
+    Wire.onReceive(LightnetBus::onReceiveService);
+    Wire.onRequest(LightnetBus::onRequestService);
     #endif
 }
 
@@ -59,9 +59,9 @@ void LightnetBus::begin(uint8_t address)
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 {
     #if IS_ESP32
-        Wire.begin(sdaPin, sclPin, address);
+    Wire.begin(sdaPin, sclPin, address);
     #else
-        Wire.begin(address);
+    Wire.begin(address);
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -69,12 +69,12 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 void LightnetBus::begin()
 {
     #if IS_ESP
-        Wire.begin();
-        #if IS_ESP8266
-            Wire.setClockStretchLimit(1500);
-        #endif
+    Wire.begin();
+    #if IS_ESP8266
+    Wire.setClockStretchLimit(1500);
+    #endif
     #else
-        Wire.begin();
+    Wire.begin();
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -82,12 +82,12 @@ void LightnetBus::begin()
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 {
     #if IS_ESP
-        Wire.begin(sdaPin, sclPin);
-        #if IS_ESP8266
-            Wire.setClockStretchLimit(1500);
-        #endif
+    Wire.begin(sdaPin, sclPin);
+    #if IS_ESP8266
+    Wire.setClockStretchLimit(1500);
+    #endif
     #else
-        Wire.begin();
+    Wire.begin();
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -95,9 +95,9 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 void LightnetBus::end()
 {
     #if IS_ESP8266
-        twi_stop();
+    twi_stop();
     #elif !IS_ESP
-        Wire.end();
+    Wire.end();
     #endif
 }
 
@@ -137,7 +137,8 @@ uint8_t LightnetBus::sendPacketWithResponse(
     Protocol::packetType_t packetType,
     void *responseBuffer,
     uint8_t responseSize
-) {
+)
+{
     if (this->sendPacket(address, packet, packetSize, packetType, false) != 0) {
         return 1;
     }

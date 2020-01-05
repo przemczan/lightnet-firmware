@@ -23,21 +23,16 @@ void LightnetPinger::onBusStateChanged()
 
 void LightnetPinger::ping()
 {
-    // give time to other devices to set up
-    delay(PING_DELAY_MS);
-
     PRINTKV("[PING] OUT", this->pinNo);
 
     this->busIsDisabled = true;
 
     pinMode(this->pinNo, OUTPUT);
     digitalWrite(this->pinNo, HIGH);
-
-    delay(PING_DURATION_MS);
-    this->pingSentAt = millis();
-
+    delayMicroseconds(PING_DURATION_US);
     digitalWrite(this->pinNo, LOW);
 
+    this->pingSentAt = millis();
     this->busIsDisabled = false;
 
     pinMode(this->pinNo, INPUT);

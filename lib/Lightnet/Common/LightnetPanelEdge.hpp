@@ -7,8 +7,8 @@
 class LightnetPanelEdge
 {
     private:
-        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 5;
-        static const unsigned long BOOT_TIMEOUT_MILLS              = 2500;
+        static const unsigned long WELLCOME_RESPONSE_TIMEOUT_MILLS = 2;
+        static const unsigned long BOOT_TIMEOUT_MILLS              = 1000;
 
         LightnetPinger *pinger;
         uint8_t state = LightnetPanelEdge::STATE_IDLE;

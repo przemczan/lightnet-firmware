@@ -2,14 +2,14 @@
 
 PanelsInitializer::PanelsInitializer()
 {
-    this->pollBuffer = (uint8_t *)malloc(POLL_BUFFER_SIZE);
-    this->nextPolling = millis();
+    this->pullBuffer = (uint8_t *)malloc(POLL_BUFFER_SIZE);
+    this->nextPulling = millis();
     this->panels = new List<Panel *>();
 }
 
 PanelsInitializer::~PanelsInitializer()
 {
-    free(this->pollBuffer);
+    free(this->pullBuffer);
 
     if (this->pingEdge) {
         delete this->pingEdge;
@@ -46,10 +46,10 @@ void PanelsInitializer::boot()
     this->pingEdge->boot();
 
     if (this->pingEdge->getState() == LightnetPanelEdge::STATE_BOOTING) {
-        if (millis() > this->nextPolling) {
-            this->poll();
+        if (millis() > this->nextPulling) {
+            this->pull();
 
-            this->nextPolling = millis() + POLL_INTERVAL_US;
+            this->nextPulling = millis() + PULL_INTERVAL_MS;
         }
     }
 }
@@ -59,19 +59,19 @@ void PanelsInitializer::updateEdgeState()
     this->pingEdge->readBusState();
 }
 
-void PanelsInitializer::poll()
+void PanelsInitializer::pull()
 {
-    Protocol::PacketInitializationPoll pollPacket;
+    Protocol::PacketInitializationPull pullPacket;
 
-    pollPacket.panelIndex = this->currentPanelIndex;
-    PRINTKV("[POLL] polling panel", pollPacket.panelIndex);
+    pullPacket.panelIndex = this->currentPanelIndex;
+    PRINTKV("[POLL] pulling panel", pullPacket.panelIndex);
 
     uint8_t error = LNBus.sendPacketWithResponse(
         Protocol::POLLING_ADDRESS,
-        &pollPacket,
-        sizeof(pollPacket),
+        &pullPacket,
+        sizeof(pullPacket),
         Protocol::PACKET_INITIALIZATION_POLL,
-        this->pollBuffer,
+        this->pullBuffer,
         sizeof(Protocol::PacketRegisterEdge)
     );
 
@@ -80,7 +80,7 @@ void PanelsInitializer::poll()
         return;
     }
 
-    this->onPacketResponded((Protocol::PacketMeta *)this->pollBuffer);
+    this->onPacketResponded((Protocol::PacketMeta *)this->pullBuffer);
 }
 
 void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
@@ -103,8 +103,9 @@ void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
 void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
 {
     if (!packet->panelIndex) {
-      PRINTLN("[ERROR] Got panel with index = 0.");
+        PRINTLN("[ERROR] Got panel with index = 0.");
     }
+
     PRINTLN3("[REGISTER] panel", packet->panelIndex, packet->edgeIndex);
 
     Panel *panel = new Panel(packet->panelIndex);
@@ -125,8 +126,7 @@ void PanelsInitializer::onPacketResponded(Protocol::PacketMeta *packetMeta)
 {
     this->lastPacketType = packetMeta->header.type;
 
-    switch (this->lastPacketType)
-    {
+    switch (this->lastPacketType) {
         case Protocol::PACKET_REGISTER_EDGE:
             this->registerEdge((Protocol::PacketRegisterEdge *)packetMeta);
             this->sendRegisterAck();
@@ -137,6 +137,7 @@ void PanelsInitializer::onPacketResponded(Protocol::PacketMeta *packetMeta)
 void PanelsInitializer::sendRegisterAck()
 {
     Protocol::PacketMeta ackPacket;
+
     LNBus.sendPacket(
         Protocol::POLLING_ADDRESS,
         &ackPacket,
@@ -146,7 +147,7 @@ void PanelsInitializer::sendRegisterAck()
     );
 }
 
-List<Panel *> * PanelsInitializer::getPanels()
+List<Panel *> *PanelsInitializer::getPanels()
 {
     return this->panels;
 }
@@ -164,6 +165,7 @@ bool PanelsInitializer::isReady()
 Panel *PanelsInitializer::getPanelByIndex(uint16_t panelIndex)
 {
     uint16_t index = this->panels->getSize();
+
     while (index--) {
         if (this->panels->get(index)->index == panelIndex) {
             return this->panels->get(index);

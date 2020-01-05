@@ -9,8 +9,8 @@
 class PanelsInitializer
 {
     const uint8_t POLL_BUFFER_SIZE = 100;
-    const unsigned long POLL_INTERVAL_US = 30;
-    const uint16_t BOOT_TIMEOUT_MS = 15000;
+    const unsigned long PULL_INTERVAL_MS = 15;
+    const uint16_t BOOT_TIMEOUT_MS = 5000;
 
     typedef struct {
         uint8_t sdaPinNo;
@@ -35,8 +35,8 @@ class PanelsInitializer
         Edge *lastActiveEdge;
         uint8_t lastPacketType;
         LightnetPanelEdge *pingEdge;
-        uint8_t *pollBuffer;
-        unsigned long nextPolling;
+        uint8_t *pullBuffer;
+        unsigned long nextPulling;
         uint16_t currentPanelIndex = 1;
         uint8_t interruptPinNo;
         uint16_t nextPanelToSend = 0;
@@ -45,7 +45,7 @@ class PanelsInitializer
 
         void registerPanel(Protocol::PacketRegisterEdge *packet);
         void registerEdge(Protocol::PacketRegisterEdge *packet);
-        void poll();
+        void pull();
         void onPacketResponded(Protocol::PacketMeta *packetMeta);
         void sendRegisterAck();
 

@@ -3,6 +3,7 @@
 LightnetPanel::LightnetPanel()
 {
     this->incomingPackets = new CircularQueue(INCOMING_BUFFER_SIZE);
+    this->packetsToHandle = new CircularQueue(INCOMING_BUFFER_SIZE);
     this->edges = new List<LightnetPanelEdge *>();
     Protocol::setPacketMeta(&this->ackPacket, Protocol::PACKET_ACK);
 }
@@ -10,6 +11,7 @@ LightnetPanel::LightnetPanel()
 LightnetPanel::~LightnetPanel()
 {
     delete this->incomingPackets;
+    delete this->packetsToHandle;
     delete this->edges;
 }
 
@@ -180,7 +182,7 @@ void LightnetPanel::setNextEdgeToRegister()
 
     if (this->nextEdgeToRegister == this->parentEdgeIndex) {
         this->setRegisterState(REGISTER_STATE_READY);
-    } else   {
+    } else {
         this->setRegisterState(REGISTER_STATE_BEGIN);
     }
 }
@@ -198,23 +200,35 @@ void LightnetPanel::setState(state_t state)
 
 void LightnetPanel::handleIncomingPackets()
 {
-    if (!this->incomingPackets->size()) {
+    this->fetchIncommingPackets();
+
+    if (!this->packetsToHandle->size()) {
         return;
     }
-
-    noInterrupts();
 
     Protocol::PacketMeta *packet;
     uint16_t size;
 
-    while (this->incomingPackets->dequeue((void *&)packet, size)) {
+    while (this->packetsToHandle->dequeue((void *&)packet, size)) {
         if (!Protocol::validatePacket(packet, size)) {
             this->handlePacket(packet, size);
         }
     }
+}
+
+void LightnetPanel::fetchIncommingPackets()
+{
+    noInterrupts();
+
+    CircularQueue *temp = this->incomingPackets;
+    this->incomingPackets = this->packetsToHandle;
+    this->packetsToHandle = temp;
+    this->incomingPackets->reset();
 
     interrupts();
 }
+
+void (*resetDevice) (void) = 0;
 
 void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
 {
@@ -236,10 +250,7 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             break;
 
         case Protocol::PACKET_RESET_DEVICE:
-            #if !IS_ESP
-            wdt_enable(WDTO_1S);
-            #endif
-            delay(2000);
+            resetDevice();
             break;
     }
 }
@@ -248,7 +259,7 @@ void LightnetPanel::handleTurnOnOf(Protocol::PacketTurnOnOff *packet)
 {
     if (packet->on) {
         this->rgbController->turnOn();
-    } else   {
+    } else {
         this->rgbController->turnOff();
     }
 }
@@ -277,7 +288,7 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
         case Protocol::PACKET_INITIALIZATION_POLL:
 
             if (!this->index) {
-                this->index = ((Protocol::PacketInitializationPoll *)packet)->panelIndex;
+                this->index = ((Protocol::PacketInitializationPull *)packet)->panelIndex;
                 PRINTKV("[EDGE][REGISTER] Got index", this->index);
             }
 
