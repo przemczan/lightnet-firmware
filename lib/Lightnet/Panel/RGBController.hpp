@@ -1,29 +1,28 @@
 #pragma once
 
+#define LED_DATA_PIN 3
+
 #include <Arduino.h>
 #include "../Common/Protocol.hpp"
 #include "../Utils/Macros.hpp"
+#include "FastLED.h"
 
 #ifdef ARDUINO_ARCH_ESP32
-#include "analogWrite.h"
+    #include "analogWrite.h"
 #endif
 
 class RGBController
 {
     private:
-        uint8_t rPinNo;
-        uint8_t gPinNo;
-        uint8_t bPinNo;
-
         Protocol::ColorRGB colorValue = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
         uint8_t brightnessValue = 0xFF;
         bool isOn = false;
+        CRGB leds[1];
 
-    private:
         void updateOutputs();
 
     public:
-        RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo);
+        RGBController();
         void turnOn();
         void turnOff();
         bool on();

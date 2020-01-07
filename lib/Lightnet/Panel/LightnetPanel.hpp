@@ -15,9 +15,6 @@ class LightnetPanel
     const uint16_t INCOMING_BUFFER_SIZE = 200;
 
     typedef struct {
-        uint8_t redPinNo;
-        uint8_t greenPinNo;
-        uint8_t bluePinNo;
         uint8_t interruptPinNo;
         uint8_t sdaPinNo;
         uint8_t sclPinNo;

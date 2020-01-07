@@ -18,7 +18,7 @@ LightnetPanel::~LightnetPanel()
 void LightnetPanel::configure(configuration_t _config)
 {
     this->config = _config;
-    this->rgbController = new RGBController(_config.redPinNo, _config.greenPinNo, _config.bluePinNo);
+    this->rgbController = new RGBController();
 
     LNBus.setOnPacketReceived(LightnetPanel::onPacketReceivedService);
     LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);

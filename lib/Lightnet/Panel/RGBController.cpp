@@ -2,13 +2,9 @@
 
 #define RGBC_DEBUG 0
 
-RGBController::RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo):
-    rPinNo(_rPinNo), gPinNo(_gPinNo), bPinNo(_gPinNo)
+RGBController::RGBController()
 {
-    pinMode(rPinNo, OUTPUT);
-    pinMode(gPinNo, OUTPUT);
-    pinMode(bPinNo, OUTPUT);
-
+    FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(this->leds, 1);
     this->turnOff();
 }
 
@@ -27,9 +23,7 @@ void RGBController::turnOff()
     PRINTLN("off");
     #endif
     this->isOn = false;
-    digitalWrite(rPinNo, LOW);
-    digitalWrite(gPinNo, LOW);
-    digitalWrite(bPinNo, LOW);
+    FastLED.showColor(CRGB::Black, 0);
 }
 
 
@@ -71,15 +65,7 @@ void RGBController::updateOutputs()
         return;
     }
 
-    Protocol::ColorRGB color;
-
-    color.r = map(this->colorValue.r, 0, 0xFF, 0, this->brightnessValue);
-    color.g = map(this->colorValue.g, 0, 0xFF, 0, this->brightnessValue);
-    color.b = map(this->colorValue.b, 0, 0xFF, 0, this->brightnessValue);
-
-    analogWrite(rPinNo, color.r);
-    analogWrite(gPinNo, color.g);
-    analogWrite(bPinNo, color.b);
+    FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), this->brightnessValue);
 }
 
 bool RGBController::on()

@@ -16,12 +16,7 @@ void setup()
     LNPanel.addEdge(9);
     LNPanel.addEdge(10);
 
-    LNPanel.configure({
-        .redPinNo = 3,
-        .greenPinNo = 3,
-        .bluePinNo = 3,
-        .interruptPinNo = 2
-    });
+    LNPanel.configure({ .interruptPinNo = 2 });
 
     PRINTLN("===> [PANEL]");
 }
