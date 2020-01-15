@@ -48,7 +48,7 @@ void setup()
     #endif
     PRINTLN("\n[HARDWARE INIT] start");
 
-    delay(1000);
+    delay(500);
     LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
                                    .sclPinNo = IIC_SCL_PIN,
                                    .edgePinNo = INITIALIZER_EDGE_PIN_NO,
@@ -88,7 +88,7 @@ void fadeIn(uint16_t panelIndex)
 
     while (++brightness < 0xFF) {
         panelsController->setBrightness(panelIndex, brightness);
-        delayMicroseconds(25);
+        delay(1);
     }
 }
 
@@ -99,7 +99,7 @@ void fadeOut(uint16_t panelIndex)
 
     while (brightness--) {
         panelsController->setBrightness(panelIndex, brightness);
-        delayMicroseconds(25);
+        delay(1);
     }
 }
 
@@ -134,7 +134,6 @@ void selfTest()
     while (panelNum--) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
         panelsController->turnOff(panel->index);
-        panelsController->setBrightness(panel->index, 0xFF);
     }
 
     PRINTLN("[SELF TEST END]");
@@ -165,6 +164,8 @@ void loop()
 
             case 1:
                 messageHandler->handleIncommingMessages();
+                delay(1000);
+                selfTest();
                 break;
         }
     }

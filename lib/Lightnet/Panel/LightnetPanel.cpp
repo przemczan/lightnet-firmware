@@ -348,6 +348,9 @@ void LightnetPanel::onPacketRequestedService()
     LNPanel.onPacketRequested();
 }
 
+#if IS_ESP
+ICACHE_RAM_ATTR
+#endif
 void LightnetPanel::onInterrupt()
 {
     LNPanel.updateEdgesStates();

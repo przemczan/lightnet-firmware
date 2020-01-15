@@ -6,6 +6,7 @@
 #include "../Common/Protocol.hpp"
 #include "../Utils/Macros.hpp"
 #include "FastLED.h"
+#include "../Utils/Gamma.hpp"
 
 #ifdef ARDUINO_ARCH_ESP32
     #include "analogWrite.h"

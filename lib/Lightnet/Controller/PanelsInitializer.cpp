@@ -152,6 +152,9 @@ List<Panel *> *PanelsInitializer::getPanels()
     return this->panels;
 }
 
+#if IS_ESP
+ICACHE_RAM_ATTR
+#endif
 void PanelsInitializer::onInterrupt()
 {
     LNPanelsInitializer.updateEdgeState();

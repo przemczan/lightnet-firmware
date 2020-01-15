@@ -5,6 +5,9 @@
 RGBController::RGBController()
 {
     FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(this->leds, 1);
+    FastLED.setCorrection(TypicalPixelString);
+    FastLED.setTemperature(Tungsten40W);
+    FastLED.setDither(0);
     this->turnOff();
 }
 
@@ -23,7 +26,7 @@ void RGBController::turnOff()
     PRINTLN("off");
     #endif
     this->isOn = false;
-    FastLED.showColor(CRGB::Black, 0);
+    FastLED.showColor(CRGB::Black);
 }
 
 
@@ -65,7 +68,12 @@ void RGBController::updateOutputs()
         return;
     }
 
-    FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), this->brightnessValue);
+    uint8_t r = gammaValueR(this->colorValue.r);
+    uint8_t g = gammaValueG(this->colorValue.g);
+    uint8_t b = gammaValueB(this->colorValue.b);
+
+    FastLED.setBrightness(this->brightnessValue);
+    FastLED.showColor(CRGB(r, g, b));
 }
 
 bool RGBController::on()
