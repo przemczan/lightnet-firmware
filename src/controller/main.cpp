@@ -86,20 +86,20 @@ void fadeIn(uint16_t panelIndex)
     PRINTKV("[FADE IN]", panelIndex);
     uint8_t brightness = 0;
 
-    while (++brightness < 0xFF) {
-        panelsController->setBrightness(panelIndex, brightness);
-        delay(1);
+    while (++brightness < 50) {
+        panelsController->setBrightness(panelIndex, brightness * 5);
+        delay(3);
     }
 }
 
 void fadeOut(uint16_t panelIndex)
 {
     PRINTKV("[FADE OUT]", panelIndex);
-    uint8_t brightness = 0xFF;
+    uint8_t brightness = 50;
 
     while (brightness--) {
-        panelsController->setBrightness(panelIndex, brightness);
-        delay(1);
+        panelsController->setBrightness(panelIndex, brightness * 5);
+        delay(3);
     }
 }
 
@@ -139,6 +139,18 @@ void selfTest()
     PRINTLN("[SELF TEST END]");
 }
 
+void sendConfiguration()
+{
+    Panel *panel;
+    uint16_t panelNum = LNPanelsInitializer.getPanels()->getSize();
+
+    while (panelNum--) {
+        panel = LNPanelsInitializer.getPanels()->get(panelNum);
+
+        panelsController->sendConfiguration(panel->index, { .useGammaCorrection = true});
+    }
+}
+
 void loop()
 {
     LNPanelsInitializer.boot();
@@ -156,6 +168,7 @@ void loop()
 
                 state = 1;
 
+                sendConfiguration();
                 selfTest();
 
                 wifiManager->autoConnect();

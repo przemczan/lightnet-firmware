@@ -8,7 +8,7 @@
 
 class PanelsInitializer
 {
-    const uint8_t POLL_BUFFER_SIZE = 100;
+    const uint8_t PULL_BUFFER_SIZE = 100;
     const unsigned long PULL_INTERVAL_MS = 15;
     const uint16_t BOOT_TIMEOUT_MS = 5000;
 

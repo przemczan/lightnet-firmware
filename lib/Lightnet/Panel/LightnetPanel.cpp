@@ -133,7 +133,7 @@ void LightnetPanel::beginEdgeRegistration()
 {
     PRINTKV("[EDGE][REGISTER] begin", this->nextEdgeToRegister);
 
-    LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, Protocol::POLLING_ADDRESS);
+    LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, Protocol::PULLING_ADDRESS);
     this->setRegisterState(REGISTER_STATE_SEND);
 }
 
@@ -249,6 +249,10 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             this->handleSetColorAndBrightness((Protocol::PacketSetColorAndBrightness *)packet);
             break;
 
+        case Protocol::PACKET_PANEL_CONFIGURATION:
+            this->handlePanelConfiguration((Protocol::PacketPanelConfiguration *)packet);
+            break;
+
         case Protocol::PACKET_RESET_DEVICE:
             resetDevice();
             break;
@@ -280,12 +284,17 @@ void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
     this->rgbController->brightness(packet->brightness);
 }
 
+void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet)
+{
+    this->rgbController->gammaCorrection(packet->useGammaCorrection);
+}
+
 void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 {
     this->lastPacketType = packet->header.type;
 
     switch (packet->header.type) {
-        case Protocol::PACKET_INITIALIZATION_POLL:
+        case Protocol::PACKET_INITIALIZATION_PULL:
 
             if (!this->index) {
                 this->index = ((Protocol::PacketInitializationPull *)packet)->panelIndex;
@@ -310,7 +319,7 @@ void LightnetPanel::onPacketRequested()
     }
 
     switch (this->lastPacketType) {
-        case Protocol::PACKET_INITIALIZATION_POLL:
+        case Protocol::PACKET_INITIALIZATION_PULL:
             Protocol::PacketRegisterEdge packetRegisterEdge;
 
             packetRegisterEdge.panelIndex = this->index;

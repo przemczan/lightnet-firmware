@@ -68,12 +68,18 @@ void RGBController::updateOutputs()
         return;
     }
 
-    uint8_t r = gammaValueR(this->colorValue.r);
-    uint8_t g = gammaValueG(this->colorValue.g);
-    uint8_t b = gammaValueB(this->colorValue.b);
-
-    FastLED.setBrightness(this->brightnessValue);
-    FastLED.showColor(CRGB(r, g, b));
+    if (this->useGammaCorrection) {
+        FastLED.showColor(
+            CRGB(
+                gammaValueR(this->colorValue.r),
+                gammaValueG(this->colorValue.g),
+                gammaValueB(this->colorValue.b)
+            ),
+            this->brightnessValue
+        );
+    } else {
+        FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), this->brightnessValue);
+    }
 }
 
 bool RGBController::on()
@@ -89,4 +95,10 @@ Protocol::ColorRGB RGBController::color()
 uint8_t RGBController::brightness()
 {
     return this->brightnessValue;
+}
+
+void RGBController::gammaCorrection(bool use)
+{
+    this->useGammaCorrection = use;
+    this->updateOutputs();
 }

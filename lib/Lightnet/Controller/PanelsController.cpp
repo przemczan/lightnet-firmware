@@ -50,6 +50,7 @@ uint8_t PanelsController::turnOff(uint8_t address)
 void PanelsController::resetDevices(uint16_t maxAddress)
 {
     Protocol::PacketMeta resetPacket;
+
     do {
         LNBus.sendPacketAck(maxAddress, &resetPacket, sizeof(resetPacket), Protocol::PACKET_RESET_DEVICE);
     } while (maxAddress--);
@@ -76,4 +77,13 @@ uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *stat
     }
 
     return error;
+}
+
+uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_t config)
+{
+    Protocol::PacketPanelConfiguration packet;
+
+    packet.useGammaCorrection = config.useGammaCorrection;
+
+    return LNBus.sendPacketAck(address, &packet, sizeof(packet), Protocol::PACKET_PANEL_CONFIGURATION);
 }

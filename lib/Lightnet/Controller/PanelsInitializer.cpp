@@ -2,7 +2,7 @@
 
 PanelsInitializer::PanelsInitializer()
 {
-    this->pullBuffer = (uint8_t *)malloc(POLL_BUFFER_SIZE);
+    this->pullBuffer = (uint8_t *)malloc(PULL_BUFFER_SIZE);
     this->nextPulling = millis();
     this->panels = new List<Panel *>();
 }
@@ -64,19 +64,19 @@ void PanelsInitializer::pull()
     Protocol::PacketInitializationPull pullPacket;
 
     pullPacket.panelIndex = this->currentPanelIndex;
-    PRINTKV("[POLL] pulling panel", pullPacket.panelIndex);
+    PRINTKV("[PULL] pulling panel", pullPacket.panelIndex);
 
     uint8_t error = LNBus.sendPacketWithResponse(
-        Protocol::POLLING_ADDRESS,
+        Protocol::PULLING_ADDRESS,
         &pullPacket,
         sizeof(pullPacket),
-        Protocol::PACKET_INITIALIZATION_POLL,
+        Protocol::PACKET_INITIALIZATION_PULL,
         this->pullBuffer,
         sizeof(Protocol::PacketRegisterEdge)
     );
 
     if (error) {
-        PRINTKV("[POLL] error", error);
+        PRINTKV("[PULL] error", error);
         return;
     }
 
@@ -139,7 +139,7 @@ void PanelsInitializer::sendRegisterAck()
     Protocol::PacketMeta ackPacket;
 
     LNBus.sendPacket(
-        Protocol::POLLING_ADDRESS,
+        Protocol::PULLING_ADDRESS,
         &ackPacket,
         sizeof(ackPacket),
         Protocol::PACKET_REGISTER_EDGE_ACK,
