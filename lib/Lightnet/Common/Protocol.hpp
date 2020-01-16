@@ -2,12 +2,13 @@
 
 #include <Arduino.h>
 #include "../Utils/Crc.hpp"
+#include <FastLED.h>
 
 #define PACK __attribute__((__packed__))
 
 namespace Protocol
 {
-    const uint16_t VERSION = 2;
+    const uint16_t VERSION = 3;
     const uint8_t MAX_PACKET_SIZE = 32;
     const uint8_t PULLING_ADDRESS = 120;
 
@@ -107,6 +108,8 @@ namespace Protocol
     typedef struct PACK {
         PacketMeta meta;
         bool useGammaCorrection;
+        ColorTemperature colorTemperature;
+        LEDColorCorrection colorCorrection;
     } PacketPanelConfiguration;
 // END
 

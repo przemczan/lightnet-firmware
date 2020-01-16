@@ -3,11 +3,14 @@
 #include <Arduino.h>
 #include "../Common/LightnetBus.hpp"
 #include "../Common/Protocol.hpp"
+#include <FastLED.h>
 
 class PanelsController
 {
     typedef struct {
         bool useGammaCorrection;
+        ColorTemperature colorTemperature;
+        LEDColorCorrection colorCorrection;
     } panelConfiguration_t;
 
     public:

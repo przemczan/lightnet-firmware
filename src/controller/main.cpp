@@ -147,7 +147,10 @@ void sendConfiguration()
     while (panelNum--) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
 
-        panelsController->sendConfiguration(panel->index, { .useGammaCorrection = true});
+        panelsController->sendConfiguration(
+            panel->index,
+            { .useGammaCorrection = true, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip}
+        );
     }
 }
 

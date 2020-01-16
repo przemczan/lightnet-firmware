@@ -5,8 +5,6 @@
 RGBController::RGBController()
 {
     FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(this->leds, 1);
-    FastLED.setCorrection(TypicalPixelString);
-    FastLED.setTemperature(Tungsten40W);
     FastLED.setDither(0);
     this->turnOff();
 }
@@ -100,5 +98,19 @@ uint8_t RGBController::brightness()
 void RGBController::gammaCorrection(bool use)
 {
     this->useGammaCorrection = use;
+    this->updateOutputs();
+}
+
+void RGBController::setColorCorrection(LEDColorCorrection colorCorrection)
+{
+    this->colorCorrection = colorCorrection;
+    FastLED.setCorrection(this->colorCorrection);
+    this->updateOutputs();
+}
+
+void RGBController::setColorTemperature(ColorTemperature colorTemperature)
+{
+    this->colorTemperature = colorTemperature;
+    FastLED.setTemperature(this->colorTemperature);
     this->updateOutputs();
 }

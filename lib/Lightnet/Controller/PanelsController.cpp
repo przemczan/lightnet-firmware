@@ -84,6 +84,8 @@ uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_
     Protocol::PacketPanelConfiguration packet;
 
     packet.useGammaCorrection = config.useGammaCorrection;
+    packet.colorTemperature = config.colorTemperature;
+    packet.colorCorrection = config.colorCorrection;
 
     return LNBus.sendPacketAck(address, &packet, sizeof(packet), Protocol::PACKET_PANEL_CONFIGURATION);
 }

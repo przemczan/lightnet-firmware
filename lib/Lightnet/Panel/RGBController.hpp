@@ -20,6 +20,8 @@ class RGBController
         bool isOn = false;
         CRGB leds[1];
         bool useGammaCorrection = true;
+        LEDColorCorrection colorCorrection = UncorrectedColor;
+        ColorTemperature colorTemperature = UncorrectedTemperature;
 
         void updateOutputs();
 
@@ -28,6 +30,8 @@ class RGBController
         void turnOn();
         void turnOff();
         void gammaCorrection(bool use);
+        void setColorCorrection(LEDColorCorrection colorCorrection);
+        void setColorTemperature(ColorTemperature colorTemperature);
         bool on();
         Protocol::ColorRGB color();
         void color(uint8_t r, uint8_t g, uint8_t b);

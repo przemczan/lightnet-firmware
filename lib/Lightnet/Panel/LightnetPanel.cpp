@@ -287,6 +287,8 @@ void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
 void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet)
 {
     this->rgbController->gammaCorrection(packet->useGammaCorrection);
+    this->rgbController->setColorTemperature(packet->colorTemperature);
+    this->rgbController->setColorCorrection(packet->colorCorrection);
 }
 
 void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
