@@ -134,6 +134,7 @@ void selfTest()
     while (panelNum--) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
         panelsController->turnOff(panel->index);
+        panelsController->setBrightness(panel->index, 255);
     }
 
     PRINTLN("[SELF TEST END]");
@@ -180,8 +181,8 @@ void loop()
 
             case 1:
                 messageHandler->handleIncommingMessages();
-                delay(1000);
-                selfTest();
+                // delay(1000);
+                // selfTest();
                 break;
         }
     }
