@@ -17,6 +17,7 @@
 #endif
 
 uint16_t const SERVER_PORT = 80;
+#define CONFIG_PORTAL_TIMEOUT 45
 
 uint8_t state = 0;
 DNSServer dns;
@@ -76,7 +77,9 @@ void setup()
     wifiManager = new AsyncWiFiManager(webServer, &dns);
     messageServer = new MessageServer(webServer);
     messageHandler = new MessageHandler(messageServer, panelsController);
-    appServer = new AppServer(webServer);
+    // appServer = new AppServer(webServer);
+
+    wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
     setupMDNS();
 }

@@ -3,7 +3,7 @@
 LightnetPinger::LightnetPinger(uint8_t _pinNo) : pinNo(_pinNo)
 {
     PRINTKV("Init edge pin as IO", _pinNo);
-    pinMode(this->pinNo, INPUT);
+    pinMode(this->pinNo, INPUT_PULLUP);
 }
 
 void LightnetPinger::onBusStateChanged()
@@ -14,7 +14,7 @@ void LightnetPinger::onBusStateChanged()
 
     uint8_t state = digitalRead(this->pinNo);
 
-    if (this->busState && !state) {
+    if (!this->busState && state) {
         this->hasPing = true;
     }
 
@@ -28,14 +28,14 @@ void LightnetPinger::ping()
     this->busIsDisabled = true;
 
     pinMode(this->pinNo, OUTPUT);
-    digitalWrite(this->pinNo, HIGH);
-    delayMicroseconds(PING_DURATION_US);
     digitalWrite(this->pinNo, LOW);
+    delayMicroseconds(PING_DURATION_US);
+    digitalWrite(this->pinNo, HIGH);
 
     this->pingSentAt = millis();
     this->busIsDisabled = false;
 
-    pinMode(this->pinNo, INPUT);
+    pinMode(this->pinNo, INPUT_PULLUP);
 }
 
 bool LightnetPinger::getAndResetPingStatus()

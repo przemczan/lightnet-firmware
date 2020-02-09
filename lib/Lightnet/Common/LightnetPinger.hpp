@@ -11,7 +11,7 @@ class LightnetPinger
         static const unsigned long PING_DURATION_US = 50;
 
         volatile uint8_t pinNo;
-        volatile bool busState = false;
+        volatile bool busState = true;
         volatile bool hasPing = false;
         unsigned long pingSentAt = 0;
         volatile bool busIsDisabled = false;
