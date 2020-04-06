@@ -2,18 +2,27 @@
 
 #include "main.h"
 
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+#if defined(ARDUINO_ARCH_ESP8266)
     #define INITIALIZER_EDGE_PIN_NO 12
     #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
     #define LED_PIN 2
     #define IIC_SDA_PIN 4
     #define IIC_SCL_PIN 5
+    #define PANELS_POWER_PIN 3
+#elif defined(ARDUINO_ARCH_ESP32)
+    #define INITIALIZER_EDGE_PIN_NO 12
+    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
+    #define LED_PIN 2
+    #define IIC_SDA_PIN 4
+    #define IIC_SCL_PIN 5
+    #define PANELS_POWER_PIN 21
 #else
     #define INITIALIZER_EDGE_PIN_NO 8
     #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 2
     #define LED_PIN 13
     #define IIC_SDA_PIN 4
     #define IIC_SCL_PIN 5
+    #define PANELS_POWER_PIN 3
 #endif
 
 uint16_t const SERVER_PORT = 80;
@@ -45,9 +54,12 @@ void setupMDNS()
 void setup()
 {
     #if DEBUG
-    Serial.begin(230400);
+    Serial.begin(115200);
     #endif
     PRINTLN("\n[HARDWARE INIT] start");
+
+    pinMode(PANELS_POWER_PIN, OUTPUT);
+    digitalWrite(PANELS_POWER_PIN, HIGH);
 
     delay(500);
     LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
@@ -72,12 +84,14 @@ void setup()
     delay(500);
     PRINTLN("Initializing...");
 
+    WiFi.mode(WIFI_STA);
+
     panelsController = new PanelsController();
     webServer = new AsyncWebServer(SERVER_PORT);
     wifiManager = new AsyncWiFiManager(webServer, &dns);
     messageServer = new MessageServer(webServer);
     messageHandler = new MessageHandler(messageServer, panelsController);
-    // appServer = new AppServer(webServer);
+    appServer = new AppServer(webServer);
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 

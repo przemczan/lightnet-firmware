@@ -1,6 +1,6 @@
 #pragma once
 
-#define LED_DATA_PIN 3
+#define LED_DATA_PIN PD5
 
 #include <Arduino.h>
 #include "../Common/Protocol.hpp"

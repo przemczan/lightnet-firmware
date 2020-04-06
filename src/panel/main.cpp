@@ -7,16 +7,16 @@ void setup()
     wdt_disable();
 
     #if DEBUG
-    Serial.begin(230400);
+    Serial.begin(115200);
     #endif
 
     PRINTLN("");
 
-    LNPanel.addEdge(8);
-    LNPanel.addEdge(9);
-    LNPanel.addEdge(10);
+    LNPanel.addEdge(PB1);
+    LNPanel.addEdge(PB2);
+    LNPanel.addEdge(PB3);
 
-    LNPanel.configure({ .interruptPinNo = 2 });
+    LNPanel.configure({ .interruptPinNo = PD2 });
 
     PRINTLN("===> [PANEL]");
 }
