@@ -1,5 +1,5 @@
 // AUTOMATICALLY GENERATED FILE. PLEASE DO NOT MODIFY IT MANUALLY
-
+//
 // PIO Unified Debugger
 //
 // Documentation: https://docs.platformio.org/page/plus/debugging.html
@@ -12,21 +12,33 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug",
-            "executable": "/Users/przemczan/Projects/lightnet/.pio/build/initializer_esp8266/firmware.elf",
-            "toolchainBinDir": "/Users/przemczan/.platformio/packages/toolchain-xtensa/bin",
+            "executable": "D:/Projects/Lightnet/lightnet-firmware/.pio/build/initializer_esp8266/firmware.elf",
+            "projectEnvName": "initializer_esp8266",
+            "toolchainBinDir": "C:/Users/przem/.platformio/packages/toolchain-xtensa/bin",
+            "internalConsoleOptions": "openOnSessionStart",
             "preLaunchTask": {
                 "type": "PlatformIO",
                 "task": "Pre-Debug"
-            },
-            "internalConsoleOptions": "openOnSessionStart"
+            }
         },
         {
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (skip Pre-Debug)",
-            "executable": "/Users/przemczan/Projects/lightnet/.pio/build/initializer_esp8266/firmware.elf",
-            "toolchainBinDir": "/Users/przemczan/.platformio/packages/toolchain-xtensa/bin",
+            "executable": "D:/Projects/Lightnet/lightnet-firmware/.pio/build/initializer_esp8266/firmware.elf",
+            "projectEnvName": "initializer_esp8266",
+            "toolchainBinDir": "C:/Users/przem/.platformio/packages/toolchain-xtensa/bin",
             "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "type": "platformio-debug",
+            "request": "launch",
+            "name": "PIO Debug (without uploading)",
+            "executable": "D:/Projects/Lightnet/lightnet-firmware/.pio/build/initializer_esp8266/firmware.elf",
+            "projectEnvName": "initializer_esp8266",
+            "toolchainBinDir": "C:/Users/przem/.platformio/packages/toolchain-xtensa/bin",
+            "internalConsoleOptions": "openOnSessionStart",
+            "loadMode": "manual"
         }
     ]
 }

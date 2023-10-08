@@ -3,12 +3,12 @@
 #include "main.h"
 
 #if defined(ARDUINO_ARCH_ESP8266)
-    #define INITIALIZER_EDGE_PIN_NO 12
-    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
+    #define INITIALIZER_EDGE_PIN_NO 13
+    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 12
     #define LED_PIN 2
     #define IIC_SDA_PIN 4
     #define IIC_SCL_PIN 5
-    #define PANELS_POWER_PIN 3
+    #define PANELS_POWER_PIN 14
 #elif defined(ARDUINO_ARCH_ESP32)
     #define INITIALIZER_EDGE_PIN_NO 12
     #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
@@ -26,7 +26,7 @@
 #endif
 
 uint16_t const SERVER_PORT = 80;
-#define CONFIG_PORTAL_TIMEOUT 45
+#define CONFIG_PORTAL_TIMEOUT 60
 
 uint8_t state = 0;
 DNSServer dns;
@@ -54,14 +54,9 @@ void setupMDNS()
 void setup()
 {
     #if DEBUG
-    Serial.begin(115200);
+    Serial.begin(57600);
     #endif
-    PRINTLN("\n[HARDWARE INIT] start");
 
-    pinMode(PANELS_POWER_PIN, OUTPUT);
-    digitalWrite(PANELS_POWER_PIN, HIGH);
-
-    delay(500);
     LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
                                    .sclPinNo = IIC_SCL_PIN,
                                    .edgePinNo = INITIALIZER_EDGE_PIN_NO,
@@ -71,31 +66,20 @@ void setup()
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 
-    PRINTLN("[HARDWARE INIT] end");
-
-    // panelsController->resetDevices(100);
-
-    delay(500);
-
-    PRINTLN("===> [INITIALIZER]");
-
     digitalWrite(LED_PIN, HIGH);
+
+    pinMode(PANELS_POWER_PIN, OUTPUT);
+    PRINTLN("reseting panels power...");
+    digitalWrite(PANELS_POWER_PIN, LOW);
+    delay(100);
+    digitalWrite(PANELS_POWER_PIN, HIGH);
+    PRINTLN("waiting for panels to boot");
+    delay(500);
 
     delay(500);
     PRINTLN("Initializing...");
 
-    WiFi.mode(WIFI_STA);
-
     panelsController = new PanelsController();
-    webServer = new AsyncWebServer(SERVER_PORT);
-    wifiManager = new AsyncWiFiManager(webServer, &dns);
-    messageServer = new MessageServer(webServer);
-    messageHandler = new MessageHandler(messageServer, panelsController);
-    appServer = new AppServer(webServer);
-
-    wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
-
-    setupMDNS();
 }
 
 void fadeIn(uint16_t panelIndex)
@@ -172,15 +156,31 @@ void sendConfiguration()
     }
 }
 
+void setupWiFi()
+{
+    panelsController->turnOn(1);
+    panelsController->setColorAndBrightness(1, Protocol::Colors::RED, 100);
+
+    WiFi.mode(WIFI_STA);
+
+    webServer = new AsyncWebServer(SERVER_PORT);
+    wifiManager = new AsyncWiFiManager(webServer, &dns);
+    messageServer = new MessageServer(webServer);
+    messageHandler = new MessageHandler(messageServer, panelsController);
+    appServer = new AppServer(webServer);
+    setupMDNS();
+    wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
+    wifiManager->autoConnect("Lightnet-Controller");
+    webServer->begin();
+
+    panelsController->setColor(1, Protocol::Colors::GREEN);
+}
+
 void loop()
 {
     LNPanelsInitializer.boot();
 
     if (LNPanelsInitializer.isReady()) {
-        #ifdef ARDUINO_ARCH_ESP8266
-        MDNS.update();
-        #endif
-
         digitalWrite(LED_PIN, LOW);
 
         switch (state) {
@@ -192,11 +192,13 @@ void loop()
                 sendConfiguration();
                 selfTest();
 
-                wifiManager->autoConnect();
-                webServer->begin();
+                setupWiFi();
                 break;
 
             case 1:
+                #ifdef ARDUINO_ARCH_ESP8266
+                MDNS.update();
+                #endif
                 messageHandler->handleIncommingMessages();
                 // delay(1000);
                 // selfTest();

@@ -6,8 +6,8 @@
 
 #define PACK __attribute__((__packed__))
 
-namespace Protocol
-{
+namespace Protocol {
+
     const uint16_t VERSION = 3;
     const uint8_t MAX_PACKET_SIZE = 32;
     const uint8_t PULLING_ADDRESS = 120;
@@ -117,4 +117,11 @@ namespace Protocol
     void setPacketMeta(void *packet, packetType_t type);
 
     const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);
+
+    namespace Colors {
+        const Color RED = { { 255, 0, 0 } };
+        const Color GREEN = { { 0, 255, 0 } };
+        const Color BLUE = { { 0, 0, 255 } };
+        const Color WHITE = { { 255, 255, 255 } };
+    }
 }

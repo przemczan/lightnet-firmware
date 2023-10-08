@@ -37,7 +37,7 @@ namespace MessageApi
         uint16_t headerCrc;
         uint16_t payloadCrc;
         uint16_t payloadSize;
-        uint8_t payload[];
+        uint8_t payload[0];
     } PacketMeta;
 
     void updatePacketMeta(PacketMeta *meta, packet_t type, uint16_t payloadSize);
@@ -90,7 +90,7 @@ namespace MessageApi
         typedef struct PACK {
             uint32_t clientId;
             uint16_t payloadSize;
-            uint8_t payload[];
+            uint8_t payload[0];
         } Message;
 
         typedef struct PACK {

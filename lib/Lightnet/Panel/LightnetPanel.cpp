@@ -228,8 +228,6 @@ void LightnetPanel::fetchIncommingPackets()
     interrupts();
 }
 
-void (*resetDevice) (void) = 0;
-
 void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
 {
     switch (packet->header.type) {
@@ -251,10 +249,6 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
 
         case Protocol::PACKET_PANEL_CONFIGURATION:
             this->handlePanelConfiguration((Protocol::PacketPanelConfiguration *)packet);
-            break;
-
-        case Protocol::PACKET_RESET_DEVICE:
-            resetDevice();
             break;
     }
 }

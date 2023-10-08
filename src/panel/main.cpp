@@ -7,7 +7,7 @@ void setup()
     wdt_disable();
 
     #if DEBUG
-    Serial.begin(115200);
+    Serial.begin(57600);
     #endif
 
     PRINTLN("");
@@ -15,6 +15,8 @@ void setup()
     LNPanel.addEdge(PB1);
     LNPanel.addEdge(PB2);
     LNPanel.addEdge(PB3);
+
+    delay(100);
 
     LNPanel.configure({ .interruptPinNo = PD2 });
 

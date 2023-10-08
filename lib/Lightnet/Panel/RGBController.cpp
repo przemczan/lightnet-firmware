@@ -6,7 +6,6 @@ RGBController::RGBController()
 {
     FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(this->leds, 1);
     FastLED.setDither(0);
-    this->turnOff();
 }
 
 void RGBController::turnOn()

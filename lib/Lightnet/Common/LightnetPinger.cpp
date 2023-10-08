@@ -3,6 +3,8 @@
 LightnetPinger::LightnetPinger(uint8_t _pinNo) : pinNo(_pinNo)
 {
     PRINTKV("Init edge pin as IO", _pinNo);
+    pinMode(this->pinNo, OUTPUT);
+    digitalWrite(this->pinNo, HIGH);
     pinMode(this->pinNo, INPUT_PULLUP);
 }
 

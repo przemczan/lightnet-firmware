@@ -16,5 +16,6 @@
         #include <ESPmDNS.h>
     #endif
     #include "AppServer.hpp"
+    #include "Protocol.hpp"
 
 #endif

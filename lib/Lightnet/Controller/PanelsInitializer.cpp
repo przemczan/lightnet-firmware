@@ -26,7 +26,6 @@ void PanelsInitializer::configure(configuration_t config)
 void PanelsInitializer::start()
 {
     pinMode(this->config.intPinNo, INPUT);
-    attachInterrupt(digitalPinToInterrupt(this->config.intPinNo), PanelsInitializer::onInterrupt, CHANGE);
 
     this->pingEdge = new LightnetPanelEdge(this->config.edgePinNo);
     this->pingEdge->setBootTimeout(BOOT_TIMEOUT_MS);
@@ -35,6 +34,8 @@ void PanelsInitializer::start()
 
     this->lastActiveEdge = NULL;
     this->lastPacketType = 0;
+
+    attachInterrupt(digitalPinToInterrupt(this->config.intPinNo), PanelsInitializer::onInterrupt, CHANGE);
 }
 
 void PanelsInitializer::boot()
