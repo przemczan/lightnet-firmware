@@ -23,8 +23,8 @@ void LightnetPanel::configure(configuration_t _config)
     LNBus.setOnPacketReceived(LightnetPanel::onPacketReceivedService);
     LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);
 
-    pinMode(_config.interruptPinNo, INPUT);
-    attachInterrupt(digitalPinToInterrupt(_config.interruptPinNo), LightnetPanel::onInterrupt, CHANGE);
+    // pinMode(_config.interruptPinNo, INPUT);
+    // attachInterrupt(digitalPinToInterrupt(_config.interruptPinNo), LightnetPanel::onInterrupt, CHANGE);
 }
 
 void LightnetPanel::updateEdgesStates()
