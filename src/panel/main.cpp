@@ -6,21 +6,23 @@ void setup()
 {
     wdt_disable();
 
+    pinMode(PD6, OUTPUT);
+    digitalWrite(PD6, 0);
+    
     #if DEBUG
     Serial.begin(57600);
+    PRINTLN("");
     #endif
 
-    PRINTLN("");
+    LNPanel.addEdge(9);
+    LNPanel.addEdge(10);
+    LNPanel.addEdge(11);
 
-    LNPanel.addEdge(PB1);
-    LNPanel.addEdge(PB2);
-    LNPanel.addEdge(PB3);
-
-    delay(100);
-
-    LNPanel.configure({ .interruptPinNo = PD2 });
+    LNPanel.configure({ .interruptPinNo = 2 });
 
     PRINTLN("===> [PANEL]");
+
+    digitalWrite(PD6, 1);
 }
 
 void loop()

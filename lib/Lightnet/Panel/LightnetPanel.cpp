@@ -56,6 +56,7 @@ void LightnetPanel::run()
 
         case STATE_RESPOND_TO_WELLCOME_PING:
             this->respondToWellcomePing();
+            wdt_enable(WDTO_2S);
             break;
 
         case STATE_REGISTER_EDGES:
@@ -73,6 +74,7 @@ void LightnetPanel::run()
             break;
 
         case STATE_WORKING:
+            wdt_disable();
             this->handleIncomingPackets();
             break;
     }
@@ -249,6 +251,10 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
 
         case Protocol::PACKET_PANEL_CONFIGURATION:
             this->handlePanelConfiguration((Protocol::PacketPanelConfiguration *)packet);
+            break;
+
+        case Protocol::PACKET_RESET_DEVICE:
+            wdt_enable(WDTO_15MS);
             break;
     }
 }

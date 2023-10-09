@@ -81,7 +81,31 @@ bool LightnetPanelEdge::isFinished()
 
 void LightnetPanelEdge::setState(uint8_t state)
 {
-    PRINTKV("LightnetPanelEdge state change", state);
+    switch (state) {
+        case LightnetPanelEdge::STATE_IDLE:            
+            PRINTKV("LightnetPanelEdge state change", "IDLE");
+            break;
+
+        case LightnetPanelEdge::STATE_WELLCOME_SENT:            
+            PRINTKV("LightnetPanelEdge state change", "WELCOME SENT");
+            break;
+
+        case LightnetPanelEdge::STATE_NOT_CONNECTED:            
+            PRINTKV("LightnetPanelEdge state change", "NOT CONNECTED");
+            break;
+
+        case LightnetPanelEdge::STATE_BOOTING:
+            PRINTKV("LightnetPanelEdge state change", "BOOTING");
+            break;
+
+        case LightnetPanelEdge::STATE_BOOT_TIMEOUT:
+            PRINTKV("LightnetPanelEdge state change", "BOOT TIMEOUT");
+            break;
+
+        case LightnetPanelEdge::STATE_READY:
+            PRINTKV("LightnetPanelEdge state change", "READY");
+            break;
+    }
     this->state = state;
 }
 

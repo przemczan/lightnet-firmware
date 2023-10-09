@@ -68,18 +68,20 @@ void setup()
 
     digitalWrite(LED_PIN, HIGH);
 
-    pinMode(PANELS_POWER_PIN, OUTPUT);
-    PRINTLN("reseting panels power...");
-    digitalWrite(PANELS_POWER_PIN, LOW);
-    delay(100);
-    digitalWrite(PANELS_POWER_PIN, HIGH);
-    PRINTLN("waiting for panels to boot");
-    delay(500);
-
-    delay(500);
+    // pinMode(PANELS_POWER_PIN, OUTPUT);
+    // PRINTLN("reseting panels power...");
+    // digitalWrite(PANELS_POWER_PIN, LOW);
+    // delay(100);
+    // digitalWrite(PANELS_POWER_PIN, HIGH);
+    // PRINTLN("waiting for panels to boot");
+    // delay(500);
     PRINTLN("Initializing...");
 
     panelsController = new PanelsController();
+
+    // not needed if panels power controll work
+    panelsController->resetDevices(100);
+    delay(50);
 }
 
 void fadeIn(uint16_t panelIndex)
