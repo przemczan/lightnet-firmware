@@ -8,6 +8,7 @@
 
 void setup()
 {
+    wdt_reset();
     wdt_disable();
 
     pinMode(PD6, OUTPUT);
@@ -22,16 +23,18 @@ void setup()
     LNPanel.addEdge(EDGE_2_PIN);
     LNPanel.addEdge(EDGE_3_PIN);
 
-    LNPanel.configure({ .interruptPinNo = 2 });
+    LNPanel.configure({});
 
     PRINTLN("===> [PANEL]");
 
-    digitalWrite(PD6, 1);
-
-    delay(5);
-
+    // PCIE0 is for PB port
     PCICR |= (1 << PCIE0);
+    // enable PC INTs for Edge pins 1-3
     PCMSK0 |= (1 << PCINT1) | (1 << PCINT2) | (1 << PCINT3);
+
+    delay(100);
+
+    digitalWrite(PD6, 1);
 }
 
 void loop()

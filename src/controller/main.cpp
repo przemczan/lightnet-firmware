@@ -51,39 +51,6 @@ void setupMDNS()
     MDNS.addService("lightnet", "tcp", SERVER_PORT);
 }
 
-void setup()
-{
-    #if DEBUG
-    Serial.begin(57600);
-    #endif
-
-    LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
-                                   .sclPinNo = IIC_SCL_PIN,
-                                   .edgePinNo = INITIALIZER_EDGE_PIN_NO,
-                                   .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO});
-    LNPanelsInitializer.start();
-
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, LOW);
-
-    digitalWrite(LED_PIN, HIGH);
-
-    // pinMode(PANELS_POWER_PIN, OUTPUT);
-    // PRINTLN("reseting panels power...");
-    // digitalWrite(PANELS_POWER_PIN, LOW);
-    // delay(100);
-    // digitalWrite(PANELS_POWER_PIN, HIGH);
-    // PRINTLN("waiting for panels to boot");
-    // delay(500);
-    PRINTLN("Initializing...");
-
-    panelsController = new PanelsController();
-
-    // not needed if panels power controll work
-    panelsController->resetDevices(100);
-    delay(50);
-}
-
 void fadeIn(uint16_t panelIndex)
 {
     PRINTKV("[FADE IN]", panelIndex);
@@ -160,9 +127,6 @@ void sendConfiguration()
 
 void setupWiFi()
 {
-    panelsController->turnOn(1);
-    panelsController->setColorAndBrightness(1, Protocol::Colors::RED, 100);
-
     WiFi.mode(WIFI_STA);
 
     webServer = new AsyncWebServer(SERVER_PORT);
@@ -174,8 +138,42 @@ void setupWiFi()
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
     wifiManager->autoConnect("Lightnet-Controller");
     webServer->begin();
+}
 
-    panelsController->setColor(1, Protocol::Colors::GREEN);
+void setup()
+{
+    #if DEBUG
+    Serial.begin(57600);
+    #endif
+
+    LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
+                                   .sclPinNo = IIC_SCL_PIN,
+                                   .edgePinNo = INITIALIZER_EDGE_PIN_NO,
+                                   .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO});
+    LNPanelsInitializer.start();
+
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
+
+    digitalWrite(LED_PIN, HIGH);
+
+    // pinMode(PANELS_POWER_PIN, OUTPUT);
+    // PRINTLN("reseting panels power...");
+    // digitalWrite(PANELS_POWER_PIN, LOW);
+    // delay(100);
+    // digitalWrite(PANELS_POWER_PIN, HIGH);
+    // PRINTLN("waiting for panels to boot");
+    // delay(500);
+    PRINTLN("Initializing...");
+
+    panelsController = new PanelsController();
+
+    // not needed if panels power controll work
+    // will send reset command to N devices to reset them if they are running
+    panelsController->resetDevices(50);
+    // panels have 100ms delay on startup, we need to wait for them to initialize
+    // additional time is needed if they were reset by command above (up to 100ms)
+    delay(300);
 }
 
 void loop()
@@ -202,8 +200,6 @@ void loop()
                 MDNS.update();
                 #endif
                 messageHandler->handleIncommingMessages();
-                // delay(1000);
-                // selfTest();
                 break;
         }
     }

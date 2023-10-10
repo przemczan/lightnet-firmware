@@ -15,7 +15,6 @@ class LightnetPanel
     const uint16_t INCOMING_BUFFER_SIZE = 200;
 
     typedef struct {
-        uint8_t interruptPinNo;
         uint8_t sdaPinNo;
         uint8_t sclPinNo;
     } configuration_t;
@@ -80,7 +79,6 @@ class LightnetPanel
         void onPacketRequested();
         static void onPacketReceivedService(Protocol::PacketMeta *packet, int size);
         static void onPacketRequestedService();
-        static void onInterrupt();
 
     public:
         LightnetPanel();

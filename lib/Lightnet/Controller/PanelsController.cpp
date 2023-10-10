@@ -52,7 +52,7 @@ void PanelsController::resetDevices(uint16_t maxAddress)
     Protocol::PacketMeta resetPacket;
 
     do {
-        LNBus.sendPacketAck(maxAddress, &resetPacket, sizeof(resetPacket), Protocol::PACKET_RESET_DEVICE);
+        LNBus.sendPacketNack(maxAddress, &resetPacket, sizeof(resetPacket), Protocol::PACKET_RESET_DEVICE);
     } while (maxAddress--);
 }
 
