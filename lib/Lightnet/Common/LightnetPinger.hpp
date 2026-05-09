@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <util/atomic.h>
 #include "../Utils/Macros.hpp"
 
 class LightnetPinger
@@ -20,7 +21,7 @@ class LightnetPinger
 
     public:
         LightnetPinger(uint8_t _pinNo);
-        void onBusStateChanged();
+        void onBusStateChanged(uint8_t state);
         void ping();
         bool getAndResetPingStatus();
         unsigned long lastPingSentAt();

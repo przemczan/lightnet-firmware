@@ -52,7 +52,7 @@ Panels form a **tree structure** rooted at the controller. Panels connect to eac
 ```
 Common/         Shared between controller and panel
   LightnetBus       I²C wrapper (send/receive Protocol packets, IRQ callbacks)
-  LightnetPanelEdge State machine per edge: IDLE→WELLCOME_SENT→BOOTING→READY
+  LightnetPanelEdge State machine per edge: IDLE→WELCOME_SENT→BOOTING→READY
   LightnetPinger    GPIO ping pulse (100µs) for edge presence detection via PCINT
   Protocol          Packet definitions, CRC validation, protocol version (v3)
 

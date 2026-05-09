@@ -21,8 +21,8 @@ class LightnetPanel
 
     enum state_t {
         STATE_IDLE, // 0
-        STATE_WAIT_FOR_WELLCOME_PING, // 1
-        STATE_RESPOND_TO_WELLCOME_PING, // 2
+        STATE_WAIT_FOR_WELCOME_PING, // 1
+        STATE_RESPOND_TO_WELCOME_PING, // 2
         STATE_REGISTER_EDGES, // 3
         STATE_RETURN_TO_PARENT, // 4
         STATE_READY, // 5
@@ -55,8 +55,8 @@ class LightnetPanel
         Protocol::PacketMeta ackPacket;
         Protocol::packetType_t lastPacketType = Protocol::PACKET_NOOP;
 
-        void checkForWellcomePing();
-        void respondToWellcomePing();
+        void checkForWelcomePing();
+        void respondToWelcomePing();
         void setState(state_t state);
         void handleIncomingPackets();
         void registerEdges();

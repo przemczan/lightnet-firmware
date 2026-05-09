@@ -10,9 +10,9 @@ LightnetPanelEdge::~LightnetPanelEdge()
     delete this->pinger;
 }
 
-void LightnetPanelEdge::readBusState()
+void LightnetPanelEdge::readBusState(uint8_t state)
 {
-    this->pinger->onBusStateChanged();
+    this->pinger->onBusStateChanged(state);
 }
 
 void LightnetPanelEdge::ping()
@@ -29,11 +29,11 @@ void LightnetPanelEdge::boot()
 {
     switch (this->state) {
         case LightnetPanelEdge::STATE_IDLE:
-            this->sendWellcome();
+            this->sendWelcome();
             break;
 
-        case LightnetPanelEdge::STATE_WELLCOME_SENT:
-            this->checkWellcomeResponded();
+        case LightnetPanelEdge::STATE_WELCOME_SENT:
+            this->checkWelcomeResponded();
             break;
 
         case LightnetPanelEdge::STATE_BOOTING:
@@ -42,17 +42,17 @@ void LightnetPanelEdge::boot()
     }
 }
 
-void LightnetPanelEdge::sendWellcome()
+void LightnetPanelEdge::sendWelcome()
 {
     this->ping();
-    this->setState(LightnetPanelEdge::STATE_WELLCOME_SENT);
+    this->setState(LightnetPanelEdge::STATE_WELCOME_SENT);
 }
 
-void LightnetPanelEdge::checkWellcomeResponded()
+void LightnetPanelEdge::checkWelcomeResponded()
 {
     if (this->getAndResetPingStatus()) {
         this->setState(LightnetPanelEdge::STATE_BOOTING);
-    } else if ((this->pinger->lastPingSentAt() + LightnetPanelEdge::WELLCOME_RESPONSE_TIMEOUT_MILLS) < millis()) {
+    } else if ((this->pinger->lastPingSentAt() + LightnetPanelEdge::WELCOME_RESPONSE_TIMEOUT_MILLS) < millis()) {
         this->setState(LightnetPanelEdge::STATE_NOT_CONNECTED);
     }
 }
@@ -86,7 +86,7 @@ void LightnetPanelEdge::setState(uint8_t state)
             PRINTKV("LightnetPanelEdge state change", "IDLE");
             break;
 
-        case LightnetPanelEdge::STATE_WELLCOME_SENT:            
+        case LightnetPanelEdge::STATE_WELCOME_SENT:
             PRINTKV("LightnetPanelEdge state change", "WELCOME SENT");
             break;
 

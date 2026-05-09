@@ -51,14 +51,14 @@ So the entire tree is:
 
 ```
 STATE_IDLE
-  → STATE_WAIT_FOR_WELLCOME_PING       — poll any edge for an inbound ping
-  → STATE_RESPOND_TO_WELLCOME_PING     — pulse parent edge once, enable WDT(2 s)
+  → STATE_WAIT_FOR_WELCOME_PING       — poll any edge for an inbound ping
+  → STATE_RESPOND_TO_WELCOME_PING     — pulse parent edge once, enable WDT(2 s)
   → STATE_REGISTER_EDGES               — sub‑state machine (per edge)
         REGISTER_STATE_BEGIN  → LNBus.begin(sda, scl, 0x78)   slave at 0x78
         REGISTER_STATE_SEND   → wait for controller pull, reply with
                                 PacketRegisterEdge(panelIndex, edgeIndex)
         REGISTER_STATE_END    → LNBus.end(); compute new bootTimeoutMs
-        REGISTER_STATE_BOOT   → if non‑parent edge: send wellcome ping & wait
+        REGISTER_STATE_BOOT   → if non‑parent edge: send welcome ping & wait
         REGISTER_STATE_READY  → all edges done → return to parent
   → STATE_RETURN_TO_PARENT             — pulse parent edge, signaling "done"
   → STATE_READY                        — LNBus.begin(sda, scl, this->index) slave
@@ -88,30 +88,7 @@ delay(300);                           // panels' 100 ms boot delay + reset slack
 
 Severity legend: **CRIT** (very likely cause of real‑world failures) · **HIGH** (will manifest under stress) · **MED** (latent / corner case) · **LOW** (cosmetic/cleanup).
 
-### 2.1 — **CRIT** — Possible I²C pin mismatch between schematic and firmware (PB only)
-
-According to the panel schematic, the P82B96TD bus extender's MCU side (`ISDA`/`ISCL`) is wired to **pin 3 (PE0/SDA1)** and **pin 6 (PE1/SCL1)** of the ATmega328PB‑AU TQFP‑32. These are the second TWI peripheral.
-
-The firmware in `LightnetBus.cpp` only ever uses the default `Wire` instance:
-```cpp
-Wire.begin(address);
-Wire.setClock(BUS_FREQUENCY);
-```
-On every Arduino core (including MiniCore) that supports the 328PB, **`Wire` is TWI0 (PC4/PC5)**. To talk on PE0/PE1 you must use `Wire1`.
-
-Implications, if the schematic is the as‑built design:
-- **`panel_atmega328pb` build can never communicate.** The TWI peripheral is bit‑banging on PC4/PC5, which on the schematic are unconnected (or used for something else).
-- `panel_nanoatmega328` (Arduino Nano, ATmega328P) does not even have TWI1 — so this build can only work if the actual PCB has the bus on PC4/PC5.
-- This would explain symptoms like "discovery succeeds on the prototype, fails on the production board" or vice‑versa, depending on which board is paired with which firmware.
-
-**What to verify, in order:**
-1. Open the actual PCB / Gerbers (not just the schematic) and trace `HSDA/HSCL` net to the AVR pins.
-2. If the production board uses **PC4/PC5**: schematic is stale — update it; firmware is correct; ignore this finding.
-3. If it uses **PE0/PE1**: firmware is wrong — replace `Wire` with `Wire1` (the PB Arduino core exposes both). Probably with a compile‑time switch keyed off `__AVR_ATmega328PB__` so the 328P/Nano builds keep using TWI0.
-
-This is the single most likely root cause of intermittent / total discovery failures and should be checked first.
-
-### 2.2 — **CRIT** — Boot timeout dividing by panel index makes deep trees impossible
+### 2.1 — **CRIT** — Boot timeout dividing by panel index makes deep trees impossible
 
 `LightnetPanel::endEdgeRegistration()` (`LightnetPanel.cpp:147`) sets the per‑edge boot timeout for the panel's children with:
 
@@ -138,13 +115,13 @@ Index is also not depth: it's just the order in which panels happen to be assign
 
 **Suggested fix:** drop the division entirely. Use a generous, depth‑independent constant (e.g. 2–5 s). Discovery is one‑shot and only as long as the slowest leaf, so total budget on the root's wait isn't really shortened by being aggressive at intermediate panels. If you want to bound the global wait, do it on the controller, not by squeezing leaves.
 
-### 2.3 — **CRIT** — Watchdog enabled, never reset across the whole subtree
+### 2.2 — **CRIT** — Watchdog enabled, never reset across the whole subtree
 
-`LightnetPanel::run()` enables a **2‑second** WDT on entry to `STATE_RESPOND_TO_WELLCOME_PING`:
+`LightnetPanel::run()` enables a **2‑second** WDT on entry to `STATE_RESPOND_TO_WELCOME_PING`:
 
 ```cpp
-case STATE_RESPOND_TO_WELLCOME_PING:
-    this->respondToWellcomePing();
+case STATE_RESPOND_TO_WELCOME_PING:
+    this->respondToWelcomePing();
     wdt_enable(WDTO_2S);
     break;
 ```
@@ -152,13 +129,13 @@ case STATE_RESPOND_TO_WELLCOME_PING:
 
 Real consequence: any panel whose subtree takes >2 s to register/boot resets in the middle of discovery. In a moderate tree (say, controller + 6 panels) that's easy to hit — each panel does multiple `LNBus.begin/end` cycles, waits up to `bootTimeoutMs` per child, plus the 15 ms pulling cadence on the controller. The reset then re‑enters `STATE_IDLE` while the controller has already moved on, so the panel becomes orphaned for the rest of the discovery cycle.
 
-Combined with #2.2, this produces a perverse failure mode: low‑index panels have generous timeouts but trip the WDT; high‑index panels finish quickly per‑edge but report "BOOT_TIMEOUT" on every connected child.
+Combined with #2.1, this produces a perverse failure mode: low‑index panels have generous timeouts but trip the WDT; high‑index panels finish quickly per‑edge but report "BOOT_TIMEOUT" on every connected child.
 
 **Fix options:**
 - Sprinkle `wdt_reset()` at the top of `run()` and inside `bootEdge()`.
 - Or: don't enable the WDT at all during discovery; only arm it after `STATE_WORKING`. The original intent looks like "reset if discovery hangs" but the implementation doesn't service it during a phase that *expects* to spend seconds idle waiting on children.
 
-### 2.4 — **HIGH** — Pinger pin‑mode reconfiguration creates glitches on the shared edge wire
+### 2.3 — **HIGH** — Pinger pin‑mode reconfiguration creates glitches on the shared edge wire
 
 `LightnetPinger::ping()` (`LightnetPinger.cpp:26`) does, in order:
 
@@ -177,7 +154,7 @@ Three problems on a *shared bidirectional* wire:
 
 1. **Active push‑pull HIGH for ~µs after the pulse.** Between (2) and (4) the AVR/ESP is *driving* the line high. If the other end is simultaneously in `OUTPUT LOW` (e.g. the panel pinging back early, or any glitch / EMI), the two GPIO drivers fight and one of them may latch up, draw high current, or emit a brief out‑of‑spec voltage. The line is supposed to be open‑drain‑ish (idle high via pull‑up, pulled low to assert).
 2. **`busIsDisabled = false` happens *before* `pinMode(INPUT_PULLUP)`.** The window is a few µs, but in it the IRQ will fire on the rising edge from (2) → (4) and read whatever `digitalRead` returns at that moment. With a strong push‑pull HIGH that read is HIGH so `hasPing` is set spuriously. With CHANGE interrupts on both ends, every `ping()` you do, you also self‑detect a "ping received". That's then consumed correctly by `getAndResetPingStatus` because of the `!busState && state` edge guard — *but* the race is real on the very first call where `busState` was initialised to `true` (line 9: `volatile bool busState = true;`) and the first `digitalRead` after a low → high is the only way `hasPing` becomes true.
-3. **`pingSentAt` is sampled after the pulse, not before it.** All timeouts (`WELLCOME_RESPONSE_TIMEOUT_MILLS = 3 ms`, `BOOT_TIMEOUT_MILLS = 1000 ms`) are measured from this sample. With a 100 µs pulse this is harmless, but it ties timeout semantics to "time since last‑pulse‑finished" rather than "time since I asked the question", which is subtly wrong if the pulse ever stretches.
+3. **`pingSentAt` is sampled after the pulse, not before it.** All timeouts (`WELCOME_RESPONSE_TIMEOUT_MILLS = 3 ms`, `BOOT_TIMEOUT_MILLS = 1000 ms`) are measured from this sample. With a 100 µs pulse this is harmless, but it ties timeout semantics to "time since last‑pulse‑finished" rather than "time since I asked the question", which is subtly wrong if the pulse ever stretches.
 
 **Suggested fix** for the pin handling: never go `OUTPUT HIGH`. Use the open‑drain idiom available on AVR/ESP:
 
@@ -195,7 +172,7 @@ busIsDisabled = false;           // …then re‑enable IRQ sensing
 
 This guarantees the line is open‑drain, eliminates the contention window, and tightens the semantics of `pingSentAt`.
 
-### 2.5 — **HIGH** — Volatile/atomicity hazards on the panel ISR path
+### 2.4 — **HIGH** — Volatile/atomicity hazards on the panel ISR path
 
 `LightnetPinger.cpp:11` runs in the PCINT context (`LNPanel.updateEdgesStates()` → `readBusState()` → `onBusStateChanged()`):
 
@@ -211,7 +188,7 @@ void LightnetPinger::onBusStateChanged() {
 `busIsDisabled`, `busState`, `hasPing` are declared `volatile` (good). However:
 
 - **`getAndResetPingStatus()`** runs in the main loop and does a *non‑atomic read‑then‑clear* of `hasPing`. Between `bool state = this->hasPing;` and `this->hasPing = false;` an interrupt can fire and set it again, which we then drop. For "did we get a ping?" semantics that's tolerable (you re‑poll next loop), but it does mean a ping that arrives within a few µs of the consumer can be silently lost.
-- More importantly, `pingSentAt` is `unsigned long` (4 bytes on AVR), **not volatile**, written by `ping()` (which is called from main) and never read in the ISR — so it's fine. But it's also written *after* re‑enabling interrupts, see #2.4.
+- More importantly, `pingSentAt` is `unsigned long` (4 bytes on AVR), **not volatile**, written by `ping()` (which is called from main) and never read in the ISR — so it's fine. But it's also written *after* re‑enabling interrupts, see #2.3.
 - The PCINT0 vector uses no `ATOMIC_BLOCK`, but every variable it touches is either volatile or locally allocated. The bigger problem is **duration**: a comment in `src/panel/main.cpp:11` claims ~27 µs per IRQ. The PCINT0 vector calls `updateEdgesStates`, which calls **3** virtual `digitalRead`s and 3 list lookups. On a 16 MHz AVR that is plausibly 30–50 µs. **PCINT only flags on changes** — it doesn't latch multiple changes. If the line goes low → high → low while we're inside the ISR (e.g. on a 100 µs pulse where another panel pings while we're processing), the second falling edge **is lost**.
 
 **Mitigations:**
@@ -219,7 +196,7 @@ void LightnetPinger::onBusStateChanged() {
 - Or, since you only actually care about *rising* edges in `onBusStateChanged`, latch them in the ISR with `(PINB & 0x0E) ^ lastSnapshot` and store edge bits, instead of three sequential `digitalRead` round‑trips through Arduino HAL.
 - Inline `digitalRead` (or use `direct port reads`); with the savings you can reasonably keep PCINT.
 
-### 2.6 — **HIGH** — Two masters can briefly coexist on the bus, and pull spam continues throughout discovery
+### 2.5 — **HIGH** — Two masters can briefly coexist on the bus, and pull spam continues throughout discovery
 
 While a deeply nested panel is in `REGISTER_STATE_BEGIN` (slave at 0x78), `PanelsInitializer::boot()` keeps firing `pull()` every 15 ms because the controller's own edge has not yet returned to `STATE_READY`. That's fine — **only the controller is master**. Panels are *only* slaves; the parent never plays master to its children, it just pulses the ping line and the global controller polls 0x78.
 
@@ -231,14 +208,14 @@ There are still two real problems:
 - Slow `PULL_INTERVAL_MS` to ≥50 ms once the first panel registers; or arm the next pull only after the previous one NACK'd N times, scaling the interval up.
 - Have each panel hold the slave‑0x78 "lock" longer than just a single registration: register **all** of its edges in one slave session. This requires a small protocol change (controller pulls until panel responds with "no more edges") but eliminates the rapid begin/end churn that's at the heart of the timing race.
 
-### 2.7 — **HIGH** — Panel parent edge can be misidentified by spurious pings
+### 2.6 — **HIGH** — Panel parent edge can be misidentified by spurious pings
 
-`checkForWellcomePing()` (`LightnetPanel.cpp:80`) walks edges and takes the **first** one whose `getAndResetPingStatus()` is true:
+`checkForWelcomePing()` (`LightnetPanel.cpp:80`) walks edges and takes the **first** one whose `getAndResetPingStatus()` is true:
 
 ```cpp
 while (index--) {
     if (edges->get(index)->getAndResetPingStatus()) {
-        setState(STATE_RESPOND_TO_WELLCOME_PING);
+        setState(STATE_RESPOND_TO_WELCOME_PING);
         parentEdgeIndex = nextEdgeToRegister = index;
         return;
     }
@@ -248,13 +225,13 @@ while (index--) {
 There is no validation that this edge is actually connected (e.g. by waiting for a confirm pulse, or by sampling the bus voltage). On power‑up:
 - The 100 µs pulse is short. The line on a *disconnected* edge is held high by the internal `INPUT_PULLUP` (~30–50 kΩ) — enough that EMI or even crosstalk to a sibling edge could glitch it low briefly.
 - The detection logic only looks for `!busState && state`, i.e. a low → high transition. A single‑sample dropout is enough.
-- After power‑on, all panels enter `STATE_WAIT_FOR_WELLCOME_PING` with `busState = true`. Any spurious low → high transition during the first ~150 ms (`delay(150)` in controller setup) could be latched as `hasPing = true` and consumed at the start of `run()`.
+- After power‑on, all panels enter `STATE_WAIT_FOR_WELCOME_PING` with `busState = true`. Any spurious low → high transition during the first ~150 ms (`delay(150)` in controller setup) could be latched as `hasPing = true` and consumed at the start of `run()`.
 
-The result: the panel adopts a wrong `parentEdgeIndex`, sends its return‑ping to a disconnected (or wrong‑neighbor) edge, never registers, and sits in `STATE_REGISTER_EDGES` until its WDT fires (#2.3).
+The result: the panel adopts a wrong `parentEdgeIndex`, sends its return‑ping to a disconnected (or wrong‑neighbor) edge, never registers, and sits in `STATE_REGISTER_EDGES` until its WDT fires (#2.2).
 
 **Suggested fix:** require *two* pulses on the same edge within a window (e.g. controller sends two short pulses ~5 ms apart) or use a longer pulse (1–5 ms) and sample mid‑pulse to confirm a deliberate assertion. Either change is small and dramatically improves noise immunity.
 
-### 2.8 — **HIGH** — `Wire.endTransmission(end=false)` then `requestFrom(... true)` assumes a clean repeated‑start, and ESP8266 software I²C doesn't always provide one
+### 2.7 — **HIGH** — `Wire.endTransmission(end=false)` then `requestFrom(... true)` assumes a clean repeated‑start, and ESP8266 software I²C doesn't always provide one
 
 `LightnetBus::sendPacketWithResponse` (`LightnetBus.cpp:133`):
 ```cpp
@@ -265,18 +242,18 @@ requestPacket(addr, buf, rspSize);                   // implicit START
 
 On AVR's hardware Wire this is a textbook repeated‑start. On the ESP8266 software Wire (`Wire.cpp` in `Esp8266WiFi`/Wire library), the `endTransmission(false)` path is supposed to leave SCL high and SDA in last‑bit state; `requestFrom` then issues a repeated‑start. **In practice the ESP8266 implementation has historically been buggy around repeated‑start with clock stretching enabled** (`setClockStretchLimit(1500)`), and on long bus runs (which yours are — that's the point of the P82B96 buffers), the slack between the two transactions occasionally exceeds the bit‑bang assumptions.
 
-This is exactly the kind of issue that is "rarely an issue at the bench, hard to reproduce in the field". Combined with the 15 ms pull spam (#2.6), every flaky transaction extends discovery.
+This is exactly the kind of issue that is "rarely an issue at the bench, hard to reproduce in the field". Combined with the 15 ms pull spam (#2.5), every flaky transaction extends discovery.
 
 **Suggested fix:** on ESP8266 builds, fall back to a **STOP + START** pattern (`end=true; delayMicroseconds(50); requestFrom`). It's slightly slower per request but is the path the bit‑banged ESP8266 Wire is actually known‑good on. ESP32 hardware Wire has no such issue and can keep the repeated‑start.
 
-### 2.9 — **MED** — Reset broadcast in `setup()` runs before any panel is a slave
+### 2.8 — **MED** — Reset broadcast in `setup()` runs before any panel is a slave
 
 `controller/main.cpp:171`:
 ```cpp
 panelsController->resetDevices(50);
 delay(300);
 ```
-walks addresses 50 → 0 sending `PACKET_RESET_DEVICE`. At this point in the boot sequence, the panels have just been powered on and are in `STATE_IDLE`/`WAIT_FOR_WELLCOME_PING`. **No panel is a slave at any address yet.** All 51 transactions NACK out. The 300 ms delay lets panels finish booting.
+walks addresses 50 → 0 sending `PACKET_RESET_DEVICE`. At this point in the boot sequence, the panels have just been powered on and are in `STATE_IDLE`/`WAIT_FOR_WELCOME_PING`. **No panel is a slave at any address yet.** All 51 transactions NACK out. The 300 ms delay lets panels finish booting.
 
 So the broadcast only does anything if a panel was already running with an assigned address from a *previous* run (i.e. controller rebooted but panels stayed up). This is a valid soft‑reset strategy, but `delay(300)` after it doesn't help fresh boot — and the firmware also `//digitalWrite(PANELS_POWER_PIN, LOW); //digitalWrite(PANELS_POWER_PIN, HIGH);` is commented out.
 
@@ -287,7 +264,7 @@ Implication: if the controller is reset while panels are mid‑use, the only thi
 - Or extend `resetDevices` to cover the full 1..127 range (skipping 0x78); the cost is ~50 ms more boot time.
 - Or send a single broadcast reset at address 0x00 (general call). Whether the panel firmware's slave is bound to general call needs to be checked — `Wire.begin(addr)` does not enable general call by default on AVR.
 
-### 2.10 — **MED** — `currentPanelIndex` never reused, can grow unbounded across reboots
+### 2.9 — **MED** — `currentPanelIndex` never reused, can grow unbounded across reboots
 
 `PanelsInitializer::registerPanel` increments `currentPanelIndex` per *new* panel. If a partial discovery succeeds (assigns indices 1..3) then the controller resets, the next discovery starts at `currentPanelIndex = 1` again — but those panels remember their old index. So:
 - Old panel @5 stays at 5.
@@ -299,29 +276,29 @@ Implication: if the controller is reset while panels are mid‑use, the only thi
 
 **Suggested fix:** at the very start of discovery, send a **broadcast "reset state"** that all panels (in any state) honor, clearing `this->index` and returning them to `STATE_IDLE`. This is what the (currently disabled) panel‑power cycle would do for free.
 
-### 2.11 — **MED** — Deep‑tree topology link can be wrong if a child registration packet is dropped
+### 2.10 — **MED** — Deep‑tree topology link can be wrong if a child registration packet is dropped
 
 The controller uses `lastActiveEdge` to remember which edge the *just registered* device sat on. When a new panel registers, it links `lastActiveEdge->connectedEdge = newPanelEdge`. This works only if **registration packets arrive in strict tree‑DFS order**, which the discovery does enforce by serialising children. But:
 
 - Any dropped or NACK'd registration packet leaves `lastActiveEdge` pointing to the *previous* registration. The next successful registration then attaches the new panel to whichever edge happened to be last in the controller's view.
-- Specifically, if a parent panel E re‑registers (its second/third edge) while a child panel C is mid‑registration (rare but possible during the begin/end churn — see #2.6), `lastActiveEdge` flips to E and a subsequent grandchild D registers and gets linked under E instead of C.
+- Specifically, if a parent panel E re‑registers (its second/third edge) while a child panel C is mid‑registration (rare but possible during the begin/end churn — see #2.5), `lastActiveEdge` flips to E and a subsequent grandchild D registers and gets linked under E instead of C.
 
 This is mostly a topology‑display issue (the GUI shows a wrong wiring), not a control issue (commands are addressed by `panelIndex`, not by topology). But it can confound debugging because the visualisation will not match the physical layout.
 
-**Suggested fix:** make registration self‑describing. Add `parentPanelIndex` and `parentEdgeIndex` to `PacketRegisterEdge`; the panel knows both because it set `parentEdgeIndex` in `checkForWellcomePing()` and the parent told it its own index in the *previous* pull cycle's "I'm pinging you" handshake. This eliminates the `lastActiveEdge` global state entirely.
+**Suggested fix:** make registration self‑describing. Add `parentPanelIndex` and `parentEdgeIndex` to `PacketRegisterEdge`; the panel knows both because it set `parentEdgeIndex` in `checkForWelcomePing()` and the parent told it its own index in the *previous* pull cycle's "I'm pinging you" handshake. This eliminates the `lastActiveEdge` global state entirely.
 
-### 2.12 — **MED** — `LNBus.begin/end` cycles on the panel are heavyweight
+### 2.11 — **MED** — `LNBus.begin/end` cycles on the panel are heavyweight
 
 Every edge causes the panel to call `LNBus.begin(sda, scl, 0x78)` then `LNBus.end()`. On the AVR Wire library:
 
 - `begin` programs the TWI hardware and registers ISR.
 - `end` (via `twi_stop` on ESP8266 or `Wire.end()` on AVR) tears it down.
 
-Each cycle is ~µs of MCU time but, more importantly, **toggles the SDA/SCL pin direction** on the AVR. Between `Wire.end()` and the next `Wire.begin(0x78)` the lines are in INPUT/INPUT_PULLUP, which on a *long* bus with parasitic capacitance can produce a brief `LOW` glitch (RC charge curve below logic threshold). The P82B96 buffer should suppress most of this, but it's cleaner to never tear down: do `Wire.begin(0x78)` once at `STATE_RESPOND_TO_WELLCOME_PING` and just stay in slave mode until `STATE_READY` (where you re‑bind to `this->index`).
+Each cycle is ~µs of MCU time but, more importantly, **toggles the SDA/SCL pin direction** on the AVR. Between `Wire.end()` and the next `Wire.begin(0x78)` the lines are in INPUT/INPUT_PULLUP, which on a *long* bus with parasitic capacitance can produce a brief `LOW` glitch (RC charge curve below logic threshold). The P82B96 buffer should suppress most of this, but it's cleaner to never tear down: do `Wire.begin(0x78)` once at `STATE_RESPOND_TO_WELCOME_PING` and just stay in slave mode until `STATE_READY` (where you re‑bind to `this->index`).
 
-Doing so also fixes #2.6's handover race because there's no longer an "out of slave" gap.
+Doing so also fixes #2.5's handover race because there's no longer an "out of slave" gap.
 
-### 2.13 — **MED** — `Wire.requestFrom(addr, maxSize, true)`'s return value is the number of bytes the controller *requested*, not received
+### 2.12 — **MED** — `Wire.requestFrom(addr, maxSize, true)`'s return value is the number of bytes the controller *requested*, not received
 
 `LightnetBus.cpp:184`:
 ```cpp
@@ -335,7 +312,7 @@ On AVR's TWI library this returns the number of bytes the slave actually sent. O
 
 **Suggested fix:** on ESP8266, set a watchdog at the byte‑receive level. Or always read 32 bytes (`MAX_PACKET_SIZE`) and let the CRC catch malformed packets — *but* then panels need to pad responses to 32 bytes, which they currently don't.
 
-### 2.14 — **MED** — `delayMicroseconds(3)` in `sendPacketWithResponse` is fragile
+### 2.13 — **MED** — `delayMicroseconds(3)` in `sendPacketWithResponse` is fragile
 
 `LightnetBus.cpp:113, 146`:
 ```cpp
@@ -347,11 +324,11 @@ if (this->requestPacket(...) != 0) ...
 ```
 3 µs is below the resolution of `delayMicroseconds` on the ESP8266 (its loop overhead is ~1 µs per call) and is essentially a no‑op there. On AVR it's a few cycles. Whatever it was meant to fix — bus settling, slave processing time — would be better expressed as either a real wait (≥50 µs) or omitted entirely. As written, it adds ambiguity without protection.
 
-### 2.15 — **MED** — `Wire.write(buffer, size)` on AVR truncates silently at 32 bytes
+### 2.14 — **MED** — `Wire.write(buffer, size)` on AVR truncates silently at 32 bytes
 
 The AVR Wire library has a 32‑byte TX buffer. If a packet ever exceeds 32 bytes the trailing bytes are dropped without indication. Current packet sizes are well below 32 (max appears to be `PacketPanelConfiguration` ≈ 14 bytes), but `MAX_PACKET_SIZE = 32` advertises the whole envelope as legal. If anyone adds a field this becomes a silent data‑corruption bug. Either lower `MAX_PACKET_SIZE` to a safer value (28?) leaving headroom for future fields, or add `static_assert(sizeof(...) <= 32, ...)` on every packet struct in `Protocol.hpp` so the build catches accidental growth.
 
-### 2.16 — **MED** — `attachInterrupt(... CHANGE)` on ESP8266 GPIO12/13 is fine, but with hardware I²C plans for ESP32 there's a conflict
+### 2.15 — **MED** — `attachInterrupt(... CHANGE)` on ESP8266 GPIO12/13 is fine, but with hardware I²C plans for ESP32 there's a conflict
 
 Controller pinout (`controller/main.cpp:5–18`):
 
@@ -365,7 +342,7 @@ On ESP32, GPIO12 is a **strapping pin** (MTDI; affects flash voltage at boot). P
 
 **Suggested fix:** move the ESP32 pinout off strapping pins (use GPIO 32–33 for ping/IRQ; they have no boot side‑effects and can do interrupts). ALSO: the `PANELS_POWER_PIN` on ESP32 is GPIO 21, which is fine, but the panel‑power should be *off* by default and only enabled after the ESP32 finishes booting — that gives the strapping pins a clean state at boot, even if you don't move them.
 
-### 2.17 — **LOW** — `delay(150)` for "panels to boot" is shorter than the panels' actual boot time
+### 2.16 — **LOW** — `delay(150)` for "panels to boot" is shorter than the panels' actual boot time
 
 Comment in `controller/main.cpp:163–165`:
 ```cpp
@@ -378,7 +355,7 @@ The 150 ms accounts for the panels' own internal startup. With WDT pre‑arm, th
 
 **Suggested fix:** raise to 300–500 ms. Cheap.
 
-### 2.18 — **LOW** — `LightnetBus::onReceive` allocates a VLA buffer per receive
+### 2.16 — **LOW** — `LightnetBus::onReceive` allocates a VLA buffer per receive
 
 `LightnetBus.cpp:29`:
 ```cpp
@@ -388,16 +365,16 @@ this->onPacketReceivedCallback(...);
 ```
 On AVR with limited RAM (2 KB on the 328P/328PB), VLAs in IRQ context are risky if `size` is ever attacker‑controlled. Bus framing means `size` is bounded to whatever Wire received in one call (≤32 bytes), so this is safe today, but a `static uint8_t buffer[Protocol::MAX_PACKET_SIZE]` is cheaper and removes the latent VLA.
 
-### 2.19 — **LOW** — `Wire.readBytes` in receive ISR is not async‑safe across all cores
+### 2.18 — **LOW** — `Wire.readBytes` in receive ISR is not async‑safe across all cores
 
 The `onReceive` handler runs in TWI ISR context on AVR. `Wire.readBytes` calls back into the same Wire instance whose state machine just notified you. On AVR's reference implementation that's intentional (the bytes are already in the rx ring buffer; `readBytes` is a memcpy out). On ESP8266 software Wire there is no `onReceive`/`onRequest` callback for slave mode — the panel firmware that uses `LNBus.setOnPacketReceived` only works on AVR (`LightnetBus.cpp:5–7` only calls `Wire.onReceive(...)` if **not** ESP). So this isn't a bug, but it does mean the panel code path is AVR‑only, while the controller code path is ESP‑only — by construction, not by accident.
 
-### 2.20 — **LOW** — Memory & destructor habits
+### 2.19 — **LOW** — Memory & destructor habits
 
 - `PanelsInitializer::~PanelsInitializer` only calls `delete this->panels` on the outer list; the `Panel*` and `Edge*` items leak. (Not a runtime issue because the controller never destructs `LNPanelsInitializer`, it's a global.)
 - `List<T>::clear()` sets `items = NULL` even though `items` was just freed; followed by `realloc(NULL, ...)`, which is `malloc`. Fine, but fragile.
 
-### 2.21 — **LOW** — `setNextEdgeToRegister` index comparisons
+### 2.20 — **LOW** — `setNextEdgeToRegister` index comparisons
 
 ```cpp
 this->nextEdgeToRegister++;
@@ -452,7 +429,7 @@ If reliability of discovery is the immediate goal, do these in order:
 1. **Resolve #2.1**: trace `HSDA/HSCL` on the actual PCB. If wired to PE0/PE1 (ATmega328PB SDA1/SCL1), switch the panel firmware to `Wire1` (with a compile‑time switch so the 328P/Nano builds keep `Wire`). This is the single most likely root cause.
 2. **Fix #2.2 + #2.3 together**: drop the `/index/edges` division on the boot timeout; either remove the WDT during discovery or sprinkle `wdt_reset()`. These changes are independent of the rest and remove a whole category of "deeper than three panels = fails" symptoms.
 3. **Fix #2.4**: change `LightnetPinger::ping()` to never drive HIGH (open‑drain idiom). Move `pinMode(INPUT_PULLUP)` before `busIsDisabled = false`. Sample `pingSentAt` *before* the pulse.
-4. **Fix #2.7**: lengthen the ping pulse to 1–2 ms and require two pulses (or a mid‑pulse re‑sample) to confirm a "wellcome", to make the parent‑edge detection robust to glitches. Mirror the timing on the controller side.
+4. **Fix #2.7**: lengthen the ping pulse to 1–2 ms and require two pulses (or a mid‑pulse re‑sample) to confirm a "welcome", to make the parent‑edge detection robust to glitches. Mirror the timing on the controller side.
 5. **Fix #2.6 + #2.12 together**: register all of a panel's edges in *one* slave session. Eliminates the 0x78 handover race.
 6. **Re‑enable `PANELS_POWER_PIN`** (with soft‑start cap on the gate of Q1) so a controller reset is also a panels reset (#2.9, #2.10).
 7. **#2.16**: move ESP32 ping pin off GPIO12 (strapping). Even on a one‑off prototype it costs you nothing.
@@ -467,7 +444,7 @@ Schematic side, only the panel I²C pin question is critical. The ping pull‑do
 - Confirm on the PCB whether the panel I²C is on PC4/PC5 or PE0/PE1 (this drops or escalates #2.1).
 - Re‑measure the actual PCINT0 ISR duration; the comment says ~27 µs but the implementation walks a list and does three `digitalRead`s — likely 35–60 µs. If real, #2.5 deserves more attention.
 - Capture a logic‑analyzer trace of one full discovery on a 4‑panel tree:
-  - Time from controller's first wellcome pulse to panel A's pong.
+  - Time from controller's first welcome pulse to panel A's pong.
   - Time from `PULL` to first `PacketRegisterEdge` byte.
   - Bus idle gaps between consecutive `LNBus.begin/end` cycles on each panel.
 - Confirm whether the controller ever sees `[PULL] error N` log spam in the field — a quick metric to gauge how often #2.13/#2.6 triggers.

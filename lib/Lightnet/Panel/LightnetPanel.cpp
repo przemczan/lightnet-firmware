@@ -26,10 +26,11 @@ void LightnetPanel::configure(configuration_t _config)
 
 void LightnetPanel::updateEdgesStates()
 {
-    uint16_t index = this->edges->getSize();
+    uint8_t snap = PINB;
+    uint16_t count = this->edges->getSize();
 
-    while (index--) {
-        this->edges->get(index)->readBusState();
+    for (uint16_t i = 0; i < count; i++) {
+        this->edges->get(i)->readBusState((snap >> (i + 1)) & 1);
     }
 }
 
@@ -44,16 +45,15 @@ void LightnetPanel::run()
 {
     switch (this->state) {
         case STATE_IDLE:
-            this->setState(STATE_WAIT_FOR_WELLCOME_PING);
+            this->setState(STATE_WAIT_FOR_WELCOME_PING);
             break;
 
-        case STATE_WAIT_FOR_WELLCOME_PING:
-            this->checkForWellcomePing();
+        case STATE_WAIT_FOR_WELCOME_PING:
+            this->checkForWelcomePing();
             break;
 
-        case STATE_RESPOND_TO_WELLCOME_PING:
-            this->respondToWellcomePing();
-            wdt_enable(WDTO_2S);
+        case STATE_RESPOND_TO_WELCOME_PING:
+            this->respondToWelcomePing();
             break;
 
         case STATE_REGISTER_EDGES:
@@ -71,19 +71,18 @@ void LightnetPanel::run()
             break;
 
         case STATE_WORKING:
-            wdt_disable();
             this->handleIncomingPackets();
             break;
     }
 }
 
-void LightnetPanel::checkForWellcomePing()
+void LightnetPanel::checkForWelcomePing()
 {
     uint16_t index = this->edges->getSize();
 
     while (index--) {
         if (this->edges->get(index)->getAndResetPingStatus()) {
-            this->setState(STATE_RESPOND_TO_WELLCOME_PING);
+            this->setState(STATE_RESPOND_TO_WELCOME_PING);
             this->parentEdgeIndex = this->nextEdgeToRegister = index;
 
             return;
@@ -91,7 +90,7 @@ void LightnetPanel::checkForWellcomePing()
     }
 }
 
-void LightnetPanel::respondToWellcomePing()
+void LightnetPanel::respondToWelcomePing()
 {
     this->edges->get(this->parentEdgeIndex)->ping();
     this->setState(STATE_REGISTER_EDGES);
@@ -145,7 +144,6 @@ void LightnetPanel::endEdgeRegistration()
     PRINTLN("[EDGE][BOOT] begin");
 
     LightnetPanelEdge *edge = this->edges->get(this->nextEdgeToRegister);
-    edge->setBootTimeout(edge->getBootTimeout() / this->index / this->edges->getSize());
 
     PRINTKV("[EDGE][BOOT] timeout is", edge->getBootTimeout());
 

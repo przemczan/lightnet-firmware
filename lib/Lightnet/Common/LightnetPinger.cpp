@@ -8,13 +8,11 @@ LightnetPinger::LightnetPinger(uint8_t _pinNo) : pinNo(_pinNo)
     pinMode(this->pinNo, INPUT_PULLUP);
 }
 
-void LightnetPinger::onBusStateChanged()
+void LightnetPinger::onBusStateChanged(uint8_t state)
 {
     if (this->busIsDisabled) {
         return;
     }
-
-    uint8_t state = digitalRead(this->pinNo);
 
     if (!this->busState && state) {
         this->hasPing = true;
@@ -31,20 +29,21 @@ void LightnetPinger::ping()
 
     pinMode(this->pinNo, OUTPUT);
     digitalWrite(this->pinNo, LOW);
-    delayMicroseconds(PING_DURATION_US);
-    digitalWrite(this->pinNo, HIGH);
-
     this->pingSentAt = millis();
-    this->busIsDisabled = false;
-
+    delayMicroseconds(PING_DURATION_US);
     pinMode(this->pinNo, INPUT_PULLUP);
+
+    this->busIsDisabled = false;
 }
 
 bool LightnetPinger::getAndResetPingStatus()
 {
-    bool state = this->hasPing;
+    bool state;
 
-    this->hasPing = false;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        state = this->hasPing;
+        this->hasPing = false;
+    }
 
     if (state) {
         PRINTKV("[PING] IN", this->pinNo);
