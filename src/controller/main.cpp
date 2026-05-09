@@ -155,15 +155,13 @@ void setup()
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 
-    digitalWrite(LED_PIN, HIGH);
-
-    // pinMode(PANELS_POWER_PIN, OUTPUT);
-    // PRINTLN("reseting panels power...");
-    // digitalWrite(PANELS_POWER_PIN, LOW);
-    // delay(100);
-    // digitalWrite(PANELS_POWER_PIN, HIGH);
-    // PRINTLN("waiting for panels to boot");
-    // delay(500);
+    //pinMode(PANELS_POWER_PIN, OUTPUT);
+    PRINTLN("reseting panels power...");
+    //digitalWrite(PANELS_POWER_PIN, LOW);
+    delay(100);
+    //digitalWrite(PANELS_POWER_PIN, HIGH);
+    PRINTLN("waiting for panels to boot");
+    delay(150);
     PRINTLN("Initializing...");
 
     panelsController = new PanelsController();
@@ -174,6 +172,8 @@ void setup()
     // panels have 100ms delay on startup, we need to wait for them to initialize
     // additional time is needed if they were reset by command above (up to 100ms)
     delay(300);
+
+    digitalWrite(LED_PIN, HIGH);
 }
 
 void loop()
