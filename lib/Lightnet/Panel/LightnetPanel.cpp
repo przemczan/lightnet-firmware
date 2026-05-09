@@ -24,13 +24,11 @@ void LightnetPanel::configure(configuration_t _config)
     LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);
 }
 
-void LightnetPanel::updateEdgesStates()
+void LightnetPanel::updateEdgesStates(uint8_t pinb, uint16_t timestamp)
 {
-    uint8_t snap = PINB;
     uint16_t count = this->edges->getSize();
-
     for (uint16_t i = 0; i < count; i++) {
-        this->edges->get(i)->readBusState((snap >> (i + 1)) & 1);
+        this->edges->get(i)->readBusState((pinb >> (i + 1)) & 1, timestamp);
     }
 }
 
@@ -54,6 +52,10 @@ void LightnetPanel::run()
 
         case STATE_RESPOND_TO_WELCOME_PING:
             this->respondToWelcomePing();
+            break;
+
+        case STATE_WAIT_FOR_GO_PING:
+            this->waitForGoPing();
             break;
 
         case STATE_REGISTER_EDGES:
@@ -93,7 +95,18 @@ void LightnetPanel::checkForWelcomePing()
 void LightnetPanel::respondToWelcomePing()
 {
     this->edges->get(this->parentEdgeIndex)->ping();
-    this->setState(STATE_REGISTER_EDGES);
+    this->goPingTimeoutAt = millis() + GO_PING_TIMEOUT_MS;
+    this->setState(STATE_WAIT_FOR_GO_PING);
+}
+
+void LightnetPanel::waitForGoPing()
+{
+    if (this->edges->get(this->parentEdgeIndex)->getAndResetPingStatus()) {
+        this->setState(STATE_REGISTER_EDGES);
+    } else if (millis() > this->goPingTimeoutAt) {
+        PRINTLN("[PING] go-ping timeout, re-entering wait");
+        this->setState(STATE_WAIT_FOR_WELCOME_PING);
+    }
 }
 
 void LightnetPanel::returnToParent()

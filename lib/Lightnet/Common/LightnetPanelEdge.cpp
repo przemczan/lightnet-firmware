@@ -10,9 +10,9 @@ LightnetPanelEdge::~LightnetPanelEdge()
     delete this->pinger;
 }
 
-void LightnetPanelEdge::readBusState(uint8_t state)
+void LightnetPanelEdge::readBusState(uint8_t state, uint16_t timestamp)
 {
-    this->pinger->onBusStateChanged(state);
+    this->pinger->onBusStateChanged(state, timestamp);
 }
 
 void LightnetPanelEdge::ping()
@@ -51,6 +51,8 @@ void LightnetPanelEdge::sendWelcome()
 void LightnetPanelEdge::checkWelcomeResponded()
 {
     if (this->getAndResetPingStatus()) {
+        // ACK received — send go-ping so child knows to start the bus, then wait for boot.
+        this->ping();
         this->setState(LightnetPanelEdge::STATE_BOOTING);
     } else if ((this->pinger->lastPingSentAt() + LightnetPanelEdge::WELCOME_RESPONSE_TIMEOUT_MILLS) < millis()) {
         this->setState(LightnetPanelEdge::STATE_NOT_CONNECTED);
@@ -82,7 +84,7 @@ bool LightnetPanelEdge::isFinished()
 void LightnetPanelEdge::setState(uint8_t state)
 {
     switch (state) {
-        case LightnetPanelEdge::STATE_IDLE:            
+        case LightnetPanelEdge::STATE_IDLE:
             PRINTKV("LightnetPanelEdge state change", "IDLE");
             break;
 
@@ -90,7 +92,7 @@ void LightnetPanelEdge::setState(uint8_t state)
             PRINTKV("LightnetPanelEdge state change", "WELCOME SENT");
             break;
 
-        case LightnetPanelEdge::STATE_NOT_CONNECTED:            
+        case LightnetPanelEdge::STATE_NOT_CONNECTED:
             PRINTKV("LightnetPanelEdge state change", "NOT CONNECTED");
             break;
 

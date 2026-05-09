@@ -57,7 +57,8 @@ void PanelsInitializer::boot()
 
 void PanelsInitializer::updateEdgeState()
 {
-    this->pingEdge->readBusState();
+    // timestamp=0 bypasses duration validation in LightnetPinger (controller path, ESP interrupt)
+    this->pingEdge->readBusState(digitalRead(this->config.intPinNo), 0);
 }
 
 void PanelsInitializer::pull()

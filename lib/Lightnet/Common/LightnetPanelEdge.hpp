@@ -7,7 +7,7 @@
 class LightnetPanelEdge
 {
     private:
-        static const unsigned long WELCOME_RESPONSE_TIMEOUT_MILLS = 3;
+        static const unsigned long WELCOME_RESPONSE_TIMEOUT_MILLS = 20;
         static const unsigned long BOOT_TIMEOUT_MILLS              = 1000;
 
         LightnetPinger *pinger;
@@ -29,7 +29,7 @@ class LightnetPanelEdge
 
         LightnetPanelEdge(uint8_t _pinNo);
         ~LightnetPanelEdge();
-        void readBusState(uint8_t state);
+        void readBusState(uint8_t state, uint16_t timestamp);
         void ping();
         bool getAndResetPingStatus();
         void boot();

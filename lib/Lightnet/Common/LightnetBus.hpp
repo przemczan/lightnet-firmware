@@ -4,10 +4,7 @@
 #include "Protocol.hpp"
 #include "Wire.h"
 #include "../Utils/Debug.hpp"
-
-#define IS_ESP8266 defined(ARDUINO_ARCH_ESP8266)
-#define IS_ESP32 defined(ARDUINO_ARCH_ESP32)
-#define IS_ESP (IS_ESP8266 || IS_ESP32)
+#include "consts.hpp"
 
 #if IS_ESP8266
     #include <twi.h>

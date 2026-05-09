@@ -8,14 +8,26 @@ LightnetPinger::LightnetPinger(uint8_t _pinNo) : pinNo(_pinNo)
     pinMode(this->pinNo, INPUT_PULLUP);
 }
 
-void LightnetPinger::onBusStateChanged(uint8_t state)
+void LightnetPinger::onBusStateChanged(uint8_t state, uint16_t timestamp)
 {
     if (this->busIsDisabled) {
         return;
     }
 
-    if (!this->busState && state) {
-        this->hasPing = true;
+    if (this->busState && !state) {
+        // falling edge — record pulse start time
+        this->pingStartedAt = timestamp;
+    } else if (!this->busState && state) {
+        // rising edge — validate pulse duration, then latch ping.
+        // timestamp==0 is the controller path (ESP interrupt); skip duration check.
+        bool valid = (timestamp == 0);
+        if (!valid) {
+            uint16_t duration = timestamp - this->pingStartedAt;
+            valid = (duration >= PING_MIN_TICKS && duration <= PING_MAX_TICKS);
+        }
+        if (valid) {
+            this->hasPing = true;
+        }
     }
 
     this->busState = state;
@@ -40,15 +52,21 @@ bool LightnetPinger::getAndResetPingStatus()
 {
     bool state;
 
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    #if IS_ESP
+        noInterrupts();
         state = this->hasPing;
         this->hasPing = false;
-    }
+        interrupts();
+    #else
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            state = this->hasPing;
+            this->hasPing = false;
+        }
+    #endif
 
     if (state) {
         PRINTKV("[PING] IN", this->pinNo);
     }
-
     return state;
 }
 
