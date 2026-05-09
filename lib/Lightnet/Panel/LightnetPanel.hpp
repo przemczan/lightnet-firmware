@@ -23,15 +23,12 @@ class LightnetPanel
         STATE_IDLE, // 0
         STATE_WAIT_FOR_WELCOME_PING, // 1
         STATE_RESPOND_TO_WELCOME_PING, // 2
-        STATE_WAIT_FOR_GO_PING, // 3  — waiting for parent's go-ping before starting bus
-        STATE_REGISTER_EDGES, // 4
-        STATE_RETURN_TO_PARENT, // 5
-        STATE_READY, // 6
-        STATE_ERROR, // 7
-        STATE_WORKING, // 8
+        STATE_REGISTER_EDGES, // 3
+        STATE_RETURN_TO_PARENT, // 4
+        STATE_READY, // 5
+        STATE_ERROR, // 6
+        STATE_WORKING, // 7
     };
-
-    static const unsigned long GO_PING_TIMEOUT_MS = 100;
 
     enum register_state_t {
         REGISTER_STATE_BEGIN,
@@ -50,7 +47,6 @@ class LightnetPanel
         volatile uint16_t nextEdgeToRegister = 0;
         volatile uint16_t parentEdgeIndex = 0;
         volatile uint16_t index;
-        unsigned long goPingTimeoutAt = 0;
         RGBController *rgbController;
         CircularQueue *incomingPackets;
         CircularQueue *packetsToHandle;
@@ -60,7 +56,6 @@ class LightnetPanel
 
         void checkForWelcomePing();
         void respondToWelcomePing();
-        void waitForGoPing();
         void setState(state_t state);
         void handleIncomingPackets();
         void registerEdges();

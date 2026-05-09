@@ -15,14 +15,19 @@ void LightnetPanelEdge::readBusState(uint8_t state, uint16_t timestamp)
     this->pinger->onBusStateChanged(state, timestamp);
 }
 
-void LightnetPanelEdge::ping()
+void LightnetPanelEdge::ping(LightnetPinger::ping_type_t type)
 {
-    this->pinger->ping();
+    this->pinger->ping(type);
 }
 
-bool LightnetPanelEdge::getAndResetPingStatus()
+bool LightnetPanelEdge::getAndResetHandshake()
 {
-    return this->pinger->getAndResetPingStatus();
+    return this->pinger->getAndResetHandshake();
+}
+
+bool LightnetPanelEdge::getAndResetDone()
+{
+    return this->pinger->getAndResetDone();
 }
 
 void LightnetPanelEdge::boot()
@@ -44,15 +49,13 @@ void LightnetPanelEdge::boot()
 
 void LightnetPanelEdge::sendWelcome()
 {
-    this->ping();
+    this->ping(LightnetPinger::PING_HANDSHAKE);
     this->setState(LightnetPanelEdge::STATE_WELCOME_SENT);
 }
 
 void LightnetPanelEdge::checkWelcomeResponded()
 {
-    if (this->getAndResetPingStatus()) {
-        // ACK received — send go-ping so child knows to start the bus, then wait for boot.
-        this->ping();
+    if (this->getAndResetHandshake()) {
         this->setState(LightnetPanelEdge::STATE_BOOTING);
     } else if ((this->pinger->lastPingSentAt() + LightnetPanelEdge::WELCOME_RESPONSE_TIMEOUT_MILLS) < millis()) {
         this->setState(LightnetPanelEdge::STATE_NOT_CONNECTED);
@@ -61,7 +64,7 @@ void LightnetPanelEdge::checkWelcomeResponded()
 
 void LightnetPanelEdge::checkBootStatus()
 {
-    if (this->getAndResetPingStatus()) {
+    if (this->getAndResetDone()) {
         this->setState(LightnetPanelEdge::STATE_READY);
     } else if ((this->pinger->lastPingSentAt() + this->bootTimeoutMs) < millis()) {
         this->setState(LightnetPanelEdge::STATE_BOOT_TIMEOUT);

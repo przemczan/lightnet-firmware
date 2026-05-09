@@ -57,8 +57,10 @@ void PanelsInitializer::boot()
 
 void PanelsInitializer::updateEdgeState()
 {
-    // timestamp=0 bypasses duration validation in LightnetPinger (controller path, ESP interrupt)
-    this->pingEdge->readBusState(digitalRead(this->config.intPinNo), 0);
+    // micros()*2 gives 0.5 µs units — same scale as panel's TCNT1 at prescaler 8.
+    uint8_t state = digitalRead(this->config.intPinNo);
+    uint16_t timestamp = (uint16_t)(micros() * 2);
+    this->pingEdge->readBusState(state, timestamp);
 }
 
 void PanelsInitializer::pull()

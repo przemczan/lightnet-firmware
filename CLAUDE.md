@@ -53,7 +53,9 @@ Panels form a **tree structure** rooted at the controller. Panels connect to eac
 Common/         Shared between controller and panel
   LightnetBus       I²C wrapper (send/receive Protocol packets, IRQ callbacks)
   LightnetPanelEdge State machine per edge: IDLE→WELCOME_SENT→BOOTING→READY
-  LightnetPinger    GPIO ping pulse (100µs) for edge presence detection via PCINT
+  LightnetPinger    GPIO ping pulses for edge detection; two types distinguished by pulse width:
+                    HANDSHAKE (500 µs, welcome/ACK) and DONE (2000 µs, subtree complete).
+                    Duration validated against acceptance windows to reject EMI glitches.
   Protocol          Packet definitions, CRC validation, protocol version (v3)
 
 Controller/     Controller-only
@@ -97,13 +99,20 @@ WebSockets/     Vendored WebSockets library
 
 ### Discovery Sequence (Controller Boot)
 
-1. `PanelsInitializer::start()` — sets up I²C as master, configures interrupt pin
-2. `PanelsInitializer::boot()` called every loop — sends pings to currently active edge pin
-3. Panel wakes on PCINT interrupt → `LNPanel.updateEdgesStates()` → responds with welcome ping
-4. Controller detects response → sends `PACKET_INITIALIZATION_PULL` with new panel index over I²C
-5. Panel registers all its edges back via `PACKET_REGISTER_EDGE`
-6. Controller iterates discovered edges and repeats for each child panel
-7. `isReady()` returns true when discovery completes (timeout 5 s after last panel)
+Ping handshake per edge (3 pulses total):
+1. Parent sends **HANDSHAKE** (500 µs) — welcome ping
+2. Child replies **HANDSHAKE** (500 µs) — ACK; immediately enters `REGISTER_STATE_BEGIN` and calls `LNBus.begin(0x78)`
+3. Child sends **DONE** (2000 µs) — signals its entire subtree has finished registering
+
+Panel PCINT ISR only snapshots `PINB + TCNT1` into a ring buffer (8 entries); the main loop drains it and calls `updateEdgesStates(pinb, timestamp)`. Timer1 runs free at prescaler 8 (0.5 µs/tick) for pulse-duration validation. Controller uses `micros()*2` for the same unit scale.
+
+Discovery flow:
+1. `PanelsInitializer::start()` — sets up I²C as master, attaches CHANGE interrupt on edge pin
+2. `PanelsInitializer::boot()` called every loop — drives `LightnetPanelEdge` state machine, pulls 0x78 every 25 ms while `STATE_BOOTING`
+3. Panel detects HANDSHAKE on PCINT ring buffer → replies HANDSHAKE → enters `STATE_REGISTER_EDGES` → `LNBus.begin(0x78)`
+4. Controller pull delivers `PACKET_INITIALIZATION_PULL`; panel responds with `PacketRegisterEdge` (panel index + edge index)
+5. Panel repeats steps 3–4 for each of its non-parent edges, then sends DONE to its parent
+6. Controller detects DONE on its edge → `isReady()` returns true (5 s boot timeout)
 
 ### Controller WiFi / API Startup
 

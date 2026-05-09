@@ -54,10 +54,6 @@ void LightnetPanel::run()
             this->respondToWelcomePing();
             break;
 
-        case STATE_WAIT_FOR_GO_PING:
-            this->waitForGoPing();
-            break;
-
         case STATE_REGISTER_EDGES:
             this->registerEdges();
             break;
@@ -83,7 +79,7 @@ void LightnetPanel::checkForWelcomePing()
     uint16_t index = this->edges->getSize();
 
     while (index--) {
-        if (this->edges->get(index)->getAndResetPingStatus()) {
+        if (this->edges->get(index)->getAndResetHandshake()) {
             this->setState(STATE_RESPOND_TO_WELCOME_PING);
             this->parentEdgeIndex = this->nextEdgeToRegister = index;
 
@@ -94,24 +90,13 @@ void LightnetPanel::checkForWelcomePing()
 
 void LightnetPanel::respondToWelcomePing()
 {
-    this->edges->get(this->parentEdgeIndex)->ping();
-    this->goPingTimeoutAt = millis() + GO_PING_TIMEOUT_MS;
-    this->setState(STATE_WAIT_FOR_GO_PING);
-}
-
-void LightnetPanel::waitForGoPing()
-{
-    if (this->edges->get(this->parentEdgeIndex)->getAndResetPingStatus()) {
-        this->setState(STATE_REGISTER_EDGES);
-    } else if (millis() > this->goPingTimeoutAt) {
-        PRINTLN("[PING] go-ping timeout, re-entering wait");
-        this->setState(STATE_WAIT_FOR_WELCOME_PING);
-    }
+    this->edges->get(this->parentEdgeIndex)->ping(LightnetPinger::PING_HANDSHAKE);
+    this->setState(STATE_REGISTER_EDGES);
 }
 
 void LightnetPanel::returnToParent()
 {
-    this->edges->get(this->parentEdgeIndex)->ping();
+    this->edges->get(this->parentEdgeIndex)->ping(LightnetPinger::PING_DONE);
     this->setState(STATE_READY);
 }
 

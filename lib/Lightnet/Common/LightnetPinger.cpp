@@ -10,63 +10,82 @@ LightnetPinger::LightnetPinger(uint8_t _pinNo) : pinNo(_pinNo)
 
 void LightnetPinger::onBusStateChanged(uint8_t state, uint16_t timestamp)
 {
-    if (this->busIsDisabled) {
-        return;
-    }
+    if (this->busIsDisabled) return;
 
     if (this->busState && !state) {
-        // falling edge — record pulse start time
         this->pingStartedAt = timestamp;
     } else if (!this->busState && state) {
-        // rising edge — validate pulse duration, then latch ping.
-        // timestamp==0 is the controller path (ESP interrupt); skip duration check.
-        bool valid = (timestamp == 0);
-        if (!valid) {
-            uint16_t duration = timestamp - this->pingStartedAt;
-            valid = (duration >= PING_MIN_TICKS && duration <= PING_MAX_TICKS);
-        }
-        if (valid) {
-            this->hasPing = true;
+        uint16_t duration = timestamp - this->pingStartedAt;
+        if (duration >= HANDSHAKE_MIN && duration <= HANDSHAKE_MAX) {
+            this->hasHandshake = true;
+        } else if (duration >= DONE_MIN && duration <= DONE_MAX) {
+            this->hasDone = true;
         }
     }
 
     this->busState = state;
 }
 
-void LightnetPinger::ping()
+void LightnetPinger::ping(ping_type_t type)
 {
     PRINTKV("[PING] OUT", this->pinNo);
 
     this->busIsDisabled = true;
 
+    unsigned long dur = (type == PING_DONE) ? PING_DONE_US : PING_HANDSHAKE_US;
+
     pinMode(this->pinNo, OUTPUT);
     digitalWrite(this->pinNo, LOW);
     this->pingSentAt = millis();
-    delayMicroseconds(PING_DURATION_US);
+    delayMicroseconds(dur);
     pinMode(this->pinNo, INPUT_PULLUP);
 
     this->busIsDisabled = false;
 }
 
-bool LightnetPinger::getAndResetPingStatus()
+bool LightnetPinger::getAndResetHandshake()
 {
     bool state;
 
     #if IS_ESP
         noInterrupts();
-        state = this->hasPing;
-        this->hasPing = false;
+        state = this->hasHandshake;
+        this->hasHandshake = false;
         interrupts();
     #else
         ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-            state = this->hasPing;
-            this->hasPing = false;
+            state = this->hasHandshake;
+            this->hasHandshake = false;
         }
     #endif
 
     if (state) {
-        PRINTKV("[PING] IN", this->pinNo);
+        PRINTKV("[PING] HANDSHAKE IN", this->pinNo);
     }
+
+    return state;
+}
+
+bool LightnetPinger::getAndResetDone()
+{
+    bool state;
+
+    #if IS_ESP
+        noInterrupts();
+        state = this->hasDone;
+        this->hasDone = false;
+        interrupts();
+    #else
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            state = this->hasDone;
+            this->hasDone = false;
+        }
+    #endif
+
+    if (state) {
+        PRINTKV("[PING] DONE IN", this->pinNo);
+    }
+
     return state;
 }
 

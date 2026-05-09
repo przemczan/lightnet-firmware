@@ -20,18 +20,19 @@ class LightnetPanelEdge
         void setState(uint8_t state);
 
     public:
-        static const uint8_t STATE_IDLE                = 0;
-        static const uint8_t STATE_WELCOME_SENT       = 1;
-        static const uint8_t STATE_NOT_CONNECTED       = 2;
-        static const uint8_t STATE_BOOTING             = 3;
-        static const uint8_t STATE_BOOT_TIMEOUT        = 4;
-        static const uint8_t STATE_READY               = 5;
+        static const uint8_t STATE_IDLE         = 0;
+        static const uint8_t STATE_WELCOME_SENT = 1;
+        static const uint8_t STATE_NOT_CONNECTED = 2;
+        static const uint8_t STATE_BOOTING       = 3;
+        static const uint8_t STATE_BOOT_TIMEOUT  = 4;
+        static const uint8_t STATE_READY         = 5;
 
         LightnetPanelEdge(uint8_t _pinNo);
         ~LightnetPanelEdge();
         void readBusState(uint8_t state, uint16_t timestamp);
-        void ping();
-        bool getAndResetPingStatus();
+        void ping(LightnetPinger::ping_type_t type);
+        bool getAndResetHandshake();
+        bool getAndResetDone();
         void boot();
         bool isReady();
         bool isFinished();
