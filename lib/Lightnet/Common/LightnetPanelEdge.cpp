@@ -10,9 +10,14 @@ LightnetPanelEdge::~LightnetPanelEdge()
     delete this->pinger;
 }
 
-void LightnetPanelEdge::readBusState(uint8_t state, uint16_t timestamp)
+void LightnetPanelEdge::updateEdgeState(uint8_t state, uint16_t timestamp)
 {
-    this->pinger->onBusStateChanged(state, timestamp);
+    this->pinger->updateState(state, timestamp);
+}
+
+void LightnetPanelEdge::processEdgeState()
+{
+    this->pinger->processState();
 }
 
 void LightnetPanelEdge::ping(LightnetPinger::ping_type_t type)

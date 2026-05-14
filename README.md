@@ -13,3 +13,24 @@ The controller unit initiates discovery process to initialize each panel, give i
 `lib` folder also contains a webserver which runs on the Controller unit and exposes an API to control the devices through an external application.
                       
 `schematic` folder contains electronics schematic diagrams of Controller and Panel.
+
+
+# Fuses and bootloader setup:
+
+In ArduinoIDE select target = Aruino UNO. Select port and burn the bootloader.
+
+## atmega328p
+
+Set fuses:
+
+    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328p -u -U lfuse:w:0xF7:m -U hfuse:w:0xD6:m -U efuse:w:0xFD:m
+
+## atmega328pb
+
+Erase first:
+
+    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328pb -e 
+
+Set fuses
+
+    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328pb -B 32 -u -U lfuse:w:0xF7:m -U hfuse:w:0xD6:m -U efuse:w:0xF5:m

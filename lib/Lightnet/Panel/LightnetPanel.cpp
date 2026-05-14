@@ -24,11 +24,21 @@ void LightnetPanel::configure(configuration_t _config)
     LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);
 }
 
-void LightnetPanel::updateEdgesStates(uint8_t pinb, uint16_t timestamp)
+void LightnetPanel::updateEdgesStates(uint8_t pinStates, uint16_t timestamp)
+{
+    // ISR context. Bit i of pinStates corresponds to edge i (caller is
+    // responsible for the pin-to-edge bit ordering).
+    uint16_t count = this->edges->getSize();
+    for (uint16_t i = 0; i < count; i++) {
+        this->edges->get(i)->updateEdgeState((pinStates >> i) & 1, timestamp);
+    }
+}
+
+void LightnetPanel::processEdgeStates()
 {
     uint16_t count = this->edges->getSize();
     for (uint16_t i = 0; i < count; i++) {
-        this->edges->get(i)->readBusState((pinb >> (i + 1)) & 1, timestamp);
+        this->edges->get(i)->processEdgeState();
     }
 }
 
@@ -41,6 +51,8 @@ uint16_t LightnetPanel::addEdge(volatile uint8_t pinNo)
 
 void LightnetPanel::run()
 {
+    this->processEdgeStates();
+
     switch (this->state) {
         case STATE_IDLE:
             this->setState(STATE_WAIT_FOR_WELCOME_PING);

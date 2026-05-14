@@ -23,22 +23,41 @@ class LightnetPinger
 
         // Validation windows in Timer1 ticks (0.5 µs/tick at 16 MHz, prescaler 8).
         // Controller passes (uint16_t)(micros() * 2) for the same unit.
-        static const uint16_t HANDSHAKE_MIN = 600;   // 300 µs
-        static const uint16_t HANDSHAKE_MAX = 2800;  // 1400 µs
-        static const uint16_t DONE_MIN      = 3000;  // 1500 µs
-        static const uint16_t DONE_MAX      = 8000;  // 4000 µs
+        static const uint16_t HANDSHAKE_MIN = 800;   // 400 µs
+        static const uint16_t HANDSHAKE_MAX = 1200;  // 600 µs
+        static const uint16_t DONE_MIN      = 3600;  // 1800 µs
+        static const uint16_t DONE_MAX      = 4400;  // 2200 µs
+
+        // Per-pinger ring buffer of bus-state samples captured in the ISR.
+        // Drained and transition-decoded by processState() in the main loop.
+        // Size must be a power of two so head/tail wrap with a bitmask.
+        static const uint8_t STATE_RING_SIZE = 8;
+
+        struct StateEntry {
+            uint8_t  state;
+            uint16_t timestamp;
+        };
+
+        // Shared across all pingers: while any pinger is mid-ping, ISR enqueues
+        // are dropped so a pinger never sees its own outgoing pulse.
+        // By design only one pinger pings at a time.
+        static volatile bool busIsDisabled;
 
         volatile uint8_t pinNo;
         volatile bool busState      = true;
         volatile bool hasHandshake  = false;
         volatile bool hasDone       = false;
         unsigned long pingSentAt    = 0;
-        volatile bool busIsDisabled = false;
         uint16_t pingStartedAt      = 0;
+
+        volatile StateEntry ring[STATE_RING_SIZE];
+        volatile uint8_t    ringHead = 0;
+        uint8_t             ringTail = 0;
 
     public:
         LightnetPinger(uint8_t _pinNo);
-        void onBusStateChanged(uint8_t state, uint16_t timestamp);
+        void updateState(uint8_t state, uint16_t timestamp);
+        void processState();
         void ping(ping_type_t type);
         bool getAndResetHandshake();
         bool getAndResetDone();

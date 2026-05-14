@@ -53,9 +53,14 @@ Panels form a **tree structure** rooted at the controller. Panels connect to eac
 Common/         Shared between controller and panel
   LightnetBus       I²C wrapper (send/receive Protocol packets, IRQ callbacks)
   LightnetPanelEdge State machine per edge: IDLE→WELCOME_SENT→BOOTING→READY
+                    updateEdgeState(state, ts) — ISR path, forwards to pinger ring buffer
+                    processEdgeState()         — main-loop path, drains pinger ring buffer
   LightnetPinger    GPIO ping pulses for edge detection; two types distinguished by pulse width:
                     HANDSHAKE (500 µs, welcome/ACK) and DONE (2000 µs, subtree complete).
-                    Duration validated against acceptance windows to reject EMI glitches.
+                    Each pinger owns an 8-entry ring buffer: updateState() enqueues from the
+                    ISR, processState() drains and decodes transitions in the main loop.
+                    busIsDisabled is static (shared) — set during ping() so all pingers drop
+                    ISR samples while any pulse is being driven, preventing self-detection.
   Protocol          Packet definitions, CRC validation, protocol version (v3)
 
 Controller/     Controller-only
@@ -104,12 +109,12 @@ Ping handshake per edge (3 pulses total):
 2. Child replies **HANDSHAKE** (500 µs) — ACK; immediately enters `REGISTER_STATE_BEGIN` and calls `LNBus.begin(0x78)`
 3. Child sends **DONE** (2000 µs) — signals its entire subtree has finished registering
 
-Panel PCINT ISR only snapshots `PINB + TCNT1` into a ring buffer (8 entries); the main loop drains it and calls `updateEdgesStates(pinb, timestamp)`. Timer1 runs free at prescaler 8 (0.5 µs/tick) for pulse-duration validation. Controller uses `micros()*2` for the same unit scale.
+Panel PCINT ISR calls `LNPanel.updateEdgesStates((PINB >> 1) & 0x07, TCNT1)` directly — bit i of the first argument is the level of edge i (PB1/PB2/PB3 → edges 0/1/2). Each `LightnetPinger` owns its own 8-entry ring buffer; the ISR enqueues samples and `LightnetPanel::run()` drains them via `processEdgeStates()` at the top of every iteration. Timer1 runs free at prescaler 8 (0.5 µs/tick) for pulse-duration validation. Controller uses `micros()*2` for the same unit scale.
 
 Discovery flow:
 1. `PanelsInitializer::start()` — sets up I²C as master, attaches CHANGE interrupt on edge pin
 2. `PanelsInitializer::boot()` called every loop — drives `LightnetPanelEdge` state machine, pulls 0x78 every 25 ms while `STATE_BOOTING`
-3. Panel detects HANDSHAKE on PCINT ring buffer → replies HANDSHAKE → enters `STATE_REGISTER_EDGES` → `LNBus.begin(0x78)`
+3. Panel detects HANDSHAKE via pinger ring buffer → replies HANDSHAKE → enters `STATE_REGISTER_EDGES` → `LNBus.begin(0x78)`
 4. Controller pull delivers `PACKET_INITIALIZATION_PULL`; panel responds with `PacketRegisterEdge` (panel index + edge index)
 5. Panel repeats steps 3–4 for each of its non-parent edges, then sends DONE to its parent
 6. Controller detects DONE on its edge → `isReady()` returns true (5 s boot timeout)

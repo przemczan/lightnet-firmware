@@ -54,6 +54,7 @@ class LightnetPanel
         Protocol::PacketMeta ackPacket;
         Protocol::packetType_t lastPacketType = Protocol::PACKET_NOOP;
 
+        void processEdgeStates();
         void checkForWelcomePing();
         void respondToWelcomePing();
         void setState(state_t state);
@@ -84,7 +85,7 @@ class LightnetPanel
         ~LightnetPanel();
         void configure(configuration_t _config);
         uint16_t addEdge(volatile uint8_t pinNo);
-        void updateEdgesStates(uint8_t pinb, uint16_t timestamp);
+        void updateEdgesStates(uint8_t pinStates, uint16_t timestamp);
         void run();
 };
 

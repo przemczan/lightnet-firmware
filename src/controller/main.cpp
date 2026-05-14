@@ -26,7 +26,7 @@
 #endif
 
 uint16_t const SERVER_PORT = 80;
-#define CONFIG_PORTAL_TIMEOUT 60
+#define CONFIG_PORTAL_TIMEOUT 30
 
 uint8_t state = 0;
 DNSServer dns;
@@ -153,25 +153,25 @@ void setup()
     LNPanelsInitializer.start();
 
     pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, LOW);
+    // digitalWrite(LED_PIN, LOW);
 
-    //pinMode(PANELS_POWER_PIN, OUTPUT);
+    pinMode(PANELS_POWER_PIN, OUTPUT);
     PRINTLN("reseting panels power...");
-    //digitalWrite(PANELS_POWER_PIN, LOW);
+    digitalWrite(PANELS_POWER_PIN, LOW);
     delay(100);
-    //digitalWrite(PANELS_POWER_PIN, HIGH);
+    digitalWrite(PANELS_POWER_PIN, HIGH);
     PRINTLN("waiting for panels to boot");
-    delay(150);
+    delay(300);
     PRINTLN("Initializing...");
 
     panelsController = new PanelsController();
 
     // not needed if panels power controll work
     // will send reset command to N devices to reset them if they are running
-    panelsController->resetDevices(50);
+    //panelsController->resetDevices(50);
     // panels have 100ms delay on startup, we need to wait for them to initialize
     // additional time is needed if they were reset by command above (up to 100ms)
-    delay(300);
+    // delay(300);
 
     digitalWrite(LED_PIN, HIGH);
 }

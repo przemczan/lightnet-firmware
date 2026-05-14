@@ -44,6 +44,7 @@ void PanelsInitializer::boot()
         return;
     }
 
+    this->pingEdge->processEdgeState();
     this->pingEdge->boot();
 
     if (this->pingEdge->getState() == LightnetPanelEdge::STATE_BOOTING) {
@@ -57,10 +58,12 @@ void PanelsInitializer::boot()
 
 void PanelsInitializer::updateEdgeState()
 {
-    // micros()*2 gives 0.5 µs units — same scale as panel's TCNT1 at prescaler 8.
+    // ISR context. micros()*2 gives 0.5 µs units — same scale as the panel's
+    // TCNT1 at prescaler 8. The edge enqueues; processEdgeState() in boot()
+    // does the transition decoding.
     uint8_t state = digitalRead(this->config.intPinNo);
     uint16_t timestamp = (uint16_t)(micros() * 2);
-    this->pingEdge->readBusState(state, timestamp);
+    this->pingEdge->updateEdgeState(state, timestamp);
 }
 
 void PanelsInitializer::pull()
