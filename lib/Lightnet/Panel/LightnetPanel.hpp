@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RGBController.hpp"
+#include "AnimationPlayer.hpp"
 #include "../Common/LightnetPanelEdge.hpp"
 #include "../Common/LightnetBus.hpp"
 #include "../Utils/CircularQueue.hpp"
@@ -50,6 +51,7 @@ class LightnetPanel
         volatile uint16_t parentEdgeIndex = 0;
         volatile uint16_t index;
         RGBController *rgbController;
+        Lightnet::AnimationPlayer animPlayer;
         CircularQueue *incomingPackets;
         CircularQueue *packetsToHandle;
         configuration_t config;
@@ -79,6 +81,11 @@ class LightnetPanel
         void handleSetBrightness(Protocol::PacketSetBrightness *packet);
         void handleSetColorAndBrightness(Protocol::PacketSetColorAndBrightness *packet);
         void handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet);
+
+        // Animation framework handlers
+        void handleAnimationPrepare(Protocol::PacketAnimationPrepare *packet);
+        void handleAnimationControl(Protocol::PacketAnimationControl *packet);
+        void handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet);
 
         void onPacketReceived(Protocol::PacketMeta *packet, int size);
         void onPacketRequested();

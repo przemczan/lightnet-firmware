@@ -25,6 +25,11 @@ namespace Protocol {
         PACKET_PANEL_EDGE_INFO = 9,
         PACKET_FETCH_STATE = 10,
         PACKET_PANEL_CONFIGURATION = 11,
+        PACKET_ANIMATION_PREPARE = 12,       // new: animation framework
+        PACKET_ANIMATION_START = 13,         // new: animation framework (General Call)
+        PACKET_ANIMATION_CONTROL = 14,       // new: animation framework
+        PACKET_FETCH_ANIM_STATE = 15,        // new: animation framework
+        PACKET_ANIMATION_UPDATE_PARAMS = 16, // new: animation framework (General Call)
         PACKET_RESET_DEVICE = 200,
     };
 
@@ -111,6 +116,52 @@ namespace Protocol {
         ColorTemperature colorTemperature;
         LEDColorCorrection colorCorrection;
     } PacketPanelConfiguration;
+
+    // Animation Framework Packets (see AnimationTypes.hpp for details)
+    // Forward declarations - full defs in AnimationTypes.hpp
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    animType;
+        uint8_t    group_id;
+        uint8_t    flags;
+        uint8_t    transitionMs;
+        uint16_t   durationMs;
+        ColorRGB   colorFrom;
+        ColorRGB   colorTo;
+        uint8_t    brightnessFrom;
+        uint8_t    brightnessTo;
+        uint8_t    param1;
+        uint8_t    param2;
+    } PacketAnimationPrepare;  // 21 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    seq_id;
+        uint8_t    group_id;
+    } PacketAnimationStart;  // 7 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    cmd;
+    } PacketAnimationControl;  // 6 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    seq_id;
+        uint8_t    group_id;
+        uint8_t    param_type;
+        uint8_t    value;
+        uint8_t    transitionMs;
+    } PacketAnimationUpdateParams;  // 10 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    animType;
+        uint8_t    group_id;
+        uint16_t   elapsedMs;
+        uint16_t   durationMs;
+        uint8_t    queueLen;
+    } PacketAnimationStatus;  // 11 bytes
 // END
 
     uint8_t validatePacket(void *packet, uint8_t size);

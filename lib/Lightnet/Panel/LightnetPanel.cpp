@@ -20,6 +20,9 @@ void LightnetPanel::configure(configuration_t _config)
     this->config = _config;
     this->rgbController = new RGBController();
 
+    // Give AnimationPlayer access to the LED controller
+    this->animPlayer.setRGBController(this->rgbController);
+
     LNBus.setOnPacketReceived(LightnetPanel::onPacketReceivedService);
     LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);
 }
@@ -76,12 +79,17 @@ void LightnetPanel::run()
 
         case STATE_READY:
             LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, this->index);
+#if !IS_ESP
+            // Enable I2C General Call reception (GCIE bit in TWAR)
+            TWAR |= 0x01;
+#endif
             this->setState(STATE_WORKING);
             PRINTKV("===> [READY]", this->index);
             break;
 
         case STATE_WORKING:
             this->handleIncomingPackets();
+            this->animPlayer.tick();
             break;
     }
 }
@@ -271,6 +279,19 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             this->handlePanelConfiguration((Protocol::PacketPanelConfiguration *)packet);
             break;
 
+        // Animation framework packets
+        case Protocol::PACKET_ANIMATION_PREPARE:
+            this->handleAnimationPrepare((Protocol::PacketAnimationPrepare *)packet);
+            break;
+
+        case Protocol::PACKET_ANIMATION_CONTROL:
+            this->handleAnimationControl((Protocol::PacketAnimationControl *)packet);
+            break;
+
+        case Protocol::PACKET_ANIMATION_UPDATE_PARAMS:
+            this->handleAnimationUpdateParams((Protocol::PacketAnimationUpdateParams *)packet);
+            break;
+
         case Protocol::PACKET_RESET_DEVICE:
             digitalWrite(6, 1);
             delay(10);
@@ -408,6 +429,15 @@ void LightnetPanel::onPacketRequested()
             LNBus.sendResponsePacket(&packet, sizeof(packet), Protocol::PACKET_FETCH_STATE);
             break;
 
+        case Protocol::PACKET_FETCH_ANIM_STATE:
+        {
+            Protocol::PacketAnimationStatus status;
+            Protocol::setPacketMeta(&status.meta, Protocol::PACKET_FETCH_ANIM_STATE);
+            this->animPlayer.fillStatus(&status);
+            LNBus.sendResponseData(&status, sizeof(status));
+            break;
+        }
+
         default:
             LNBus.sendResponseData(&this->ackPacket, sizeof(this->ackPacket));
     }
@@ -423,5 +453,23 @@ void LightnetPanel::onPacketRequestedService()
     LNPanel.onPacketRequested();
 }
 
+// ============================================================================
+// Animation Framework Handlers
+// ============================================================================
+
+void LightnetPanel::handleAnimationPrepare(Protocol::PacketAnimationPrepare *packet)
+{
+    this->animPlayer.prepare(packet);
+}
+
+void LightnetPanel::handleAnimationControl(Protocol::PacketAnimationControl *packet)
+{
+    this->animPlayer.control(packet->cmd);
+}
+
+void LightnetPanel::handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet)
+{
+    this->animPlayer.updateParams(packet->seq_id, packet->group_id, packet->param_type, packet->value, packet->transitionMs);
+}
 
 LightnetPanel LNPanel;

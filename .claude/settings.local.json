@@ -12,7 +12,10 @@
       "Read(//tmp/**)",
       "Bash(cygpath *)",
       "Bash(pio run *)",
-      "PowerShell(python -m platformio run -e initializer_wemos 2>&1)"
+      "PowerShell(python -m platformio run -e initializer_wemos 2>&1)",
+      "Bash(where pio)",
+      "Bash(where python)",
+      "Bash(/c/Users/przem/.platformio/penv/Scripts/pio.exe run -e panel_atmega328p -e initializer_esp32)"
     ]
   }
 }

@@ -102,6 +102,104 @@ WebSockets/     Vendored WebSockets library
 - Commands: TOGGLE, SET_BRIGHTNESS, SET_COLOR, GET_PANELS_STATES, GET_EDGES_LIST
 - Internal `Message` struct wraps payloads with a `clientId` for WebSocket routing
 
+### Animation Framework
+
+The animation system supports **panel-local animations** (computed on ATmega328) and **controller-computed animations** (computed on ESP32/ESP8266), synchronized via I²C General Call for ±2.5 µs jitter-free timing.
+
+#### Synchronization via General Call
+
+General Call (I²C address 0x00) broadcasts simultaneously to all panels:
+- **PACKET_ANIMATION_START**: Synchronously launches queued animations on matching `group_id`
+- **PACKET_ANIMATION_UPDATE_PARAMS**: Sends reactive triggers (music beats) to all panels in a group
+- Packets sent **twice** (300 µs apart) with seq_id duplicate guard to ensure reliable delivery without ACK
+- Requires: ATmega28 `TWAR |= 0x01` to enable GCIE bit for General Call reception
+
+#### Protocol Extensions (5 new packet types)
+
+| Packet Type | Dir | Size | Use |
+|---|---|---|---|
+| PACKET_ANIMATION_PREPARE | C→P | 21 B | Unicast: buffer animation parameters, arm for group start |
+| PACKET_ANIMATION_START | General Call | 7 B | Broadcast: fire all animations with matching group_id |
+| PACKET_ANIMATION_CONTROL | C→P | 6 B | Unicast: STOP, PAUSE, RESUME, CLEAR_QUEUE commands |
+| PACKET_ANIMATION_UPDATE_PARAMS | General Call | 10 B | Broadcast: update reactive animation parameters (triggers, speed) |
+| PACKET_FETCH_ANIM_STATE | C→P | — | Unicast: query animation status from panel (response: 11 B) |
+
+#### Panel-Local Animation Types (8 types, zero per-frame I²C traffic)
+
+| Type | Computation | Use Case |
+|---|---|---|
+| SOLID | None | Hold color + brightness |
+| FADE | Linear brightness interpolation | Simple fade in/out |
+| TRANSITION | Linear RGB + brightness interpolation | Cross-fade between colors |
+| BREATHE | Parabolic brightness envelope | Pulsing/breathing effect |
+| PULSE | 3-phase (rise/hold/fall) brightness | Impact/beat flash |
+| BLINK | Binary on/off at period | Flashing indicator |
+| HUE_CYCLE | 6-step integer HSV→RGB rotation | Rainbow color cycle |
+| STROBE | Binary flash at frequency (Hz) | High-speed strobe |
+| REACTIVE | Decay model triggered by General Call | Music beat response (zero inter-beat I²C) |
+
+#### Animation State (22 bytes, packed struct)
+
+Each panel queues up to 4 animations (`AnimationState queue[4]` = 88 bytes SRAM):
+```cpp
+struct AnimationState {
+    uint8_t  animType;       // enum 0-8
+    uint8_t  group_id;       // 1-254 (0 reserved)
+    uint8_t  flags;          // LOOP | PINGPONG | EASING
+    uint8_t  transitionMs;   // crossfade duration 0-255ms
+    uint16_t durationMs;     // animation duration (0=infinite)
+    uint16_t startMs;        // millis() snapshot at start
+    ColorRGB colorFrom, colorTo;  // 3 bytes each
+    uint8_t  brightnessFrom, brightnessTo;
+    uint8_t  param1, param2; // type-specific parameters
+};  // 22 bytes with __attribute__((__packed__))
+```
+
+#### Animation Groups
+
+Panels can run multiple **independent** animations simultaneously on non-overlapping `group_id` values (1-254):
+```
+PREPARE(group=1, BREATHE) → panels A,B,C
+PREPARE(group=2, BLINK)  → panels D,E
+GENERAL CALL START(seq=1, group=1)  ← only A,B,C start
+GENERAL CALL START(seq=2, group=2)  ← only D,E start
+```
+
+#### Panel-Side Implementation
+
+**AnimationPlayer** (`Panel/AnimationPlayer.hpp/.cpp`):
+- Manages 4-deep animation queue per panel
+- **tick()** called every main loop (internally gated at 16 ms = 60 fps)
+- Responds to PREPARE, START (General Call), CONTROL, UPDATE_PARAMS packets
+- Computes frame locally with integer math only (no FPU on ATmega)
+- Progress interpolation uses q8 fixed-point: `progress_q8 = (elapsed << 8) / duration`
+- Reactive decay: `reactiveLevel -= (decayRate * elapsedMs / 1000)` per tick
+
+#### Controller-Side Implementation
+
+**AnimationScheduler** (`Controller/AnimationScheduler.hpp/.cpp`):
+- Manages active controller-computed animation runners
+- Maintains per-panel state tracking for in-memory status queries (no I²C polling needed)
+- `playOnPanels()`: sends PREPARE unicast sequence, then General Call START twice
+- `triggerGroup()`: sends General Call UPDATE_PARAMS for reactive triggers
+- Frame gating: 16.67 ms (60 fps), processes only active runners
+
+**AnimationRunner** base class with subtypes:
+- **WaveRunner**: 3-wide brightness envelope across topology-ordered panels
+- **RippleRunner**: Distance-based phase expansion from origin panel
+- **ChaseRunner**: Single lit panel traversing edge graph
+- Delta optimization: only send I²C when brightness changes (max ~3 panels per frame = 600 µs)
+
+#### Bandwidth Budget
+
+| Scenario | I²C / Frame |
+|---|---|
+| 30 panels, all BREATHE (panel-local) | **0 µs** during animation |
+| 30 panels, REACTIVE, 120 BPM music | **~140 µs per beat** (between beats: 0 µs) |
+| 3-wide wave, controller-computed | **≤ 600 µs** (delta optimized) |
+| Setup: PREPARE × 30 panels + 2 General Calls | **~6.2 ms** one-time |
+| Full status poll (30 panels) | **~11.7 ms** rare, on-demand only |
+
 ### Discovery Sequence (Controller Boot)
 
 Ping handshake per edge (3 pulses total):
