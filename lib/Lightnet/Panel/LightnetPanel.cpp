@@ -221,6 +221,19 @@ void LightnetPanel::handleIncomingPackets()
             this->handlePacket(packet, size);
         }
     }
+    
+    uint32_t now = millis();
+
+    if (now - this->lastLogMs >= 1000) {
+        auto counts = this->getAndResetReceivedCount();
+
+        Serial.print("[PANEL] handled/received: ");
+        Serial.print(counts.receivedCount);
+        Serial.print(" / ");
+        Serial.println(counts.droppedCount);
+
+        this->lastLogMs = now;
+    }
 }
 
 void LightnetPanel::fetchIncommingPackets()
@@ -317,8 +330,31 @@ void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration 
     this->rgbController->setColorCorrection(packet->colorCorrection);
 }
 
+LightnetPanel::ReceivedCounts LightnetPanel::getAndResetReceivedCount()
+{
+    #ifdef ARDUINO_ARCH_ESP32
+    portENTER_CRITICAL(&this->queueMux);
+    #else
+    noInterrupts();
+    #endif
+
+    uint16_t receivedCount = this->receivedCount;
+    this->receivedCount = 0;
+    uint16_t droppedCount = this->droppedCount;
+    this->droppedCount = 0;
+
+    #ifdef ARDUINO_ARCH_ESP32
+    portEXIT_CRITICAL(&this->queueMux);
+    #else
+    interrupts();
+    #endif
+
+    return { .receivedCount = receivedCount, .droppedCount = droppedCount };
+}
+
 void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 {
+    this->receivedCount++;
     this->lastPacketType = packet->header.type;
 
     switch (packet->header.type) {
@@ -336,7 +372,9 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
             break;
 
         default:
-            this->incomingPackets->enqueue(packet, size);
+            if (!this->incomingPackets->enqueue(packet, size)) {
+                this->droppedCount++;
+            }
     }
 }
 

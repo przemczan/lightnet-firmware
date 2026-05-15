@@ -25,8 +25,8 @@ void setup()
     pinMode(PD6, OUTPUT);
     digitalWrite(PD6, 0);
 
-    #if DEBUG
     Serial.begin(57600);
+    #if DEBUG
     PRINTLN("");
     #endif
 

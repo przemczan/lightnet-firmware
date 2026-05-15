@@ -23,7 +23,7 @@ In ArduinoIDE select target = Aruino UNO. Select port and burn the bootloader.
 
 Set fuses:
 
-    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328p -u -U lfuse:w:0xF7:m -U hfuse:w:0xD6:m -U efuse:w:0xFD:m
+    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328p -u -U lfuse:w:0xF7:m -U hfuse:w:0xD6:m -U efuse:w:0xFC:m
 
 ## atmega328pb
 
@@ -33,4 +33,4 @@ Erase first:
 
 Set fuses
 
-    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328pb -B 32 -u -U lfuse:w:0xF7:m -U hfuse:w:0xD6:m -U efuse:w:0xF5:m
+    C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -C"C:\Users\przem\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf" -c usbasp -p atmega328pb -B 32 -u -U lfuse:w:0xF7:m -U hfuse:w:0xD6:m -U efuse:w:0xF4:m

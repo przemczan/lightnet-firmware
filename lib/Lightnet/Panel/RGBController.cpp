@@ -33,7 +33,7 @@ void RGBController::color(uint8_t r, uint8_t g, uint8_t b)
     PRINTLN4('c', r, g, b);
     #endif
     this->colorValue.r = r;
-    this->colorValue.b = g;
+    this->colorValue.g = g;
     this->colorValue.b = b;
 
     this->updateOutputs();
@@ -68,9 +68,9 @@ void RGBController::updateOutputs()
     if (this->useGammaCorrection) {
         FastLED.showColor(
             CRGB(
-                gammaValueR(this->colorValue.r),
-                gammaValueG(this->colorValue.g),
-                gammaValueB(this->colorValue.b)
+            gammaValueR(this->colorValue.r),
+            gammaValueG(this->colorValue.g),
+            gammaValueB(this->colorValue.b)
             ),
             this->brightnessValue
         );

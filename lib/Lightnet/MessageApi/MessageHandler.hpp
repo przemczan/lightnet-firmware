@@ -22,6 +22,7 @@ class MessageHandler
     private:
         MessageServer *messageServer;
         PanelsController *panelsController;
+        uint32_t lastLogMs = 0;
 
         uint8_t handleMessage(MessageApi::Internal::Message *message, uint16_t size);
         uint8_t handleCommand(MessageApi::PacketMeta *command, uint16_t size, uint32_t clientId);

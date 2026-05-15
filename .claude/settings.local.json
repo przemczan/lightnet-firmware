@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where magick *)",
+      "Bash(where gswin64c *)",
+      "Bash(where convert *)",
+      "Bash(pdftotext \"D:/Projects/Lightnet/lightnet-firmware/schematic/Schematic.pdf\" -)",
+      "Bash(pdftotext -layout \"D:/Projects/Lightnet/lightnet-firmware/schematic/Schematic.pdf\" \"D:/tmp/schematic.txt\")",
+      "Read(//d/tmp/**)",
+      "Bash(mkdir -p /tmp/sch)",
+      "Bash(pdftotext -layout \"D:/Projects/Lightnet/lightnet-firmware/schematic/Schematic.pdf\" /tmp/sch/schematic.txt)",
+      "Read(//tmp/**)",
+      "Bash(cygpath *)",
+      "Bash(pio run *)",
+      "PowerShell(python -m platformio run -e initializer_wemos 2>&1)"
+    ]
+  }
+}

@@ -15,6 +15,8 @@ class MessageServer
         AsyncWebServer *server;
         CircularQueue *cmdQueue;
         CircularQueue *executionQueue;
+        volatile uint16_t receivedCount = 0;
+        volatile uint16_t droppedCount = 0;
         #ifdef ARDUINO_ARCH_ESP32
         portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
         #endif
@@ -23,9 +25,12 @@ class MessageServer
         void onMessage(AsyncWebSocketClient *client, uint8_t *payload, uint16_t size);
 
     public:
+        struct ReceivedCounts { uint16_t receivedCount; uint16_t droppedCount; };
+
         MessageServer(AsyncWebServer *server);
         ~MessageServer();
         void start();
         CircularQueue *getIncommingMessages();
+        ReceivedCounts getAndResetReceivedCount();
         void sendMessage(MessageApi::Internal::Message *message);
 };

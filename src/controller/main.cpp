@@ -26,7 +26,7 @@
 #endif
 
 uint16_t const SERVER_PORT = 80;
-#define CONFIG_PORTAL_TIMEOUT 30
+#define CONFIG_PORTAL_TIMEOUT 120
 
 uint8_t state = 0;
 DNSServer dns;
@@ -120,7 +120,9 @@ void sendConfiguration()
 
         panelsController->sendConfiguration(
             panel->index,
-            { .useGammaCorrection = true, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip}
+            // { .useGammaCorrection = false, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip}
+            { .useGammaCorrection = false, .colorTemperature = UncorrectedTemperature , .colorCorrection = UncorrectedColor}
+
         );
     }
 }
@@ -130,21 +132,29 @@ void setupWiFi()
     WiFi.mode(WIFI_STA);
 
     webServer = new AsyncWebServer(SERVER_PORT);
+    // Ensure the DNS server is started on the standard DNS port 53
+    // pointing all traffic to the ESP8266 AP IP (192.168.4.1)
     wifiManager = new AsyncWiFiManager(webServer, &dns);
+    
+    webServer->begin();
+    
     messageServer = new MessageServer(webServer);
     messageHandler = new MessageHandler(messageServer, panelsController);
     appServer = new AppServer(webServer);
+    
     setupMDNS();
+    
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
-    wifiManager->autoConnect("Lightnet-Controller");
-    webServer->begin();
+    // This will block for 30 seconds if it can't connect.
+    // If you want it non-blocking, you'd need to use startConfigPortal() instead.
+    if (!wifiManager->autoConnect("Lightnet-Controller")) {
+        Serial.println("Failed to connect and hit timeout");
+    }
 }
 
 void setup()
 {
-    #if DEBUG
     Serial.begin(57600);
-    #endif
 
     LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
                                    .sclPinNo = IIC_SCL_PIN,
@@ -182,6 +192,12 @@ void loop()
 
     if (LNPanelsInitializer.isReady()) {
         digitalWrite(LED_PIN, LOW);
+
+        // IMPORTANT: WiFiManager needs the DNS server to process requests 
+        // to trigger the Captive Portal redirect.
+        if (wifiManager != nullptr) {
+            dns.processNextRequest();
+        }
 
         switch (state) {
             case 0:

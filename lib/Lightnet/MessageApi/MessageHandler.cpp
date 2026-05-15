@@ -22,6 +22,19 @@ void MessageHandler::handleIncommingMessages()
     while (queue->dequeue((void *&)message, size)) {
         this->handleMessage(message, size);
     }
+
+    uint32_t now = millis();
+
+    if (now - this->lastLogMs >= 1000) {
+        auto counts = this->messageServer->getAndResetReceivedCount();
+
+        Serial.print("[MSG HANDLER] handled/received: ");
+        Serial.print(counts.receivedCount);
+        Serial.print(" / ");
+        Serial.println(counts.droppedCount);
+
+        this->lastLogMs = now;
+    }
 }
 
 uint8_t MessageHandler::handleMessage(MessageApi::Internal::Message *message, uint16_t size)
@@ -84,7 +97,7 @@ uint8_t MessageHandler::cmdToggle(MessageApi::Cmd::Toggle *command)
 
     packet.on = command->state;
 
-    return LNBus.sendPacketAck(
+    return LNBus.sendPacketNack(
         command->address,
         &packet,
         sizeof(packet),
@@ -97,7 +110,7 @@ uint8_t MessageHandler::cmdSetBrightness(MessageApi::Cmd::SetBrightness *command
 
     packet.brightness = command->brightness;
 
-    return LNBus.sendPacketAck(
+    return LNBus.sendPacketNack(
         command->address,
         &packet,
         sizeof(packet),
@@ -112,7 +125,7 @@ uint8_t MessageHandler::cmdSetColor(MessageApi::Cmd::SetColor *command)
     packet.color.rgb.g = command->color.g;
     packet.color.rgb.b = command->color.b;
 
-    return LNBus.sendPacketAck(
+    return LNBus.sendPacketNack(
         command->address,
         &packet,
         sizeof(packet),

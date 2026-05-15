@@ -40,6 +40,8 @@ class LightnetPanel
 
     private:
         typedef void (*onInitializationPullReceived_t)(Protocol::PacketInitializationPull *);
+        
+        struct ReceivedCounts { uint16_t receivedCount; uint16_t droppedCount; };
 
         List<LightnetPanelEdge *> *edges;
         volatile state_t state = STATE_IDLE;
@@ -53,6 +55,9 @@ class LightnetPanel
         configuration_t config;
         Protocol::PacketMeta ackPacket;
         Protocol::packetType_t lastPacketType = Protocol::PACKET_NOOP;
+        volatile uint16_t receivedCount = 0;
+        volatile uint16_t droppedCount = 0;
+        uint32_t lastLogMs = 0;
 
         void processEdgeStates();
         void checkForWelcomePing();
@@ -79,6 +84,7 @@ class LightnetPanel
         void onPacketRequested();
         static void onPacketReceivedService(Protocol::PacketMeta *packet, int size);
         static void onPacketRequestedService();
+        ReceivedCounts getAndResetReceivedCount();
 
     public:
         LightnetPanel();
