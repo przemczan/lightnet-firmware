@@ -1,5 +1,8 @@
 #pragma once
 
+// Set to 0 to disable the post-boot demo sequence.
+#define DEMO_ENABLED 0
+
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
     #include <Arduino.h>

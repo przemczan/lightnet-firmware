@@ -63,6 +63,14 @@ void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id)
                     queue[j] = queue[(j > 0) ? j - 1 : 3];
                 }
                 queue[queueHead] = temp;
+
+                // The old running animation was displaced to position 1; discard it so
+                // it doesn't auto-restart when this new animation ends.
+                // Shift items [2..queueCount-1] left by one to fill the gap.
+                for (uint8_t k = 1; k < queueCount - 1; k++) {
+                    queue[(queueHead + k) % 4] = queue[(queueHead + k + 1) % 4];
+                }
+                queueCount--;
             }
 
             // Start the animation
@@ -270,8 +278,8 @@ void AnimationPlayer::tickFade(uint16_t elapsed)
 
     uint8_t progress_q8;
     if (durationMs > 0) {
-        progress_q8 = (uint8_t)((uint32_t)elapsed * 256 / durationMs);
-        if (progress_q8 > 255) progress_q8 = 255;
+        uint32_t prog = (uint32_t)elapsed * 256 / durationMs;
+        progress_q8 = (prog > 255) ? 255 : (uint8_t)prog;
     } else {
         progress_q8 = 255;
     }
@@ -286,8 +294,8 @@ void AnimationPlayer::tickTransition(uint16_t elapsed)
 
     uint8_t progress_q8;
     if (durationMs > 0) {
-        progress_q8 = (uint8_t)((uint32_t)elapsed * 256 / durationMs);
-        if (progress_q8 > 255) progress_q8 = 255;
+        uint32_t prog = (uint32_t)elapsed * 256 / durationMs;
+        progress_q8 = (prog > 255) ? 255 : (uint8_t)prog;
     } else {
         progress_q8 = 255;
     }
@@ -430,7 +438,8 @@ void AnimationPlayer::tickReactive(uint16_t elapsed)
 
 uint8_t AnimationPlayer::lerp8(uint8_t a, uint8_t b, uint8_t frac_q8)
 {
-    if (a == b) return a;
+    if (a == b || frac_q8 == 0) return a;
+    if (frac_q8 == 255) return b;  // 255/256 ≠ 1.0 in q8, so snap to avoid off-by-one at end
     if (a < b) {
         return a + (uint8_t)(((uint32_t)(b - a) * frac_q8) >> 8);
     } else {
