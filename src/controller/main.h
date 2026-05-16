@@ -17,5 +17,7 @@
     #endif
     #include "AppServer.hpp"
     #include "Protocol.hpp"
+    #include "AnimationScheduler.hpp"
+    #include "AnimationRunner.hpp"
 
 #endif

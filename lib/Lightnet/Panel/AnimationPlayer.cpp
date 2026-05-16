@@ -76,6 +76,14 @@ void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id)
             paused = false;
             pausedElapsedMs = 0;
 
+            // Resolve FLAG_CURRENT_* — substitute live LED state for ignored fields.
+            if (rgbController) {
+                if (anim.flags & FLAG_CURRENT_COLOR_FROM)      anim.colorFrom      = rgbController->color();
+                if (anim.flags & FLAG_CURRENT_COLOR_TO)        anim.colorTo        = rgbController->color();
+                if (anim.flags & FLAG_CURRENT_BRIGHTNESS_FROM) anim.brightnessFrom = rgbController->brightness();
+                if (anim.flags & FLAG_CURRENT_BRIGHTNESS_TO)   anim.brightnessTo   = rgbController->brightness();
+            }
+
             if (animType == ANIM_REACTIVE) {
                 reactiveDecayRate = anim.param1;
                 reactiveTriggerMs = startMs;
@@ -186,13 +194,17 @@ void AnimationPlayer::tick()
 
     // Check if animation is finished
     if (durationMs > 0 && elapsed >= durationMs && !(flags & FLAG_LOOP) && animType != ANIM_REACTIVE) {
-        // Animation finished
+        // Snap to the exact end-state before advancing so the LED reaches its
+        // natural final value (e.g. breathe fades to 0) rather than freezing
+        // on whatever brightness the last 16 ms tick happened to land on.
+        computeFrame(durationMs);
+        applyToLED();
         advanceQueue();
         return;
     }
 
     // Compute frame for current animation type
-    computeFrame();
+    computeFrame(elapsed);
 
     // Apply to LED
     applyToLED();
@@ -202,11 +214,8 @@ void AnimationPlayer::tick()
 // Animation Computation
 // ============================================================================
 
-void AnimationPlayer::computeFrame()
+void AnimationPlayer::computeFrame(uint16_t elapsed)
 {
-    uint16_t now = millis();
-    uint16_t elapsed = paused ? pausedElapsedMs : (uint16_t)(now - startMs);
-
     switch (animType) {
         case ANIM_SOLID:
             // Already set via colorTo/brightnessTo in PREPARE
@@ -290,21 +299,27 @@ void AnimationPlayer::tickTransition(uint16_t elapsed)
 void AnimationPlayer::tickBreathe(uint16_t elapsed)
 {
     AnimationState& anim = queue[queueHead];
+    if (durationMs == 0) return;
 
-    // Sinusoidal breathing using parabolic approximation
-    // at 0ms: min, at midpoint: max, at duration: min
+    // Wrap elapsed so FLAG_LOOP cycles correctly
+    uint16_t t    = elapsed % durationMs;
     uint16_t half = durationMs / 2;
-    uint8_t phase = (elapsed <= half) ? (uint8_t)((uint32_t)elapsed * 256 / half)
-                                       : (uint8_t)(((uint32_t)(durationMs - elapsed) * 256) / half);
+    if (half == 0) return;
 
-    // Simple parabolic: brightness = base + range * (1 - (phase/256)^2)
-    uint16_t inv_phase = 256 - phase;
-    uint16_t inv_sq = ((uint32_t)inv_phase * inv_phase) >> 8;  // q8
-    uint8_t breath_q8 = (uint8_t)(256 - inv_sq);
+    // phase_q8: 0 at start/end, 255 at midpoint.
+    // Use *255 (not *256) so the result never overflows uint8_t at t==half.
+    uint8_t phase_q8 = (t <= half)
+        ? (uint8_t)((uint32_t)t * 255 / half)
+        : (uint8_t)(((uint32_t)(durationMs - t) * 255) / half);
 
-    uint8_t minBr = anim.brightnessFrom;
-    uint8_t maxBr = anim.brightnessTo;
-    currentBrightness = minBr + ((uint32_t)(maxBr - minBr) * breath_q8 >> 8);
+    // Parabolic easing: ease = 1 - (1-phase)^2, all in q8 fixed-point.
+    // inv and inv_sq stay in uint8_t — no overflow possible.
+    uint8_t inv    = (uint8_t)(255 - phase_q8);
+    uint8_t inv_sq = (uint8_t)(((uint16_t)inv * inv) >> 8);
+    uint8_t ease   = (uint8_t)(255 - inv_sq);
+
+    currentBrightness = anim.brightnessFrom
+        + (uint8_t)(((uint32_t)(anim.brightnessTo - anim.brightnessFrom) * ease) >> 8);
     currentColor = anim.colorTo;
 }
 

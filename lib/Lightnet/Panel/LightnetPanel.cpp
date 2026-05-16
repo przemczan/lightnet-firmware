@@ -284,6 +284,10 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             this->handleAnimationPrepare((Protocol::PacketAnimationPrepare *)packet);
             break;
 
+        case Protocol::PACKET_ANIMATION_START:
+            this->handleAnimationStart((Protocol::PacketAnimationStart *)packet);
+            break;
+
         case Protocol::PACKET_ANIMATION_CONTROL:
             this->handleAnimationControl((Protocol::PacketAnimationControl *)packet);
             break;
@@ -460,6 +464,11 @@ void LightnetPanel::onPacketRequestedService()
 void LightnetPanel::handleAnimationPrepare(Protocol::PacketAnimationPrepare *packet)
 {
     this->animPlayer.prepare(packet);
+}
+
+void LightnetPanel::handleAnimationStart(Protocol::PacketAnimationStart *packet)
+{
+    this->animPlayer.start(packet->seq_id, packet->group_id);
 }
 
 void LightnetPanel::handleAnimationControl(Protocol::PacketAnimationControl *packet)

@@ -84,6 +84,7 @@ class LightnetPanel
 
         // Animation framework handlers
         void handleAnimationPrepare(Protocol::PacketAnimationPrepare *packet);
+        void handleAnimationStart(Protocol::PacketAnimationStart *packet);
         void handleAnimationControl(Protocol::PacketAnimationControl *packet);
         void handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet);
 

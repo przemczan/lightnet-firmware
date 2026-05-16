@@ -64,7 +64,7 @@ private:
     uint8_t        currentBrightness;
 
     // Animation evaluation
-    void computeFrame();
+    void computeFrame(uint16_t elapsed);
     void applyToLED();
     void advanceQueue();
 

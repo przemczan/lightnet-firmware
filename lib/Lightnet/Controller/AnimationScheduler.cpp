@@ -44,12 +44,20 @@ void AnimationScheduler::playOnPanels(uint8_t group_id, uint8_t animType, uint8_
     prepare.param1 = param1;
     prepare.param2 = param2;
 
-    // Send PREPARE to each panel
+    // Send PREPARE to each panel, retrying on failure so a single bus glitch
+    // doesn't silently leave a panel with no animation queued.
     for (uint8_t i = 0; i < panelCount; i++) {
         uint8_t addr = panelAddresses[i];
-        LNBus.sendPacketAck(addr, &prepare, sizeof(prepare), Protocol::PACKET_ANIMATION_PREPARE);
 
-        // Update our tracking
+        uint8_t err = 1;
+        for (uint8_t attempt = 0; attempt < 3 && err != 0; attempt++) {
+            if (attempt > 0) { 
+                delayMicroseconds(100); 
+                Serial.printf("play failed, retrying... attempt %d", attempt);
+            }
+            err = LNBus.sendPacketAck(addr, &prepare, sizeof(prepare), Protocol::PACKET_ANIMATION_PREPARE);
+        }
+
         if (addr < maxPanels) {
             panelStates[addr].animType = animType;
             panelStates[addr].groupId = group_id;
@@ -59,13 +67,22 @@ void AnimationScheduler::playOnPanels(uint8_t group_id, uint8_t animType, uint8_
         }
     }
 
-    // Small delay to let packets settle
-    delayMicroseconds(100);
+    // Give panels time to process their PREPARE before START arrives.
+    delayMicroseconds(300);
 
-    // Send General Call START (twice for reliability)
+    // Send General Call START 3 times for reliability.
+    // All retries share the same seq_id so the panel's duplicate guard lets
+    // through exactly one execution while absorbing the redundant copies.
+    Protocol::PacketAnimationStart startPkt;
+    Protocol::setPacketMeta(&startPkt.meta, Protocol::PACKET_ANIMATION_START);
+    startPkt.seq_id  = nextSeqId;
+    startPkt.group_id = group_id;
+    nextSeqId++;
+    if (nextSeqId == 0) nextSeqId = 1;
+
     for (uint8_t retry = 0; retry < 2; retry++) {
-        sendGeneralCallStart(group_id);
-        delayMicroseconds(300);
+        LNBus.sendPacketNack(0x00, &startPkt, sizeof(startPkt), Protocol::PACKET_ANIMATION_START);
+        delayMicroseconds(200);
     }
 }
 

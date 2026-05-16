@@ -24,3 +24,5 @@ Thumbs.db
 .clang_complete
 .gcc-flags.json
 *.cmx
+
+/scripts/api-shell/node_modules
