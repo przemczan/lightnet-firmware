@@ -39,11 +39,12 @@ bool PanelLocalRunner::isFinished() const
 
 WaveRunner::WaveRunner(uint8_t groupId, const uint8_t* _panelAddresses, uint8_t _panelCount,
                        uint16_t _durationMs, uint8_t _waveWidth, Protocol::ColorRGB _color)
-    : AnimationRunner(groupId), panelCount(_panelCount), durationMs(_durationMs),
-      startMs(0), waveWidth(_waveWidth), color(_color), finished(false)
+    : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
+      durationMs(_durationMs), startMs(0), waveWidth(_waveWidth), color(_color), finished(false)
 {
-    for (uint8_t i = 0; i < _panelCount && i < 30; i++) {
+    for (uint8_t i = 0; i < panelCount; i++) {
         panelAddresses[i] = _panelAddresses[i];
+        lastBrightness[i] = 0;
     }
 }
 
@@ -68,8 +69,6 @@ void WaveRunner::tick(uint32_t nowMs)
     for (uint8_t i = 0; i < panelCount; i++) {
         uint8_t brightness_val = computeWaveBrightness((float)i, waveCenter);
 
-        // Only send if changed (delta optimization)
-        static uint8_t lastBrightness[30] = {0};
         if (brightness_val != lastBrightness[i]) {
             brightness.brightness = brightness_val;
             LNBus.sendPacketNack(panelAddresses[i], &brightness, sizeof(brightness), Protocol::PACKET_SET_BRIGHTNESS);
@@ -112,12 +111,13 @@ uint8_t WaveRunner::computeWaveBrightness(float panelPos, float waveCenter)
 RippleRunner::RippleRunner(uint8_t groupId, const uint8_t* _panelAddresses, uint8_t _panelCount,
                            uint8_t _originPanel, uint16_t _durationMs, uint8_t _rippleWidth,
                            Protocol::ColorRGB _color)
-    : AnimationRunner(groupId), panelCount(_panelCount), originPanel(_originPanel),
-      durationMs(_durationMs), startMs(0), rippleWidth(_rippleWidth),
-      color(_color), finished(false)
+    : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
+      originPanel(_originPanel), durationMs(_durationMs), startMs(0),
+      rippleWidth(_rippleWidth), color(_color), finished(false)
 {
-    for (uint8_t i = 0; i < _panelCount && i < 30; i++) {
+    for (uint8_t i = 0; i < panelCount; i++) {
         panelAddresses[i] = _panelAddresses[i];
+        lastBrightness[i] = 0;
     }
 }
 
@@ -150,7 +150,6 @@ void RippleRunner::tick(uint32_t nowMs)
             brightness_val = (uint8_t)(255.0f * (1.0f - dist_from_ring / ringWidth));
         }
 
-        static uint8_t lastBrightness[30] = {0};
         if (brightness_val != lastBrightness[i]) {
             brightness.brightness = brightness_val;
             LNBus.sendPacketNack(panelAddresses[i], &brightness, sizeof(brightness), Protocol::PACKET_SET_BRIGHTNESS);
@@ -174,11 +173,12 @@ bool RippleRunner::isFinished() const
 
 ChaseRunner::ChaseRunner(uint8_t groupId, const uint8_t* _panelAddresses, uint8_t _panelCount,
                          uint16_t _durationMs, Protocol::ColorRGB _color)
-    : AnimationRunner(groupId), panelCount(_panelCount), durationMs(_durationMs),
-      startMs(0), color(_color), finished(false)
+    : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
+      durationMs(_durationMs), startMs(0), color(_color), finished(false)
 {
-    for (uint8_t i = 0; i < _panelCount && i < 30; i++) {
+    for (uint8_t i = 0; i < panelCount; i++) {
         panelAddresses[i] = _panelAddresses[i];
+        lastBrightness[i] = 0;
     }
 }
 
@@ -201,7 +201,6 @@ void ChaseRunner::tick(uint32_t nowMs)
     for (uint8_t i = 0; i < panelCount; i++) {
         uint8_t brightness_val = (i == litPanel) ? 255 : 0;
 
-        static uint8_t lastBrightness[30] = {0};
         if (brightness_val != lastBrightness[i]) {
             brightness.brightness = brightness_val;
             LNBus.sendPacketNack(panelAddresses[i], &brightness, sizeof(brightness), Protocol::PACKET_SET_BRIGHTNESS);

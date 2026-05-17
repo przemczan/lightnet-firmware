@@ -46,7 +46,8 @@ private:
     uint16_t       startMs;      // millis() snapshot when animation started
     bool           paused;       // is animation paused?
     uint16_t       pausedElapsedMs; // elapsed time when paused
-    uint8_t        lastSeqId;    // last seen seq_id (for General Call duplicate guard)
+    uint8_t        lastStartSeqId;   // dedup guard for PACKET_ANIMATION_START general calls
+    uint8_t        lastParamsSeqId;  // dedup guard for PACKET_ANIMATION_UPDATE_PARAMS general calls
 
     // Reactive state
     uint8_t        reactiveLevel; // 0-255, for REACTIVE animations (decay model)

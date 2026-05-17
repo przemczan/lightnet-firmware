@@ -6,7 +6,8 @@ namespace Lightnet {
 AnimationPlayer::AnimationPlayer()
     : queueHead(0), queueCount(0), animType(ANIM_SOLID), groupId(0), flags(0),
       transitionMs(0), durationMs(0), startMs(0), paused(false), pausedElapsedMs(0),
-      lastSeqId(0xFF), reactiveLevel(0), reactiveDecayRate(0), reactiveTriggerMs(0),
+      lastStartSeqId(0xFF), lastParamsSeqId(0xFF),
+      reactiveLevel(0), reactiveDecayRate(0), reactiveTriggerMs(0),
       rgbController(nullptr), lastTickMs(0)
 {
     currentColor = {0, 0, 0};
@@ -21,7 +22,8 @@ void AnimationPlayer::prepare(const ::Protocol::PacketAnimationPrepare* pkt)
 {
     // Enqueue animation in the queue
     if (queueCount >= 4) {
-        return;  // queue full, drop
+        PRINTLN("[ANIM] queue full, PREPARE dropped");
+        return;
     }
 
     uint8_t idx = (queueHead + queueCount) % 4;
@@ -45,11 +47,10 @@ void AnimationPlayer::prepare(const ::Protocol::PacketAnimationPrepare* pkt)
 
 void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id)
 {
-    // Ignore duplicate General Calls
-    if (seq_id == lastSeqId) {
+    if (seq_id == lastStartSeqId) {
         return;
     }
-    lastSeqId = seq_id;
+    lastStartSeqId = seq_id;
 
     // Find first queued animation with matching group_id and start it
     for (uint8_t i = 0; i < queueCount; i++) {
@@ -139,11 +140,10 @@ void AnimationPlayer::control(uint8_t cmd)
 
 void AnimationPlayer::updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t transitionMs)
 {
-    // Duplicate guard
-    if (seq_id == lastSeqId) {
+    if (seq_id == lastParamsSeqId) {
         return;
     }
-    lastSeqId = seq_id;
+    lastParamsSeqId = seq_id;
 
     // Check if this param update applies to current animation
     if (group_id != 0 && group_id != groupId) {
@@ -185,10 +185,10 @@ void AnimationPlayer::tick()
 
     // Handle animation state machine
     if (animType == ANIM_SOLID && reactiveLevel == 0) {
-        // No animation running, try to advance queue
-        if (queueCount > 0) {
-            advanceQueue();
-        }
+        // Idle — wait for START signal. Do NOT auto-drain the queue here: a
+        // PREPARE may have just been received and its START general call is still
+        // in flight. Draining would consume the queued animation before start()
+        // can find it, causing one panel to silently miss the cycle.
         return;
     }
 
@@ -326,8 +326,9 @@ void AnimationPlayer::tickBreathe(uint16_t elapsed)
     uint8_t inv_sq = (uint8_t)(((uint16_t)inv * inv) >> 8);
     uint8_t ease   = (uint8_t)(255 - inv_sq);
 
-    currentBrightness = anim.brightnessFrom
-        + (uint8_t)(((uint32_t)(anim.brightnessTo - anim.brightnessFrom) * ease) >> 8);
+    // lerp8 handles From > To correctly (direct arithmetic promotes to int and
+    // wraps on unsigned, giving garbage when brightnessTo < brightnessFrom).
+    currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, ease);
     currentColor = anim.colorTo;
 }
 
@@ -336,6 +337,9 @@ void AnimationPlayer::tickPulse(uint16_t elapsed)
     AnimationState& anim = queue[queueHead];
     uint8_t rise_pct = anim.param1;   // 0-255
     uint8_t fall_pct = anim.param2;   // 0-255
+    // Clamp so rise+fall never exceed 255; hold_pct gets the remainder.
+    uint16_t sum = (uint16_t)rise_pct + fall_pct;
+    if (sum > 255) { rise_pct = (uint8_t)(255 * rise_pct / sum); fall_pct = (uint8_t)(255 - rise_pct); }
     uint8_t hold_pct = 255 - rise_pct - fall_pct;
 
     uint16_t rise_ms = (uint32_t)durationMs * rise_pct / 256;
@@ -422,14 +426,12 @@ void AnimationPlayer::tickReactive(uint16_t elapsed)
         reactiveLevel = (decay_amount >= reactiveLevel) ? 0 : (uint8_t)(reactiveLevel - decay_amount);
     }
 
-    // Blend base color toward peak based on reactiveLevel
-    currentColor.r = anim.colorFrom.r + ((uint32_t)(anim.colorTo.r - anim.colorFrom.r) * reactiveLevel >> 8);
-    currentColor.g = anim.colorFrom.g + ((uint32_t)(anim.colorTo.g - anim.colorFrom.g) * reactiveLevel >> 8);
-    currentColor.b = anim.colorFrom.b + ((uint32_t)(anim.colorTo.b - anim.colorFrom.b) * reactiveLevel >> 8);
-
-    uint8_t br_from = anim.brightnessFrom;
-    uint8_t br_to = anim.brightnessTo;
-    currentBrightness = br_from + ((uint32_t)(br_to - br_from) * reactiveLevel >> 8);
+    // Blend base color toward peak based on reactiveLevel.
+    // Use lerp8/rgbLerp: direct arithmetic (e.g. colorTo.r - colorFrom.r) promotes
+    // to signed int, making the subtraction negative when To < From, and (uint32_t)
+    // of a negative int wraps to ~4 billion — producing garbage output.
+    rgbLerp(anim.colorFrom, anim.colorTo, reactiveLevel, &currentColor);
+    currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, reactiveLevel);
 }
 
 // ============================================================================
@@ -505,16 +507,10 @@ void AnimationPlayer::applyToLED()
         return;
     }
 
-    // Apply current animation values to the LED
+    // RGBController::updateOutputs() checks isOn and is a no-op when off,
+    // so a TURN_OFF command is naturally respected without any override here.
     rgbController->color(currentColor.r, currentColor.g, currentColor.b);
     rgbController->brightness(currentBrightness);
-
-    // Ensure LED is on if brightness > 0
-    if (currentBrightness > 0) {
-        rgbController->turnOn();
-    } else {
-        rgbController->turnOff();
-    }
 }
 
 }  // namespace Lightnet

@@ -121,19 +121,22 @@ const AnimationRecord* AnimationScheduler::getStatus(uint8_t panelAddress)
 void AnimationScheduler::tick(uint32_t nowMs)
 {
     // Frame gate: 60fps = 16.67ms
-    const uint32_t FRAME_US = 16667;
-    if ((uint32_t)(nowMs - lastFrameMs) < FRAME_US / 1000) {
+    const uint32_t FRAME_MS = 17;
+    if ((uint32_t)(nowMs - lastFrameMs) < FRAME_MS) {
         return;
     }
     lastFrameMs = nowMs;
 
-    // Tick all active controller-computed runners
-    for (uint16_t i = 0; i < activeRunners->getSize(); i++) {
+    // Tick all runners, then remove finished ones. Iterate in reverse so
+    // removeByIndex doesn't shift unvisited entries.
+    uint16_t i = activeRunners->getSize();
+    while (i--) {
         AnimationRunner* runner = activeRunners->get(i);
-        if (runner) {
-            runner->tick(nowMs);
-
-            // TODO: check if finished and remove
+        if (!runner) continue;
+        runner->tick(nowMs);
+        if (runner->isFinished()) {
+            activeRunners->removeByIndex(i);
+            delete runner;
         }
     }
 }
@@ -147,13 +150,10 @@ void AnimationScheduler::addRunner(AnimationRunner* runner)
 
 void AnimationScheduler::removeRunner(AnimationRunner* runner)
 {
-    // Linear search and remove (inefficient, but ok for small list)
     for (uint16_t i = 0; i < activeRunners->getSize(); i++) {
         if (activeRunners->get(i) == runner) {
-            // Remove by swapping with last and popping
-            // (List doesn't have a remove method, so we can't do this cleanly)
-            // TODO: add remove() to List class
-            break;
+            activeRunners->removeByIndex(i);
+            return;
         }
     }
 }

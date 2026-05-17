@@ -53,16 +53,17 @@ public:
     bool isFinished() const override;
 
 private:
-    uint8_t  panelAddresses[30];  // panel I2C addresses
+    static const uint8_t MAX_PANELS = 100;
+    uint8_t  panelAddresses[MAX_PANELS];
+    uint8_t  lastBrightness[MAX_PANELS];  // per-instance delta cache (not static!)
     uint8_t  panelCount;
     uint16_t durationMs;
     uint32_t startMs;
-    uint8_t  waveWidth;           // 1-255 (units)
+    uint8_t  waveWidth;
     Protocol::ColorRGB color;
 
     bool finished;
 
-    // Internal: compute brightness for a panel at a position
     uint8_t computeWaveBrightness(float panelPos, float waveCenter);
 };
 
@@ -80,7 +81,9 @@ public:
     bool isFinished() const override;
 
 private:
-    uint8_t  panelAddresses[30];
+    static const uint8_t MAX_PANELS = 30;
+    uint8_t  panelAddresses[MAX_PANELS];
+    uint8_t  lastBrightness[MAX_PANELS];
     uint8_t  panelCount;
     uint8_t  originPanel;
     uint16_t durationMs;
@@ -104,7 +107,9 @@ public:
     bool isFinished() const override;
 
 private:
-    uint8_t  panelAddresses[30];
+    static const uint8_t MAX_PANELS = 30;
+    uint8_t  panelAddresses[MAX_PANELS];
+    uint8_t  lastBrightness[MAX_PANELS];
     uint8_t  panelCount;
     uint16_t durationMs;
     uint32_t startMs;
