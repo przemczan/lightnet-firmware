@@ -9,6 +9,7 @@
 
 #if !IS_ESP
     #include <avr/wdt.h>
+    #include "BootloaderBridge.hpp"
 #endif
 
 class LightnetPanel
@@ -87,6 +88,8 @@ class LightnetPanel
         void handleAnimationStart(Protocol::PacketAnimationStart *packet);
         void handleAnimationControl(Protocol::PacketAnimationControl *packet);
         void handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet);
+
+        void handleEnterBootloader(Protocol::PacketEnterBootloader *packet);
 
         void onPacketReceived(Protocol::PacketMeta *packet, int size);
         void onPacketRequested();

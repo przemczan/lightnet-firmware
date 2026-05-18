@@ -23,4 +23,5 @@ class PanelsController
         uint8_t fetchState(uint8_t address, Protocol::PanelState *state);
         uint8_t sendConfiguration(uint8_t address, panelConfiguration_t);
         void resetDevices(uint16_t maxIndex);
+        void enterBootloader(uint8_t address);
 };

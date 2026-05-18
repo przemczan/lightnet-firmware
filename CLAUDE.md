@@ -64,13 +64,21 @@ Common/         Shared between controller and panel
   Protocol          Packet definitions, CRC validation, protocol version (v3)
 
 Controller/     Controller-only
-  PanelsInitializer  Discovery: assigns panel indices, builds edge graph
-  PanelsController   Commands to individual panels over I²C (color/brightness/reset)
-  Panel / Edge       Data model for discovered topology
+  PanelsInitializer    Discovery: assigns panel indices, builds edge graph
+  PanelsController     Commands to individual panels over I²C (color/brightness/reset)
+                       enterBootloader(address) — sends PACKET_ENTER_BOOTLOADER
+  Panel / Edge         Data model for discovered topology
+  TwibootClient        twiboot host protocol over raw Wire (bypasses LNBus)
+                       connect(), programFlash(), verifyFlash(), startApp()
+  PanelFlasher         Non-blocking OTA orchestrator; state machine driven by main loop
+                       ENTER_BL → WAIT_BL → FLASHING → VERIFY → NEXT_PANEL
+  FirmwareUpdateServer HTTP endpoints: POST /api/firmware/panels, GET /api/firmware/status
+  SerialFirmwareReceiver  Receives firmware binary over USB serial (LNFW framing + CRC-16)
 
 Panel/          Panel-only (ATmega)
-  LightnetPanel  Main panel state machine; handles I²C commands, edge registration
-  RGBController  FastLED wrapper for a single WS2812-style LED (pin PD5)
+  LightnetPanel    Main panel state machine; handles I²C commands, edge registration
+  RGBController    FastLED wrapper for a single WS2812-style LED (pin PD5)
+  BootloaderBridge EEPROM layout + prepareAndReset() for twiboot entry
 
 MessageApi/     WebSocket API (controller only, ESP)
   MessageServer  AsyncWebSocket on port 80; queues incoming binary frames
@@ -95,7 +103,8 @@ WebSockets/     Vendored WebSockets library
 - Fixed binary structs with `__attribute__((__packed__))`
 - Header CRC validated on every receive
 - Version field (`VERSION = 3`) checked on every packet
-- Packet types: init pull, register edge, turn on/off, set color, set brightness, fetch state, reset
+- `BOOTLOADER_ENTRY_TOKEN = 0xB0` — shared constant used by both sides of PACKET_ENTER_BOOTLOADER
+- Packet types: init pull, register edge, turn on/off, set color, set brightness, fetch state, reset, animations, enter bootloader
 
 **MessageApi** (`MessageApi/MessageApi.hpp`) — Binary WebSocket protocol between external app and controller.
 - Separate header+payload CRC scheme with a nonce
@@ -224,8 +233,68 @@ After discovery completes (`isReady() == true`):
 2. Runs self-test fade sequence
 3. Initialises WiFi via `AsyncWiFiManager` (auto-connect or config portal named "Lightnet-Controller")
 4. Starts `AsyncWebServer` on port 80, `MessageServer` (WebSocket), `AppServer` (SPIFFS static)
-5. MDNS as `lightnet-<chipid>.local` with service `_lightnet._tcp`
-6. Main loop: `messageHandler->handleIncommingMessages()` + `MDNS.update()` (ESP8266 only)
+5. Starts `FirmwareUpdateServer` (HTTP firmware upload endpoints)
+6. Starts `ArduinoOTA` for controller self-update over WiFi
+7. MDNS as `lightnet-<chipid>.local` with service `_lightnet._tcp`
+8. Main loop: `ArduinoOTA.handle()` + `SerialFirmwareReceiver::run()` + `PanelFlasher::run()` + `messageHandler->handleIncommingMessages()` + `MDNS.update()` (ESP8266 only)
+
+### OTA Firmware Updates
+
+#### Panel OTA flow
+
+Panels run [twiboot](https://github.com/orempel/twiboot) in the 4 KB boot section at `0x7000`
+(fuses: `lfuse=0xF7` for 16 MHz external full-swing crystal or `0xE2` for internal 8 MHz RC;
+`hfuse=0xD0` — BOOTSZ=00, boot section at 0x7000, BOOTRST, EESAVE;
+`efuse=0xFC` — BOD 4.3 V). Two EEPROM bytes coordinate the handoff:
+
+| EEPROM byte | Content |
+|---|---|
+| `[0]` | Panel I²C address (written before OTA reset, read by twiboot as TWI slave address) |
+| `[1]` | `0x42` = enter bootloader; `0xFF` = start app |
+
+twiboot source lives in `firmware/twiboot/` (not the upstream repo). Key build settings:
+- `F_CPU=16000000` (matches 16 MHz crystal; use 8000000 with internal 8 MHz oscillator)
+- `BOOTLOADER_ADDRESS=0x7C00` (1 KB section, matches `hfuse=0xD4` BOOTSZ=10)
+- `TIMEOUT_MS=200` — must exit quickly so the panel app starts before the controller's
+  discovery window expires (~400 ms after panel power-on)
+- The same hex (`firmware/twiboot/.pio/build/atmega328p/firmware.hex`) works on both
+  ATmega328P and ATmega328PB
+- Flash via `cd firmware/twiboot && pio run -e atmega328p --target upload`
+
+`PACKET_ENTER_BOOTLOADER` (value 201, token `0xB0`) triggers `BootloaderBridge::prepareAndReset()`:
+writes the two EEPROM bytes then resets via watchdog. Token mismatch → silently ignored.
+
+`TwibootClient` (controller side) uses raw `Wire` — **bypasses LNBus entirely** since twiboot
+does not speak the Lightnet Protocol. Command bytes (`CMD_WRITE_FLASH=0x02`, etc.) must match
+the compiled twiboot binary; they are documented in `TwibootClient.hpp`.
+
+`PanelFlasher` reads firmware from SPIFFS `/panel_fw.bin` one 128-byte page at a time
+(never buffers the whole image in RAM). After all panels are flashed, the controller must
+be restarted so `PanelsInitializer` can re-run discovery.
+
+Panel firmware builds produce both `.hex` and `.bin` automatically (via `tools/generate_bin.py`
+post-build script). The same `panel_atmega328pb` binary runs on both 328P and 328PB panels.
+Panel USBasp uploads use `upload_flags = -D` (no chip erase) to preserve twiboot at `0x7C00`.
+
+#### Serial firmware upload framing (PC → controller)
+
+`SerialFirmwareReceiver` listens on the existing 57600-baud Serial port:
+
+```
+[4B magic 'L','N','F','W'] [4B size LE] [size bytes data] [2B CRC-16 LE]
+```
+
+Controller responds `READY\n` after the header, then `OK\n` or `ERR:…\n` after the CRC check.
+Use `tools/flash_panels_serial.py` as the PC-side sender (`pip install pyserial` required).
+
+#### Controller self-update (ArduinoOTA)
+
+ArduinoOTA runs on the standard port (3232 for ESP32, 8266 for ESP8266). Hostname matches
+the MDNS name (`lightnet-<chipid>`). No password — intended for a trusted local network.
+
+```bash
+pio run -e initializer_esp32 --target upload --upload-port lightnet-XXXX.local
+```
 
 ### Pin Assignments
 

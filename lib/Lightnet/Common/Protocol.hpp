@@ -31,6 +31,7 @@ namespace Protocol {
         PACKET_FETCH_ANIM_STATE = 15,        // new: animation framework
         PACKET_ANIMATION_UPDATE_PARAMS = 16, // new: animation framework (General Call)
         PACKET_RESET_DEVICE = 200,
+        PACKET_ENTER_BOOTLOADER = 201,
     };
 
     typedef struct PACK {
@@ -163,6 +164,17 @@ namespace Protocol {
         uint8_t    queueLen;
     } PacketAnimationStatus;  // 11 bytes
 // END
+
+    // Both controller and panel must agree on this value.
+    // Panel side: checked in handleEnterBootloader().
+    // Controller side: written into PacketEnterBootloader.token.
+    const uint8_t BOOTLOADER_ENTRY_TOKEN = 0xB0;
+
+    // token must equal BOOTLOADER_ENTRY_TOKEN to prevent accidental triggering
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    token;
+    } PacketEnterBootloader;  // 6 bytes
 
     uint8_t validatePacket(void *packet, uint8_t size);
     void setPacketMeta(void *packet, packetType_t type);

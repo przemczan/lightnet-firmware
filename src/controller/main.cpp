@@ -40,6 +40,10 @@ MessageServer *messageServer;
 MessageHandler *messageHandler;
 AppServer *appServer;
 Lightnet::AnimationScheduler *animScheduler = nullptr;
+TwibootClient          *twibootClient    = nullptr;
+PanelFlasher           *panelFlasher     = nullptr;
+FirmwareUpdateServer   *fwUpdateServer   = nullptr;
+SerialFirmwareReceiver *serialFwReceiver = nullptr;
 
 void setupMDNS()
 {
@@ -131,6 +135,30 @@ void sendConfiguration()
     }
 }
 
+void setupOTA()
+{
+    // Reuse the same hostname already registered with MDNS
+    char buffer[20];
+    #ifdef ARDUINO_ARCH_ESP8266
+    sprintf(buffer, "lightnet-%04X", ESP.getChipId());
+    #else
+    sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
+    #endif
+
+    ArduinoOTA.setHostname(buffer);
+    ArduinoOTA.onStart([]() {
+        PRINTLN("[OTA] controller update starting");
+    });
+    ArduinoOTA.onEnd([]() {
+        PRINTLN("[OTA] controller update done — rebooting");
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        PRINTF("[OTA] error %u\n", error);
+    });
+    ArduinoOTA.begin();
+    PRINTLN("[OTA] ArduinoOTA ready");
+}
+
 void setupWiFi()
 {
     WiFi.mode(WIFI_STA);
@@ -154,6 +182,13 @@ void setupWiFi()
     if (!wifiManager->autoConnect("Lightnet-Controller")) {
         Serial.println("Failed to connect and hit timeout");
     }
+
+    setupOTA();
+
+    twibootClient    = new TwibootClient();
+    panelFlasher     = new PanelFlasher(panelsController, &LNPanelsInitializer, twibootClient);
+    fwUpdateServer   = new FirmwareUpdateServer(webServer, panelFlasher);
+    serialFwReceiver = new SerialFirmwareReceiver(panelFlasher);
 }
 
 void setup()
@@ -175,7 +210,7 @@ void setup()
     delay(100);
     digitalWrite(PANELS_POWER_PIN, HIGH);
     PRINTLN("waiting for panels to boot");
-    delay(300);
+    delay(500);
     PRINTLN("Initializing...");
 
     panelsController = new PanelsController();
@@ -231,6 +266,9 @@ void loop()
                 #ifdef ARDUINO_ARCH_ESP8266
                 MDNS.update();
                 #endif
+                ArduinoOTA.handle();
+                if (serialFwReceiver) serialFwReceiver->run();
+                if (panelFlasher) panelFlasher->run();
                 messageHandler->handleIncommingMessages();
 #if DEMO_ENABLED
                 runDemos();

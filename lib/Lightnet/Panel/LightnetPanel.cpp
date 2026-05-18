@@ -299,26 +299,22 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
         case Protocol::PACKET_RESET_DEVICE:
             digitalWrite(6, 1);
             delay(10);
-            digitalWrite(6, 0);            
+            digitalWrite(6, 0);
             delay(10);
             digitalWrite(6, 1);
             delay(10);
             digitalWrite(6, 0);
 
-            MCUSR = MCUSR & B11110111;
-            // Set the WDCE bit (bit 4) and the WDE bit (bit 3) 
-            // of WDTCSR. The WDCE bit must be set in order to 
-            // change WDE or the watchdog prescalers. Setting the 
-            // WDCE bit will allow updtaes to the prescalers and 
-            // WDE for 4 clock cycles then it will be reset by 
-            // hardware.
-            WDTCSR = WDTCSR | B00011000; 
-            // 32ms
-            WDTCSR = B00000001;
-            // Enable the watchdog timer interupt.
-            WDTCSR = WDTCSR | B01000000;
-            MCUSR = MCUSR & B11110111;
+            MCUSR   =  MCUSR  & B11110111;
+            WDTCSR  =  WDTCSR | B00011000;
+            WDTCSR  =  B00000001;
+            WDTCSR  =  WDTCSR | B01000000;
+            MCUSR   =  MCUSR  & B11110111;
             delay(50);
+            break;
+
+        case Protocol::PACKET_ENTER_BOOTLOADER:
+            this->handleEnterBootloader((Protocol::PacketEnterBootloader *)packet);
             break;
     }
 }
@@ -479,6 +475,18 @@ void LightnetPanel::handleAnimationControl(Protocol::PacketAnimationControl *pac
 void LightnetPanel::handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet)
 {
     this->animPlayer.updateParams(packet->seq_id, packet->group_id, packet->param_type, packet->value, packet->transitionMs);
+}
+
+void LightnetPanel::handleEnterBootloader(Protocol::PacketEnterBootloader *packet)
+{
+#if !IS_ESP
+    if (packet->token != BootloaderBridge::ENTRY_TOKEN) {
+        return;
+    }
+    PRINTLN("[BOOTLOADER] entering — saving address and resetting");
+    BootloaderBridge::prepareAndReset(this->index);
+    // execution never reaches here
+#endif
 }
 
 LightnetPanel LNPanel;

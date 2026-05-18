@@ -22,5 +22,10 @@
     #include "Protocol.hpp"
     #include "AnimationScheduler.hpp"
     #include "AnimationRunner.hpp"
+    #include "TwibootClient.hpp"
+    #include "PanelFlasher.hpp"
+    #include "FirmwareUpdateServer.hpp"
+    #include "SerialFirmwareReceiver.hpp"
+    #include <ArduinoOTA.h>
 
 #endif
