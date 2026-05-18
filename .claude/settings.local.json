@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where magick *)",
+      "Bash(where gswin64c *)",
+      "Bash(where convert *)",
+      "Bash(pdftotext \"D:/Projects/Lightnet/lightnet-firmware/schematic/Schematic.pdf\" -)",
+      "Bash(pdftotext -layout \"D:/Projects/Lightnet/lightnet-firmware/schematic/Schematic.pdf\" \"D:/tmp/schematic.txt\")",
+      "Read(//d/tmp/**)",
+      "Bash(mkdir -p /tmp/sch)",
+      "Bash(pdftotext -layout \"D:/Projects/Lightnet/lightnet-firmware/schematic/Schematic.pdf\" /tmp/sch/schematic.txt)",
+      "Read(//tmp/**)",
+      "Bash(cygpath *)",
+      "Bash(pio run *)",
+      "PowerShell(python -m platformio run -e initializer_wemos 2>&1)",
+      "Bash(where pio)",
+      "Bash(where python)",
+      "Bash(/c/Users/przem/.platformio/penv/Scripts/pio.exe run -e panel_atmega328p -e initializer_esp32)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Lightnet\\\\lightnet-firmware\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Select-Object -First 20)"
+    ]
+  }
+}

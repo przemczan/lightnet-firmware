@@ -1,63 +1,41 @@
 #pragma once
 
-#include <Arduino.h>
-#include "Protocol.hpp"
-#include "Macros.hpp"
+#define LED_DATA_PIN PD5
 
-const uint8_t gammaMapping8bit[] PROGMEM = {
-    255, 254, 254, 254, 254, 254, 254, 254,
-    254, 254, 253, 253, 253, 253, 253, 253,
-    253, 253, 253, 252, 252, 252, 252, 252,
-    252, 252, 252, 251, 251, 251, 251, 251,
-    251, 251, 250, 250, 250, 250, 250, 249,
-    249, 249, 249, 249, 248, 248, 248, 248,
-    248, 247, 247, 247, 247, 246, 246, 246,
-    246, 245, 245, 245, 244, 244, 244, 243,
-    243, 243, 243, 242, 242, 241, 241, 241,
-    240, 240, 240, 239, 239, 238, 238, 238,
-    237, 237, 236, 236, 235, 235, 234, 234,
-    233, 233, 232, 232, 231, 231, 230, 230,
-    229, 229, 228, 228, 227, 226, 226, 225,
-    225, 224, 223, 223, 222, 221, 221, 220,
-    219, 219, 218, 217, 217, 216, 215, 214,
-    214, 213, 212, 211, 210, 210, 209, 208,
-    207, 206, 205, 205, 204, 203, 202, 201,
-    200, 199, 198, 197, 196, 195, 194, 193,
-    192, 191, 190, 189, 188, 187, 186, 185,
-    184, 183, 182, 181, 179, 178, 177, 176,
-    175, 174, 172, 171, 170, 169, 167, 166,
-    165, 164, 162, 161, 160, 158, 157, 155,
-    154, 153, 151, 150, 148, 147, 146, 144,
-    143, 141, 140, 138, 136, 135, 133, 132,
-    130, 129, 127, 125, 124, 122, 120, 119,
-    117, 115, 113, 112, 110, 108, 106, 105,
-    103, 101, 99, 97, 95, 93, 92, 90,
-    88, 86, 84, 82, 80, 78, 76, 74,
-    72, 69, 67, 65, 63, 61, 59, 57,
-    54, 52, 50, 48, 46, 43, 41, 39,
-    36, 34, 32, 29, 27, 24, 22, 20,
-    17, 15, 12, 10, 7, 5, 2, 0
-};
+#include <Arduino.h>
+#include "../Common/Protocol.hpp"
+#include "../Utils/Macros.hpp"
+#include "FastLED.h"
+#include "../Utils/Gamma.hpp"
+
+#ifdef ARDUINO_ARCH_ESP32
+    #include "analogWrite.h"
+#endif
 
 class RGBController
 {
     private:
-        uint8_t rPinNo;
-        uint8_t gPinNo;
-        uint8_t bPinNo;
+        Protocol::ColorRGB colorValue = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
+        uint8_t brightnessValue = 0xFF;
+        bool isOn = false;
+        CRGB leds[1];
+        bool useGammaCorrection = true;
+        LEDColorCorrection colorCorrection = UncorrectedColor;
+        ColorTemperature colorTemperature = UncorrectedTemperature;
 
-        Protocol::ColorRGB values;
-        uint8_t brightness = 125;
-        bool on = false;
-
-    private:
         void updateOutputs();
 
     public:
-        RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo);
+        RGBController();
         void turnOn();
         void turnOff();
-        void setColor(uint8_t r, uint8_t g, uint8_t b);
-        void setColor(Protocol::ColorRGB *color);
-        void setBrightness(uint8_t brightness);
+        void gammaCorrection(bool use);
+        void setColorCorrection(LEDColorCorrection colorCorrection);
+        void setColorTemperature(ColorTemperature colorTemperature);
+        bool on();
+        Protocol::ColorRGB color();
+        void color(uint8_t r, uint8_t g, uint8_t b);
+        void color(Protocol::ColorRGB *color);
+        uint8_t brightness();
+        void brightness(uint8_t brightness);
 };

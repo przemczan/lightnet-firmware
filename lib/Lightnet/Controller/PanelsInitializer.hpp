@@ -1,34 +1,55 @@
 #pragma once
 
-#include "LightnetBus.hpp"
-#include "LightnetPanelEdge.hpp"
-#include "Protocol.hpp"
-#include "List.hpp"
+#include "../Common/LightnetBus.hpp"
+#include "../Common/LightnetPanelEdge.hpp"
+#include "../Common/Protocol.hpp"
+#include "../Utils/List.hpp"
+#include "Panel.hpp"
 
 class PanelsInitializer
 {
-    public:
-        typedef struct {
-            uint8_t id;
-            uint8_t edgesNumber;
-            uint8_t parentEdge;
-        } Panel;
+    const uint8_t PULL_BUFFER_SIZE = 100;
+    const unsigned long PULL_INTERVAL_MS = 20;
+    const uint16_t BOOT_TIMEOUT_MS = 5000;
 
-        void start(uint8_t edgePinNo);
-        void doInitialize();
-        uint8_t isReady();
-        List<Panel *> *getPanels();
+    typedef struct {
+        uint8_t sdaPinNo;
+        uint8_t sclPinNo;
+        uint8_t edgePinNo;
+        uint8_t intPinNo;
+    } configuration_t;
+
+    public:
+        PanelsInitializer();
+        ~PanelsInitializer();
+        void start();
+        bool isReady();
         void updateEdgeState();
-        void startMastering();
+        List<Panel *> *getPanels();
+        Panel *getPanelByIndex(uint16_t panelIndex);
+        void configure(configuration_t config);
+        void boot();
 
     private:
-        static volatile uint8_t lastPacketType;
-        static List<Panel *> panels;
-        static volatile Panel lastPanel;
-        LightnetPanelEdge *edge;
+        List<Panel *> *panels;
+        Edge *lastActiveEdge;
+        uint8_t lastPacketType;
+        LightnetPanelEdge *pingEdge;
+        uint8_t *pullBuffer;
+        unsigned long nextPulling;
+        uint16_t currentPanelIndex = 1;
+        uint8_t interruptPinNo;
+        uint16_t nextPanelToSend = 0;
+        uint8_t nextPanelEdgeToSend = 0;
+        configuration_t config;
 
-        static void onPacketReceived(Protocol::PacketMeta *packetMeta);
-        static void onPacketRequested();
+        void registerPanel(Protocol::PacketRegisterEdge *packet);
+        void registerEdge(Protocol::PacketRegisterEdge *packet);
+        void pull();
+        void onPacketResponded(Protocol::PacketMeta *packetMeta);
+        void sendRegisterAck();
+
+        static void onInterrupt();
 };
 
 extern PanelsInitializer LNPanelsInitializer;

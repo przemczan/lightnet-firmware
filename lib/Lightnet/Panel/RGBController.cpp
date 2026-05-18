@@ -1,70 +1,115 @@
 #include "RGBController.hpp"
 
-RGBController::RGBController(uint8_t _rPinNo, uint8_t _gPinNo, uint8_t _bPinNo):
-    rPinNo(_rPinNo), gPinNo(_gPinNo), bPinNo(_gPinNo)
+#define RGBC_DEBUG 0
+
+RGBController::RGBController()
 {
-    this->values.r = 0;
-    this->values.g = 0;
-    this->values.b = 0;
-
-    pinMode(rPinNo, OUTPUT);
-    pinMode(gPinNo, OUTPUT);
-    pinMode(bPinNo, OUTPUT);
-
-    this->turnOff();
+    FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(this->leds, 1);
+    FastLED.setDither(0);
 }
 
 void RGBController::turnOn()
 {
-    this->on = true;
+    #if RGBC_DEBUG
+    PRINTLN("on");
+    #endif
+    this->isOn = true;
     this->updateOutputs();
 }
 
 void RGBController::turnOff()
 {
-    this->on = false;
-    digitalWrite(rPinNo, LOW);
-    digitalWrite(gPinNo, LOW);
-    digitalWrite(bPinNo, LOW);
+    #if RGBC_DEBUG
+    PRINTLN("off");
+    #endif
+    this->isOn = false;
+    FastLED.showColor(CRGB::Black);
 }
 
 
-void RGBController::setColor(uint8_t r, uint8_t g, uint8_t b)
+void RGBController::color(uint8_t r, uint8_t g, uint8_t b)
 {
-    this->values.r = r;
-    this->values.b = g;
-    this->values.b = b;
+    #if RGBC_DEBUG
+    PRINTLN4('c', r, g, b);
+    #endif
+    this->colorValue.r = r;
+    this->colorValue.g = g;
+    this->colorValue.b = b;
 
     this->updateOutputs();
 }
 
-void RGBController::setColor(Protocol::ColorRGB *color)
+void RGBController::color(Protocol::ColorRGB *color)
 {
-    this->values = *color;
+    #if RGBC_DEBUG
+    PRINTLN4('c', color->r, color->g, color->b);
+    #endif
+    this->colorValue = *color;
 
     this->updateOutputs();
 }
 
-void RGBController::setBrightness(uint8_t brightness)
+void RGBController::brightness(uint8_t brightness)
 {
-    this->brightness = brightness;
+    #if RGBC_DEBUG
+    PRINTKV('b', brightness);
+    #endif
+    this->brightnessValue = brightness;
 
     this->updateOutputs();
 }
 
 void RGBController::updateOutputs()
 {
-    if (!this->on) {
+    if (!this->isOn) {
         return;
     }
-    
-    Protocol::ColorRGB color;
 
-    color.r = map(this->values.r, 0, 0xFF, 0, this->brightness);
-    color.g = map(this->values.g, 0, 0xFF, 0, this->brightness);
-    color.b = map(this->values.b, 0, 0xFF, 0, this->brightness);
+    if (this->useGammaCorrection) {
+        FastLED.showColor(
+            CRGB(
+            gammaValueR(this->colorValue.r),
+            gammaValueG(this->colorValue.g),
+            gammaValueB(this->colorValue.b)
+            ),
+            this->brightnessValue
+        );
+    } else {
+        FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), this->brightnessValue);
+    }
+}
 
-    analogWrite(rPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.r));
-    analogWrite(gPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.g));
-    analogWrite(bPinNo, pgm_read_byte(gammaMapping8bit + 0xFF - color.b));
+bool RGBController::on()
+{
+    return this->isOn;
+}
+
+Protocol::ColorRGB RGBController::color()
+{
+    return this->colorValue;
+}
+
+uint8_t RGBController::brightness()
+{
+    return this->brightnessValue;
+}
+
+void RGBController::gammaCorrection(bool use)
+{
+    this->useGammaCorrection = use;
+    this->updateOutputs();
+}
+
+void RGBController::setColorCorrection(LEDColorCorrection colorCorrection)
+{
+    this->colorCorrection = colorCorrection;
+    FastLED.setCorrection(this->colorCorrection);
+    this->updateOutputs();
+}
+
+void RGBController::setColorTemperature(ColorTemperature colorTemperature)
+{
+    this->colorTemperature = colorTemperature;
+    FastLED.setTemperature(this->colorTemperature);
+    this->updateOutputs();
 }
