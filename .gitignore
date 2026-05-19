@@ -25,4 +25,4 @@ Thumbs.db
 .gcc-flags.json
 *.cmx
 
-/scripts/api-shell/node_modules
+node_modules

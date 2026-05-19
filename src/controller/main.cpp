@@ -128,8 +128,8 @@ void sendConfiguration()
 
         panelsController->sendConfiguration(
             panel->index,
-            // { .useGammaCorrection = false, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip}
-            { .useGammaCorrection = false, .colorTemperature = UncorrectedTemperature , .colorCorrection = UncorrectedColor}
+            { .useGammaCorrection = true, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip}
+            // { .useGammaCorrection = false, .colorTemperature = UncorrectedTemperature , .colorCorrection = UncorrectedColor}
 
         );
     }
