@@ -60,7 +60,10 @@ public:
 
 private:
     static const uint16_t TWIBOOT_WAIT_TIMEOUT_MS = 3000;
-    static const uint16_t ENTER_BL_SETTLE_MS      = 80;   // watchdog fires at 32 ms + margin
+    // WDT fires ~15 ms after wdt_enable() in BootloaderBridge; the fork bootloader
+    // then does _delay_ms(200) before initialising TWI. Total ~215 ms from the
+    // enterBootloader() I²C write until 0x29 is ready; 300 ms gives safe margin.
+    static const uint16_t ENTER_BL_SETTLE_MS      = 300;
 
     PanelsController  *ctrl;
     PanelsInitializer *init;
@@ -74,6 +77,7 @@ private:
     size_t   firmwareSize = 0;
     uint16_t currentPage  = 0;
     uint16_t totalPages   = 0;
+    File     flashFile;   // kept open across FLASHING pages to avoid per-page open overhead
 
     void transition(State next);
     void setError(const char *msg);

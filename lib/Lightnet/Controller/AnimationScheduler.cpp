@@ -51,8 +51,8 @@ void AnimationScheduler::playOnPanels(uint8_t group_id, uint8_t animType, uint8_
 
         uint8_t err = 1;
         for (uint8_t attempt = 0; attempt < 3 && err != 0; attempt++) {
-            if (attempt > 0) { 
-                delayMicroseconds(100); 
+            if (attempt > 0) {
+                delayMicroseconds(100);
                 Serial.printf("play failed, retrying... attempt %d", attempt);
             }
             err = LNBus.sendPacketAck(addr, &prepare, sizeof(prepare), Protocol::PACKET_ANIMATION_PREPARE);

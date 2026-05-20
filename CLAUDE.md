@@ -16,6 +16,12 @@ This project uses **PlatformIO**. All build, upload, and monitor commands are is
 | `panel_nanoatmega328` | Panel | Arduino Nano (ATmega328) |
 | `panel_atmega328pb` | Panel | ATmega328PB (USBasp) |
 | `panel_atmega328p` | Panel | ATmega328P (USBasp) |
+| `panel_atmega88p` | Panel | ATmega88P/PA (USBasp) — **scenes branch only**, see note below |
+
+**ATmega88P note**: Uses `light_ws2812` instead of FastLED (`USE_LIGHT_WS2812` define), `DEBUG=0`,
+and full size optimisation flags (`-Os -ffunction-sections -fdata-sections -Wl,--gc-sections`).
+Fuses: `lfuse=0xF7` / `hfuse=0xD7` (SPIEN+EESAVE, no bootloader) / `efuse=0xFC` (BOD 4.3 V).
+Flash budget: **~7.5 KB used / 8 KB available** (no Serial, no bootloader section).
 
 ### Common Commands
 
@@ -35,6 +41,16 @@ pio run
 
 There are no automated tests in this project.
 
+### Active branches
+
+| Branch | Status |
+|---|---|
+| `master` | Stable — animation framework v3, no HTTP animation API |
+| `scenes` | In progress — Protocol v4, appearance HTTP API, palette/brightness/base-colors system |
+
+`animation-system-plan.md` in the repo root is the design document for the full Scene/Layer HTTP API
+and palette system. It was authored during the planning phase and covers all architectural decisions.
+
 ## Architecture Overview
 
 The firmware targets **two distinct device types** compiled from a single source tree, selected at build time by the `LIGHTNET_TARGET_CONTROLLER` preprocessor flag (set via `build_flags` in `platformio.ini`).
@@ -49,6 +65,8 @@ Panels form a **tree structure** rooted at the controller. Panels connect to eac
 
 ### Library Structure (`lib/Lightnet/`)
 
+Files marked *(scenes)* live on the `scenes` branch only and are not yet merged to master.
+
 ```
 Common/         Shared between controller and panel
   LightnetBus       I²C wrapper (send/receive Protocol packets, IRQ callbacks)
@@ -61,29 +79,51 @@ Common/         Shared between controller and panel
                     ISR, processState() drains and decodes transitions in the main loop.
                     busIsDisabled is static (shared) — set during ping() so all pingers drop
                     ISR samples while any pulse is being driven, preventing self-detection.
-  Protocol          Packet definitions, CRC validation, protocol version (v3)
+  Protocol          Packet definitions, CRC validation, protocol version
+  LightnetConfig    *(scenes)* Cross-cutting constants: LIGHTNET_MAX_PANELS=100, PALETTE_STOPS=16,
+                    BASE_COLORS_COUNT=3. Single source of truth referenced by runners, scheduler,
+                    and scene player.
+  ColorRef          *(scenes)* 4-byte color reference: kind=0 inline RGB, kind=1 palette position,
+                    kind=2 base-color slot. Same struct on the wire and in RAM — panels resolve
+                    to RGB at frame time against their current palette/base colors.
+  Palette           *(scenes)* GradientStop struct (pos+RGB, 4 B) and samplePalette() interpolation
+                    helper. No dependency on Protocol or FastLED — safe to include anywhere.
 
 Controller/     Controller-only
   PanelsInitializer    Discovery: assigns panel indices, builds edge graph
   PanelsController     Commands to individual panels over I²C (color/brightness/reset)
                        enterBootloader(address) — sends PACKET_ENTER_BOOTLOADER
   Panel / Edge         Data model for discovered topology
-  TwibootClient        twiboot host protocol over raw Wire (bypasses LNBus)
-                       connect(), programFlash(), verifyFlash(), startApp()
+  TwibootClient        twiboot_for_arduino I²C host protocol over raw Wire (bypasses LNBus)
+                       connect(), writePage() (64-byte chunks), readPage(), startApp()
   PanelFlasher         Non-blocking OTA orchestrator; state machine driven by main loop
                        ENTER_BL → WAIT_BL → FLASHING → VERIFY → NEXT_PANEL
   FirmwareUpdateServer HTTP endpoints: POST /api/firmware/panels, GET /api/firmware/status
   SerialFirmwareReceiver  Receives firmware binary over USB serial (LNFW framing + CRC-16)
+  PaletteStore      *(scenes)* Built-in gradient palette library (rainbow/lava/ocean/forest/
+                    party/sunset/aurora/embers). resolve(name) → GradientStop[]. Synthesises the
+                    special "userColors" palette from the 3 scene base colors.
+  AppearanceStore   *(scenes)* Owns /config/appearance.json — global brightness, base colors,
+                    active palette. loadAndApply() broadcasts all three to panels after discovery.
+                    Atomic writes via .tmp+rename. setBrightness/setBaseColor/setPalette broadcast
+                    updated values to panels immediately (mid-flight effect with no re-prepare).
+  AnimationServer   *(scenes)* HTTP appearance API (see below). Scene/Layer HTTP API planned on
+                    top of this — see animation-system-plan.md.
 
 Panel/          Panel-only (ATmega)
   LightnetPanel    Main panel state machine; handles I²C commands, edge registration
-  RGBController    FastLED wrapper for a single WS2812-style LED (pin PD5)
-  BootloaderBridge EEPROM layout + prepareAndReset() for twiboot entry
+  RGBController    FastLED wrapper for a single WS2812-style LED (pin PD5).
+                   *(scenes)* globalBrightness(0-255) multiplier applied to every output frame.
+  AnimationPlayer  Manages 4-deep animation queue; *(scenes)* resolves ColorRef to RGB at frame
+                   time using panel's current palette, base colors, and global brightness.
+  BootloaderBridge Writes EEPROM boot-magic, then software-jumps to twiboot_for_arduino
 
 MessageApi/     WebSocket API (controller only, ESP)
   MessageServer  AsyncWebSocket on port 80; queues incoming binary frames
   MessageHandler Decodes MessageApi packets, dispatches to PanelsController
+                 *(scenes)* MSG_ANIMATION_TRIGGER (type 8) — triggers AnimationScheduler::triggerGroup()
   MessageApi     Binary protocol structs (toggle, set color/brightness, state query)
+                 *(scenes)* + MSG_ANIMATION_TRIGGER payload: {uint8_t groupId, uint8_t value}
 
 AppServer/      Serves static web app from SPIFFS (controller only)
 Utils/
@@ -102,9 +142,13 @@ WebSockets/     Vendored WebSockets library
 **Protocol** (`Common/Protocol.hpp`) — I²C packets exchanged between controller and panels.
 - Fixed binary structs with `__attribute__((__packed__))`
 - Header CRC validated on every receive
-- Version field (`VERSION = 3`) checked on every packet
+- `VERSION = 3` on master. *(scenes)* `VERSION = 4` — `PACKET_ANIMATION_PREPARE` carries `ColorRef`
+  (4 B) instead of `ColorRGB` (3 B) for `colorFrom`/`colorTo`; three new appearance packets added.
+  **Panel and controller must be flashed together when switching protocol versions.**
 - `BOOTLOADER_ENTRY_TOKEN = 0xB0` — shared constant used by both sides of PACKET_ENTER_BOOTLOADER
 - Packet types: init pull, register edge, turn on/off, set color, set brightness, fetch state, reset, animations, enter bootloader
+- *(scenes)* Additional packet types: `PACKET_SET_PALETTE` (17), `PACKET_SET_BASE_COLORS` (18),
+  `PACKET_SET_GLOBAL_BRIGHTNESS` (19)
 
 **MessageApi** (`MessageApi/MessageApi.hpp`) — Binary WebSocket protocol between external app and controller.
 - Separate header+payload CRC scheme with a nonce
@@ -123,7 +167,9 @@ General Call (I²C address 0x00) broadcasts simultaneously to all panels:
 - Packets sent **twice** (300 µs apart) with seq_id duplicate guard to ensure reliable delivery without ACK
 - Requires: ATmega28 `TWAR |= 0x01` to enable GCIE bit for General Call reception
 
-#### Protocol Extensions (5 new packet types)
+#### Protocol Extensions
+
+**v3 (master) — 5 animation packets:**
 
 | Packet Type | Dir | Size | Use |
 |---|---|---|---|
@@ -132,6 +178,15 @@ General Call (I²C address 0x00) broadcasts simultaneously to all panels:
 | PACKET_ANIMATION_CONTROL | C→P | 6 B | Unicast: STOP, PAUSE, RESUME, CLEAR_QUEUE commands |
 | PACKET_ANIMATION_UPDATE_PARAMS | General Call | 10 B | Broadcast: update reactive animation parameters (triggers, speed) |
 | PACKET_FETCH_ANIM_STATE | C→P | — | Unicast: query animation status from panel (response: 11 B) |
+
+**v4 (scenes branch) — 3 additional appearance packets + modified PREPARE:**
+
+| Packet Type | Dir | Size | Use |
+|---|---|---|---|
+| PACKET_ANIMATION_PREPARE *(modified)* | C→P | 23 B | `colorFrom`/`colorTo` now `ColorRef` (4 B each) instead of `ColorRGB` (3 B) |
+| PACKET_SET_PALETTE (17) | C→P or General Call | 70 B | Replace panel's 16-stop gradient palette; General Call = all panels simultaneously |
+| PACKET_SET_BASE_COLORS (18) | C→P or General Call | 14 B | Replace panel's 3 base colors (primary/secondary/tertiary) |
+| PACKET_SET_GLOBAL_BRIGHTNESS (19) | General Call | 6 B | Set global brightness multiplier (0–255) applied to every output frame |
 
 #### Panel-Local Animation Types (8 types, zero per-frame I²C traffic)
 
@@ -147,9 +202,9 @@ General Call (I²C address 0x00) broadcasts simultaneously to all panels:
 | STROBE | Binary flash at frequency (Hz) | High-speed strobe |
 | REACTIVE | Decay model triggered by General Call | Music beat response (zero inter-beat I²C) |
 
-#### Animation State (22 bytes, packed struct)
+#### Animation State
 
-Each panel queues up to 4 animations (`AnimationState queue[4]` = 88 bytes SRAM):
+**v3 (master) — 22 bytes**, each panel queues up to 4 animations (88 bytes SRAM):
 ```cpp
 struct AnimationState {
     uint8_t  animType;       // enum 0-8
@@ -158,11 +213,16 @@ struct AnimationState {
     uint8_t  transitionMs;   // crossfade duration 0-255ms
     uint16_t durationMs;     // animation duration (0=infinite)
     uint16_t startMs;        // millis() snapshot at start
-    ColorRGB colorFrom, colorTo;  // 3 bytes each
+    ColorRGB colorFrom, colorTo;  // 3 bytes each (explicit RGB)
     uint8_t  brightnessFrom, brightnessTo;
     uint8_t  param1, param2; // type-specific parameters
-};  // 22 bytes with __attribute__((__packed__))
+};  // 22 bytes
 ```
+
+**v4 (scenes branch) — 24 bytes** — `colorFrom`/`colorTo` replaced with `ColorRef` (4 bytes each).
+The panel resolves a `ColorRef` at frame time against its current palette, base colors, and global
+brightness. Three kinds: `kind=0` inline RGB, `kind=1` sample palette at position, `kind=2` use
+base-color slot. This enables mid-flight palette/color changes with zero re-prepare.
 
 #### Animation Groups
 
@@ -173,6 +233,32 @@ PREPARE(group=2, BLINK)  → panels D,E
 GENERAL CALL START(seq=1, group=1)  ← only A,B,C start
 GENERAL CALL START(seq=2, group=2)  ← only D,E start
 ```
+
+#### Global Brightness, Base Colors & Palettes *(scenes branch)*
+
+**Palette model** — every animation color is resolved through a gradient palette at a sample
+position. The panel stores:
+- `GradientStop palette[16]` (64 bytes) — current 16-stop gradient
+- `ColorRGB baseColors[3]` (9 bytes) — primary / secondary / tertiary
+- `uint8_t globalBrightness` (1 byte) — multiplied into every output frame
+
+Palette arithmetic: `samplePalette(stops, count, pos)` linearly interpolates between adjacent
+stops. All resolution happens on the panel at frame time — no re-prepare needed for mid-flight
+changes. Total new panel SRAM: ~82 bytes (fits ATmega88PA-AU with margin).
+
+**Built-in palettes** (compiled into `PaletteStore`, no SPIFFS needed): `rainbow`, `lava`,
+`ocean`, `forest`, `party`, `sunset`, `aurora`, `embers`. Special synthetic palette `userColors`
+is built from the 3 base colors as `[(0,primary),(128,secondary),(255,tertiary)]` — selecting it
+makes animations track the currently set base colors.
+
+**Controller-side**: `AppearanceStore` owns `/config/appearance.json`:
+```json
+{ "schemaVersion": 1, "brightness": 192,
+  "baseColors": ["#FF4400","#FF8800","#000000"], "palette": "lava" }
+```
+Loaded after discovery (before WiFi captive-portal blocks), then broadcast to all panels.
+Any setter (`setBrightness`, `setBaseColor`, `setPalette`) persists atomically and broadcasts
+immediately. Scenes that specify their own `colors`/`palette` update the appearance on load.
 
 #### Panel-Side Implementation
 
@@ -229,44 +315,74 @@ Discovery flow:
 ### Controller WiFi / API Startup
 
 After discovery completes (`isReady() == true`):
-1. Sends `PacketPanelConfiguration` to all panels (gamma correction, color temp)
-2. Runs self-test fade sequence
-3. Initialises WiFi via `AsyncWiFiManager` (auto-connect or config portal named "Lightnet-Controller")
-4. Starts `AsyncWebServer` on port 80, `MessageServer` (WebSocket), `AppServer` (SPIFFS static)
-5. Starts `FirmwareUpdateServer` (HTTP firmware upload endpoints)
-6. Starts `ArduinoOTA` for controller self-update over WiFi
-7. MDNS as `lightnet-<chipid>.local` with service `_lightnet._tcp`
-8. Main loop: `ArduinoOTA.handle()` + `SerialFirmwareReceiver::run()` + `PanelFlasher::run()` + `messageHandler->handleIncommingMessages()` + `MDNS.update()` (ESP8266 only)
+1. *(scenes)* Mounts SPIFFS early (`SPIFFS.begin()` hoisted to case 0, before WiFi)
+2. Sends `PacketPanelConfiguration` to all panels (gamma correction, color temp)
+3. Runs self-test fade sequence
+4. *(scenes)* `PaletteStore::seedBuiltInsIfMissing()` — creates default palettes on first boot
+5. *(scenes)* `AppearanceStore::loadAndApply()` — reads `/config/appearance.json`, broadcasts brightness + base colors + palette to panels **before** WiFi setup (captive portal can block)
+6. Initialises WiFi via `AsyncWiFiManager` (auto-connect or config portal named "Lightnet-Controller")
+7. Starts `AsyncWebServer` on port 80, `MessageServer` (WebSocket), `AppServer` (SPIFFS static)
+8. Starts `FirmwareUpdateServer` (HTTP firmware upload endpoints)
+9. *(scenes)* `AnimationServer::begin()` — registers appearance HTTP endpoints
+10. Starts `ArduinoOTA` for controller self-update over WiFi
+11. MDNS as `lightnet-<chipid>.local` with service `_lightnet._tcp`
+12. Main loop: `ArduinoOTA.handle()` + `SerialFirmwareReceiver::run()` + `PanelFlasher::run()` + `messageHandler->handleIncommingMessages()` + *(scenes)* `animScheduler->tick(millis())` + `MDNS.update()` (ESP8266 only)
+
+### HTTP Appearance API *(scenes branch)*
+
+Served by `AnimationServer` on the existing port-80 `AsyncWebServer`:
+
+```
+GET  /api/appearance              → { brightness, baseColors: ["#…","#…","#…"], palette }
+PUT  /api/appearance              body: any subset of the three fields (atomic write)
+
+GET  /api/brightness              → { "value": 0-255 }
+PUT  /api/brightness              body: { "value": 128 }
+
+GET  /api/colors                  → { "primary":"#…", "secondary":"#…", "tertiary":"#…" }
+PUT  /api/colors                  body: any subset of the three slots
+
+GET  /api/palette                 → { "palette": "lava" }       current selection
+PUT  /api/palette                 body: { "palette": "lava" }   name must exist in PaletteStore
+
+GET  /api/palettes                → list of available palette names
+```
+
+All PUT endpoints: update in-memory state, persist to `/config/appearance.json` (atomic .tmp+rename),
+and broadcast the relevant I²C packet(s) to panels. Return 422 on validation errors (unknown palette
+name, out-of-range value, bad hex colour). Return 200 `{}` on success.
+
+**Scene/Layer API** (designed, not yet implemented — see `animation-system-plan.md`):
+`POST/GET/DELETE /api/scenes`, `POST /api/scenes/:name/play`, `POST /api/scenes/stop`,
+`GET /api/scenes/status`, `POST /api/animations/play` (one-shot), `POST /api/animations/trigger`.
 
 ### OTA Firmware Updates
 
 #### Panel OTA flow
 
-Panels run [twiboot](https://github.com/orempel/twiboot) in the 4 KB boot section at `0x7000`
-(fuses: `lfuse=0xF7` for 16 MHz external full-swing crystal or `0xE2` for internal 8 MHz RC;
-`hfuse=0xD0` — BOOTSZ=00, boot section at 0x7000, BOOTRST, EESAVE;
-`efuse=0xFC` — BOD 4.3 V). Two EEPROM bytes coordinate the handoff:
+Panels use a custom fork of twiboot (`firmware/twiboot_for_arduino/`) as the I²C bootloader.
+The upstream orempel/twiboot was tried but could not be made to work reliably (SRAM
+initialization issues when entered via software jump, WDT bootloop on hardware reset).
 
-| EEPROM byte | Content |
-|---|---|
-| `[0]` | Panel I²C address (written before OTA reset, read by twiboot as TWI slave address) |
-| `[1]` | `0x42` = enter bootloader; `0xFF` = start app |
+The fork lives in the 4 KB boot section at `0x7000`:
+- Fuses: `lfuse=0xF7` (16 MHz crystal), `hfuse=0xD8` (BOOTSZ=00, boot at 0x7000, BOOTRST),
+  `efuse=0xFC` (BOD 4.3 V)
+- TWI address: `0x29` (compiled in via `-DTWI_ADDRESS=0x29`)
+- Build: `pio run -e atmega328p_bootloader -t fuses && pio run -e atmega328p_bootloader -t upload`
+- Panel app USBasp uploads use `upload_flags = -D` (no chip erase) to preserve the bootloader
 
-twiboot source lives in `firmware/twiboot/` (not the upstream repo). Key build settings:
-- `F_CPU=16000000` (matches 16 MHz crystal; use 8000000 with internal 8 MHz oscillator)
-- `BOOTLOADER_ADDRESS=0x7C00` (1 KB section, matches `hfuse=0xD4` BOOTSZ=10)
-- `TIMEOUT_MS=200` — must exit quickly so the panel app starts before the controller's
-  discovery window expires (~400 ms after panel power-on)
-- The same hex (`firmware/twiboot/.pio/build/atmega328p/firmware.hex`) works on both
-  ATmega328P and ATmega328PB
-- Flash via `cd firmware/twiboot && pio run -e atmega328p --target upload`
+**Entry protocol** — `PACKET_ENTER_BOOTLOADER` (value 201, token `0xB0`) triggers
+`BootloaderBridge::prepareAndReset()`:
+1. Writes boot-magic word `0xB007` to EEPROM byte address 510.
+2. Disables TWI/PCINT, zeroes SRAM 0x0100–0x04FF, then software-jumps to the bootloader.
+3. The fork reads EEPROM[510]: if `0xB007`, stays in bootloader (clears the magic); otherwise
+   exits to the app immediately.
 
-`PACKET_ENTER_BOOTLOADER` (value 201, token `0xB0`) triggers `BootloaderBridge::prepareAndReset()`:
-writes the two EEPROM bytes then resets via watchdog. Token mismatch → silently ignored.
-
-`TwibootClient` (controller side) uses raw `Wire` — **bypasses LNBus entirely** since twiboot
-does not speak the Lightnet Protocol. Command bytes (`CMD_WRITE_FLASH=0x02`, etc.) must match
-the compiled twiboot binary; they are documented in `TwibootClient.hpp`.
+`TwibootClient` (controller side) uses raw `Wire` (bypasses LNBus). The fork accepts any-size
+write chunks — pages are sent as two 64-byte chunks (fits in the default 128-byte Wire buffer).
+`connect()` sends `CMD_WAIT (0x00)` to verify presence; do **not** send `[0x01, 0x00]`
+(CMD_SWITCH_APPLICATION + BOOTTYPE_BOOTLOADER) — the fork interprets that as a re-entry trigger
+and WDT-resets the panel.
 
 `PanelFlasher` reads firmware from SPIFFS `/panel_fw.bin` one 128-byte page at a time
 (never buffers the whole image in RAM). After all panels are flashed, the controller must
@@ -274,7 +390,6 @@ be restarted so `PanelsInitializer` can re-run discovery.
 
 Panel firmware builds produce both `.hex` and `.bin` automatically (via `tools/generate_bin.py`
 post-build script). The same `panel_atmega328pb` binary runs on both 328P and 328PB panels.
-Panel USBasp uploads use `upload_flags = -D` (no chip erase) to preserve twiboot at `0x7C00`.
 
 #### Serial firmware upload framing (PC → controller)
 

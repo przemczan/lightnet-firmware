@@ -21,11 +21,16 @@
 //
 // CRC-16: polynomial 0xA001, init 0xFFFF (matches Crc.hpp crc16()).
 // Run via the tools/flash_panels_serial.py helper script.
+//
+// Once the 4-byte magic is matched, run() enters a blocking receive loop that
+// holds until the full transfer completes, fails, or times out. This lets the
+// receiver work even when the main loop is busy with long-running demo animations.
 class SerialFirmwareReceiver {
 public:
     explicit SerialFirmwareReceiver(PanelFlasher *flasher);
 
-    // Call every main loop iteration to drain Serial and advance state.
+    // Call every main loop iteration. Non-blocking while scanning for magic;
+    // blocks (with watchdog yields) once magic is matched until transfer ends.
     void run();
 
 private:
@@ -33,7 +38,8 @@ private:
 
     static const uint8_t  MAGIC[4];
     static const char    *FIRMWARE_PATH;
-    static const uint32_t MAX_FIRMWARE_SIZE = 28 * 1024;
+    static const uint32_t MAX_FIRMWARE_SIZE  = 28 * 1024;
+    static const uint32_t TRANSFER_TIMEOUT_MS = 30000;
 
     PanelFlasher *flasher;
     State    state       = State::IDLE;
@@ -46,6 +52,11 @@ private:
     uint8_t  crcBuf[2];
     uint8_t  crcPos      = 0;
     File     outFile;
+
+    // Blocking loop entered after magic match; returns when state == IDLE.
+    void receiveBlocking();
+    // Process one byte through HEADER/DATA/CRC_BYTES states.
+    void processByte(uint8_t b);
 
     void reset();
     void replyOk();

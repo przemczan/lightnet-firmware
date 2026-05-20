@@ -241,15 +241,20 @@ void demoWaveAndChase()
 // Main entry point — called from loop() after network init
 // ============================================================================
 
+static uint8_t demoIndex = 0;
+
 void runDemos()
 {
-    demoInvertedBreathe();
-    demoRapidTransitions();
-    demoExtremePulse();
-    demoWaveRippleSequence();
-    demoReactiveBeats();
-    demoRainbowFade();
-    demoWaveAndChase();
+    switch (demoIndex) {
+        case 0: demoInvertedBreathe();    break;
+        case 1: demoRapidTransitions();   break;
+        case 2: demoExtremePulse();       break;
+        case 3: demoWaveRippleSequence(); break;
+        case 4: demoReactiveBeats();      break;
+        case 5: demoRainbowFade();        break;
+        case 6: demoWaveAndChase();       break;
+    }
+    demoIndex = (demoIndex + 1) % 7;
 }
 
 #endif  // DEMO_ENABLED

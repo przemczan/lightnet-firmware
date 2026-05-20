@@ -5,16 +5,16 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-// Implements the twiboot I2C host protocol for programming ATmega panels.
+// Implements the twiboot_for_arduino I2C host protocol for programming ATmega panels.
 // Uses Wire directly — bypasses LNBus, which handles only Lightnet Protocol packets.
 //
-// Command byte values must match the compiled twiboot binary (orempel/twiboot).
-// Reference: https://github.com/orempel/twiboot
+// Targets the twiboot_for_arduino fork (firmware/twiboot_for_arduino/).
+// That fork enters bootloader only when EEPROM[510]==0xB007 on startup (set by
+// BootloaderBridge via a WDT hardware reset). TWI address is 0x29 (compiled in via
+// -DTWI_ADDRESS=0x29).
 //
-// Flash page size for ATmega328: 128 bytes.
-// Pages are written by streaming data in ≤29-byte Wire chunks; twiboot
-// auto-commits the page when its 128-byte internal buffer fills.
-// SPM write takes ~4.5 ms — a post-page delay is included.
+// writePage() sends the 128-byte page in two 64-byte chunks (68 bytes each with
+// the 4-byte header). This fits within the default 128-byte Wire TX buffer.
 class TwibootClient {
 public:
     struct ChipInfo {
@@ -39,22 +39,30 @@ public:
     // Tell twiboot to jump to the application.
     bool startApp(uint8_t address);
 
-private:
-    // twiboot command bytes — verify these against the compiled twiboot source
-    static const uint8_t CMD_SWITCH_APPLICATION = 0x01;
-    static const uint8_t CMD_WRITE_FLASH        = 0x02;
-    static const uint8_t CMD_READ_FLASH         = 0x03;
-
-    static const uint8_t ARG_BOOTLOADER  = 0x00;  // used with CMD_SWITCH_APPLICATION
-    static const uint8_t ARG_APPLICATION = 0x80;  // used with CMD_SWITCH_APPLICATION
+    // twiboot's hardcoded I²C slave address (TWI_ADDRESS in main.c).
+    // All panels run twiboot at this address regardless of their app-mode index.
+    static const uint8_t  TWIBOOT_ADDRESS = 0x29;
 
     // ATmega328 flash geometry
-    static const uint16_t PAGE_SIZE      = 128;
-    // Wire buffer is 32 bytes; 3 bytes consumed by cmd + addr_high + addr_low
-    static const uint8_t  MAX_CHUNK_DATA = 29;
+    static const uint16_t PAGE_SIZE = 128;
 
-    bool    writePage(uint8_t address, uint16_t byteAddr, const uint8_t *data);
-    bool    readPage(uint8_t address, uint16_t byteAddr, uint8_t *buf);
+    // Write 128 bytes to flash at byteAddr (must be PAGE_SIZE-aligned).
+    bool writePage(uint8_t address, uint16_t byteAddr, const uint8_t *data);
+
+    // Read 128 bytes from flash at byteAddr into buf.
+    bool readPage(uint8_t address, uint16_t byteAddr, uint8_t *buf);
+
+private:
+    // twiboot command bytes (orempel/twiboot protocol)
+    // Write flash: SLA+W, 0x02, 0x01, addrH, addrL, {128 bytes}, STO
+    // Read flash:  SLA+W, 0x02, 0x01, addrH, addrL, STO, SLA+R, {N bytes}, STO
+    static const uint8_t CMD_SWITCH_APPLICATION = 0x01;
+    static const uint8_t CMD_ACCESS_MEMORY      = 0x02;  // used for both read and write
+    static const uint8_t MEMTYPE_FLASH          = 0x01;  // memory type byte required by twiboot
+
+    static const uint8_t CMD_WAIT        = 0x00;  // abort boot timeout / verify presence
+    static const uint8_t ARG_APPLICATION = 0x80;  // used with CMD_SWITCH_APPLICATION
+
     uint8_t sendCmd(uint8_t address, uint8_t cmd, const uint8_t *args, uint8_t argLen);
 };
 

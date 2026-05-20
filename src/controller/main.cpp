@@ -289,11 +289,13 @@ void loop()
                 ArduinoOTA.handle();
                 if (serialFwReceiver) serialFwReceiver->run();
                 if (panelFlasher) panelFlasher->run();
-                messageHandler->handleIncommingMessages();
-                if (animScheduler) animScheduler->tick(millis());   // drives controller-computed runners
+                if (!panelFlasher || !panelFlasher->isActive()) {
+                    messageHandler->handleIncommingMessages();
+                    if (animScheduler) animScheduler->tick(millis());
 #if DEMO_ENABLED
-                runDemos();
+                    runDemos();
 #endif
+                }
                 break;
         }
     }

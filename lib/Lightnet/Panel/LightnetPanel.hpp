@@ -14,7 +14,7 @@
 
 class LightnetPanel
 {
-    const uint16_t INCOMING_BUFFER_SIZE = 200;
+    const uint16_t INCOMING_BUFFER_SIZE = 100;
 
     typedef struct {
         uint8_t sdaPinNo;
@@ -42,7 +42,7 @@ class LightnetPanel
 
     private:
         typedef void (*onInitializationPullReceived_t)(Protocol::PacketInitializationPull *);
-        
+
         struct ReceivedCounts { uint16_t receivedCount; uint16_t droppedCount; };
 
         List<LightnetPanelEdge *> *edges;

@@ -29,8 +29,9 @@ except ImportError:
 
 MAGIC = b"LNFW"
 DEFAULT_BAUD = 57600
-READY_TIMEOUT = 60.0  # seconds to wait for READY after sending header
-OK_TIMEOUT    = 30.0  # seconds to wait for OK after sending data
+BOOT_WAIT_TIMEOUT = 3.0   # seconds to look for the boot-ready signal
+READY_TIMEOUT     = 10.0  # seconds to wait for READY after sending header
+OK_TIMEOUT        = 30.0  # seconds to wait for OK after sending data
 
 
 def crc16(data: bytes) -> int:
@@ -91,21 +92,22 @@ def main():
 
         header = MAGIC + struct.pack("<I", size)
 
-        # Wait for controller to reach state=1 (OTA ready = serialFwReceiver is running)
+        # Optional: wait briefly for the controller boot signal (only useful if
+        # the controller is currently booting; skip gracefully if already running).
         print("Waiting for controller…", end=" ", flush=True)
-        deadline = time.monotonic() + READY_TIMEOUT
+        deadline = time.monotonic() + BOOT_WAIT_TIMEOUT
         controller_ready = False
         while time.monotonic() < deadline:
-            line = wait_line(ser, 1.0)
-            if "ArduinoOTA" in line or "OTA" in line:
+            line = wait_line(ser, 0.5)
+            if "OTA" in line:
                 controller_ready = True
                 break
             if line:
                 print(".", end="", flush=True)
-        if not controller_ready:
-            print("\nController did not signal ready — sending header anyway")
+        if controller_ready:
+            print(" ready")
         else:
-            print("OK")
+            print(" (already running, proceeding)")
 
         # Drain any stale bytes that arrived during boot, then send header once
         time.sleep(0.1)
@@ -138,7 +140,17 @@ def main():
 
         if resp == "OK":
             print("OK")
-            print("Panel flashing started on controller. Monitor serial for progress.")
+            print("Panel flashing in progress — monitoring serial (Ctrl+C to stop)…")
+            try:
+                while True:
+                    line = wait_line(ser, 2.0)
+                    if line:
+                        print(f"  {line}")
+                        if line.startswith("[FLASHER] all panels") or line.startswith("[FLASHER] ERROR"):
+                            break
+            except KeyboardInterrupt:
+                pass
+            print("Done.")
         elif resp.startswith("ERR:"):
             sys.exit(f"\nController error: {resp[4:]}")
         else:

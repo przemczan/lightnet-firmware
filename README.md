@@ -197,6 +197,67 @@ reboot and wait for a fresh welcome ping.
 
 ---
 
+## Panel SRAM Constraints (ATmega328P/PB)
+
+The ATmega328P/PB has **2048 bytes of SRAM**. Three build-time constants
+directly eat into that budget and must be sized together:
+
+| Constant | Location | Controls |
+|---|---|---|
+| `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the **4** Wire/TWI static buffers (Wire rx, Wire tx, twi rx, twi tx) |
+| `INCOMING_BUFFER_SIZE` | `LightnetPanel.hpp` | Size of each of the **2** circular packet queues (incoming + staging) |
+| `Protocol::MAX_PACKET_SIZE` | `Protocol.hpp` | Largest packet in the protocol; determines the minimum safe `TWI_BUFFER_SIZE` |
+
+### Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE`
+
+`Wire.cpp` and `twi.c` each allocate two static arrays of `TWI_BUFFER_SIZE` bytes (rx and tx).
+A packet larger than `TWI_BUFFER_SIZE` is **silently truncated** by the hardware driver —
+the header CRC still validates, so the corrupted payload passes into the handler and can
+corrupt state.  Always keep `TWI_BUFFER_SIZE` equal to `MAX_PACKET_SIZE` (currently 80,
+set by `PacketSetPalette` = 70 bytes payload). Do not set it larger than necessary.
+
+> **Note:** `BUFFER_SIZE` and `BUFFER_LENGTH` are **not** used by the MiniCore Wire library.
+> Only `TWI_BUFFER_SIZE` matters. Setting `BUFFER_SIZE=N` in build flags has no effect.
+
+### SRAM budget (known-good configuration)
+
+| Allocation | Size |
+|---|---|
+| Wire/TWI buffers (`TWI_BUFFER_SIZE=80`, ×4) | 320 B |
+| Incoming packet queues (`INCOMING_BUFFER_SIZE=100`, ×2 + overhead) | ~240 B |
+| `AnimationPlayer` inside `LNPanel` (queue×4 + palette×16 + vars) | ~190 B |
+| `LNPanel` other fields | ~30 B |
+| 3× `LightnetPanelEdge` + `LightnetPinger` (heap) | ~125 B |
+| Arduino Serial ring buffers | ~128 B |
+| Stack + heap metadata | ~200 B |
+| **Total** | **~1233 B** |
+
+Leaves roughly **800 bytes** of headroom for stack growth at runtime.
+
+### What goes wrong when SRAM is exhausted
+
+The AVR has no MMU — stack and heap grow toward each other. When they collide,
+corruption is silent and manifests as seemingly unrelated failures:
+
+- Panel crashes partway through edge-pin initialization (PCINT ISR stops firing)
+- Garbage bytes appear in the serial output mid-print (e.g. `Init e1` → `\0\0\0\0…`)
+- Panel boots but stops responding after the first few I²C packets
+
+If you see any of these symptoms after adding new protocol packets or enlarging
+buffers, **reduce** `TWI_BUFFER_SIZE` and/or `INCOMING_BUFFER_SIZE` first.
+`INCOMING_BUFFER_SIZE=100` is sufficient because the controller sends one packet
+at a time and waits for a response — the queue never holds more than one entry.
+
+### When `MAX_PACKET_SIZE` changes
+
+If a new packet type larger than 70 bytes is added:
+1. Update `MAX_PACKET_SIZE` in `Protocol.hpp`
+2. Set `TWI_BUFFER_SIZE` = new `MAX_PACKET_SIZE` in `platformio.ini`
+3. Check that the SRAM budget still fits (re-run a panel build and inspect the
+   memory report in the PlatformIO build output — aim to keep data+bss under ~1300 B)
+
+---
+
 ## HTTP API
 
 | Endpoint | Method | Description |

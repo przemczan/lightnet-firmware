@@ -139,13 +139,17 @@ uint8_t LightnetBus::sendPacketWithResponse(
     uint8_t responseSize
 )
 {
-    if (this->sendPacket(address, packet, packetSize, packetType, false) != 0) {
+    uint8_t writeErr = this->sendPacket(address, packet, packetSize, packetType, false);
+    if (writeErr != 0) {
+        PRINTF("[BUS] write err=%d addr=0x%02X\n", writeErr, address);
         return 1;
     }
 
     delayMicroseconds(3);
 
-    if (this->requestPacket(address, responseBuffer, responseSize) != 0) {
+    uint8_t readErr = this->requestPacket(address, responseBuffer, responseSize);
+    if (readErr != 0) {
+        PRINTF("[BUS] read err=%d addr=0x%02X\n", readErr, address);
         return 2;
     }
 
@@ -169,13 +173,16 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
     uint8_t receivedSize = this->requestData(address, buffer, size);
 
     if (!receivedSize || receivedSize != size) {
+        PRINTF("[BUS] ack size got=%d expected=%d\n", receivedSize, size);
         return 1;
     }
 
-    if (Protocol::validatePacket(buffer, receivedSize) == 0) {
+    uint8_t vErr = Protocol::validatePacket(buffer, receivedSize);
+    if (vErr == 0) {
         return 0;
     }
 
+    PRINTF("[BUS] ack validate err=%d\n", vErr);
     return 2;
 }
 

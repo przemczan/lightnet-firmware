@@ -45,6 +45,10 @@ class LightnetBus
         void setOnPacketRequested(onPacketRequested_t callback);
         void flush();
 
+        // Set by onReceive ISR, read from main loop for debug logging.
+        volatile uint8_t lastRxSize = 0;
+        volatile uint8_t maxRxSize  = 0;
+
     private:
         onPacketReceived_t onPacketReceivedCallback;
         onPacketRequested_t onPacketRequestedCallback;

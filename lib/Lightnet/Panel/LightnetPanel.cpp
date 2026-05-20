@@ -85,6 +85,12 @@ void LightnetPanel::run()
 #endif
             this->setState(STATE_WORKING);
             PRINTKV("===> [READY]", this->index);
+#if DEBUG
+            // Serial.print(F("[PANEL] TWI_BUFFER_SIZE="));
+            // Serial.print(TWI_BUFFER_SIZE);
+            Serial.print(F(" MAX_PACKET_SIZE="));
+            Serial.println(Protocol::MAX_PACKET_SIZE);
+#endif
             break;
 
         case STATE_WORKING:
@@ -225,23 +231,38 @@ void LightnetPanel::handleIncomingPackets()
     uint16_t size;
 
     while (this->packetsToHandle->dequeue((void *&)packet, size)) {
-        if (!Protocol::validatePacket(packet, size)) {
+        uint8_t vErr = Protocol::validatePacket(packet, size);
+#if DEBUG
+        Serial.print(F("[PKT] type="));
+        Serial.print(packet->header.type);
+        Serial.print(F(" size="));
+        Serial.print(size);
+        Serial.print(F(" vErr="));
+        Serial.println(vErr);
+#endif
+        if (!vErr) {
             this->handlePacket(packet, size);
         }
     }
-    
+
+#if DEBUG
     uint32_t now = millis();
 
     if (now - this->lastLogMs >= 1000) {
         auto counts = this->getAndResetReceivedCount();
 
-        Serial.print("[PANEL] handled/received: ");
+        Serial.print(F("[PANEL] rx="));
         Serial.print(counts.receivedCount);
-        Serial.print(" / ");
-        Serial.println(counts.droppedCount);
+        Serial.print(F(" drop="));
+        Serial.print(counts.droppedCount);
+        Serial.print(F(" lastRx="));
+        Serial.print(LNBus.lastRxSize);
+        Serial.print(F(" maxRx="));
+        Serial.println(LNBus.maxRxSize);
 
         this->lastLogMs = now;
     }
+#endif
 }
 
 void LightnetPanel::fetchIncommingPackets()
@@ -359,8 +380,12 @@ void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
 void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet)
 {
     this->rgbController->gammaCorrection(packet->useGammaCorrection);
+#if !defined(USE_LIGHT_WS2812)
+    // Color correction and temperature require FastLED internals; not available
+    // in the light_ws2812 path (ATmega88P), where gamma is handled manually.
     this->rgbController->setColorTemperature(packet->colorTemperature);
     this->rgbController->setColorCorrection(packet->colorCorrection);
+#endif
 }
 
 LightnetPanel::ReceivedCounts LightnetPanel::getAndResetReceivedCount()

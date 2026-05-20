@@ -11,108 +11,124 @@ SerialFirmwareReceiver::SerialFirmwareReceiver(PanelFlasher *flasher)
 
 void SerialFirmwareReceiver::run()
 {
+    // Non-blocking: scan for magic bytes only. Once all 4 are matched, hand
+    // off to receiveBlocking() which owns Serial until the transfer ends.
     while (Serial.available() > 0) {
         uint8_t b = (uint8_t)Serial.read();
 
-        switch (state) {
-
-            // ----------------------------------------------------------------
-            case State::IDLE:
-                // Scan for the first magic byte to begin synchronisation
-                if (b == MAGIC[0]) {
-                    magicPos = 1;
-                    state    = State::MAGIC;
-                }
-                break;
-
-            // ----------------------------------------------------------------
-            case State::MAGIC:
-                if (b == MAGIC[magicPos]) {
-                    magicPos++;
-                    if (magicPos == 4) {
-                        headerPos = 0;
-                        state     = State::HEADER;
-                    }
-                } else {
-                    // Restart sync; check if this byte starts a new magic
-                    magicPos = (b == MAGIC[0]) ? 1 : 0;
-                    if (magicPos == 0) state = State::IDLE;
-                }
-                break;
-
-            // ----------------------------------------------------------------
-            case State::HEADER:
-                headerBuf[headerPos++] = b;
-                if (headerPos == 4) {
-                    firmwareSize = (uint32_t)headerBuf[0]
-                                 | ((uint32_t)headerBuf[1] << 8)
-                                 | ((uint32_t)headerBuf[2] << 16)
-                                 | ((uint32_t)headerBuf[3] << 24);
-
-                    if (firmwareSize == 0 || firmwareSize > MAX_FIRMWARE_SIZE) {
-                        replyError("invalid size");
-                        reset();
-                        break;
-                    }
-
-                    if (flasher->isActive()) {
-                        replyError("flash in progress");
-                        reset();
-                        break;
-                    }
-
-                    outFile = SPIFFS.open(FIRMWARE_PATH, "w");
-                    if (!outFile) {
-                        replyError("SPIFFS open failed");
-                        reset();
-                        break;
-                    }
-
-                    bytesWritten = 0;
-                    runningCrc   = 0xFFFF;
-                    Serial.println("READY");
-                    state = State::DATA;
-                }
-                break;
-
-            // ----------------------------------------------------------------
-            case State::DATA:
-                outFile.write(b);
-                runningCrc = crc16Update(runningCrc, b);
-                bytesWritten++;
-
-                if (bytesWritten == firmwareSize) {
-                    outFile.close();
-                    crcPos = 0;
-                    state  = State::CRC_BYTES;
-                }
-                break;
-
-            // ----------------------------------------------------------------
-            case State::CRC_BYTES:
-                crcBuf[crcPos++] = b;
-                if (crcPos == 2) {
-                    uint16_t receivedCrc = (uint16_t)crcBuf[0]
-                                        | ((uint16_t)crcBuf[1] << 8);
-
-                    if (receivedCrc != runningCrc) {
-                        replyError("CRC mismatch");
-                        reset();
-                        break;
-                    }
-
-                    flasher->startFlashing(FIRMWARE_PATH);
-
-                    if (flasher->getStatus().hasError) {
-                        replyError(flasher->getStatus().errorMsg);
-                    } else {
-                        replyOk();
-                    }
-
-                    reset();
-                }
-                break;
+        if (b == MAGIC[magicPos]) {
+            magicPos++;
+            if (magicPos == 4) {
+                headerPos = 0;
+                state     = State::HEADER;
+                receiveBlocking();
+                return;
+            }
+        } else {
+            magicPos = (b == MAGIC[0]) ? 1 : 0;
         }
+    }
+}
+
+void SerialFirmwareReceiver::receiveBlocking()
+{
+    unsigned long deadline = millis() + TRANSFER_TIMEOUT_MS;
+
+    while (state != State::IDLE) {
+        if ((long)(millis() - deadline) > 0) {
+            replyError("timeout");
+            reset();
+            return;
+        }
+
+        if (Serial.available() == 0) {
+            yield();  // feed ESP watchdog; also lets WiFi background tasks run
+            continue;
+        }
+
+        processByte((uint8_t)Serial.read());
+    }
+}
+
+void SerialFirmwareReceiver::processByte(uint8_t b)
+{
+    switch (state) {
+
+        // ----------------------------------------------------------------
+        case State::HEADER:
+            headerBuf[headerPos++] = b;
+            if (headerPos == 4) {
+                firmwareSize = (uint32_t)headerBuf[0]
+                             | ((uint32_t)headerBuf[1] << 8)
+                             | ((uint32_t)headerBuf[2] << 16)
+                             | ((uint32_t)headerBuf[3] << 24);
+
+                if (firmwareSize == 0 || firmwareSize > MAX_FIRMWARE_SIZE) {
+                    replyError("invalid size");
+                    reset();
+                    break;
+                }
+
+                if (flasher->isActive()) {
+                    replyError("flash in progress");
+                    reset();
+                    break;
+                }
+
+                outFile = SPIFFS.open(FIRMWARE_PATH, "w");
+                if (!outFile) {
+                    replyError("SPIFFS open failed");
+                    reset();
+                    break;
+                }
+
+                bytesWritten = 0;
+                runningCrc   = 0xFFFF;
+                Serial.println("READY");
+                state = State::DATA;
+            }
+            break;
+
+        // ----------------------------------------------------------------
+        case State::DATA:
+            outFile.write(b);
+            runningCrc = crc16Update(runningCrc, b);
+            bytesWritten++;
+
+            if (bytesWritten == firmwareSize) {
+                outFile.close();
+                crcPos = 0;
+                state  = State::CRC_BYTES;
+            }
+            break;
+
+        // ----------------------------------------------------------------
+        case State::CRC_BYTES:
+            crcBuf[crcPos++] = b;
+            if (crcPos == 2) {
+                uint16_t receivedCrc = (uint16_t)crcBuf[0]
+                                    | ((uint16_t)crcBuf[1] << 8);
+
+                if (receivedCrc != runningCrc) {
+                    replyError("CRC mismatch");
+                    reset();
+                    break;
+                }
+
+                flasher->startFlashing(FIRMWARE_PATH);
+
+                if (flasher->getStatus().hasError) {
+                    replyError(flasher->getStatus().errorMsg);
+                } else {
+                    replyOk();
+                }
+
+                reset();
+            }
+            break;
+
+        default:
+            break;
     }
 }
 

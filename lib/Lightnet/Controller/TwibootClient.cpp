@@ -8,19 +8,18 @@ bool TwibootClient::connect(uint8_t address, ChipInfo *info,
                              uint8_t maxRetries, uint16_t retryDelayMs)
 {
     for (uint8_t attempt = 0; attempt < maxRetries; attempt++) {
-        uint8_t arg = ARG_BOOTLOADER;
-        uint8_t err = sendCmd(address, CMD_SWITCH_APPLICATION, &arg, 1);
+        // CMD_WAIT (0x00) aborts the boot countdown and verifies the bootloader
+        // is listening. Do NOT use CMD_SWITCH_APPLICATION + BOOTTYPE_BOOTLOADER
+        // (0x01 0x00) — the fork interprets that as "enter bootloader from app",
+        // which writes EEPROM[510]=0xB007 and triggers another WDT reset → bootloop.
+        uint8_t err = sendCmd(address, CMD_WAIT, nullptr, 0);
 
         if (err == 0) {
             PRINTF("[TWIBOOT] connected @ 0x%02X (attempt %d)\n", address, attempt + 1);
-
             if (info) {
                 info->pageSize  = PAGE_SIZE;
                 info->flashSize = 28 * 1024;
-                // Read 2 info bytes twiboot makes available after a successful write
-                Wire.requestFrom(address, (uint8_t)2);
-                info->bootloaderVersion = Wire.available() ? Wire.read() : 0;
-                if (Wire.available()) Wire.read();  // discard second byte
+                info->bootloaderVersion = 0;
             }
             return true;
         }
@@ -107,39 +106,43 @@ bool TwibootClient::startApp(uint8_t address)
 
 bool TwibootClient::writePage(uint8_t address, uint16_t byteAddr, const uint8_t *data)
 {
-    uint16_t offset = 0;
+    // The fork streams any-size chunks; it auto-commits a flash page when the
+    // write address crosses a SPM_PAGESIZE (128-byte) boundary on STOP.
+    // We send the page as two 64-byte chunks (4 header + 64 data = 68 bytes each),
+    // which fits within the default 128-byte Wire TX buffer with no buffer hacks.
+    //
+    //   SLA+W, 0x02, 0x01, addrH, addrL, {64 bytes}, STO  <- chunk 0
+    //   SLA+W, 0x02, 0x01, addrH, addrL+64, {64 bytes}, STO  <- chunk 1 → triggers page write
+    static const uint8_t CHUNK = 64;
 
-    while (offset < PAGE_SIZE) {
-        uint8_t  chunkSize = (uint8_t)min((uint16_t)MAX_CHUNK_DATA,
-                                          (uint16_t)(PAGE_SIZE - offset));
-        uint16_t chunkAddr = byteAddr + offset;
+    for (uint8_t c = 0; c < PAGE_SIZE / CHUNK; c++) {
+        uint16_t chunkAddr = byteAddr + (uint16_t)c * CHUNK;
 
         Wire.beginTransmission(address);
-        Wire.write(CMD_WRITE_FLASH);
+        Wire.write(CMD_ACCESS_MEMORY);
+        Wire.write(MEMTYPE_FLASH);
         Wire.write((uint8_t)(chunkAddr >> 8));
         Wire.write((uint8_t)(chunkAddr & 0xFF));
-        Wire.write(data + offset, chunkSize);
+        Wire.write(data + c * CHUNK, CHUNK);
 
         uint8_t err = Wire.endTransmission();
         if (err != 0) {
-            PRINTF("[TWIBOOT] writePage NACK at offset %u (err=%d)\n", offset, err);
+            PRINTF("[TWIBOOT] writePage chunk %d err=%d @ 0x%04X\n", c, err, chunkAddr);
             return false;
         }
 
-        offset += chunkSize;
-        delay(1);  // brief pause between chunks
+        delay(10);  // bootloader processes chunk; last chunk triggers SPM (~4.5 ms)
     }
 
-    // twiboot commits when its 128-byte buffer is full; SPM takes ~4.5 ms
-    delay(6);
     return true;
 }
 
 bool TwibootClient::readPage(uint8_t address, uint16_t byteAddr, uint8_t *buf)
 {
-    // Set read address
+    // Set read address: SLA+W, 0x02 (CMD_ACCESS_MEMORY), 0x01 (MEMTYPE_FLASH), addrH, addrL, STO
     Wire.beginTransmission(address);
-    Wire.write(CMD_READ_FLASH);
+    Wire.write(CMD_ACCESS_MEMORY);
+    Wire.write(MEMTYPE_FLASH);
     Wire.write((uint8_t)(byteAddr >> 8));
     Wire.write((uint8_t)(byteAddr & 0xFF));
     if (Wire.endTransmission() != 0) return false;
