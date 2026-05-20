@@ -1,8 +1,10 @@
 #include "MessageHandler.hpp"
 
-MessageHandler::MessageHandler(MessageServer *messageServer, PanelsController *panelsController) :
+MessageHandler::MessageHandler(MessageServer *messageServer, PanelsController *panelsController,
+                                Lightnet::AnimationScheduler *_animScheduler) :
     messageServer(messageServer),
-    panelsController(panelsController)
+    panelsController(panelsController),
+    animScheduler(_animScheduler)
 {
 }
 
@@ -83,6 +85,10 @@ uint8_t MessageHandler::handleCommand(MessageApi::PacketMeta *command, uint16_t 
 
         case MessageApi::GET_EDGES_LIST:
             error = this->cmdGetEdgesList(clientId);
+            break;
+
+        case MessageApi::ANIMATION_TRIGGER:
+            error = this->cmdAnimationTrigger((MessageApi::Cmd::AnimationTrigger *)command);
             break;
     }
 
@@ -221,6 +227,13 @@ uint8_t MessageHandler::cmdGetEdgesList(uint32_t clientId)
 
     this->messageServer->sendMessage(&message->meta);
 
+    return 0;
+}
+
+uint8_t MessageHandler::cmdAnimationTrigger(MessageApi::Cmd::AnimationTrigger *command)
+{
+    if (!animScheduler) return 1;
+    animScheduler->triggerGroup(command->groupId, command->value);
     return 0;
 }
 

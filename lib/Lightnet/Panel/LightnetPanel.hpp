@@ -89,6 +89,11 @@ class LightnetPanel
         void handleAnimationControl(Protocol::PacketAnimationControl *packet);
         void handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet);
 
+        // Appearance handlers (palette / base colors / global brightness)
+        void handleSetPalette(Protocol::PacketSetPalette *packet);
+        void handleSetBaseColors(Protocol::PacketSetBaseColors *packet);
+        void handleSetGlobalBrightness(Protocol::PacketSetGlobalBrightness *packet);
+
         void handleEnterBootloader(Protocol::PacketEnterBootloader *packet);
 
         void onPacketReceived(Protocol::PacketMeta *packet, int size);

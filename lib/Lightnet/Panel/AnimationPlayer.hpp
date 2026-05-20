@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include "../Common/AnimationTypes.hpp"
 #include "../Common/Protocol.hpp"
+#include "../Common/Palette.hpp"
+#include "../Common/ColorRef.hpp"
+#include "../Common/LightnetConfig.hpp"
 #include "RGBController.hpp"
 
 namespace Lightnet {
@@ -19,6 +22,12 @@ public:
     void start(uint8_t seq_id, uint8_t group_id);
     void control(uint8_t cmd);
     void updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t transitionMs);
+
+    // Palette + base colors — replaced via PACKET_SET_PALETTE / PACKET_SET_BASE_COLORS.
+    // ColorRef resolution happens at frame time, so these take effect immediately
+    // without disturbing the running animation.
+    void setPalette(const GradientStop* stops, uint8_t count);
+    void setBaseColors(const ::Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
 
     // Called every main loop iteration (internally gated at ~16ms)
     void tick();
@@ -64,6 +73,17 @@ private:
     ::Protocol::ColorRGB       currentColor;
     uint8_t        currentBrightness;
 
+    // Palette + base colors (resolved into ColorRGB when animation references them).
+    // Defaults: 2-stop white→white palette and white/black/black base colors,
+    // so a fresh panel without any SET_PALETTE/SET_BASE_COLORS still produces
+    // sensible output.
+    GradientStop   palette[PALETTE_STOPS];
+    uint8_t        paletteCount;
+    ::Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
+
+    // Resolve a ColorRef against the panel's current palette + base colors.
+    ::Protocol::ColorRGB resolveColorRef(const ColorRef& ref) const;
+
     // Animation evaluation
     void computeFrame(uint16_t elapsed);
     void applyToLED();
@@ -82,6 +102,11 @@ private:
     // Utilities
     uint8_t lerp8(uint8_t a, uint8_t b, uint8_t frac_q8);
     void    rgbLerp(::Protocol::ColorRGB a, ::Protocol::ColorRGB b, uint8_t frac_q8, ::Protocol::ColorRGB* out);
+
+    // Resolve both animation colors (start + end) into RGB for the current frame.
+    // Called at the top of every tick function so palette / base color changes
+    // applied mid-flight take effect on the next frame.
+    void resolveCurrentColors(::Protocol::ColorRGB* outFrom, ::Protocol::ColorRGB* outTo) const;
 };
 
 }  // namespace Lightnet

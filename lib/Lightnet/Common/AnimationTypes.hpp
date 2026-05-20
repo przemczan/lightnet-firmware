@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "Protocol.hpp"
+#include "ColorRef.hpp"
 
 namespace Lightnet {
 
@@ -70,8 +71,8 @@ struct __attribute__((__packed__)) AnimationState {
     uint8_t  transitionMs;   // crossfade duration into this animation (0-255ms)
     uint16_t durationMs;     // animation duration (0=infinite for looping)
     uint16_t startMs;        // millis() snapshot at start
-    ::Protocol::ColorRGB colorFrom;      // start color (3 bytes)
-    ::Protocol::ColorRGB colorTo;        // end color (3 bytes)
+    ColorRef colorFrom;      // 4 B — resolved at frame time against panel's palette/base colors
+    ColorRef colorTo;        // 4 B
     uint8_t  brightnessFrom; // start brightness
     uint8_t  brightnessTo;   // end brightness
     uint8_t  param1;         // type-specific: blink period, decay rate, hue speed, etc.

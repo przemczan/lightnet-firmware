@@ -65,6 +65,11 @@ void RGBController::updateOutputs()
         return;
     }
 
+    // Apply the global brightness multiplier as a final stage on top of the
+    // per-animation brightness value. (a*b + 128) >> 8 is the standard q8 mul
+    // with rounding so brightness 255 × 255 = 255 (not 254).
+    uint8_t effective = (uint8_t)(((uint16_t)this->brightnessValue * this->globalBrightnessValue + 128) >> 8);
+
     if (this->useGammaCorrection) {
         FastLED.showColor(
             CRGB(
@@ -72,11 +77,17 @@ void RGBController::updateOutputs()
             gammaValueG(this->colorValue.g),
             gammaValueB(this->colorValue.b)
             ),
-            this->brightnessValue
+            effective
         );
     } else {
-        FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), this->brightnessValue);
+        FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), effective);
     }
+}
+
+void RGBController::globalBrightness(uint8_t value)
+{
+    this->globalBrightnessValue = value;
+    this->updateOutputs();
 }
 
 bool RGBController::on()

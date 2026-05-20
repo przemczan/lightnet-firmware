@@ -17,6 +17,7 @@ class RGBController
     private:
         Protocol::ColorRGB colorValue = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
         uint8_t brightnessValue = 0xFF;
+        uint8_t globalBrightnessValue = 0xFF;  // applied to every output frame, 0..255
         bool isOn = false;
         CRGB leds[1];
         bool useGammaCorrection = true;
@@ -38,4 +39,6 @@ class RGBController
         void color(Protocol::ColorRGB *color);
         uint8_t brightness();
         void brightness(uint8_t brightness);
+        void globalBrightness(uint8_t value);  // 0..255 multiplier on the final output
+        uint8_t globalBrightness() const { return globalBrightnessValue; }
 };

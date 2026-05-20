@@ -2,11 +2,8 @@
 
 AppServer::AppServer(AsyncWebServer *webServer) : webServer(webServer)
 {
-    #ifdef ARDUINO_ARCH_ESP32
-    SPIFFS.begin(true);
-    #else
-    SPIFFS.begin();
-    #endif
+    // SPIFFS is mounted earlier in main.cpp (after panel discovery, before WiFi)
+    // so PaletteStore/AppearanceStore can read it. No second mount needed here.
 
     webServer->serveStatic("/", SPIFFS, "/app/").setDefaultFile("index.html");
 

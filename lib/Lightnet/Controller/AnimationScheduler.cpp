@@ -24,7 +24,7 @@ void AnimationScheduler::initialize()
 }
 
 void AnimationScheduler::playOnPanels(uint8_t group_id, uint8_t animType, uint8_t flags, uint16_t durationMs,
-                                       const Protocol::ColorRGB& colorFrom, const Protocol::ColorRGB& colorTo,
+                                       const ColorRef& colorFrom, const ColorRef& colorTo,
                                        uint8_t brightnessFrom, uint8_t brightnessTo,
                                        uint8_t param1, uint8_t param2,
                                        const uint8_t* panelAddresses, uint8_t panelCount)
@@ -198,6 +198,79 @@ void AnimationScheduler::sendControlToPanels(uint8_t group_id, uint8_t cmd, cons
     for (uint8_t i = 0; i < panelCount; i++) {
         LNBus.sendPacketAck(panelAddresses[i], &control, sizeof(control), Protocol::PACKET_ANIMATION_CONTROL);
     }
+}
+
+// ============================================================================
+// RGB convenience overload — wraps inline RGB in ColorRefs
+// ============================================================================
+
+void AnimationScheduler::playOnPanels(uint8_t group_id, uint8_t animType, uint8_t flags, uint16_t durationMs,
+                                       const Protocol::ColorRGB& colorFrom, const Protocol::ColorRGB& colorTo,
+                                       uint8_t brightnessFrom, uint8_t brightnessTo,
+                                       uint8_t param1, uint8_t param2,
+                                       const uint8_t* panelAddresses, uint8_t panelCount)
+{
+    ColorRef from = ColorRef_rgb(colorFrom.r, colorFrom.g, colorFrom.b);
+    ColorRef to   = ColorRef_rgb(colorTo.r,   colorTo.g,   colorTo.b);
+    playOnPanels(group_id, animType, flags, durationMs, from, to,
+                 brightnessFrom, brightnessTo, param1, param2,
+                 panelAddresses, panelCount);
+}
+
+// ============================================================================
+// Appearance broadcasts
+// ============================================================================
+
+void AnimationScheduler::broadcastPalette(const GradientStop* stops, uint8_t count)
+{
+    if (count == 0) return;
+    if (count > PALETTE_STOPS) count = PALETTE_STOPS;
+
+    Protocol::PacketSetPalette pkt;
+    Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_PALETTE);
+    pkt.count = count;
+    memset(pkt.stops, 0, sizeof(pkt.stops));
+    for (uint8_t i = 0; i < count; i++) {
+        pkt.stops[i] = stops[i];
+    }
+    // General Call — all panels apply simultaneously.
+    LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_SET_PALETTE);
+}
+
+void AnimationScheduler::unicastPaletteToPanels(const GradientStop* stops, uint8_t count,
+                                                 const uint8_t* panelAddresses, uint8_t panelCount)
+{
+    if (count == 0) return;
+    if (count > PALETTE_STOPS) count = PALETTE_STOPS;
+
+    Protocol::PacketSetPalette pkt;
+    Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_PALETTE);
+    pkt.count = count;
+    memset(pkt.stops, 0, sizeof(pkt.stops));
+    for (uint8_t i = 0; i < count; i++) {
+        pkt.stops[i] = stops[i];
+    }
+    for (uint8_t i = 0; i < panelCount; i++) {
+        LNBus.sendPacketAck(panelAddresses[i], &pkt, sizeof(pkt), Protocol::PACKET_SET_PALETTE);
+    }
+}
+
+void AnimationScheduler::broadcastBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT])
+{
+    Protocol::PacketSetBaseColors pkt;
+    Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_BASE_COLORS);
+    for (uint8_t i = 0; i < BASE_COLORS_COUNT; i++) {
+        pkt.colors[i] = colors[i];
+    }
+    LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_SET_BASE_COLORS);
+}
+
+void AnimationScheduler::broadcastGlobalBrightness(uint8_t value)
+{
+    Protocol::PacketSetGlobalBrightness pkt;
+    Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
+    pkt.value = value;
+    LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
 }
 
 }  // namespace Lightnet

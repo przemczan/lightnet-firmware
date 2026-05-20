@@ -12,6 +12,7 @@
 #include "../Controller/Panel.hpp"
 #include "../Controller/PanelsInitializer.hpp"
 #include "../Controller/PanelsController.hpp"
+#include "../Controller/AnimationScheduler.hpp"
 
 class MessageHandler
 {
@@ -22,6 +23,7 @@ class MessageHandler
     private:
         MessageServer *messageServer;
         PanelsController *panelsController;
+        Lightnet::AnimationScheduler *animScheduler;  // nullable until wired in main
         uint32_t lastLogMs = 0;
 
         uint8_t handleMessage(MessageApi::Internal::Message *message, uint16_t size);
@@ -31,9 +33,12 @@ class MessageHandler
         uint8_t cmdSetColor(MessageApi::Cmd::SetColor *command);
         uint8_t cmdGetPanelsStates(uint32_t clientId);
         uint8_t cmdGetEdgesList(uint32_t clientId);
+        uint8_t cmdAnimationTrigger(MessageApi::Cmd::AnimationTrigger *command);
         uint8_t validateCommand(void *data, uint16_t size);
 
     public:
-        MessageHandler(MessageServer *messageServer, PanelsController *panelsController);
+        MessageHandler(MessageServer *messageServer, PanelsController *panelsController,
+                       Lightnet::AnimationScheduler *animScheduler = nullptr);
+        void setAnimationScheduler(Lightnet::AnimationScheduler *s) { animScheduler = s; }
         void handleIncommingMessages();
 };

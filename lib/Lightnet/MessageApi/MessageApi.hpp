@@ -24,6 +24,7 @@ namespace MessageApi
         GET_PANELS_STATES = 5,
         PANELS_STATES = 6,
         EDGES_LIST = 7,
+        ANIMATION_TRIGGER = 8,    // low-latency reactive trigger for music sync
     };
 
     typedef struct PACK {
@@ -70,6 +71,14 @@ namespace MessageApi
             uint8_t address;
             ColorRGB color;
         } SetColor;
+
+        // Low-latency trigger for REACTIVE animations. Broadcasts a peak value
+        // to a group via I²C General Call (handled by AnimationScheduler::triggerGroup).
+        typedef struct PACK {
+            PacketMeta meta;
+            uint8_t groupId;
+            uint8_t value;
+        } AnimationTrigger;
     }
 
     namespace Rsp {

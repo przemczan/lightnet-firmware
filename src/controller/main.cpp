@@ -40,6 +40,9 @@ MessageServer *messageServer;
 MessageHandler *messageHandler;
 AppServer *appServer;
 Lightnet::AnimationScheduler *animScheduler = nullptr;
+Lightnet::PaletteStore       *paletteStore  = nullptr;
+Lightnet::AppearanceStore    *appearance    = nullptr;
+Lightnet::AnimationServer    *animServer    = nullptr;
 TwibootClient          *twibootClient    = nullptr;
 PanelFlasher           *panelFlasher     = nullptr;
 FirmwareUpdateServer   *fwUpdateServer   = nullptr;
@@ -171,7 +174,7 @@ void setupWiFi()
     webServer->begin();
     
     messageServer = new MessageServer(webServer);
-    messageHandler = new MessageHandler(messageServer, panelsController);
+    messageHandler = new MessageHandler(messageServer, panelsController, animScheduler);
     appServer = new AppServer(webServer);
     
     setupMDNS();
@@ -249,6 +252,20 @@ void loop()
 
                 animScheduler = new Lightnet::AnimationScheduler();
                 animScheduler->initialize();
+
+                // SPIFFS used to be mounted inside AppServer (in setupWiFi).
+                // Hoist here so PaletteStore/AppearanceStore can read /config/ and
+                // /palettes/ before the WiFi captive portal can block for 30 s.
+                #ifdef ARDUINO_ARCH_ESP32
+                    SPIFFS.begin(true);
+                #else
+                    SPIFFS.begin();
+                #endif
+
+                paletteStore = new Lightnet::PaletteStore();
+                appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
+                appearance->loadAndApply();   // broadcasts brightness, base colors, palette to panels
+
 #if DEMO_ENABLED
                 {
                     uint16_t count = LNPanelsInitializer.getPanels()->getSize();
@@ -260,6 +277,9 @@ void loop()
 #endif
 
                 setupWiFi();
+
+                animServer = new Lightnet::AnimationServer(*webServer, *appearance, *paletteStore);
+                animServer->begin();
                 break;
 
             case 1:
@@ -270,6 +290,7 @@ void loop()
                 if (serialFwReceiver) serialFwReceiver->run();
                 if (panelFlasher) panelFlasher->run();
                 messageHandler->handleIncommingMessages();
+                if (animScheduler) animScheduler->tick(millis());   // drives controller-computed runners
 #if DEMO_ENABLED
                 runDemos();
 #endif

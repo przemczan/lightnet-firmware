@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "../Common/Protocol.hpp"
+#include "../Common/LightnetConfig.hpp"
 
 namespace Lightnet {
 
@@ -53,7 +54,7 @@ public:
     bool isFinished() const override;
 
 private:
-    static const uint8_t MAX_PANELS = 100;
+    static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
     uint8_t  panelAddresses[MAX_PANELS];
     uint8_t  lastBrightness[MAX_PANELS];  // per-instance delta cache (not static!)
     uint8_t  panelCount;
@@ -81,7 +82,7 @@ public:
     bool isFinished() const override;
 
 private:
-    static const uint8_t MAX_PANELS = 30;
+    static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
     uint8_t  panelAddresses[MAX_PANELS];
     uint8_t  lastBrightness[MAX_PANELS];
     uint8_t  panelCount;
@@ -107,7 +108,7 @@ public:
     bool isFinished() const override;
 
 private:
-    static const uint8_t MAX_PANELS = 30;
+    static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
     uint8_t  panelAddresses[MAX_PANELS];
     uint8_t  lastBrightness[MAX_PANELS];
     uint8_t  panelCount;

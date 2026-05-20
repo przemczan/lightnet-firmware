@@ -296,6 +296,18 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             this->handleAnimationUpdateParams((Protocol::PacketAnimationUpdateParams *)packet);
             break;
 
+        case Protocol::PACKET_SET_PALETTE:
+            this->handleSetPalette((Protocol::PacketSetPalette *)packet);
+            break;
+
+        case Protocol::PACKET_SET_BASE_COLORS:
+            this->handleSetBaseColors((Protocol::PacketSetBaseColors *)packet);
+            break;
+
+        case Protocol::PACKET_SET_GLOBAL_BRIGHTNESS:
+            this->handleSetGlobalBrightness((Protocol::PacketSetGlobalBrightness *)packet);
+            break;
+
         case Protocol::PACKET_RESET_DEVICE:
             digitalWrite(6, 1);
             delay(10);
@@ -487,6 +499,27 @@ void LightnetPanel::handleEnterBootloader(Protocol::PacketEnterBootloader *packe
     BootloaderBridge::prepareAndReset(this->index);
     // execution never reaches here
 #endif
+}
+
+// ============================================================================
+// Appearance Handlers (palette / base colors / global brightness)
+// ============================================================================
+
+void LightnetPanel::handleSetPalette(Protocol::PacketSetPalette *packet)
+{
+    this->animPlayer.setPalette(packet->stops, packet->count);
+}
+
+void LightnetPanel::handleSetBaseColors(Protocol::PacketSetBaseColors *packet)
+{
+    this->animPlayer.setBaseColors(packet->colors);
+}
+
+void LightnetPanel::handleSetGlobalBrightness(Protocol::PacketSetGlobalBrightness *packet)
+{
+    if (this->rgbController) {
+        this->rgbController->globalBrightness(packet->value);
+    }
 }
 
 LightnetPanel LNPanel;

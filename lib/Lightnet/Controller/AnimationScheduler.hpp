@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include "../Common/AnimationTypes.hpp"
 #include "../Common/LightnetBus.hpp"
+#include "../Common/LightnetConfig.hpp"
+#include "../Common/ColorRef.hpp"
+#include "../Common/Palette.hpp"
 #include "../Utils/List.hpp"
 
 namespace Lightnet {
@@ -22,18 +25,34 @@ struct AnimationRecord {
 
 class AnimationScheduler {
 public:
-    AnimationScheduler(uint8_t maxPanels = 30);
+    AnimationScheduler(uint8_t maxPanels = LIGHTNET_MAX_PANELS);
     ~AnimationScheduler();
 
     // Setup
     void initialize();
 
-    // High-level animation control
+    // High-level animation control (ColorRef form — panels resolve at frame time)
+    void playOnPanels(uint8_t group_id, uint8_t animType, uint8_t flags, uint16_t durationMs,
+                      const ColorRef& colorFrom, const ColorRef& colorTo,
+                      uint8_t brightnessFrom, uint8_t brightnessTo,
+                      uint8_t param1, uint8_t param2,
+                      const uint8_t* panelAddresses, uint8_t panelCount);
+
+    // Convenience overload — wraps RGB values in inline ColorRefs
     void playOnPanels(uint8_t group_id, uint8_t animType, uint8_t flags, uint16_t durationMs,
                       const Protocol::ColorRGB& colorFrom, const Protocol::ColorRGB& colorTo,
                       uint8_t brightnessFrom, uint8_t brightnessTo,
                       uint8_t param1, uint8_t param2,
                       const uint8_t* panelAddresses, uint8_t panelCount);
+
+    // Appearance broadcast helpers — used by AppearanceStore and ScenePlayer
+    void broadcastPalette(const GradientStop* stops, uint8_t count);
+    void broadcastBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
+    void broadcastGlobalBrightness(uint8_t value);
+
+    // Unicast variant for per-layer palette overrides
+    void unicastPaletteToPanels(const GradientStop* stops, uint8_t count,
+                                 const uint8_t* panelAddresses, uint8_t panelCount);
 
     void stopGroup(uint8_t group_id);
     void pauseGroup(uint8_t group_id);

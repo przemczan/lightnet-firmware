@@ -8,10 +8,67 @@ AnimationPlayer::AnimationPlayer()
       transitionMs(0), durationMs(0), startMs(0), paused(false), pausedElapsedMs(0),
       lastStartSeqId(0xFF), lastParamsSeqId(0xFF),
       reactiveLevel(0), reactiveDecayRate(0), reactiveTriggerMs(0),
-      rgbController(nullptr), lastTickMs(0)
+      rgbController(nullptr), lastTickMs(0), paletteCount(2)
 {
     currentColor = {0, 0, 0};
     currentBrightness = 0;
+
+    // Default palette: white at both ends so any palette-position lookup returns white
+    // until the controller pushes a real palette.
+    palette[0] = { 0,   0xFF, 0xFF, 0xFF };
+    palette[1] = { 255, 0xFF, 0xFF, 0xFF };
+
+    // Default base colors: white / black / black.
+    baseColors[0] = { 0xFF, 0xFF, 0xFF };
+    baseColors[1] = { 0x00, 0x00, 0x00 };
+    baseColors[2] = { 0x00, 0x00, 0x00 };
+}
+
+void AnimationPlayer::setPalette(const GradientStop* stops, uint8_t count)
+{
+    if (count == 0) return;
+    if (count > PALETTE_STOPS) count = PALETTE_STOPS;
+    for (uint8_t i = 0; i < count; i++) {
+        palette[i] = stops[i];
+    }
+    paletteCount = count;
+}
+
+void AnimationPlayer::setBaseColors(const ::Protocol::ColorRGB colors[BASE_COLORS_COUNT])
+{
+    for (uint8_t i = 0; i < BASE_COLORS_COUNT; i++) {
+        baseColors[i] = colors[i];
+    }
+}
+
+::Protocol::ColorRGB AnimationPlayer::resolveColorRef(const ColorRef& ref) const
+{
+    switch (ref.kind) {
+        case COLORREF_RGB:
+            return ::Protocol::ColorRGB{ ref.rgb.r, ref.rgb.g, ref.rgb.b };
+
+        case COLORREF_PALETTE: {
+            ::Protocol::ColorRGB out;
+            samplePalette(palette, paletteCount, ref.palette.pos, &out.r, &out.g, &out.b);
+            return out;
+        }
+
+        case COLORREF_USE_COLOR: {
+            uint8_t slot = ref.useColor.slot;
+            if (slot >= BASE_COLORS_COUNT) slot = 0;
+            return baseColors[slot];
+        }
+
+        default:
+            return ::Protocol::ColorRGB{ 0xFF, 0xFF, 0xFF };
+    }
+}
+
+void AnimationPlayer::resolveCurrentColors(::Protocol::ColorRGB* outFrom, ::Protocol::ColorRGB* outTo) const
+{
+    const AnimationState& anim = queue[queueHead];
+    *outFrom = resolveColorRef(anim.colorFrom);
+    *outTo   = resolveColorRef(anim.colorTo);
 }
 
 // ============================================================================
@@ -86,9 +143,17 @@ void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id)
             pausedElapsedMs = 0;
 
             // Resolve FLAG_CURRENT_* — substitute live LED state for ignored fields.
+            // The live color becomes an inline RGB ColorRef so resolveColorRef returns
+            // it as-is without further indirection.
             if (rgbController) {
-                if (anim.flags & FLAG_CURRENT_COLOR_FROM)      anim.colorFrom      = rgbController->color();
-                if (anim.flags & FLAG_CURRENT_COLOR_TO)        anim.colorTo        = rgbController->color();
+                if (anim.flags & FLAG_CURRENT_COLOR_FROM) {
+                    ::Protocol::ColorRGB c = rgbController->color();
+                    anim.colorFrom = ColorRef_rgb(c.r, c.g, c.b);
+                }
+                if (anim.flags & FLAG_CURRENT_COLOR_TO) {
+                    ::Protocol::ColorRGB c = rgbController->color();
+                    anim.colorTo = ColorRef_rgb(c.r, c.g, c.b);
+                }
                 if (anim.flags & FLAG_CURRENT_BRIGHTNESS_FROM) anim.brightnessFrom = rgbController->brightness();
                 if (anim.flags & FLAG_CURRENT_BRIGHTNESS_TO)   anim.brightnessTo   = rgbController->brightness();
             }
@@ -227,7 +292,7 @@ void AnimationPlayer::computeFrame(uint16_t elapsed)
     switch (animType) {
         case ANIM_SOLID:
             // Already set via colorTo/brightnessTo in PREPARE
-            currentColor = queue[queueHead].colorTo;
+            currentColor = resolveColorRef(queue[queueHead].colorTo);
             currentBrightness = queue[queueHead].brightnessTo;
             break;
 
@@ -284,7 +349,7 @@ void AnimationPlayer::tickFade(uint16_t elapsed)
         progress_q8 = 255;
     }
 
-    currentColor = anim.colorTo;  // color doesn't change in FADE
+    currentColor = resolveColorRef(anim.colorTo);  // color doesn't change in FADE
     currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, progress_q8);
 }
 
@@ -300,7 +365,9 @@ void AnimationPlayer::tickTransition(uint16_t elapsed)
         progress_q8 = 255;
     }
 
-    rgbLerp(anim.colorFrom, anim.colorTo, progress_q8, &currentColor);
+    ::Protocol::ColorRGB cFrom, cTo;
+    resolveCurrentColors(&cFrom, &cTo);
+    rgbLerp(cFrom, cTo, progress_q8, &currentColor);
     currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, progress_q8);
 }
 
@@ -314,22 +381,16 @@ void AnimationPlayer::tickBreathe(uint16_t elapsed)
     uint16_t half = durationMs / 2;
     if (half == 0) return;
 
-    // phase_q8: 0 at start/end, 255 at midpoint.
-    // Use *255 (not *256) so the result never overflows uint8_t at t==half.
     uint8_t phase_q8 = (t <= half)
         ? (uint8_t)((uint32_t)t * 255 / half)
         : (uint8_t)(((uint32_t)(durationMs - t) * 255) / half);
 
-    // Parabolic easing: ease = 1 - (1-phase)^2, all in q8 fixed-point.
-    // inv and inv_sq stay in uint8_t — no overflow possible.
     uint8_t inv    = (uint8_t)(255 - phase_q8);
     uint8_t inv_sq = (uint8_t)(((uint16_t)inv * inv) >> 8);
     uint8_t ease   = (uint8_t)(255 - inv_sq);
 
-    // lerp8 handles From > To correctly (direct arithmetic promotes to int and
-    // wraps on unsigned, giving garbage when brightnessTo < brightnessFrom).
     currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, ease);
-    currentColor = anim.colorTo;
+    currentColor = resolveColorRef(anim.colorTo);
 }
 
 void AnimationPlayer::tickPulse(uint16_t elapsed)
@@ -359,7 +420,7 @@ void AnimationPlayer::tickPulse(uint16_t elapsed)
         progress_q8 = 255 - (uint8_t)((uint32_t)fall_elapsed * 256 / (fall_duration + 1));
     }
 
-    currentColor = anim.colorTo;
+    currentColor = resolveColorRef(anim.colorTo);
     currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, progress_q8);
 }
 
@@ -372,7 +433,7 @@ void AnimationPlayer::tickBlink(uint16_t elapsed)
     uint16_t phase = elapsed % (period_ms * 2);
     bool on = (phase < period_ms);
 
-    currentColor = anim.colorTo;
+    currentColor = resolveColorRef(anim.colorTo);
     currentBrightness = on ? anim.brightnessTo : anim.brightnessFrom;
 }
 
@@ -411,7 +472,7 @@ void AnimationPlayer::tickStrobe(uint16_t elapsed)
     uint16_t period_ms = 1000 / hz;
     bool on = (elapsed % period_ms) < (period_ms / 2);
 
-    currentColor = anim.colorTo;
+    currentColor = resolveColorRef(anim.colorTo);
     currentBrightness = on ? anim.brightnessTo : 0;
 }
 
@@ -427,10 +488,9 @@ void AnimationPlayer::tickReactive(uint16_t elapsed)
     }
 
     // Blend base color toward peak based on reactiveLevel.
-    // Use lerp8/rgbLerp: direct arithmetic (e.g. colorTo.r - colorFrom.r) promotes
-    // to signed int, making the subtraction negative when To < From, and (uint32_t)
-    // of a negative int wraps to ~4 billion — producing garbage output.
-    rgbLerp(anim.colorFrom, anim.colorTo, reactiveLevel, &currentColor);
+    ::Protocol::ColorRGB cFrom, cTo;
+    resolveCurrentColors(&cFrom, &cTo);
+    rgbLerp(cFrom, cTo, reactiveLevel, &currentColor);
     currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, reactiveLevel);
 }
 
