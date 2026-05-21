@@ -1,16 +1,23 @@
 #pragma once
-
 #ifdef LIGHTNET_TARGET_CONTROLLER
-#ifdef DEMO_ENABLED
+#if DEMO_ENABLED
 
-extern uint8_t DEMO_PANELS;
-extern uint8_t demoPanelAddrs[30];
+#include "demo/DemoRunner.hpp"
 
-// Declared in main.cpp — polls ArduinoOTA and SerialFirmwareReceiver for ms
-// milliseconds so the main loop stays responsive during demo animation delays.
-void backgroundTick(uint32_t ms);
+// Thin main-facing interface. The DemoRunner instance lives in demo.cpp.
 
+// Create the DemoRunner, seed demo scene files on SPIFFS if missing.
+// Call once in case 0, after SPIFFS.begin() and service construction.
+void initDemos(Lightnet::AnimationService&   animService,
+               Lightnet::SceneStore&         sceneStore,
+               Lightnet::ScenePlayer&        scenePlayer,
+               Lightnet::AnimationScheduler& scheduler,
+               PanelsController&             panels,
+               PanelsInitializer&            initializer);
+
+// Run the next demo in the rotation. Blocks until it completes.
+// Call from the main loop (case 1).
 void runDemos();
 
-#endif // DEMO_ENABLED
-#endif // LIGHTNET_TARGET_CONTROLLER
+#endif  // DEMO_ENABLED
+#endif  // LIGHTNET_TARGET_CONTROLLER

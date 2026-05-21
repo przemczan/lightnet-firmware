@@ -221,7 +221,7 @@ All `PUT` endpoints persist to `/config/appearance.json` atomically and broadcas
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `GET` | `/api/palettes` | — | `["rainbow","lava","ocean",...]` |
-| `GET` | `/api/palettes/:name` | — | Palette JSON (file passthrough) |
+| `GET` | `/api/palettes/:name` | — | Palette JSON (synthesized from stored stops; `"userColors"` is built from current base colours) |
 | `POST` | `/api/palettes` | Palette JSON | `{}` |
 | `DELETE` | `/api/palettes/:name` | — | `403` if built-in |
 
@@ -245,32 +245,24 @@ Palette JSON format:
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `POST` | `/api/scenes` | Scene JSON | `{}` — saves to `/scenes/<name>.json` |
-| `GET` | `/api/scenes` | — | `[{"name":"sunset"},...]` |
+| `GET` | `/api/scenes` | — | `[{"name":"sunset","size":412},...]` |
 | `GET` | `/api/scenes/:name` | — | Scene JSON (file passthrough) |
 | `DELETE` | `/api/scenes/:name` | — | `{}` |
 
-Scene names: 1–19 chars, `[a-zA-Z0-9_-]`.
+Scene names: 1–18 chars, `[a-zA-Z0-9_-]`. (18-char limit keeps the SPIFFS path `/scenes/<name>.json` within the 31-character filesystem limit.)
 
 #### Playback
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes/play` | Scene JSON **or** `{"name":"sunset"}` | `{}` |
-| `POST` | `/api/scenes/:name/play` | — | `{}` |
+| `POST` | `/api/scenes/play` | Full scene JSON body (inline play, not saved) | `{}` |
+| `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `{}` |
 | `POST` | `/api/scenes/stop` | — | `{}` |
 | `GET` | `/api/scenes/status` | — | See below |
 
 Status response while playing:
 ```json
-{
-  "playing": true,
-  "name": "sunset",
-  "loop": true,
-  "layers": [
-    {"group": 1, "step": 0, "total": 2},
-    {"group": 2, "step": 1, "total": 3}
-  ]
-}
+{"playing": true, "scene": "sunset", "loop": true, "layers": 2}
 ```
 
 Status when idle: `{"playing": false}`
@@ -285,6 +277,8 @@ Status when idle: `{"playing": false}`
 
 Plays a single-layer animation directly without saving to SPIFFS. Use this for notifications that overlay an ambient scene on a free group ID.
 
+The body is a **flat object** — step fields (`type`/`runner`, `color`, `duration`, `params`, etc.) sit at the root level alongside `group` and `panels`. There is no `"sequence"` wrapper.
+
 ```http
 POST /api/animations/play
 Content-Type: application/json
@@ -292,13 +286,16 @@ Content-Type: application/json
 {
   "group": 250,
   "panels": "all",
-  "sequence": [
-    {"type": "PULSE", "color": "#FF0000", "brightnessFrom": 0, "brightnessTo": 255,
-     "duration": 600, "params": [64, 128, 64]},
-    {"type": "FADE", "color": "#FF0000", "brightnessTo": 0, "duration": 400}
-  ]
+  "type": "PULSE",
+  "color": "#FF0000",
+  "brightnessFrom": 0,
+  "brightnessTo": 255,
+  "duration": 600,
+  "params": [64, 128, 64]
 }
 ```
+
+For chained steps (e.g. pulse → fade-out), use `POST /api/scenes/play` with a full scene body containing one layer with the desired sequence, and a free group ID.
 
 Response: `200 {}`
 
@@ -375,10 +372,11 @@ On error, the response includes an additional `"error"` string field.
 |---|---|
 | `200 {}` | Success |
 | `404 {"error":"not_found"}` | Named scene or palette does not exist |
-| `409 {"error":"..."}` | Conflict — flash already running, or schema version mismatch |
+| `409 {"error":"..."}` | Conflict — flash already running, or scene schema version too new for this firmware |
 | `422 {"error":"..."}` | Validation failure — the request body is invalid; no state was changed |
 | `403 {"error":"..."}` | Operation not permitted (e.g. deleting a built-in palette) |
-| `507 {"error":"..."}` | Insufficient storage on SPIFFS |
+| `500 {"error":"..."}` | SPIFFS read/write failed |
+| `507 {"error":"..."}` | Insufficient storage (firmware upload endpoint only) |
 
 ### WebSocket
 

@@ -20,7 +20,15 @@ enum AnimationType : uint8_t {
     ANIM_HUE_CYCLE   = 6,  // rotate through hues
     ANIM_STROBE      = 7,  // binary flash at frequency
     ANIM_REACTIVE    = 8,  // trigger-based decay (music beats)
+
+    // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
+    // to AnimationScheduler::addRunner(). Not sent to panels directly.
+    RUN_WAVE         = 64,
+    RUN_RIPPLE       = 65,
+    RUN_CHASE        = 66,
 };
+
+inline bool isRunnerType(uint8_t t) { return t >= 64; }
 
 // ============================================================================
 // Animation Flags (bitfield)

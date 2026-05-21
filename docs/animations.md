@@ -88,7 +88,7 @@ These are persisted in `/config/appearance.json` and restored on every boot. The
 }
 ```
 
-When a scene loads with its own `"colors"` and `"palette"` fields, those values overwrite the active appearance and are persisted. Stopping a scene does **not** revert the appearance — the last-applied values remain.
+Playing a scene does **not** change or persist the global appearance state. The scene's `"colors"` and `"palette"` fields define the colour context for that scene's animations (resolving `{"useColor":N}` and `{"palette":N}` references), but they never write to `/config/appearance.json`. To change the persistent appearance alongside a scene play, call the appearance endpoints explicitly before or after.
 
 ### HTTP endpoints
 
@@ -172,8 +172,10 @@ This is the default palette for new scenes — if no `"palette"` field is specif
 ### Palette HTTP API
 
 ```http
-GET    /api/palettes               → ["rainbow","lava","ocean","forest","party","sunset","aurora","embers","userColors",...]
-GET    /api/palettes/:name         → palette JSON
+GET    /api/palettes               → ["userColors","rainbow","lava","ocean","forest","party","sunset","aurora","embers"]
+                                      (+ any user-defined palettes stored on SPIFFS)
+GET    /api/palettes/:name         → palette JSON (synthesized from stored gradient stops;
+                                      "userColors" is built from the current base colours at request time)
 POST   /api/palettes               body: palette JSON  → saves to /palettes/<name>.json
 DELETE /api/palettes/:name         → 403 if built-in, 200 otherwise
 ```
@@ -191,7 +193,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 }
 ```
 
-**Constraint**: panels with a per-layer palette override must not overlap with any other layer that uses a different palette. The controller validates this at scene-save time and returns `422` if violated, because each panel stores only one palette at a time.
+**Constraint**: each panel stores only one active palette at a time. If two layers with different effective palettes target the same panel, the last palette sent wins and the other layer will see wrong colours. The parser does not currently enforce non-overlap at save time — avoid overlapping panel sets when using layer palette overrides.
 
 ---
 
@@ -254,7 +256,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version. |
-| `name` | No | — | 1–19 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. |
+| `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. (18-char limit keeps the SPIFFS path within the 31-character filesystem limit.) |
 | `loop` | No | `false` | When `true`, all layers restart from step 0 after their last step completes. |
 | `colors` | No | white/black/black | Scene's base colours for `userColors` palette and `{"useColor":N}` references. |
 | `palette` | No | `"userColors"` | Active palette for all layers that don't have their own override. |
@@ -551,16 +553,16 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/scenes/play` | Scene JSON body (inline play, not saved) or `{"name":"sunset"}` (play stored) |
+| `POST` | `/api/scenes/play` | Full scene JSON body — plays inline, not saved to SPIFFS |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) |
 | `POST` | `/api/scenes/stop` | — |
-| `GET` | `/api/scenes/status` | `{"playing":true,"name":"sunset","loop":true,"layers":[{"group":1,"step":0,"total":2},...]}` |
+| `GET` | `/api/scenes/status` | `{"playing":false}` or `{"playing":true,"scene":"sunset","loop":true,"layers":2}` |
 
 ### One-shot / triggers
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/animations/play` | Single-layer scene JSON (no SPIFFS, no scene state, free group ID) |
+| `POST` | `/api/animations/play` | Flat layer object: `{"group":N,"panels":..., "type":"BREATHE","color":"#FF0000","duration":2000}` — see below |
 | `POST` | `/api/animations/trigger` | `{"group":1,"value":200}` — fires a REACTIVE beat |
 
 ### Error responses
@@ -642,20 +644,24 @@ The controller finishes the runner (waits for `durationMs`) before firing the ne
 
 The scene player is single-instance — only one scene plays at a time. Notifications that should appear *over* an ambient scene use a **free group ID** that doesn't conflict with the scene.
 
-Use `POST /api/animations/play` to send a single-layer animation directly, bypassing the scene system:
+Use `POST /api/animations/play` to send a single animation step directly, bypassing the scene system. The body is a **flat object** — all step fields live at the root alongside `group` and `panels`:
 
 ```json
 {
   "group": 250,
   "panels": "all",
-  "sequence": [
-    {"type": "PULSE", "color": "#FF0000", "brightnessFrom": 0, "brightnessTo": 255, "duration": 500, "params": [64, 128, 64]},
-    {"type": "FADE", "color": "#FF0000", "brightnessTo": 0, "duration": 400}
-  ]
+  "type": "PULSE",
+  "color": "#FF0000",
+  "brightnessFrom": 0,
+  "brightnessTo": 255,
+  "duration": 500,
+  "params": [64, 128, 64]
 }
 ```
 
-The notification runs on group 250 while the ambient scene continues on groups 1–N. The panel's AnimationPlayer handles both groups independently. No SPIFFS involved.
+All the same step fields documented in [Section 5](#5-animation-types) and [Section 6](#6-controller-runners) are supported. The notification runs on group 250 while the ambient scene continues on groups 1–N. The panel's AnimationPlayer handles both groups independently. No SPIFFS involved.
+
+For chained steps on a notification (e.g. pulse → fade), use a short scene via `POST /api/scenes/play` with a free group ID instead.
 
 ---
 
@@ -821,7 +827,7 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 
 | Field | Rule |
 |---|---|
-| Scene name | `[a-zA-Z0-9_-]`, 1–19 chars |
+| Scene name | `[a-zA-Z0-9_-]`, 1–18 chars |
 | Layer count | 1–8 |
 | Steps per layer | 1–12 |
 | `group` | 1–254; unique within the scene |
@@ -835,5 +841,5 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 | `params` length | 0–4 |
 | Panel indices | 0–(discovered panel count − 1) |
 | Panel list length | 1–32 per layer |
-| Layer palette override | Layers with different effective palettes must not share any target panel |
+| Layer palette override | Layers with different effective palettes should not share any target panel (not validated at save time — caller's responsibility) |
 | Infinite last step | Only valid when `scene.loop: true` |

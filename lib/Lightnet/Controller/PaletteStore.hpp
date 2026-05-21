@@ -7,34 +7,47 @@
 
 namespace Lightnet {
 
-// Owner of all palette definitions. v1 ships only built-in palettes compiled into
-// flash; user palette CRUD via SPIFFS is a future addition (see animation-system-plan.md).
+// Owner of all palette definitions. Built-in palettes live in flash. User-defined
+// palettes are stored in SPIFFS at /palettes/<name>.json.
 //
 // Special palette names handled outside this store:
 //   "userColors" — synthesized from base colors at use time; not stored here.
-//   "inline"    — handled by ColorRef{kind=0}; not stored here.
 class PaletteStore {
 public:
     PaletteStore();
 
-    // Look up a palette by name. Fills outStops with up to PALETTE_STOPS entries.
-    // Returns true on success, false if no built-in palette matches.
-    // Note: "userColors" is intentionally NOT handled here — the caller (typically
-    // AppearanceStore) must synthesize it from the active base colors.
+    // Look up a palette by name. Checks built-ins first, then SPIFFS.
+    // Fills outStops with up to PALETTE_STOPS entries. Returns true on success.
+    // "userColors" is intentionally NOT handled here — callers must synthesize it.
     bool resolve(const char* name, GradientStop* outStops, uint8_t& outCount) const;
 
-    // True if `name` references a known built-in palette.
+    // True if `name` is a known palette (built-in or user-defined on SPIFFS).
     bool exists(const char* name) const;
 
+    // True if `name` is one of the compiled-in palettes.
+    bool isBuiltIn(const char* name) const;
+
+    // Save a user palette to SPIFFS (/palettes/<name>.json). Overwrites if exists.
+    // Returns false if SPIFFS write fails or name is invalid.
+    bool save(const char* name, const GradientStop* stops, uint8_t count) const;
+
+    // Delete a user palette from SPIFFS. Returns false if it's a built-in (caller
+    // should respond 403) or the file does not exist (caller should respond 404).
+    bool deleteUserPalette(const char* name) const;
+
     // Synthesize the "userColors" palette from a set of base colors.
-    // 3 stops: (0, c[0]), (128, c[1]), (255, c[2]).
     static void buildUserColors(const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
                                 GradientStop* outStops, uint8_t& outCount);
 
-    // Number of built-in palettes.
+    // Number of compiled-in palettes.
     uint8_t builtInCount() const;
     // Name of the i-th built-in (0..builtInCount()-1), nullptr if out of range.
     const char* builtInName(uint8_t i) const;
+
+    // Parse a palette JSON file (the format written by save()) into stops.
+    // Used by resolve() for SPIFFS palettes; also callable directly.
+    static bool parsePaletteJson(const char* json, size_t len,
+                                  GradientStop* outStops, uint8_t& outCount);
 };
 
 }  // namespace Lightnet

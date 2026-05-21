@@ -255,6 +255,16 @@ void AnimationScheduler::unicastPaletteToPanels(const GradientStop* stops, uint8
     }
 }
 
+void AnimationScheduler::turnOnPanels(const uint8_t* panelAddresses, uint8_t panelCount)
+{
+    Protocol::PacketTurnOnOff pkt;
+    Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_TURN_ON_OFF);
+    pkt.on = 1;
+    for (uint8_t i = 0; i < panelCount; i++) {
+        LNBus.sendPacketNack(panelAddresses[i], &pkt, sizeof(pkt), Protocol::PACKET_TURN_ON_OFF);
+    }
+}
+
 void AnimationScheduler::broadcastBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT])
 {
     Protocol::PacketSetBaseColors pkt;

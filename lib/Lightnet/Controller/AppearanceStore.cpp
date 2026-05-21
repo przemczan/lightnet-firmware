@@ -1,12 +1,11 @@
 #include "AppearanceStore.hpp"
 #include "../Utils/Debug.hpp"
+#include "../Utils/SimpleJson.hpp"
 #include <Arduino.h>
-
 #include <FS.h>
 #ifdef ARDUINO_ARCH_ESP32
     #include <SPIFFS.h>
 #endif
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,55 +13,9 @@
 namespace Lightnet {
 
 namespace {
-
-const char* APPEARANCE_PATH      = "/config/appearance.json";
-const char* APPEARANCE_TMP_PATH  = "/config/appearance.json.tmp";
-const uint8_t APPEARANCE_SCHEMA  = 1;
-
-// Skip whitespace from `*p`.
-void skipWs(const char*& p, const char* end) {
-    while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
-}
-
-// If `*p` points at `key` (a quoted JSON key like "brightness"), advance past it and the colon.
-// Returns true if matched, false otherwise (leaves *p unchanged).
-bool matchKey(const char*& p, const char* end, const char* key) {
-    const char* start = p;
-    skipWs(p, end);
-    size_t klen = strlen(key);
-    if (p + klen + 2 > end || *p != '"') { p = start; return false; }
-    if (strncmp(p + 1, key, klen) != 0 || p[1 + klen] != '"') { p = start; return false; }
-    p += klen + 2;
-    skipWs(p, end);
-    if (p >= end || *p != ':') { p = start; return false; }
-    p++;
-    skipWs(p, end);
-    return true;
-}
-
-// Parse "#RRGGBB" hex string into RGB. Returns true on success.
-bool parseHexColor(const char* s, size_t len, Protocol::ColorRGB* out) {
-    if (len != 7 || s[0] != '#') return false;
-    auto h = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        return -1;
-    };
-    int r1 = h(s[1]), r0 = h(s[2]);
-    int g1 = h(s[3]), g0 = h(s[4]);
-    int b1 = h(s[5]), b0 = h(s[6]);
-    if (r1 < 0 || r0 < 0 || g1 < 0 || g0 < 0 || b1 < 0 || b0 < 0) return false;
-    out->r = (uint8_t)((r1 << 4) | r0);
-    out->g = (uint8_t)((g1 << 4) | g0);
-    out->b = (uint8_t)((b1 << 4) | b0);
-    return true;
-}
-
-void formatHexColor(Protocol::ColorRGB c, char* out) {
-    snprintf(out, 8, "#%02X%02X%02X", c.r, c.g, c.b);
-}
-
+const char* APPEARANCE_PATH     = "/config/appearance.json";
+const char* APPEARANCE_TMP_PATH = "/config/appearance.json.tmp";
+const uint8_t APPEARANCE_SCHEMA = 1;
 }  // anonymous namespace
 
 AppearanceStore::AppearanceStore(AnimationScheduler& _scheduler, const PaletteStore& _palettes)
@@ -105,85 +58,58 @@ void AppearanceStore::loadAndApply()
 bool AppearanceStore::readFile()
 {
     if (!SPIFFS.exists(APPEARANCE_PATH)) return false;
-
     File f = SPIFFS.open(APPEARANCE_PATH, "r");
     if (!f) return false;
 
-    // Whole file fits comfortably in a small stack buffer (~150 B for max contents).
     char buf[512];
     size_t n = f.readBytes(buf, sizeof(buf) - 1);
     f.close();
     buf[n] = '\0';
 
-    const char* p = buf;
-    const char* end = buf + n;
+    writeDefaults();  // ensure any missing field stays at its default
 
-    // Defaults stay if any field is missing.
-    writeDefaults();
+    SimpleJson j(buf, n);
 
-    // Find opening brace and walk through known fields. This isn't a full JSON
-    // parser — we look for the known keys in any order, with very lenient
-    // formatting. Anything unrecognized is skipped to the next key.
-    bool sawSchema = false;
-    uint8_t schema = 1;
-
-    while (p < end) {
-        skipWs(p, end);
-        if (p >= end) break;
-
-        if (matchKey(p, end, "schemaVersion")) {
-            schema = (uint8_t)strtol(p, (char**)&p, 10);
-            sawSchema = true;
-        } else if (matchKey(p, end, "brightness")) {
-            long v = strtol(p, (char**)&p, 10);
-            if (v >= 0 && v <= 255) brightnessValue = (uint8_t)v;
-        } else if (matchKey(p, end, "palette")) {
-            if (p < end && *p == '"') {
-                p++;
-                const char* nameStart = p;
-                while (p < end && *p != '"') p++;
-                size_t len = (size_t)(p - nameStart);
-                if (len > 0 && len < sizeof(paletteValue)) {
-                    memcpy(paletteValue, nameStart, len);
-                    paletteValue[len] = '\0';
-                }
-                if (p < end) p++;
-            }
-        } else if (matchKey(p, end, "baseColors")) {
-            // Expect a JSON array of up to 3 hex color strings.
-            skipWs(p, end);
-            if (p < end && *p == '[') {
-                p++;
-                for (uint8_t i = 0; i < BASE_COLORS_COUNT && p < end; i++) {
-                    skipWs(p, end);
-                    if (*p == ']') break;
-                    if (*p == '"') {
-                        p++;
-                        const char* s = p;
-                        while (p < end && *p != '"') p++;
-                        size_t len = (size_t)(p - s);
-                        Protocol::ColorRGB c;
-                        if (parseHexColor(s, len, &c)) {
-                            baseColorsValue[i] = c;
-                        }
-                        if (p < end) p++;  // closing quote
-                    }
-                    skipWs(p, end);
-                    if (p < end && *p == ',') p++;
-                }
-                while (p < end && *p != ']') p++;
-                if (p < end) p++;  // closing bracket
-            }
-        } else {
-            // Unknown char — advance past it so we don't loop forever.
-            p++;
-        }
-    }
-
-    if (sawSchema && schema != APPEARANCE_SCHEMA) {
+    long schema = j.getInt("schemaVersion");
+    if (schema > 0 && schema != APPEARANCE_SCHEMA) {
         PRINTLN("[APPEARANCE] schema mismatch — falling back to defaults");
         writeDefaults();
-        writeFile();  // overwrite with current schema
+        writeFile();
+        return true;
+    }
+
+    long brightness = j.getInt("brightness");
+    if (brightness >= 0 && brightness <= 255) brightnessValue = (uint8_t)brightness;
+
+    char palName[20];
+    if (j.getString("palette", palName, sizeof(palName))) {
+        strncpy(paletteValue, palName, sizeof(paletteValue) - 1);
+        paletteValue[sizeof(paletteValue) - 1] = '\0';
+    }
+
+    // baseColors is an array — parse it from the raw value pointer
+    const char* bc = j.rawValue("baseColors");
+    if (bc) {
+        const char* p   = bc;
+        const char* end = buf + n;
+        while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
+        if (p < end && *p == '[') {
+            p++;
+            for (uint8_t i = 0; i < BASE_COLORS_COUNT && p < end; i++) {
+                while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',')) p++;
+                if (p >= end || *p == ']') break;
+                if (*p == '"') {
+                    p++;
+                    char hex[8] = {0}; size_t hi = 0;
+                    while (p < end && *p != '"' && hi < 7) hex[hi++] = *p++;
+                    hex[hi] = '\0'; if (p < end) p++;  // skip closing quote
+                    uint8_t r, g, b;
+                    if (jsonParseHexColor(hex, hi, &r, &g, &b)) {
+                        baseColorsValue[i] = {r, g, b};
+                    }
+                }
+            }
+        }
     }
 
     return true;
@@ -201,9 +127,9 @@ void AppearanceStore::writeFile()
     }
 
     char hex0[8], hex1[8], hex2[8];
-    formatHexColor(baseColorsValue[0], hex0);
-    formatHexColor(baseColorsValue[1], hex1);
-    formatHexColor(baseColorsValue[2], hex2);
+    jsonFormatHex(baseColorsValue[0].r, baseColorsValue[0].g, baseColorsValue[0].b, hex0);
+    jsonFormatHex(baseColorsValue[1].r, baseColorsValue[1].g, baseColorsValue[1].b, hex1);
+    jsonFormatHex(baseColorsValue[2].r, baseColorsValue[2].g, baseColorsValue[2].b, hex2);
 
     char buf[256];
     int len = snprintf(buf, sizeof(buf),

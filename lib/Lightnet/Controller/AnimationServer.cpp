@@ -1,116 +1,67 @@
 #include "AnimationServer.hpp"
-#include "../Utils/Debug.hpp"
+#include "../Utils/SimpleJson.hpp"
 #include <Arduino.h>
+#include <FS.h>
+#ifdef ARDUINO_ARCH_ESP32
+    #include <SPIFFS.h>
+#endif
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 namespace Lightnet {
 
+// ============================================================================
+// Internal helpers (file-local)
+// ============================================================================
+
 namespace {
 
-// ----- Tiny ad-hoc JSON parsers (small known-shape bodies only) -----
-
-void skipWs(const char*& p, const char* end) {
-    while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
+// True if `name` is safe for use in SPIFFS paths (no traversal, valid charset).
+bool isSafeName(const char* name)
+{
+    if (!name || !name[0]) return false;
+    for (const char* c = name; *c; c++) {
+        if (!((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') ||
+              (*c >= '0' && *c <= '9') || *c == '_' || *c == '-')) return false;
+    }
+    // 18-char limit: /scenes/<name>.json = 8+18+5 = 31 chars = SPIFFS max path length.
+    return strlen(name) <= 18;
 }
 
-// Find a top-level key like "brightness" inside a `{...}` object. Returns a pointer to
-// the value start (after the colon and whitespace), or nullptr if not found.
-const char* findKey(const char* body, size_t len, const char* key) {
-    const char* end = body + len;
-    size_t klen = strlen(key);
-    for (const char* p = body; p + klen + 2 <= end; p++) {
-        if (*p != '"') continue;
-        if (strncmp(p + 1, key, klen) != 0) continue;
-        if (p[1 + klen] != '"') continue;
-        const char* q = p + klen + 2;
-        skipWs(q, end);
-        if (q >= end || *q != ':') continue;
-        q++;
-        skipWs(q, end);
-        return q;
-    }
-    return nullptr;
-}
-
-// Parse a non-negative integer starting at `p` (already past whitespace). Returns -1 on
-// non-digit. Stops at first non-digit.
-long parseUInt(const char* p, const char* end) {
-    if (p >= end || *p < '0' || *p > '9') return -1;
-    long v = 0;
-    while (p < end && *p >= '0' && *p <= '9') {
-        v = v * 10 + (*p - '0');
-        p++;
-        if (v > 100000) return -1;  // sanity
-    }
-    return v;
-}
-
-// Parse a JSON string into `out` (max outLen bytes incl. null). Returns true on success.
-bool parseString(const char* p, const char* end, char* out, size_t outLen) {
-    if (p >= end || *p != '"') return false;
-    p++;
-    size_t i = 0;
-    while (p < end && *p != '"' && i + 1 < outLen) {
-        out[i++] = *p++;
-    }
-    if (p >= end || *p != '"') return false;
-    out[i] = '\0';
+// Extract the first path segment after `prefix` from a URL.
+// e.g. nameFromUrl("/api/scenes/sunset/play", "/api/scenes/") → "sunset"
+bool nameFromUrl(const char* url, const char* prefix, char* out, size_t outLen)
+{
+    size_t pfxLen = strlen(prefix);
+    if (strncmp(url, prefix, pfxLen) != 0) return false;
+    const char* start = url + pfxLen;
+    const char* slash = strchr(start, '/');
+    size_t len = slash ? (size_t)(slash - start) : strlen(start);
+    if (len == 0 || len >= outLen) return false;
+    memcpy(out, start, len);
+    out[len] = '\0';
     return true;
 }
 
-bool parseHexColor(const char* s, size_t len, Protocol::ColorRGB* out) {
-    if (len != 7 || s[0] != '#') return false;
-    auto h = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        return -1;
-    };
-    int r1 = h(s[1]), r0 = h(s[2]);
-    int g1 = h(s[3]), g0 = h(s[4]);
-    int b1 = h(s[5]), b0 = h(s[6]);
-    if (r1 < 0 || r0 < 0 || g1 < 0 || g0 < 0 || b1 < 0 || b0 < 0) return false;
-    out->r = (uint8_t)((r1 << 4) | r0);
-    out->g = (uint8_t)((g1 << 4) | g0);
-    out->b = (uint8_t)((b1 << 4) | b0);
-    return true;
-}
+// Body accumulator attached to each request via _tempObject.
+struct BodyBuf { size_t len, cap; uint8_t data[1]; };
 
-void formatHex(Protocol::ColorRGB c, char* out) {
-    snprintf(out, 8, "#%02X%02X%02X", c.r, c.g, c.b);
-}
-
-// Build a per-request body buffer attached as the request's _tempObject pointer.
-struct BodyBuf {
-    size_t len;
-    size_t cap;
-    uint8_t data[1];  // flexible
-};
-
-BodyBuf* getOrCreateBuf(AsyncWebServerRequest* req, size_t total) {
+bool appendBody(AsyncWebServerRequest* req, const uint8_t* data, size_t len, size_t total, size_t maxCap)
+{
     BodyBuf* buf = (BodyBuf*)req->_tempObject;
-    if (buf) return buf;
-    size_t cap = total > 0 ? total : 256;
-    if (cap > 512) cap = 512;
-    buf = (BodyBuf*)malloc(sizeof(BodyBuf) + cap);
-    if (!buf) return nullptr;
-    buf->len = 0;
-    buf->cap = cap;
-    req->_tempObject = buf;
-    req->onDisconnect([req]() {
-        if (req->_tempObject) {
-            free(req->_tempObject);
-            req->_tempObject = nullptr;
-        }
-    });
-    return buf;
-}
-
-bool appendBody(AsyncWebServerRequest* req, const uint8_t* data, size_t len, size_t total) {
-    BodyBuf* buf = getOrCreateBuf(req, total);
-    if (!buf) return false;
-    if (buf->len + len > buf->cap) return false;  // too big
+    if (!buf) {
+        size_t cap = (total > 0) ? total : 256;
+        if (cap > maxCap) cap = maxCap;
+        buf = (BodyBuf*)malloc(sizeof(BodyBuf) + cap);
+        if (!buf) return false;
+        buf->len = 0; buf->cap = cap;
+        req->_tempObject = buf;
+        req->onDisconnect([req]() {
+            if (req->_tempObject) { free(req->_tempObject); req->_tempObject = nullptr; }
+        });
+    }
+    if (buf->len + len > buf->cap) return false;
     memcpy(buf->data + buf->len, data, len);
     buf->len += len;
     return true;
@@ -118,242 +69,438 @@ bool appendBody(AsyncWebServerRequest* req, const uint8_t* data, size_t len, siz
 
 }  // anonymous namespace
 
-AnimationServer::AnimationServer(AsyncWebServer& _server, AppearanceStore& _appearance, PaletteStore& _palettes)
-    : server(_server), appearance(_appearance), palettes(_palettes) {}
+// ============================================================================
+// Constructor
+// ============================================================================
 
-void AnimationServer::begin()
+AnimationServer::AnimationServer(AsyncWebServer& _server, AppearanceStore& _appearance,
+                                  PaletteStore& _palettes, ScenePlayer& _player,
+                                  AnimationService& _animService, AnimationScheduler& _scheduler)
+    : server(_server), appearance(_appearance), palettes(_palettes),
+      player(_player), animService(_animService), scheduler(_scheduler) {}
+
+void AnimationServer::begin() { registerRoutes(); }
+
+// ============================================================================
+// Response helpers
+// ============================================================================
+
+void AnimationServer::sendOk(AsyncWebServerRequest* req)
 {
-    registerRoutes();
+    req->send(200, "application/json", "{\"ok\":true}");
 }
 
-void AnimationServer::registerRoutes()
+void AnimationServer::sendOkJson(AsyncWebServerRequest* req, const char* json)
 {
-    // ----- GETs -----
+    req->send(200, "application/json", json);
+}
 
-    server.on("/api/appearance", HTTP_GET, [this](AsyncWebServerRequest* req) {
-        handleGetAppearance(req);
-    });
-    server.on("/api/brightness", HTTP_GET, [this](AsyncWebServerRequest* req) {
-        handleGetBrightness(req);
-    });
-    server.on("/api/colors", HTTP_GET, [this](AsyncWebServerRequest* req) {
-        handleGetColors(req);
-    });
-    server.on("/api/palette", HTTP_GET, [this](AsyncWebServerRequest* req) {
-        handleGetPalette(req);
-    });
-    server.on("/api/palettes", HTTP_GET, [this](AsyncWebServerRequest* req) {
-        handleListPalettes(req);
-    });
+void AnimationServer::sendError(AsyncWebServerRequest* req, int code, const char* msg)
+{
+    char buf[128];
+    snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
+    req->send(code, "application/json", buf);
+}
 
-    // ----- PUTs (body-driven) -----
-    // AsyncWebServer's onBody fires per chunk; the request handler fires after the
-    // last chunk. We accumulate body into a temp buffer and parse in the handler.
+void AnimationServer::sendSceneError(AsyncWebServerRequest* req, const SceneResult& r)
+{
+    sendError(req, sceneErrorCode(r.err), r.msg);
+}
 
-    auto putHandler = [this](void (AnimationServer::*method)(AsyncWebServerRequest*, const uint8_t*, size_t)) {
-        return [this, method](AsyncWebServerRequest* req) {
-            BodyBuf* buf = (BodyBuf*)req->_tempObject;
-            if (!buf) {
-                req->send(400, "application/json", "{\"error\":\"empty_body\"}");
-                return;
-            }
-            (this->*method)(req, buf->data, buf->len);
-        };
-    };
-
-    auto bodyAccumulator = [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        if (!appendBody(req, data, len, total)) {
-            req->send(413, "application/json", "{\"error\":\"body_too_large\"}");
-        }
-    };
-
-    server.on("/api/brightness", HTTP_PUT, putHandler(&AnimationServer::handlePutBrightness), nullptr, bodyAccumulator);
-    server.on("/api/colors",     HTTP_PUT, putHandler(&AnimationServer::handlePutColors),     nullptr, bodyAccumulator);
-    server.on("/api/palette",    HTTP_PUT, putHandler(&AnimationServer::handlePutPalette),    nullptr, bodyAccumulator);
-    server.on("/api/appearance", HTTP_PUT, putHandler(&AnimationServer::handlePutAppearance), nullptr, bodyAccumulator);
+int AnimationServer::sceneErrorCode(SceneError e)
+{
+    switch (e) {
+        case SceneError::NotFound:     return 404;
+        case SceneError::SchemaTooNew: return 409;
+        case SceneError::IoFailure:    return 500;
+        default:                       return 422;
+    }
 }
 
 // ============================================================================
-// GETs
+// Route registration
+// ============================================================================
+
+void AnimationServer::registerRoutes()
+{
+    // Body accumulators
+    auto bodySmall = [this](AsyncWebServerRequest* r, uint8_t* d, size_t l, size_t i, size_t t) {
+        if (!appendBody(r, d, l, t, MAX_BODY_SMALL)) sendError(r, 413, "body_too_large");
+    };
+    auto bodyLarge = [this](AsyncWebServerRequest* r, uint8_t* d, size_t l, size_t i, size_t t) {
+        if (!appendBody(r, d, l, t, MAX_BODY_LARGE)) sendError(r, 413, "body_too_large");
+    };
+
+    // Call body handler on final chunk (request handler fires after all chunks).
+    auto dispatchSmall = [this](void (AnimationServer::*m)(AsyncWebServerRequest*, const uint8_t*, size_t)) {
+        return [this, m](AsyncWebServerRequest* r) {
+            BodyBuf* buf = (BodyBuf*)r->_tempObject;
+            if (!buf) { sendError(r, 400, "empty_body"); return; }
+            (this->*m)(r, buf->data, buf->len);
+        };
+    };
+    auto dispatchLarge = dispatchSmall;  // same pattern, different body size limit
+
+    // -- Appearance --
+    server.on("/api/appearance", HTTP_GET,  [this](AsyncWebServerRequest* r){ handleGetAppearance(r); });
+    server.on("/api/brightness",  HTTP_GET,  [this](AsyncWebServerRequest* r){ handleGetBrightness(r); });
+    server.on("/api/colors",      HTTP_GET,  [this](AsyncWebServerRequest* r){ handleGetColors(r); });
+    server.on("/api/palette",     HTTP_GET,  [this](AsyncWebServerRequest* r){ handleGetPalette(r); });
+    server.on("/api/appearance", HTTP_PUT,  dispatchSmall(&AnimationServer::handlePutAppearance),  nullptr, bodySmall);
+    server.on("/api/brightness",  HTTP_PUT,  dispatchSmall(&AnimationServer::handlePutBrightness), nullptr, bodySmall);
+    server.on("/api/colors",      HTTP_PUT,  dispatchSmall(&AnimationServer::handlePutColors),     nullptr, bodySmall);
+    server.on("/api/palette",     HTTP_PUT,  dispatchSmall(&AnimationServer::handlePutPalette),    nullptr, bodySmall);
+
+    // -- Palette CRUD (literal before wildcard) --
+    server.on("/api/palettes",    HTTP_GET,    [this](AsyncWebServerRequest* r){ handleListPalettes(r); });
+    server.on("/api/palettes",    HTTP_POST,   dispatchLarge(&AnimationServer::handlePostPalette),   nullptr, bodyLarge);
+    server.on("/api/palettes/*",  HTTP_GET,    [this](AsyncWebServerRequest* r){ handleGetPaletteByName(r); });
+    server.on("/api/palettes/*",  HTTP_DELETE, [this](AsyncWebServerRequest* r){ handleDeletePalette(r); });
+
+    // -- Scene CRUD / playback (literals before wildcard) --
+    server.on("/api/scenes",          HTTP_GET,  [this](AsyncWebServerRequest* r){ handleListScenes(r); });
+    server.on("/api/scenes/status",   HTTP_GET,  [this](AsyncWebServerRequest* r){ handleGetSceneStatus(r); });
+    server.on("/api/scenes/stop",     HTTP_POST, [this](AsyncWebServerRequest* r){ handlePostStopScene(r); });
+    server.on("/api/scenes/play",     HTTP_POST, dispatchLarge(&AnimationServer::handlePostPlayScene), nullptr, bodyLarge);
+    server.on("/api/scenes",          HTTP_POST, dispatchLarge(&AnimationServer::handlePostSaveScene), nullptr, bodyLarge);
+    server.on("/api/scenes/*",        HTTP_GET,    [this](AsyncWebServerRequest* r){ handleGetSceneByName(r); });
+    server.on("/api/scenes/*",        HTTP_DELETE, [this](AsyncWebServerRequest* r){ handleDeleteScene(r); });
+    server.on("/api/scenes/*",        HTTP_POST,   [this](AsyncWebServerRequest* r){ handlePostPlaySceneByName(r); });
+
+    // -- One-shot / trigger --
+    server.on("/api/animations/play",    HTTP_POST, dispatchLarge(&AnimationServer::handleOneShotPlay), nullptr, bodyLarge);
+    server.on("/api/animations/trigger", HTTP_POST, dispatchSmall(&AnimationServer::handleAnimTrigger), nullptr, bodySmall);
+}
+
+// ============================================================================
+// Appearance — GET
 // ============================================================================
 
 void AnimationServer::handleGetAppearance(AsyncWebServerRequest* req)
 {
-    char hex0[8], hex1[8], hex2[8];
-    formatHex(appearance.baseColor(0), hex0);
-    formatHex(appearance.baseColor(1), hex1);
-    formatHex(appearance.baseColor(2), hex2);
-
+    char h0[8], h1[8], h2[8];
+    jsonFormatHex(appearance.baseColor(0).r, appearance.baseColor(0).g, appearance.baseColor(0).b, h0);
+    jsonFormatHex(appearance.baseColor(1).r, appearance.baseColor(1).g, appearance.baseColor(1).b, h1);
+    jsonFormatHex(appearance.baseColor(2).r, appearance.baseColor(2).g, appearance.baseColor(2).b, h2);
     char buf[256];
     snprintf(buf, sizeof(buf),
-        "{\"brightness\":%u,"
-        "\"baseColors\":[\"%s\",\"%s\",\"%s\"],"
-        "\"palette\":\"%s\"}",
-        (unsigned)appearance.brightness(), hex0, hex1, hex2, appearance.paletteName());
-    req->send(200, "application/json", buf);
+             "{\"brightness\":%u,\"baseColors\":[\"%s\",\"%s\",\"%s\"],\"palette\":\"%s\"}",
+             (unsigned)appearance.brightness(), h0, h1, h2, appearance.paletteName());
+    sendOkJson(req, buf);
 }
 
 void AnimationServer::handleGetBrightness(AsyncWebServerRequest* req)
 {
     char buf[32];
     snprintf(buf, sizeof(buf), "{\"value\":%u}", (unsigned)appearance.brightness());
-    req->send(200, "application/json", buf);
+    sendOkJson(req, buf);
 }
 
 void AnimationServer::handleGetColors(AsyncWebServerRequest* req)
 {
     char h0[8], h1[8], h2[8];
-    formatHex(appearance.baseColor(0), h0);
-    formatHex(appearance.baseColor(1), h1);
-    formatHex(appearance.baseColor(2), h2);
+    jsonFormatHex(appearance.baseColor(0).r, appearance.baseColor(0).g, appearance.baseColor(0).b, h0);
+    jsonFormatHex(appearance.baseColor(1).r, appearance.baseColor(1).g, appearance.baseColor(1).b, h1);
+    jsonFormatHex(appearance.baseColor(2).r, appearance.baseColor(2).g, appearance.baseColor(2).b, h2);
     char buf[128];
     snprintf(buf, sizeof(buf), "{\"primary\":\"%s\",\"secondary\":\"%s\",\"tertiary\":\"%s\"}", h0, h1, h2);
-    req->send(200, "application/json", buf);
+    sendOkJson(req, buf);
 }
 
 void AnimationServer::handleGetPalette(AsyncWebServerRequest* req)
 {
     char buf[64];
     snprintf(buf, sizeof(buf), "{\"palette\":\"%s\"}", appearance.paletteName());
-    req->send(200, "application/json", buf);
-}
-
-void AnimationServer::handleListPalettes(AsyncWebServerRequest* req)
-{
-    char buf[256];
-    int n = snprintf(buf, sizeof(buf), "[");
-    bool first = true;
-    n += snprintf(buf + n, sizeof(buf) - n, "%s\"userColors\"", first ? "" : ",");
-    first = false;
-    for (uint8_t i = 0; i < palettes.builtInCount() && n + 32 < (int)sizeof(buf); i++) {
-        n += snprintf(buf + n, sizeof(buf) - n, ",\"%s\"", palettes.builtInName(i));
-    }
-    snprintf(buf + n, sizeof(buf) - n, "]");
-    req->send(200, "application/json", buf);
+    sendOkJson(req, buf);
 }
 
 // ============================================================================
-// PUTs
+// Appearance — PUT
 // ============================================================================
 
 void AnimationServer::handlePutBrightness(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
 {
-    const char* v = findKey((const char*)body, len, "value");
-    if (!v) { req->send(422, "application/json", "{\"error\":\"missing_value\"}"); return; }
-    long n = parseUInt(v, (const char*)body + len);
-    if (n < 0 || n > 255) { req->send(422, "application/json", "{\"error\":\"value_out_of_range\"}"); return; }
-
-    appearance.setBrightness((uint8_t)n);
-    req->send(200, "application/json", "{\"ok\":true}");
+    SimpleJson j(body, len);
+    long v = j.getInt("value");
+    if (v < 0 || v > 255) { sendError(req, 422, "value_out_of_range"); return; }
+    appearance.setBrightness((uint8_t)v);
+    sendOk(req);
 }
 
 void AnimationServer::handlePutColors(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
 {
-    const char* slotNames[BASE_COLORS_COUNT] = { "primary", "secondary", "tertiary" };
-    Protocol::ColorRGB colors[BASE_COLORS_COUNT];
-    bool touched[BASE_COLORS_COUNT] = { false, false, false };
-
-    const char* end = (const char*)body + len;
+    SimpleJson j(body, len);
+    const char* slotNames[BASE_COLORS_COUNT] = {"primary", "secondary", "tertiary"};
+    Protocol::ColorRGB newColors[BASE_COLORS_COUNT];
+    bool touched[BASE_COLORS_COUNT] = {false, false, false};
 
     for (uint8_t i = 0; i < BASE_COLORS_COUNT; i++) {
-        const char* v = findKey((const char*)body, len, slotNames[i]);
-        if (!v) continue;
         char hex[16];
-        if (!parseString(v, end, hex, sizeof(hex))) {
-            req->send(422, "application/json", "{\"error\":\"color_not_string\"}");
-            return;
+        if (!j.getString(slotNames[i], hex, sizeof(hex))) continue;
+        uint8_t r, g, b;
+        if (!jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) {
+            sendError(req, 422, "bad_hex_color"); return;
         }
-        Protocol::ColorRGB c;
-        if (!parseHexColor(hex, strlen(hex), &c)) {
-            req->send(422, "application/json", "{\"error\":\"bad_hex_color\"}");
-            return;
-        }
-        colors[i] = c;
+        newColors[i] = {r, g, b};
         touched[i] = true;
     }
 
-    // Apply only touched slots
+    // Build the merged set and apply atomically.
+    Protocol::ColorRGB all[BASE_COLORS_COUNT];
+    bool any = false;
     for (uint8_t i = 0; i < BASE_COLORS_COUNT; i++) {
-        if (touched[i]) {
-            appearance.setBaseColor(i, colors[i]);
-        }
+        all[i] = touched[i] ? newColors[i] : appearance.baseColor(i);
+        if (touched[i]) any = true;
     }
-    req->send(200, "application/json", "{\"ok\":true}");
+    if (any) appearance.setAllBaseColors(all);
+    sendOk(req);
 }
 
 void AnimationServer::handlePutPalette(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
 {
-    const char* v = findKey((const char*)body, len, "palette");
-    if (!v) { req->send(422, "application/json", "{\"error\":\"missing_palette\"}"); return; }
+    SimpleJson j(body, len);
     char name[20];
-    if (!parseString(v, (const char*)body + len, name, sizeof(name))) {
-        req->send(422, "application/json", "{\"error\":\"palette_not_string\"}");
-        return;
-    }
-    if (!appearance.setPalette(name)) {
-        req->send(404, "application/json", "{\"error\":\"unknown_palette\"}");
-        return;
-    }
-    req->send(200, "application/json", "{\"ok\":true}");
+    if (!j.getString("palette", name, sizeof(name))) { sendError(req, 422, "missing_palette"); return; }
+    if (!appearance.setPalette(name))                 { sendError(req, 404, "unknown_palette"); return; }
+    sendOk(req);
 }
 
 void AnimationServer::handlePutAppearance(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
 {
-    // Bulk update: any subset of {brightness, baseColors:[..,..,..]/primary/secondary/tertiary, palette}.
-    const char* end = (const char*)body + len;
+    SimpleJson j(body, len);
 
-    // Brightness
-    const char* v = findKey((const char*)body, len, "brightness");
-    if (v) {
-        long n = parseUInt(v, end);
-        if (n < 0 || n > 255) { req->send(422, "application/json", "{\"error\":\"brightness_out_of_range\"}"); return; }
-        appearance.setBrightness((uint8_t)n);
+    // brightness (optional)
+    if (j.hasKey("brightness")) {
+        long v = j.getInt("brightness");
+        if (v < 0 || v > 255) { sendError(req, 422, "brightness_out_of_range"); return; }
+        appearance.setBrightness((uint8_t)v);
     }
 
-    // baseColors array form
-    const char* bc = findKey((const char*)body, len, "baseColors");
-    if (bc) {
-        const char* p = bc;
-        skipWs(p, end);
-        if (p < end && *p == '[') {
-            p++;
-            Protocol::ColorRGB cur[BASE_COLORS_COUNT];
-            uint8_t got = 0;
-            while (p < end && got < BASE_COLORS_COUNT) {
-                skipWs(p, end);
-                if (*p == ']') break;
-                char hex[16];
-                if (!parseString(p, end, hex, sizeof(hex))) break;
-                Protocol::ColorRGB c;
-                if (parseHexColor(hex, strlen(hex), &c)) {
-                    cur[got++] = c;
-                }
-                while (p < end && *p != '"' && *p != ',' && *p != ']') p++;  // skip past consumed string
-                if (p < end && *p == '"') p++;
-                skipWs(p, end);
-                if (p < end && *p == ',') p++;
+    // baseColors array (optional — full replacement)
+    const char* p = j.rawValue("baseColors");
+    if (p && jsonEnterArray(p, j.end())) {
+        Protocol::ColorRGB cur[BASE_COLORS_COUNT];
+        uint8_t got = 0;
+        char hex[16];
+        while (got < BASE_COLORS_COUNT && jsonNextElement(p, j.end())) {
+            if (!jsonReadString(p, j.end(), hex, sizeof(hex))) break;
+            uint8_t r, g, b;
+            if (jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) cur[got++] = {r, g, b};
+        }
+        if (got == BASE_COLORS_COUNT) appearance.setAllBaseColors(cur);
+    }
+
+    // palette (optional)
+    char palName[20];
+    if (j.getString("palette", palName, sizeof(palName))) {
+        if (!appearance.setPalette(palName)) { sendError(req, 404, "unknown_palette"); return; }
+    }
+
+    sendOk(req);
+}
+
+// ============================================================================
+// Palette CRUD
+// ============================================================================
+
+void AnimationServer::handleListPalettes(AsyncWebServerRequest* req)
+{
+    char buf[512];
+    int n = snprintf(buf, sizeof(buf), "[\"userColors\"");
+    for (uint8_t i = 0; i < palettes.builtInCount() && n + 32 < (int)sizeof(buf); i++) {
+        n += snprintf(buf + n, sizeof(buf) - n, ",\"%s\"", palettes.builtInName(i));
+    }
+    Dir d = SPIFFS.openDir("/palettes/");
+    while (d.next() && n + 32 < (int)sizeof(buf)) {
+        String fn = d.fileName();
+        const char* base = fn.c_str();
+        if (strncmp(base, "/palettes/", 10) == 0) base += 10;
+        size_t blen = strlen(base);
+        if (blen > 5 && strcmp(base + blen - 5, ".json") == 0) {
+            char name[24] = {0}; size_t nlen = blen - 5;
+            if (nlen < sizeof(name) && !palettes.isBuiltIn(name)) {
+                memcpy(name, base, nlen);
+                n += snprintf(buf + n, sizeof(buf) - n, ",\"%s\"", name);
             }
-            if (got == BASE_COLORS_COUNT) {
-                appearance.setAllBaseColors(cur);
-            }
         }
     }
+    snprintf(buf + n, sizeof(buf) - n, "]");
+    sendOkJson(req, buf);
+}
 
-    // Palette
-    v = findKey((const char*)body, len, "palette");
-    if (v) {
-        char name[20];
-        if (!parseString(v, end, name, sizeof(name))) {
-            req->send(422, "application/json", "{\"error\":\"palette_not_string\"}");
-            return;
-        }
-        if (!appearance.setPalette(name)) {
-            req->send(404, "application/json", "{\"error\":\"unknown_palette\"}");
-            return;
-        }
+void AnimationServer::handleGetPaletteByName(AsyncWebServerRequest* req)
+{
+    char name[24];
+    if (!nameFromUrl(req->url().c_str(), "/api/palettes/", name, sizeof(name)) || !isSafeName(name)) {
+        sendError(req, 400, "invalid_name"); return;
     }
+    GradientStop stops[PALETTE_STOPS]; uint8_t count = 0;
+    if (strcmp(name, "userColors") == 0) {
+        PaletteStore::buildUserColors(appearance.baseColors(), stops, count);
+    } else if (!palettes.resolve(name, stops, count)) {
+        sendError(req, 404, "not_found"); return;
+    }
+    char buf[512]; int n = snprintf(buf, sizeof(buf), "{\"schemaVersion\":1,\"name\":\"%s\",\"stops\":[", name);
+    for (uint8_t i = 0; i < count && n + 32 < (int)sizeof(buf); i++) {
+        char hex[8]; jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
+        n += snprintf(buf + n, sizeof(buf) - n, "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
+    }
+    snprintf(buf + n, sizeof(buf) - n, "]}");
+    sendOkJson(req, buf);
+}
 
-    req->send(200, "application/json", "{\"ok\":true}");
+void AnimationServer::handlePostPalette(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
+{
+    GradientStop stops[PALETTE_STOPS]; uint8_t count = 0;
+    if (!PaletteStore::parsePaletteJson((const char*)body, len, stops, count)) {
+        sendError(req, 422, "invalid_palette_json"); return;
+    }
+    SimpleJson j(body, len);
+    char name[20];
+    if (!j.getString("name", name, sizeof(name)) || !isSafeName(name)) {
+        sendError(req, 422, "missing_or_invalid_name"); return;
+    }
+    if (palettes.isBuiltIn(name) || strcmp(name, "userColors") == 0) {
+        sendError(req, 403, "cannot_overwrite_builtin"); return;
+    }
+    if (!palettes.save(name, stops, count)) {
+        sendError(req, 500, "spiffs_write_failed"); return;
+    }
+    char resp[48]; snprintf(resp, sizeof(resp), "{\"saved\":\"%s\"}", name);
+    sendOkJson(req, resp);
+}
+
+void AnimationServer::handleDeletePalette(AsyncWebServerRequest* req)
+{
+    char name[24];
+    if (!nameFromUrl(req->url().c_str(), "/api/palettes/", name, sizeof(name)) || !isSafeName(name)) {
+        sendError(req, 400, "invalid_name"); return;
+    }
+    if (palettes.isBuiltIn(name) || strcmp(name, "userColors") == 0) {
+        sendError(req, 403, "cannot_delete_builtin"); return;
+    }
+    if (!palettes.deleteUserPalette(name)) { sendError(req, 404, "not_found"); return; }
+    sendOk(req);
+}
+
+// ============================================================================
+// Scene — list / get / status / delete
+// ============================================================================
+
+void AnimationServer::handleListScenes(AsyncWebServerRequest* req)
+{
+    char buf[512];
+    // SceneStore is not held directly — build the list inline via SPIFFS.
+    Dir d = SPIFFS.openDir("/scenes/"); int n = snprintf(buf, sizeof(buf), "["); bool first = true;
+    while (d.next() && n + 64 < (int)sizeof(buf)) {
+        String fn = d.fileName(); const char* base = fn.c_str();
+        if (strncmp(base, "/scenes/", 8) == 0) base += 8;
+        size_t blen = strlen(base);
+        if (blen <= 5 || strcmp(base + blen - 5, ".json") != 0) continue;
+        if (blen > 9 && strcmp(base + blen - 9, ".json.tmp") == 0) continue;
+        char name[24] = {0}; size_t nlen = blen - 5; if (nlen >= sizeof(name)) continue;
+        memcpy(name, base, nlen);
+        n += snprintf(buf + n, sizeof(buf) - n, "%s{\"name\":\"%s\",\"size\":%u}",
+                      first ? "" : ",", name, (unsigned)d.fileSize());
+        first = false;
+    }
+    snprintf(buf + n, sizeof(buf) - n, "]");
+    sendOkJson(req, buf);
+}
+
+void AnimationServer::handleGetSceneStatus(AsyncWebServerRequest* req)
+{
+    char buf[128];
+    player.writeStatusJson(buf, sizeof(buf));
+    sendOkJson(req, buf);
+}
+
+void AnimationServer::handleGetSceneByName(AsyncWebServerRequest* req)
+{
+    char name[24];
+    if (!nameFromUrl(req->url().c_str(), "/api/scenes/", name, sizeof(name)) || !isSafeName(name)) {
+        sendError(req, 400, "invalid_name"); return;
+    }
+    char path[36]; snprintf(path, sizeof(path), "/scenes/%s.json", name);
+    if (!SPIFFS.exists(path)) { sendError(req, 404, "not_found"); return; }
+    req->send(SPIFFS, path, "application/json");
+}
+
+void AnimationServer::handleDeleteScene(AsyncWebServerRequest* req)
+{
+    char name[24];
+    if (!nameFromUrl(req->url().c_str(), "/api/scenes/", name, sizeof(name)) || !isSafeName(name)) {
+        sendError(req, 400, "invalid_name"); return;
+    }
+    char path[36]; snprintf(path, sizeof(path), "/scenes/%s.json", name);
+    if (!SPIFFS.exists(path)) { sendError(req, 404, "not_found"); return; }
+    SPIFFS.remove(path);
+    sendOk(req);
+}
+
+// ============================================================================
+// Scene — save / play / stop  (all delegate to AnimationService)
+// ============================================================================
+
+void AnimationServer::handlePostSaveScene(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
+{
+    auto r = animService.saveScene((const char*)body, len);
+    if (!r.ok()) { sendSceneError(req, r); return; }
+    sendOk(req);
+}
+
+void AnimationServer::handlePostPlayScene(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
+{
+    auto r = animService.playSceneInline((const char*)body, len);
+    if (!r.ok()) { sendSceneError(req, r); return; }
+    sendOk(req);
+}
+
+void AnimationServer::handlePostPlaySceneByName(AsyncWebServerRequest* req)
+{
+    const char* url = req->url().c_str();
+    // Distinguish /api/scenes/{name}/play from /api/scenes/{name}
+    if (!strstr(url + strlen("/api/scenes/"), "/play")) {
+        sendError(req, 404, "not_found"); return;
+    }
+    char name[24];
+    if (!nameFromUrl(url, "/api/scenes/", name, sizeof(name)) || !isSafeName(name)) {
+        sendError(req, 400, "invalid_name"); return;
+    }
+    auto r = animService.playSceneByName(name);
+    if (!r.ok()) { sendSceneError(req, r); return; }
+    sendOk(req);
+}
+
+void AnimationServer::handlePostStopScene(AsyncWebServerRequest* req)
+{
+    animService.stopScene();
+    sendOk(req);
+}
+
+// ============================================================================
+// One-shot / trigger
+// ============================================================================
+
+void AnimationServer::handleOneShotPlay(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
+{
+    // Pass current appearance as defaults — the one-shot may not specify its own.
+    auto r = animService.playOneShot((const char*)body, len,
+                                      appearance.paletteName(), appearance.baseColors());
+    if (!r.ok()) { sendSceneError(req, r); return; }
+    sendOk(req);
+}
+
+void AnimationServer::handleAnimTrigger(AsyncWebServerRequest* req, const uint8_t* body, size_t len)
+{
+    SimpleJson j(body, len);
+    long grp = j.getInt("group");
+    long val = j.getInt("value");
+    if (grp <= 0 || grp > 254) { sendError(req, 422, "group_out_of_range"); return; }
+    if (val < 0) val = 200;
+    if (val > 255) { sendError(req, 422, "value_out_of_range"); return; }
+    scheduler.triggerGroup((uint8_t)grp, (uint8_t)val);
+    sendOk(req);
 }
 
 }  // namespace Lightnet

@@ -19,7 +19,9 @@
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Lightnet\\\\lightnet-firmware\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Select-Object -First 20)",
-      "Bash(\"C:\\\\Users\\\\przem\\\\.platformio\\\\packages\\\\tool-avrdude\\\\avrdude.exe\" -c usbasp -p atmega328p -B 250kHz -U lfuse:r:dump_lfuse.hex:h -U hfuse:r:dump_hfuse.hex:h -U efuse:r:dump_efuse.hex:h -U flash:r:dump_flash.bin:r)"
+      "Bash(\"C:\\\\Users\\\\przem\\\\.platformio\\\\packages\\\\tool-avrdude\\\\avrdude.exe\" -c usbasp -p atmega328p -B 250kHz -U lfuse:r:dump_lfuse.hex:h -U hfuse:r:dump_hfuse.hex:h -U efuse:r:dump_efuse.hex:h -U flash:r:dump_flash.bin:r)",
+      "PowerShell(& \"C:\\\\Users\\\\przem\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e initializer_wemos 2>&1)",
+      "Bash(C:/Users/przem/.platformio/penv/Scripts/pio.exe run *)"
     ]
   }
 }

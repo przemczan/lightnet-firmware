@@ -1,5 +1,12 @@
 #include "PaletteStore.hpp"
+#include "../Utils/SimpleJson.hpp"
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <FS.h>
+#ifdef ARDUINO_ARCH_ESP32
+    #include <SPIFFS.h>
+#endif
 
 namespace Lightnet {
 
@@ -75,6 +82,7 @@ PaletteStore::PaletteStore() {}
 bool PaletteStore::resolve(const char* name, GradientStop* outStops, uint8_t& outCount) const
 {
     if (!name) return false;
+    // Check built-ins first
     for (uint8_t i = 0; i < BUILTINS_COUNT; i++) {
         if (strcmp(name, BUILTINS[i].name) == 0) {
             outCount = BUILTINS[i].count;
@@ -84,17 +92,36 @@ bool PaletteStore::resolve(const char* name, GradientStop* outStops, uint8_t& ou
             return true;
         }
     }
+    // Fall through to SPIFFS user palettes
+    char path[40];
+    snprintf(path, sizeof(path), "/palettes/%s.json", name);
+    if (!SPIFFS.exists(path)) return false;
+    File f = SPIFFS.open(path, "r");
+    if (!f) return false;
+    char buf[512];
+    size_t n = f.readBytes(buf, sizeof(buf) - 1);
+    f.close();
+    buf[n] = '\0';
+    return parsePaletteJson(buf, n, outStops, outCount);
+}
+
+bool PaletteStore::isBuiltIn(const char* name) const
+{
+    if (!name) return false;
+    for (uint8_t i = 0; i < BUILTINS_COUNT; i++) {
+        if (strcmp(name, BUILTINS[i].name) == 0) return true;
+    }
     return false;
 }
 
 bool PaletteStore::exists(const char* name) const
 {
     if (!name) return false;
-    if (strcmp(name, "userColors") == 0) return true;  // synthesized
-    for (uint8_t i = 0; i < BUILTINS_COUNT; i++) {
-        if (strcmp(name, BUILTINS[i].name) == 0) return true;
-    }
-    return false;
+    if (strcmp(name, "userColors") == 0) return true;
+    if (isBuiltIn(name)) return true;
+    char path[40];
+    snprintf(path, sizeof(path), "/palettes/%s.json", name);
+    return SPIFFS.exists(path);
 }
 
 void PaletteStore::buildUserColors(const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
@@ -112,6 +139,81 @@ const char* PaletteStore::builtInName(uint8_t i) const
 {
     if (i >= BUILTINS_COUNT) return nullptr;
     return BUILTINS[i].name;
+}
+
+// Fixed temp path — per-name variants like "/palettes/myname.json.tmp" can
+// exceed SPIFFS's 31-char path limit. See SceneStore.cpp for the same rationale.
+static const char PALETTE_TMP[] = "/palettes/.write.tmp";  // 20 chars
+
+bool PaletteStore::save(const char* name, const GradientStop* stops, uint8_t count) const
+{
+    if (!name || count == 0 || count > PALETTE_STOPS) return false;
+    char path[40];
+    snprintf(path, sizeof(path), "/palettes/%s.json", name);
+
+    File f = SPIFFS.open(PALETTE_TMP, "w");
+    if (!f) return false;
+
+    f.print("{\"schemaVersion\":1,\"name\":\"");
+    f.print(name);
+    f.print("\",\"stops\":[");
+    for (uint8_t i = 0; i < count; i++) {
+        if (i) f.print(",");
+        char hex[8];
+        snprintf(hex, sizeof(hex), "#%02X%02X%02X", stops[i].r, stops[i].g, stops[i].b);
+        f.print("[");
+        f.print((int)stops[i].pos);
+        f.print(",\"");
+        f.print(hex);
+        f.print("\"]");
+    }
+    f.print("]}");
+    f.close();
+
+    SPIFFS.remove(path);
+    SPIFFS.rename(PALETTE_TMP, path);
+    return true;
+}
+
+bool PaletteStore::deleteUserPalette(const char* name) const
+{
+    if (!name || isBuiltIn(name)) return false;
+    char path[40];
+    snprintf(path, sizeof(path), "/palettes/%s.json", name);
+    if (!SPIFFS.exists(path)) return false;
+    return SPIFFS.remove(path);
+}
+
+// Parse palette JSON: {"schemaVersion":1,"name":"x","stops":[[pos,"#RRGGBB"],...]}
+bool PaletteStore::parsePaletteJson(const char* json, size_t len,
+                                     GradientStop* outStops, uint8_t& outCount)
+{
+    outCount = 0;
+    if (!json || len == 0) return false;
+
+    const char* p   = jsonFindKey(json, len, "stops");
+    const char* end = json + len;
+    if (!p || !jsonEnterArray(p, end)) return false;
+
+    while (outCount < PALETTE_STOPS && jsonNextElement(p, end)) {
+        if (!jsonEnterArray(p, end)) return false;
+
+        long pos;
+        if (!jsonNextElement(p, end) || !jsonReadUInt(p, end, &pos) || pos > 255) return false;
+
+        char hex[16];
+        uint8_t r, g, b;
+        if (!jsonNextElement(p, end) ||
+            !jsonReadString(p, end, hex, sizeof(hex)) ||
+            !jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) return false;
+
+        // Inner array must end after exactly two elements.
+        if (jsonNextElement(p, end)) return false;
+
+        outStops[outCount++] = { (uint8_t)pos, r, g, b };
+    }
+
+    return outCount >= 1;
 }
 
 }  // namespace Lightnet

@@ -1,7 +1,10 @@
 #pragma once
 
-// Set to 0 to disable the post-boot demo sequence.
-#define DEMO_ENABLED 1
+// DEMO_ENABLED is set via build flags in platformio.ini (default 1).
+// Override by editing build_flags_controller in platformio.ini.
+#ifndef DEMO_ENABLED
+#define DEMO_ENABLED 0
+#endif
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
@@ -25,6 +28,10 @@
     #include "PaletteStore.hpp"
     #include "AppearanceStore.hpp"
     #include "AnimationServer.hpp"
+    #include "ScenePlayer.hpp"
+    #include "SceneParser.hpp"
+    #include "SceneStore.hpp"
+    #include "AnimationService.hpp"
     #include "TwibootClient.hpp"
     #include "PanelFlasher.hpp"
     #include "FirmwareUpdateServer.hpp"

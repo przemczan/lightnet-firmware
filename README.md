@@ -1,277 +1,85 @@
 # Lightnet Firmware
 
-Firmware for two device types that form a self-discovering LED panel network:
+Firmware for a self-discovering tree network of addressable LED panels.
 
-- **Controller** — ESP8266 or ESP32; runs WiFi, discovery, WebSocket API, and OTA updates
-- **Panel** — ATmega328P/PB; drives one WS2812 LED, registers to the tree via edge pings
+The network is made up of two device types that speak over I²C:
 
-Panels connect to each other via physical edges (triangular default). The controller
-initiates discovery, assigns each panel an I²C address, then communicates over I²C.
+- **Controller** — ESP8266 or ESP32. Runs WiFi, panel discovery, a WebSocket API for low-latency triggers, and an HTTP REST API for appearance control, scene management, and firmware updates. Discoverable on the local network as `lightnet-<chipid>.local`.
+- **Panel** — ATmega328P/PB. Drives a single WS2812 LED. Registers itself into the tree by pinging its physical edges, receives an I²C address from the controller, then runs animations locally with zero per-frame traffic.
+
+Panels connect to each other through physical edges (triangular panels by default). The controller walks the tree during discovery, assigns addresses, and from then on is the only I²C master.
 
 ---
 
-## Building
+## Active branches
 
-This project uses **PlatformIO**.
+| Branch | State |
+|---|---|
+| `master` | Stable — animation framework, WebSocket triggers, firmware OTA |
+| `scenes` | In progress — HTTP appearance/palette/scene API, multi-layer scene player, ColorRef-based palette system |
+
+---
+
+## Quick start
 
 ```bash
-# Controller (ESP32)
-pio run -e initializer_esp32
-
-# Controller (Wemos D1 Mini / ESP8266)
+# Build controller (Wemos D1 Mini / ESP8266)
 pio run -e initializer_wemos
 
-# Panel (ATmega328P via USBasp)
-pio run -e panel_atmega328p
+# Build + upload via USB
+pio run -e initializer_wemos -t upload
 
-# Panel (ATmega328PB via USBasp)
+# Build + upload over WiFi (OTA)
+pio run -e initializer_wemos -t upload --upload-port lightnet-XXXX.local
+
+# Build panel firmware (ATmega328PB)
 pio run -e panel_atmega328pb
 
-# All environments
-pio run
+# Serial monitor (57600 baud)
+pio device monitor -e initializer_wemos
 ```
+
+See [docs/firmware.md](docs/firmware.md) for all environments, pin assignments, panel OTA setup (twiboot), first-time fuse programming, and debugging.
 
 ---
 
-## Flashing the Controller
+## Documentation
 
-### First flash (USB serial)
-
-```bash
-pio run -e initializer_esp32 --target upload --upload-port COM3
-```
-
-### Subsequent flashes (WiFi OTA)
-
-Once the controller is on the network it advertises itself via mDNS as
-`lightnet-<chipid>.local`. Use that hostname as the upload port:
-
-```bash
-pio run -e initializer_esp32 --target upload --upload-port lightnet-XXXX.local
-```
-
-Or set it permanently in `platformio.ini`:
-
-```ini
-[env:initializer_esp32]
-upload_protocol = espota
-upload_port     = lightnet-XXXX.local
-```
-
----
-
-## Flashing Panels
-
-Panel firmware updates happen in two stages:
-
-1. **First-time only (one per panel):** flash the [twiboot](https://github.com/orempel/twiboot)
-   I²C bootloader via USBasp so the panel can be updated over I²C from then on.
-2. **All future updates:** build panel firmware on your PC, push it to the controller
-   over WiFi (HTTP) or USB serial — the controller programs every panel over I²C automatically.
-
-### Step 1 — One-time fuse + twiboot setup per panel
-
-#### ATmega328P
-
-Set fuses (16 MHz external full-swing crystal, 1 KB boot section at 0x7C00, BOOTRST, BOD 4.3 V).
-Fresh chips run at 1 MHz by default so `-B 32` is required for the initial ISP communication:
-
-```
-avrdude -c usbasp -p atmega328p -B 32 \
-  -U lfuse:w:0xF7:m -U hfuse:w:0xD0:m -U efuse:w:0xFC:m
-```
-
-| Fuse | Value | Key bits |
-|---|---|---|
-| lfuse | `0xF7` | CKSEL=0111 — Full Swing Crystal; SUT=11 max startup delay |
-| hfuse | `0xD0` | BOOTSZ=00 → 4 KB boot section starting at **0x7000**; BOOTRST; EESAVE |
-| efuse | `0xFC` | BODLEVEL=100 → BOD **4.3 V** |
-
-> **No external crystal?** Use `lfuse=0xE2` (internal 8 MHz RC oscillator).
-> The firmware must also be built with `F_CPU=8000000L` in that case.
-
-Flash twiboot (pre-built in this repo, see twiboot configuration note below):
-
-```bash
-cd firmware/twiboot
-pio run -e atmega328p --target upload
-```
-
-#### ATmega328PB
-
-Same fuses as 328P; use `-B 32` as fresh chips also start at 1 MHz:
-
-```
-avrdude -c usbasp -p atmega328pb -B 32 \
-  -U lfuse:w:0xF7:m -U hfuse:w:0xD0:m -U efuse:w:0xFC:m
-```
-
-> **No external crystal?** Use `lfuse=0xE2` instead of `0xF7`.
-
-Flash twiboot:
-
-```bash
-cd firmware/twiboot
-pio run -e atmega328pb --target upload
-```
-
-#### twiboot configuration
-
-twiboot reads its I²C slave address and boot mode flag from EEPROM bytes `[0]` and `[1]`
-— written by the panel firmware before triggering a reboot into update mode:
-
-| EEPROM byte | Content |
+| Document | Contents |
 |---|---|
-| `[0]` | Panel's assigned I²C address (written before OTA reset) |
-| `[1]` | `0x42` = stay in bootloader; `0xFF` = start app after short timeout |
-
-The twiboot source lives in `firmware/twiboot/` and is pre-configured with:
-- `F_CPU=8000000`
-- `BOOTLOADER_ADDRESS=0x7C00` (4 KB section, matches `hfuse=0xD6`)
-- `TIMEOUT_MS=200` — exits to app quickly so controller discovery window is not missed
-- On a fresh chip EEPROM is `0xFF` — twiboot falls back to compiled-in default address
-  (`0x29`) when `EEPROM[0] == 0xFF`.
-
-After a successful programming session twiboot clears `EEPROM[1]` to `0xFF`
-before jumping to the application. If power is lost mid-transfer the flag
-survives, so twiboot will re-enter programming mode on the next reset — the panel
-never boots corrupted firmware.
-
-#### First-time panel firmware flash (bootstrap)
-
-After twiboot is on the chip, flash the Lightnet panel firmware directly via USBasp
-**once** to bootstrap the panel. The `-D` flag (skip chip erase) preserves twiboot:
-
-```bash
-# from repo root — works for both 328P and 328PB targets
-pio run -e panel_atmega328pb --target upload
-```
-
-`upload_flags = -D` is already set in `platformio.ini` so twiboot at `0x7C00` is never erased.
-After this first flash the panel will be discovered by the controller, and all future
-updates go through the controller over I²C (Step 2).
-
-### Step 2 — Push new panel firmware (all future updates)
-
-Build the panel firmware first:
-
-```bash
-pio run -e panel_atmega328pb
-# .bin is generated automatically alongside .hex:
-# .pio/build/panel_atmega328pb/firmware.bin
-```
-
-The same binary works for both ATmega328P and ATmega328PB panels — build once, flash all.
-
-Then deliver it to the controller using one of two methods:
-
-#### Option A — WiFi (HTTP)
-
-```bash
-curl -X POST http://lightnet-XXXX.local/api/firmware/panels \
-     -H "Content-Type: application/octet-stream" \
-     --data-binary @.pio/build/panel_atmega328p/firmware.bin
-```
-
-Poll progress:
-
-```bash
-curl http://lightnet-XXXX.local/api/firmware/status
-```
-
-#### Option B — USB serial
-
-```bash
-pip install pyserial   # once
-
-python tools/flash_panels_serial.py COM3 .pio/build/panel_atmega328pb/firmware.bin
-```
-
-The script waits for the controller to finish booting (WiFi connect + OTA ready) before
-sending the firmware, so it is safe to run immediately after connecting the serial port.
-
-Both options store the binary in SPIFFS and immediately start flashing all
-discovered panels sequentially over I²C. After all panels are done, **restart
-the controller** (OTA or power cycle) so discovery re-runs — the updated panels
-reboot and wait for a fresh welcome ping.
+| [docs/architecture.md](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
+| [docs/firmware.md](docs/firmware.md) | All PlatformIO environments, pin assignments, panel OTA (twiboot), first-time fuse setup, serial upload, ArduinoOTA, debugging |
+| [docs/api.md](docs/api.md) | WebSocket binary protocol + full HTTP API reference (appearance, palettes, scenes, animations, firmware) |
+| [docs/animations.md](docs/animations.md) | Scene structure, animation types, palettes, color references, sequencing, HTTP API usage, examples |
 
 ---
 
-## Panel SRAM Constraints (ATmega328P/PB)
+## Panel SRAM constraints (ATmega328P/PB)
 
-The ATmega328P/PB has **2048 bytes of SRAM**. Three build-time constants
-directly eat into that budget and must be sized together:
+The ATmega328P/PB has **2 KB SRAM**. Three build-time constants share that budget and must be sized together:
 
 | Constant | Location | Controls |
 |---|---|---|
-| `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the **4** Wire/TWI static buffers (Wire rx, Wire tx, twi rx, twi tx) |
-| `INCOMING_BUFFER_SIZE` | `LightnetPanel.hpp` | Size of each of the **2** circular packet queues (incoming + staging) |
-| `Protocol::MAX_PACKET_SIZE` | `Protocol.hpp` | Largest packet in the protocol; determines the minimum safe `TWI_BUFFER_SIZE` |
+| `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the 4 Wire/TWI static buffers |
+| `INCOMING_BUFFER_SIZE` | `LightnetPanel.hpp` | Size of each of the 2 circular packet queues |
+| `Protocol::MAX_PACKET_SIZE` | `Protocol.hpp` | Largest packet in the protocol; sets the minimum safe `TWI_BUFFER_SIZE` |
 
-### Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE`
+**Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE` (currently 80).**  
+A packet larger than `TWI_BUFFER_SIZE` is silently truncated — the CRC still validates, so the corrupted payload reaches the handler and corrupts state. Keep them equal.
 
-`Wire.cpp` and `twi.c` each allocate two static arrays of `TWI_BUFFER_SIZE` bytes (rx and tx).
-A packet larger than `TWI_BUFFER_SIZE` is **silently truncated** by the hardware driver —
-the header CRC still validates, so the corrupted payload passes into the handler and can
-corrupt state.  Always keep `TWI_BUFFER_SIZE` equal to `MAX_PACKET_SIZE` (currently 80,
-set by `PacketSetPalette` = 70 bytes payload). Do not set it larger than necessary.
+> `BUFFER_SIZE` and `BUFFER_LENGTH` are **not** used by MiniCore's Wire library. Only `TWI_BUFFER_SIZE` matters.
 
-> **Note:** `BUFFER_SIZE` and `BUFFER_LENGTH` are **not** used by the MiniCore Wire library.
-> Only `TWI_BUFFER_SIZE` matters. Setting `BUFFER_SIZE=N` in build flags has no effect.
-
-### SRAM budget (known-good configuration)
+### Known-good SRAM budget
 
 | Allocation | Size |
 |---|---|
-| Wire/TWI buffers (`TWI_BUFFER_SIZE=80`, ×4) | 320 B |
-| Incoming packet queues (`INCOMING_BUFFER_SIZE=100`, ×2 + overhead) | ~240 B |
-| `AnimationPlayer` inside `LNPanel` (queue×4 + palette×16 + vars) | ~190 B |
+| Wire/TWI buffers (`TWI_BUFFER_SIZE=80` × 4) | 320 B |
+| Packet queues (`INCOMING_BUFFER_SIZE=100` × 2 + overhead) | ~240 B |
+| `AnimationPlayer` (queue × 4 + palette × 16 + vars) | ~190 B |
 | `LNPanel` other fields | ~30 B |
-| 3× `LightnetPanelEdge` + `LightnetPinger` (heap) | ~125 B |
+| 3 × `LightnetPanelEdge` + `LightnetPinger` | ~125 B |
 | Arduino Serial ring buffers | ~128 B |
 | Stack + heap metadata | ~200 B |
 | **Total** | **~1233 B** |
 
-Leaves roughly **800 bytes** of headroom for stack growth at runtime.
-
-### What goes wrong when SRAM is exhausted
-
-The AVR has no MMU — stack and heap grow toward each other. When they collide,
-corruption is silent and manifests as seemingly unrelated failures:
-
-- Panel crashes partway through edge-pin initialization (PCINT ISR stops firing)
-- Garbage bytes appear in the serial output mid-print (e.g. `Init e1` → `\0\0\0\0…`)
-- Panel boots but stops responding after the first few I²C packets
-
-If you see any of these symptoms after adding new protocol packets or enlarging
-buffers, **reduce** `TWI_BUFFER_SIZE` and/or `INCOMING_BUFFER_SIZE` first.
-`INCOMING_BUFFER_SIZE=100` is sufficient because the controller sends one packet
-at a time and waits for a response — the queue never holds more than one entry.
-
-### When `MAX_PACKET_SIZE` changes
-
-If a new packet type larger than 70 bytes is added:
-1. Update `MAX_PACKET_SIZE` in `Protocol.hpp`
-2. Set `TWI_BUFFER_SIZE` = new `MAX_PACKET_SIZE` in `platformio.ini`
-3. Check that the SRAM budget still fits (re-run a panel build and inspect the
-   memory report in the PlatformIO build output — aim to keep data+bss under ~1300 B)
-
----
-
-## HTTP API
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/firmware/panels` | `POST` | Upload panel firmware binary; starts flashing immediately |
-| `/api/firmware/status` | `GET` | Returns JSON with current flash state and progress |
-| `/ws` | WebSocket | Binary MessageApi protocol (toggle, color, brightness, state) |
-| `/` | `GET` | Serves static web app from SPIFFS |
-
----
-
-## Serial Monitor
-
-```bash
-pio device monitor -e initializer_esp32   # 57600 baud
-pio device monitor -e panel_atmega328p    # 57600 baud
-```
+Leaves ~800 bytes of headroom. If you see panels crashing mid-init, stopping after a few I²C packets, or printing garbage on serial — reduce `TWI_BUFFER_SIZE` or `INCOMING_BUFFER_SIZE` first.

@@ -42,6 +42,9 @@ AppServer *appServer;
 Lightnet::AnimationScheduler *animScheduler = nullptr;
 Lightnet::PaletteStore       *paletteStore  = nullptr;
 Lightnet::AppearanceStore    *appearance    = nullptr;
+Lightnet::SceneStore         *sceneStore    = nullptr;
+Lightnet::ScenePlayer        *scenePlayer   = nullptr;
+Lightnet::AnimationService   *animService   = nullptr;
 Lightnet::AnimationServer    *animServer    = nullptr;
 TwibootClient          *twibootClient    = nullptr;
 PanelFlasher           *panelFlasher     = nullptr;
@@ -266,19 +269,19 @@ void loop()
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
                 appearance->loadAndApply();   // broadcasts brightness, base colors, palette to panels
 
+                sceneStore  = new Lightnet::SceneStore();
+                scenePlayer = new Lightnet::ScenePlayer(*animScheduler, LNPanelsInitializer, *paletteStore);
+                animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
+
 #if DEMO_ENABLED
-                {
-                    uint16_t count = LNPanelsInitializer.getPanels()->getSize();
-                    DEMO_PANELS = (uint8_t)((count > 3) ? 3 : count);
-                    for (uint8_t i = 0; i < DEMO_PANELS; i++) {
-                        demoPanelAddrs[i] = LNPanelsInitializer.getPanels()->get(i)->index;
-                    }
-                }
+                initDemos(*animService, *sceneStore, *scenePlayer, *animScheduler,
+                          *panelsController, LNPanelsInitializer);
 #endif
 
                 setupWiFi();
 
-                animServer = new Lightnet::AnimationServer(*webServer, *appearance, *paletteStore);
+                animServer = new Lightnet::AnimationServer(*webServer, *appearance, *paletteStore,
+                                                            *scenePlayer, *animService, *animScheduler);
                 animServer->begin();
                 break;
 
@@ -292,6 +295,7 @@ void loop()
                 if (!panelFlasher || !panelFlasher->isActive()) {
                     messageHandler->handleIncommingMessages();
                     if (animScheduler) animScheduler->tick(millis());
+                    if (scenePlayer)   scenePlayer->tick(millis());
 #if DEMO_ENABLED
                     runDemos();
 #endif

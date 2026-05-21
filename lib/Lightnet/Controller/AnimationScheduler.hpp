@@ -54,6 +54,10 @@ public:
     void unicastPaletteToPanels(const GradientStop* stops, uint8_t count,
                                  const uint8_t* panelAddresses, uint8_t panelCount);
 
+    // Send PACKET_TURN_ON_OFF(on=1) to each listed panel address.
+    // Called by ScenePlayer so panels are visible when a scene starts.
+    void turnOnPanels(const uint8_t* panelAddresses, uint8_t panelCount);
+
     void stopGroup(uint8_t group_id);
     void pauseGroup(uint8_t group_id);
     void resumeGroup(uint8_t group_id);

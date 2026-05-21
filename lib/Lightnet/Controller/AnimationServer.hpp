@@ -1,51 +1,89 @@
 #pragma once
+// AnimationServer registers HTTP routes and is the only HTTP-facing component.
+// Responsibilities:
+//   - Route registration
+//   - Body accumulation (chunk assembly)
+//   - Input parsing (SimpleJson) + basic range validation
+//   - Delegating to AppearanceStore, PaletteStore, ScenePlayer, AnimationService
+//   - Mapping SceneError → HTTP status code
+//   - Sending JSON responses
+//
+// Business logic lives in the service classes, not here.
 
 #include <ESPAsyncWebServer.h>
 #include "AppearanceStore.hpp"
 #include "PaletteStore.hpp"
+#include "ScenePlayer.hpp"
+#include "AnimationService.hpp"
+#include "AnimationScheduler.hpp"
 
 namespace Lightnet {
 
-// Registers HTTP routes for appearance control:
-//   GET/PUT /api/appearance       — full read/bulk-update
-//   GET/PUT /api/brightness       — single field
-//   GET/PUT /api/colors           — primary/secondary/tertiary
-//   GET/PUT /api/palette          — currently selected palette name
-//   GET    /api/palettes          — list available palette names (built-ins)
-//
-// JSON bodies are small and known-shape; AnimationServer hand-parses them rather
-// than pulling in a full JSON library. The full Scene/Layer HTTP API from the
-// design doc will land separately on top of this scaffolding.
 class AnimationServer {
 public:
-    AnimationServer(AsyncWebServer& server, AppearanceStore& appearance, PaletteStore& palettes);
+    AnimationServer(AsyncWebServer& server,
+                    AppearanceStore& appearance,
+                    PaletteStore& palettes,
+                    ScenePlayer& player,
+                    AnimationService& animService,
+                    AnimationScheduler& scheduler);
 
     void begin();
 
 private:
-    AsyncWebServer&   server;
-    AppearanceStore&  appearance;
-    PaletteStore&     palettes;
+    AsyncWebServer&     server;
+    AppearanceStore&    appearance;
+    PaletteStore&       palettes;
+    ScenePlayer&        player;
+    AnimationService&   animService;
+    AnimationScheduler& scheduler;
 
     void registerRoutes();
 
-    // Endpoint handlers
+    // -- Appearance --
     void handleGetAppearance(AsyncWebServerRequest* req);
     void handleGetBrightness(AsyncWebServerRequest* req);
     void handleGetColors(AsyncWebServerRequest* req);
     void handleGetPalette(AsyncWebServerRequest* req);
-    void handleListPalettes(AsyncWebServerRequest* req);
-
-    // PUT body parsers — called from the async body handler with the assembled buffer.
+    void handlePutAppearance(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
     void handlePutBrightness(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
     void handlePutColors(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
     void handlePutPalette(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
-    void handlePutAppearance(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
 
-    // Tiny per-request body buffer accumulator. Async server delivers PUT bodies in
-    // chunks via the body callback; we collect into a temp buffer attached to the
-    // request and parse on the final chunk.
-    static constexpr size_t MAX_BODY = 512;
+    // -- Palette CRUD --
+    void handleListPalettes(AsyncWebServerRequest* req);
+    void handleGetPaletteByName(AsyncWebServerRequest* req);
+    void handlePostPalette(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
+    void handleDeletePalette(AsyncWebServerRequest* req);
+
+    // -- Scene CRUD --
+    void handleListScenes(AsyncWebServerRequest* req);
+    void handleGetSceneStatus(AsyncWebServerRequest* req);
+    void handleGetSceneByName(AsyncWebServerRequest* req);
+    void handleDeleteScene(AsyncWebServerRequest* req);
+
+    // -- Scene playback (delegate entirely to AnimationService) --
+    void handlePostSaveScene(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
+    void handlePostPlayScene(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
+    void handlePostPlaySceneByName(AsyncWebServerRequest* req);
+    void handlePostStopScene(AsyncWebServerRequest* req);
+
+    // -- One-shot / trigger --
+    void handleOneShotPlay(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
+    void handleAnimTrigger(AsyncWebServerRequest* req, const uint8_t* body, size_t len);
+
+    // -- Response helpers --
+    static void sendOk(AsyncWebServerRequest* req);
+    static void sendOkJson(AsyncWebServerRequest* req, const char* json);
+    static void sendError(AsyncWebServerRequest* req, int code, const char* msg);
+    static void sendSceneError(AsyncWebServerRequest* req, const SceneResult& r);
+
+    // Map SceneError → HTTP status code.
+    static int sceneErrorCode(SceneError e);
+
+    // Body buffer limits
+    static constexpr size_t MAX_BODY_SMALL = 512;
+    static constexpr size_t MAX_BODY_LARGE = 4096;
 };
 
 }  // namespace Lightnet
