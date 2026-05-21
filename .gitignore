@@ -26,3 +26,11 @@ Thumbs.db
 *.cmx
 
 node_modules
+
+*.o
+*.elf
+*.bin
+*.hex
+*.lst
+*.lss
+*.map
