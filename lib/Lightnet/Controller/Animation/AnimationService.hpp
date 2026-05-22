@@ -22,8 +22,8 @@
 #include "ScenePlayer.hpp"
 #include "SceneStore.hpp"
 #include "SceneParser.hpp"
-#include "../Common/Protocol.hpp"  // Protocol::ColorRGB for playOneShot defaults
-#include "../Common/LightnetConfig.hpp"
+#include "../../Common/Protocol.hpp"  // Protocol::ColorRGB for playOneShot defaults
+#include "../../Common/LightnetConfig.hpp"
 
 namespace Lightnet {
 

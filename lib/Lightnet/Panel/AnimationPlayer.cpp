@@ -1,4 +1,5 @@
 #include "AnimationPlayer.hpp"
+#include "../Utils/Debug.hpp"
 #include "Arduino.h"
 
 namespace Lightnet {

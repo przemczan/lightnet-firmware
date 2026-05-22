@@ -1,3 +1,4 @@
+#ifndef SIM_MODE
 #include "LightnetBus.hpp"
 
 LightnetBus::LightnetBus()
@@ -208,3 +209,4 @@ void LightnetBus::flush()
 }
 
 LightnetBus LNBus;
+#endif  // SIM_MODE

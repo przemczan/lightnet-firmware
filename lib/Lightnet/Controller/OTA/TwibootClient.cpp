@@ -2,7 +2,7 @@
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
-#include "../Utils/Debug.hpp"
+#include "../../Utils/Debug.hpp"
 
 bool TwibootClient::connect(uint8_t address, ChipInfo *info,
                              uint8_t maxRetries, uint16_t retryDelayMs)

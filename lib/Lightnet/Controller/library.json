@@ -1,0 +1,8 @@
+{
+  "name": "LightnetController",
+  "version": "1.0.0",
+  "build": {
+    "srcDirs": ["Animation", "Appearance", "Panels", "OTA"],
+    "includeDir": "."
+  }
+}

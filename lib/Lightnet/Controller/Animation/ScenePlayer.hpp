@@ -1,14 +1,14 @@
 #pragma once
 
 #include <stdint.h>
-#include "../Common/AnimationTypes.hpp"
-#include "../Common/ColorRef.hpp"
-#include "../Common/LightnetConfig.hpp"
-#include "../Common/Palette.hpp"
-#include "../Common/Protocol.hpp"
+#include "../../Common/AnimationTypes.hpp"
+#include "../../Common/ColorRef.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "../../Common/Palette.hpp"
+#include "../../Common/Protocol.hpp"
 #include "AnimationScheduler.hpp"
-#include "PaletteStore.hpp"
-#include "PanelsInitializer.hpp"
+#include "../Appearance/PaletteStore.hpp"
+#include "../Panels/PanelsInitializer.hpp"
 
 namespace Lightnet {
 

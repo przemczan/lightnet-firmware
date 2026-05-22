@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include "Edge.hpp"
-#include "../Utils/List.hpp"
+#include "../../Utils/List.hpp"
 
 class Panel
 {

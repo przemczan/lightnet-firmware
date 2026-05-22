@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../Common/LightnetBus.hpp"
-#include "../Common/LightnetPanelEdge.hpp"
-#include "../Common/Protocol.hpp"
-#include "../Utils/List.hpp"
+#include "../../Common/LightnetBus.hpp"
+#include "../../Common/LightnetPanelEdge.hpp"
+#include "../../Common/Protocol.hpp"
+#include "../../Utils/List.hpp"
 #include "Panel.hpp"
 
 class PanelsInitializer

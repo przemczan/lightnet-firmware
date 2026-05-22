@@ -1,5 +1,5 @@
 #include "AnimationServer.hpp"
-#include "../Utils/SimpleJson.hpp"
+#include "../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <FS.h>
 #ifdef ARDUINO_ARCH_ESP32

@@ -7,7 +7,7 @@
 #else
     #include <FS.h>
 #endif
-#include "../Utils/Debug.hpp"
+#include "../../Utils/Debug.hpp"
 
 // Always-on status log — not gated by DEBUG so the user can see flasher progress
 // even in release builds via any serial monitor.

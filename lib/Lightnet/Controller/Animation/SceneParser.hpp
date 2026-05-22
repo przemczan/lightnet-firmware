@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "../Common/Protocol.hpp"
-#include "../Common/LightnetConfig.hpp"
+#include "../../Common/Protocol.hpp"
+#include "../../Common/LightnetConfig.hpp"
 #include "ScenePlayer.hpp"
 
 namespace Lightnet {

@@ -11,8 +11,8 @@
 // Business logic lives in the service classes, not here.
 
 #include <ESPAsyncWebServer.h>
-#include "AppearanceStore.hpp"
-#include "PaletteStore.hpp"
+#include "../Appearance/AppearanceStore.hpp"
+#include "../Appearance/PaletteStore.hpp"
 #include "ScenePlayer.hpp"
 #include "AnimationService.hpp"
 #include "AnimationScheduler.hpp"

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <stdint.h>
-#include "../Common/Palette.hpp"
-#include "../Common/LightnetConfig.hpp"
-#include "../Common/Protocol.hpp"
+#include "../../Common/Palette.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "../../Common/Protocol.hpp"
 
 namespace Lightnet {
 

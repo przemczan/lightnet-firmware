@@ -1,3 +1,4 @@
+#ifndef LIGHTNET_TARGET_CONTROLLER
 #include "RGBController.hpp"
 
 #define RGBC_DEBUG 0
@@ -124,3 +125,4 @@ void RGBController::setColorTemperature(ColorTemperature colorTemperature)
     FastLED.setTemperature(this->colorTemperature);
     this->updateOutputs();
 }
+#endif  // LIGHTNET_TARGET_CONTROLLER

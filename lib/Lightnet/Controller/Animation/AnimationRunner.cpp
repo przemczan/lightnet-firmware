@@ -1,5 +1,5 @@
 #include "AnimationRunner.hpp"
-#include "../Controller/PanelsController.hpp"
+#include "../Panels/PanelsController.hpp"
 #include "Arduino.h"
 
 namespace Lightnet {

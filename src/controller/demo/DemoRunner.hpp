@@ -2,13 +2,13 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 #if DEMO_ENABLED
 
-#include "../../../lib/Lightnet/Controller/AnimationService.hpp"
-#include "../../../lib/Lightnet/Controller/SceneStore.hpp"
-#include "../../../lib/Lightnet/Controller/ScenePlayer.hpp"
-#include "../../../lib/Lightnet/Controller/AnimationScheduler.hpp"
-#include "../../../lib/Lightnet/Controller/AnimationRunner.hpp"
-#include "../../../lib/Lightnet/Controller/PanelsController.hpp"
-#include "../../../lib/Lightnet/Controller/PanelsInitializer.hpp"
+#include "../../../lib/Lightnet/Controller/Animation/AnimationService.hpp"
+#include "../../../lib/Lightnet/Controller/Animation/SceneStore.hpp"
+#include "../../../lib/Lightnet/Controller/Animation/ScenePlayer.hpp"
+#include "../../../lib/Lightnet/Controller/Animation/AnimationScheduler.hpp"
+#include "../../../lib/Lightnet/Controller/Animation/AnimationRunner.hpp"
+#include "../../../lib/Lightnet/Controller/Panels/PanelsController.hpp"
+#include "../../../lib/Lightnet/Controller/Panels/PanelsInitializer.hpp"
 
 namespace Lightnet {
 

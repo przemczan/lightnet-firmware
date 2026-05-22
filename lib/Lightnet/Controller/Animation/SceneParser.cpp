@@ -1,5 +1,5 @@
 #include "SceneParser.hpp"
-#include "../Utils/SimpleJson.hpp"
+#include "../../Utils/SimpleJson.hpp"
 #include <string.h>
 #include <stdlib.h>
 

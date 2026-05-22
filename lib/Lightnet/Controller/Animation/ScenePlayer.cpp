@@ -1,6 +1,6 @@
 #include "ScenePlayer.hpp"
 #include "AnimationRunner.hpp"
-#include "../Utils/Debug.hpp"
+#include "../../Utils/Debug.hpp"
 #include <string.h>
 #include <Arduino.h>
 
@@ -50,6 +50,10 @@ void ScenePlayer::loadAndPlay(const SceneLayer* newLayers, uint8_t newCount,
             PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
         }
     }
+
+    // Clear any stale queued animations from the previous scene so new PREPAREs
+    // are never dropped due to a full 4-slot queue on the panel side.
+    scheduler.clearAllPanelQueues();
 
     sendPalettesToPanels();
 

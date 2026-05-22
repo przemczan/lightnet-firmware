@@ -6,7 +6,11 @@
 #include "../Common/Palette.hpp"
 #include "../Common/ColorRef.hpp"
 #include "../Common/LightnetConfig.hpp"
-#include "RGBController.hpp"
+#ifdef SIM_MODE
+  #include "../Sim/SimRGBController.hpp"
+#else
+  #include "RGBController.hpp"
+#endif
 
 namespace Lightnet {
 

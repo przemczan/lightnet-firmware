@@ -1,10 +1,10 @@
 #pragma once
 
 #include <stdint.h>
-#include "../Common/Palette.hpp"
-#include "../Common/LightnetConfig.hpp"
-#include "../Common/Protocol.hpp"
-#include "AnimationScheduler.hpp"
+#include "../../Common/Palette.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "../../Common/Protocol.hpp"
+#include "../Animation/AnimationScheduler.hpp"
 #include "PaletteStore.hpp"
 
 namespace Lightnet {

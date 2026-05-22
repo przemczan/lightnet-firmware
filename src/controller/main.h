@@ -9,8 +9,8 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
     #include <Arduino.h>
-    #include "PanelsInitializer.hpp"
-    #include "PanelsController.hpp"
+    #include "Panels/PanelsInitializer.hpp"
+    #include "Panels/PanelsController.hpp"
     #include "MessageServer.hpp"
     #include "MessageHandler.hpp"
     #include <ESPAsyncWebServer.h>
@@ -23,22 +23,25 @@
     #endif
     #include "AppServer.hpp"
     #include "Protocol.hpp"
-    #include "AnimationScheduler.hpp"
-    #include "AnimationRunner.hpp"
-    #include "PaletteStore.hpp"
-    #include "AppearanceStore.hpp"
-    #include "AnimationServer.hpp"
-    #include "ScenePlayer.hpp"
-    #include "SceneParser.hpp"
-    #include "SceneStore.hpp"
-    #include "AnimationService.hpp"
-    #include "TwibootClient.hpp"
-    #include "PanelFlasher.hpp"
-    #include "FirmwareUpdateServer.hpp"
-    #include "SerialFirmwareReceiver.hpp"
+    #include "Animation/AnimationScheduler.hpp"
+    #include "Animation/AnimationRunner.hpp"
+    #include "Appearance/PaletteStore.hpp"
+    #include "Appearance/AppearanceStore.hpp"
+    #include "Animation/AnimationServer.hpp"
+    #include "Animation/ScenePlayer.hpp"
+    #include "Animation/SceneParser.hpp"
+    #include "Animation/SceneStore.hpp"
+    #include "Animation/AnimationService.hpp"
+    #include "OTA/TwibootClient.hpp"
+    #include "OTA/PanelFlasher.hpp"
+    #include "OTA/FirmwareUpdateServer.hpp"
+    #include "OTA/SerialFirmwareReceiver.hpp"
     #include <ArduinoOTA.h>
     #ifdef ARDUINO_ARCH_ESP32
         #include <SPIFFS.h>
+    #endif
+    #ifdef SIM_MODE
+        #include "SimPanelManager.hpp"
     #endif
 
 #endif

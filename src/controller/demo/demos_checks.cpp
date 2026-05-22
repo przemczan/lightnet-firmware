@@ -21,7 +21,7 @@ namespace Lightnet {
 void DemoRunner::demoInvertedBreathe()
 {
     PRINTLN("[DEMO] Inverted Breathe");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::ColorRGB ice = {60, 160, 255};
     setAll(ice, 220);
     scheduler.playOnPanels(1, ANIM_BREATHE, FLAG_LOOP, 2000,
@@ -36,7 +36,7 @@ void DemoRunner::demoInvertedBreathe()
 void DemoRunner::demoRapidTransitions()
 {
     PRINTLN("[DEMO] Rapid Transitions");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     static const Protocol::ColorRGB palette[] = {
         {255, 20,  0},
         {0,   200, 50},
@@ -60,7 +60,7 @@ void DemoRunner::demoRapidTransitions()
 void DemoRunner::demoExtremePulse()
 {
     PRINTLN("[DEMO] Extreme Pulse");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::ColorRGB magenta = {255, 0, 150};
     Protocol::ColorRGB black   = {0,   0, 0};
     for (uint8_t i = 0; i < n; i++) panels.turnOn(addrs[i]);
@@ -79,7 +79,7 @@ void DemoRunner::demoExtremePulse()
 void DemoRunner::demoWaveRippleSequence()
 {
     PRINTLN("[DEMO] Wave + Ripple sequence");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::ColorRGB warm = {255, 180, 60};
     Protocol::ColorRGB cool = {0,   140, 255};
     Protocol::Color c;
@@ -111,7 +111,7 @@ void DemoRunner::demoWaveRippleSequence()
 void DemoRunner::demoReactiveBeats()
 {
     PRINTLN("[DEMO] Reactive Beats");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::ColorRGB ember = {180, 60,  10};
     Protocol::ColorRGB flash = {10,  10,  255};
     setAll(ember, 25);
@@ -130,7 +130,7 @@ void DemoRunner::demoReactiveBeats()
 void DemoRunner::demoRainbowFade()
 {
     PRINTLN("[DEMO] Rainbow Fade");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::ColorRGB black = {0, 0, 0};
     for (uint8_t i = 0; i < n; i++) panels.turnOn(addrs[i]);
     scheduler.playOnPanels(50, ANIM_HUE_CYCLE, 0, 5000,
@@ -147,7 +147,7 @@ void DemoRunner::demoRainbowFade()
 void DemoRunner::demoWaveAndChase()
 {
     PRINTLN("[DEMO] Wave + Chase");
-    uint8_t addrs[3]; uint8_t n = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS]; uint8_t n = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::ColorRGB warm = {255, 210, 140};
     Protocol::ColorRGB cyan = {0,   200, 255};
     Protocol::Color c;

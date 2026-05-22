@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include "../Common/LightnetBus.hpp"
-#include "../Common/Protocol.hpp"
+#include "../../Common/LightnetBus.hpp"
+#include "../../Common/Protocol.hpp"
 #include <FastLED.h>
 
 class PanelsController

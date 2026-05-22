@@ -9,10 +9,10 @@
 #include "../Utils/Crc.hpp"
 #include "../Utils/Mem.hpp"
 #include "../Utils/List.hpp"
-#include "../Controller/Panel.hpp"
-#include "../Controller/PanelsInitializer.hpp"
-#include "../Controller/PanelsController.hpp"
-#include "../Controller/AnimationScheduler.hpp"
+#include "../Controller/Panels/Panel.hpp"
+#include "../Controller/Panels/PanelsInitializer.hpp"
+#include "../Controller/Panels/PanelsController.hpp"
+#include "../Controller/Animation/AnimationScheduler.hpp"
 
 class MessageHandler
 {

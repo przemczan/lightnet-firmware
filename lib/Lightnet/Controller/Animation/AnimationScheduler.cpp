@@ -1,6 +1,6 @@
 #include "AnimationScheduler.hpp"
 #include "AnimationRunner.hpp"
-#include "../Controller/PanelsController.hpp"
+#include "../Panels/PanelsController.hpp"
 
 namespace Lightnet {
 
@@ -88,10 +88,15 @@ void AnimationScheduler::playOnPanels(uint8_t group_id, uint8_t animType, uint8_
 
 void AnimationScheduler::stopGroup(uint8_t group_id)
 {
-    // For now, we can add a method to send CONTROL/STOP to all panels in a group
-    // But we'd need to know which panels are in the group
-    // For MVP, just broadcast via General Call or unicast to tracked panels
+    (void)group_id;
     // TODO: implement group tracking if needed
+}
+
+void AnimationScheduler::clearAllPanelQueues()
+{
+    Protocol::PacketAnimationControl pkt;
+    pkt.cmd = Lightnet::ANIM_CTRL_CLEAR_QUEUE;
+    LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_ANIMATION_CONTROL);
 }
 
 void AnimationScheduler::pauseGroup(uint8_t group_id)

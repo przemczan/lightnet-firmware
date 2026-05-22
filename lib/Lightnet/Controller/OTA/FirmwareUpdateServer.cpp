@@ -2,7 +2,7 @@
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
-#include "../Utils/Debug.hpp"
+#include "../../Utils/Debug.hpp"
 
 static const char *FIRMWARE_PATH = "/panel_fw.bin";
 

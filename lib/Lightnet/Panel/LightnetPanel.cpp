@@ -1,3 +1,4 @@
+#ifndef LIGHTNET_TARGET_CONTROLLER
 #include "LightnetPanel.hpp"
 
 LightnetPanel::LightnetPanel()
@@ -548,3 +549,4 @@ void LightnetPanel::handleSetGlobalBrightness(Protocol::PacketSetGlobalBrightnes
 }
 
 LightnetPanel LNPanel;
+#endif  // LIGHTNET_TARGET_CONTROLLER

@@ -8,8 +8,8 @@
 #else
     #include <FS.h>
 #endif
-#include "PanelsController.hpp"
-#include "PanelsInitializer.hpp"
+#include "../Panels/PanelsController.hpp"
+#include "../Panels/PanelsInitializer.hpp"
 #include "TwibootClient.hpp"
 
 // Orchestrates OTA firmware updates for all discovered panels.

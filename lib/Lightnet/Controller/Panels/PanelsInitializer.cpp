@@ -1,3 +1,4 @@
+#ifndef SIM_MODE
 #include "PanelsInitializer.hpp"
 
 PanelsInitializer::PanelsInitializer()
@@ -186,3 +187,4 @@ Panel *PanelsInitializer::getPanelByIndex(uint16_t panelIndex)
 }
 
 PanelsInitializer LNPanelsInitializer;
+#endif  // SIM_MODE

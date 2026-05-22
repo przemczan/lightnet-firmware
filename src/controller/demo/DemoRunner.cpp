@@ -26,6 +26,7 @@ DemoRunner::DemoRunner(AnimationService&   _animService,
 
 void DemoRunner::run()
 {
+    if (index == 0) Serial.println("[SIM:DEMO] start");
     PRINTKV("[DEMO] running demo", (int)index);
     switch (index) {
         // -- Verification demos (exercise specific animation code paths) --
@@ -45,6 +46,7 @@ void DemoRunner::run()
         case 12: demoRippleCascade();      break;
     }
     index = (index + 1) % 13;
+    if (index == 0) Serial.println("[SIM:DEMO] end");
 }
 
 // ============================================================================
@@ -64,8 +66,8 @@ uint8_t DemoRunner::resolvePanels(uint8_t* out, uint8_t maxCount) const
 
 void DemoRunner::setAll(Protocol::ColorRGB rgb, uint8_t brightness)
 {
-    uint8_t addrs[3];
-    uint8_t count = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS];
+    uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     Protocol::Color c;
     c.rgb = rgb;
     for (uint8_t i = 0; i < count; i++) {
@@ -76,8 +78,8 @@ void DemoRunner::setAll(Protocol::ColorRGB rgb, uint8_t brightness)
 
 void DemoRunner::turnOffAll()
 {
-    uint8_t addrs[3];
-    uint8_t count = resolvePanels(addrs, 3);
+    uint8_t addrs[LIGHTNET_MAX_PANELS];
+    uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
     for (uint8_t i = 0; i < count; i++) {
         panels.turnOff(addrs[i]);
     }

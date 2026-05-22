@@ -1,12 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include "../Common/AnimationTypes.hpp"
-#include "../Common/LightnetBus.hpp"
-#include "../Common/LightnetConfig.hpp"
-#include "../Common/ColorRef.hpp"
-#include "../Common/Palette.hpp"
-#include "../Utils/List.hpp"
+#include "../../Common/AnimationTypes.hpp"
+#include "../../Common/LightnetBus.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "../../Common/ColorRef.hpp"
+#include "../../Common/Palette.hpp"
+#include "../../Utils/List.hpp"
 
 namespace Lightnet {
 
@@ -59,6 +59,7 @@ public:
     void turnOnPanels(const uint8_t* panelAddresses, uint8_t panelCount);
 
     void stopGroup(uint8_t group_id);
+    void clearAllPanelQueues();  // General Call CLEAR_QUEUE — call before loadAndPlay
     void pauseGroup(uint8_t group_id);
     void resumeGroup(uint8_t group_id);
     void triggerGroup(uint8_t group_id, uint8_t value);

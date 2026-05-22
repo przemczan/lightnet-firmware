@@ -65,25 +65,34 @@ void setupMDNS()
     MDNS.addService("lightnet", "tcp", SERVER_PORT);
 }
 
-void fadeIn(uint16_t panelIndex)
+// Send an ANIM_FADE packet to one panel then fire a General Call START.
+// Each call uses a unique groupId so the START only triggers this panel.
+static void sendPanelFade(uint8_t addr, uint16_t durationMs,
+                           uint8_t brightFrom, uint8_t brightTo,
+                           uint8_t groupId, uint8_t seqId)
 {
-    PRINTKV("[FADE IN]", panelIndex);
-    uint8_t brightness = 0;
+    Protocol::PacketAnimationPrepare prep;
+    prep.animType       = Lightnet::ANIM_FADE;
+    prep.group_id       = groupId;
+    prep.flags          = 0;
+    prep.transitionMs   = 0;
+    prep.durationMs     = durationMs;
+    prep.colorFrom      = Lightnet::ColorRef_rgb(255, 255, 255);
+    prep.colorTo        = Lightnet::ColorRef_rgb(255, 255, 255);  // ANIM_FADE holds colorTo
+    prep.brightnessFrom = brightFrom;
+    prep.brightnessTo   = brightTo;
+    prep.param1         = 0;
+    prep.param2         = 0;
+    LNBus.sendPacketAck(addr, &prep, sizeof(prep), Protocol::PACKET_ANIMATION_PREPARE);
 
-    while (++brightness < 50) {
-        panelsController->setBrightness(panelIndex, brightness * 5);
-        delay(3);
-    }
-}
+    delayMicroseconds(300);
 
-void fadeOut(uint16_t panelIndex)
-{
-    PRINTKV("[FADE OUT]", panelIndex);
-    uint8_t brightness = 50;
-
-    while (brightness--) {
-        panelsController->setBrightness(panelIndex, brightness * 5);
-        delay(3);
+    Protocol::PacketAnimationStart start;
+    start.seq_id   = seqId;
+    start.group_id = groupId;
+    for (uint8_t retry = 0; retry < 2; retry++) {
+        LNBus.sendPacketNack(0x00, &start, sizeof(start), Protocol::PACKET_ANIMATION_START);
+        delayMicroseconds(200);
     }
 }
 
@@ -91,34 +100,42 @@ void selfTest()
 {
     PRINTLN("[SELF TEST BEGIN]");
 
-    Panel *panel;
     uint16_t panelCount = LNPanelsInitializer.getPanels()->getSize();
-    uint16_t panelNum = 0;
-
-    while (panelNum < panelCount) {
-        panel = LNPanelsInitializer.getPanels()->get(panelNum);
-
-        panelsController->turnOn(panel->index);
-        fadeIn(panel->index);
-
-        panelNum++;
+    if (panelCount == 0) {
+        PRINTLN("[SELF TEST END]");
+        return;
     }
 
-    delay(250);
+    // Divide 1 s evenly; clamp so each in-panel animation has enough resolution.
+    uint16_t stepMs = 1000 / panelCount;
+    if (stepMs < 10) stepMs = 10;
 
-    panelNum = panelCount;
+    uint8_t groupId = 1;
+    uint8_t seqId   = 1;
 
-    while (panelNum--) {
-        panel = LNPanelsInitializer.getPanels()->get(panelNum);
-        fadeOut(panel->index);
+    // Fade in: forward order — each panel fades 0→255 over stepMs
+    for (uint16_t i = 0; i < panelCount; i++) {
+        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;        
+        panelsController->setBrightness(addr, 0);
+        panelsController->turnOn(addr);
+        sendPanelFade(addr, stepMs, 0, 255, groupId++, seqId++);
+        if (seqId == 0) seqId = 1;
+        delay(stepMs);
     }
 
-    panelNum = panelCount;
+    // Fade out: reverse order — each panel fades 255→0 over stepMs
+    for (uint16_t i = panelCount; i-- > 0; ) {
+        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
+        sendPanelFade(addr, stepMs, 255, 0, groupId++, seqId++);
+        if (seqId == 0) seqId = 1;
+        delay(stepMs);
+    }
 
-    while (panelNum--) {
-        panel = LNPanelsInitializer.getPanels()->get(panelNum);
-        panelsController->turnOff(panel->index);
-        panelsController->setBrightness(panel->index, 255);
+    // Restore panels to off state ready for normal use
+    for (uint16_t i = 0; i < panelCount; i++) {
+        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
+        panelsController->turnOff(addr);
+        panelsController->setBrightness(addr, 128);
     }
 
     PRINTLN("[SELF TEST END]");
@@ -199,7 +216,11 @@ void setupWiFi()
 
 void setup()
 {
+#ifdef SIM_SERIAL_BAUD
+    Serial.begin(SIM_SERIAL_BAUD);
+#else
     Serial.begin(57600);
+#endif
 
     LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
                                    .sclPinNo = IIC_SCL_PIN,
@@ -296,6 +317,9 @@ void loop()
                     messageHandler->handleIncommingMessages();
                     if (animScheduler) animScheduler->tick(millis());
                     if (scenePlayer)   scenePlayer->tick(millis());
+#ifdef SIM_MODE
+                    SimPanels.tick();
+#endif
 #if DEMO_ENABLED
                     runDemos();
 #endif

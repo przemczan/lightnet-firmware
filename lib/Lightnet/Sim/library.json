@@ -1,0 +1,8 @@
+{
+  "name": "LightnetSim",
+  "version": "1.0.0",
+  "build": {
+    "srcDirs": ["."],
+    "includeDir": "."
+  }
+}
