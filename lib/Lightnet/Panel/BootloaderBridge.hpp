@@ -2,8 +2,8 @@
 
 #if !IS_ESP
 
-#include <avr/eeprom.h>
-#include "../Common/Protocol.hpp"
+    #include <avr/eeprom.h>
+    #include "../Common/Protocol.hpp"
 
 // Coordinates with twiboot_for_arduino (the fork).
 //
@@ -18,10 +18,10 @@
 // The fork's .init0/.init3 disable the WDT immediately on startup,
 // so there is no WDT boot-loop.
 namespace BootloaderBridge {
+    static constexpr uint8_t ENTRY_TOKEN  = Protocol::BOOTLOADER_ENTRY_TOKEN;
 
-    static constexpr uint8_t  ENTRY_TOKEN  = Protocol::BOOTLOADER_ENTRY_TOKEN;
-
-    inline void prepareAndReset(uint8_t /*i2cAddress*/) {
+    inline void prepareAndReset(uint8_t /*i2cAddress*/)
+    {
         // Write the fork's EEPROM boot-magic so it stays in bootloader mode.
         eeprom_busy_wait();
         eeprom_write_word((uint16_t *)510, 0xB007);
@@ -39,7 +39,7 @@ namespace BootloaderBridge {
         // Zero twiboot's .data/.bss range — no crt0 means no automatic init.
         // Covers boot_timeout, cmd, buf[], addr, page_dirty, etc.
         for (uint16_t a = 0x0100; a < 0x0500; a++) {
-            *(volatile uint8_t*)a = 0;
+            *(volatile uint8_t *)a = 0;
         }
 
         // Software jump to fork at word address 0x3800 (byte address 0x7000 = BOOTLOADER_START).
@@ -53,7 +53,6 @@ namespace BootloaderBridge {
         ((twiboot_t)0x3800)();
         __builtin_unreachable();
     }
-
 }
 
 #endif // !IS_ESP

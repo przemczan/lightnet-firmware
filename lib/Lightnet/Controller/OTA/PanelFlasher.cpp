@@ -2,19 +2,22 @@
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#else
-    #include <FS.h>
-#endif
-#include "../../Utils/Debug.hpp"
+    #ifdef ARDUINO_ARCH_ESP32
+        #include <SPIFFS.h>
+    #else
+        #include <FS.h>
+    #endif
+    #include "../../Utils/Debug.hpp"
 
 // Always-on status log — not gated by DEBUG so the user can see flasher progress
 // even in release builds via any serial monitor.
-#define FLOG(fmt, ...) Serial.printf("[FLASHER] " fmt "\n", ##__VA_ARGS__)
+    #define FLOG(fmt, ...) Serial.printf("[FLASHER] " fmt "\n", ## __VA_ARGS__)
 
-PanelFlasher::PanelFlasher(PanelsController *ctrl, PanelsInitializer *init,
-                             TwibootClient *twiboot)
+PanelFlasher::PanelFlasher(
+    PanelsController * ctrl,
+    PanelsInitializer *init,
+    TwibootClient *    twiboot
+)
     : ctrl(ctrl), init(init), twiboot(twiboot)
 {
     memset(&status, 0, sizeof(status));
@@ -24,15 +27,19 @@ PanelFlasher::PanelFlasher(PanelsController *ctrl, PanelsInitializer *init,
 void PanelFlasher::startFlashing(const char *path)
 {
     File f = SPIFFS.open(path, "r");
+
     if (!f) {
         setError("cannot open firmware file");
+
         return;
     }
+
     firmwareSize = f.size();
     f.close();
 
     if (firmwareSize == 0 || firmwareSize > 28 * 1024) {
         setError("firmware size invalid");
+
         return;
     }
 
@@ -47,6 +54,7 @@ void PanelFlasher::startFlashing(const char *path)
 
     if (status.totalPanels == 0) {
         setError("no panels discovered");
+
         return;
     }
 
@@ -68,6 +76,7 @@ void PanelFlasher::run()
 
         case State::ENTER_BL: {
             uint8_t addr = currentPanelAddress();
+
             FLOG("ENTER_BL panel %d @ 0x%02X", status.panelIdx, addr);
             ctrl->enterBootloader(addr);
             transition(State::WAIT_BL);
@@ -82,6 +91,7 @@ void PanelFlasher::run()
             // twiboot always responds at its hardcoded address (0x29), regardless
             // of the panel's app-mode I²C index.
             TwibootClient::ChipInfo info;
+
             if (twiboot->connect(TwibootClient::TWIBOOT_ADDRESS, &info, 1, 0)) {
                 FLOG("twiboot ready @ 0x%02X", TwibootClient::TWIBOOT_ADDRESS);
                 currentPage = 0;
@@ -89,19 +99,27 @@ void PanelFlasher::run()
                 // SPIFFS overhead is paid while twiboot is alive (timeout reset
                 // by connect(); timer won't fire while we're communicating).
                 flashFile = SPIFFS.open(firmwarePath, "r");
-                if (!flashFile) { setError("firmware file open failed"); break; }
+
+                if (!flashFile) {
+                    setError("firmware file open failed");
+                    break;
+                }
+
                 transition(State::FLASHING);
             } else if (now - stateEnteredAt > TWIBOOT_WAIT_TIMEOUT_MS) {
                 setError("twiboot connect timeout");
             }
+
             break;
         }
 
         case State::FLASHING: {
             uint8_t pageBuf[128];
+
             memset(pageBuf, 0xFF, sizeof(pageBuf));
 
             size_t got = flashFile.read(pageBuf, 128);
+
             if (got == 0 && currentPage < totalPages) {
                 flashFile.close();
                 setError("firmware read error");
@@ -110,9 +128,12 @@ void PanelFlasher::run()
 
             bool ok = twiboot->writePage(TwibootClient::TWIBOOT_ADDRESS,
                                          currentPage * 128, pageBuf);
+
             if (!ok) {
                 flashFile.close();
+
                 char msg[64];
+
                 snprintf(msg, sizeof(msg), "write failed page %u", currentPage);
                 setError(msg);
                 break;
@@ -127,6 +148,7 @@ void PanelFlasher::run()
                 FLOG("write done (%u pages), verifying", totalPages);
                 transition(State::VERIFY);
             }
+
             break;
         }
 
@@ -139,11 +161,14 @@ void PanelFlasher::run()
                 PRINTLN("[FLASHER] verify skipped (file unavailable)");
             } else {
                 uint8_t fileBuf[128], flashBuf[128];
+
                 for (uint16_t p = 0; p < totalPages && ok; p++) {
                     memset(fileBuf, 0xFF, sizeof(fileBuf));
                     f.read(fileBuf, 128);
+
                     bool readOk = twiboot->readPage(TwibootClient::TWIBOOT_ADDRESS, p * 128, flashBuf);
-                    bool match  = readOk && memcmp(fileBuf, flashBuf, 128) == 0;
+                    bool match  = readOk && (memcmp(fileBuf, flashBuf, 128) == 0);
+
                     if (!match) {
                         if (!readOk) {
                             PRINTF("[FLASHER] verify: read failed page %u\n", p);
@@ -157,9 +182,11 @@ void PanelFlasher::run()
                                 }
                             }
                         }
+
                         ok = false;
                     }
                 }
+
                 f.close();
             }
 
@@ -170,6 +197,7 @@ void PanelFlasher::run()
                 setError("startApp failed");
                 break;
             }
+
             if (!ok) {
                 FLOG("verify mismatch — panel booted anyway, check logs for details");
             }
@@ -198,6 +226,7 @@ void PanelFlasher::transition(State next)
 void PanelFlasher::setError(const char *msg)
 {
     if (flashFile) flashFile.close();
+
     FLOG("ERROR: %s", msg);
     strncpy(status.errorMsg, msg, sizeof(status.errorMsg) - 1);
     status.errorMsg[sizeof(status.errorMsg) - 1] = '\0';
@@ -213,6 +242,7 @@ void PanelFlasher::advancePanel()
     if (status.panelIdx >= status.totalPanels) {
         FLOG("all panels flashed — restart controller to re-run discovery");
         status.state = State::DONE;
+
         return;
     }
 
@@ -222,6 +252,7 @@ void PanelFlasher::advancePanel()
 uint8_t PanelFlasher::currentPanelAddress() const
 {
     Panel *panel = init->getPanels()->get(status.panelIdx);
+
     return panel ? (uint8_t)panel->index : 0;
 }
 

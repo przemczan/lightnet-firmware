@@ -222,7 +222,7 @@
 
 #ifdef __cplusplus
     #ifdef __GNUC__
-        #define _INLINE_ __attribute__( ( always_inline ) ) inline
+        #define _INLINE_ __attribute__( (always_inline) ) inline
     #else
         #define _INLINE_ inline
     #endif
@@ -244,34 +244,39 @@ class _AtomicWrapper
 {
     protected:
         template< typename > friend class _AtomicInline;
-        _INLINE_ explicit _AtomicWrapper( _ContainedType &o_OwningObject ) : b_Block(), c_Object( o_OwningObject )
+
+        _INLINE_ explicit _AtomicWrapper(_ContainedType &o_OwningObject) : b_Block(), c_Object(o_OwningObject)
         {
             return;
         }
+
     public:
-        _INLINE_ ~_AtomicWrapper( void )
+        _INLINE_ ~_AtomicWrapper(void)
         {
             return;
         }
+
         _INLINE_ operator _ContainedType&()
         {
             return this->c_Object;
         }
+
         _INLINE_ operator _ContainedType&() const
         {
             return this->c_Object;
         }
 
         template< typename _Type >
-        _INLINE_ _AtomicWrapper< _BlockType, _ContainedType > &operator =( _Type const &t_Copy )
+        _INLINE_ _AtomicWrapper< _BlockType, _ContainedType > &operator =(_Type const &t_Copy)
         {
             this->c_Object = t_Copy;
+
             return *this;
         }
 
     private:
         _BlockType b_Block;
-        _ContainedType  &c_Object;
+        _ContainedType &c_Object;
 };
 
 /*********************************************************************
@@ -283,17 +288,19 @@ class _AtomicWrapper
 *********************************************************************/
 
 template< typename _BlockType, typename _Type >
-struct _TypeSeparator { typedef _AtomicWrapper< _BlockType, _Type > TemporaryType;
+struct _TypeSeparator {
+    typedef _AtomicWrapper< _BlockType, _Type > TemporaryType;
 };
 
 template< typename _BlockType, typename _Type >
-struct _TypeSeparator< _BlockType, volatile _Type& >    { typedef _AtomicWrapper< _BlockType, volatile _Type > TemporaryType;
+struct _TypeSeparator< _BlockType, volatile _Type& >    {
+    typedef _AtomicWrapper< _BlockType, volatile _Type > TemporaryType;
 };
 
 template< typename _BlockType, typename _Type >
-struct _TypeSeparator< _BlockType, const _Type >        { typedef const _Type& TemporaryType;
+struct _TypeSeparator< _BlockType, const _Type >        {
+    typedef const _Type& TemporaryType;
 };
-
 
 /*********************************************************************
     _AtomicInline interface.
@@ -306,22 +313,24 @@ class _AtomicInline
 {
     public:
         template< typename _Type >
-        _INLINE_ static typename _TypeSeparator< _BlockType, _Type >::TemporaryType Protect( _Type &t_Var )
+        _INLINE_ static typename _TypeSeparator< _BlockType, _Type >::TemporaryType Protect(_Type &t_Var)
         {
-            return typename _TypeSeparator< _BlockType, _Type >::TemporaryType( t_Var );
+            return typename _TypeSeparator< _BlockType, _Type >::TemporaryType(t_Var);
         }
 
         template< typename _Type >
-        _INLINE_ static typename _TypeSeparator< _BlockType, const _Type >::TemporaryType Protect( _Type const &t_Var )
+        _INLINE_ static typename _TypeSeparator< _BlockType, const _Type >::TemporaryType Protect(_Type const &t_Var)
         {
-            return typename _TypeSeparator< _BlockType, const _Type >::TemporaryType( t_Var );
+            return typename _TypeSeparator< _BlockType, const _Type >::TemporaryType(t_Var);
         }
+
     protected:
-        _INLINE_ _AtomicInline( void )
+        _INLINE_ _AtomicInline(void)
         {
             return;
         }
-        _INLINE_ ~_AtomicInline( void )
+
+        _INLINE_ ~_AtomicInline(void)
         {
             return;
         }
@@ -346,15 +355,15 @@ class _AtomicInline
     #include <avr/io.h>
 
 /*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ static void GlobalInterruptsOff( void )
+_INLINE_ static void GlobalInterruptsOff(void)
 {
     __asm__ __volatile__ ("cli" ::);
 }
-_INLINE_ static void GlobalInterruptsOn( void )
+
+_INLINE_ static void GlobalInterruptsOn(void)
 {
     __asm__ __volatile__ ("sei" ::);
 }
-
 
 /*********************************************************************
     Atomic_RestoreState AVR specific.
@@ -364,21 +373,21 @@ _INLINE_ static void GlobalInterruptsOn( void )
 
 template< bool _Atomic, bool _SafeRestore = false >
 struct Atomic_RestoreState {
-
-    _INLINE_ Atomic_RestoreState( void ) : u_SREG( SREG )
+    _INLINE_ Atomic_RestoreState(void) : u_SREG(SREG)
     {
-        ( ( _Atomic ? GlobalInterruptsOff : GlobalInterruptsOn ) )();
+        ( (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn) )();
     }
 
-    _INLINE_ ~Atomic_RestoreState( void )
+    _INLINE_ ~Atomic_RestoreState(void)
     {
-        if ( _SafeRestore ) {
-            if ( _Atomic && ( this->u_SREG & _BV( SREG_I ) ) ) GlobalInterruptsOn();
+        if (_SafeRestore) {
+            if (_Atomic && (this->u_SREG & _BV(SREG_I) ) )     GlobalInterruptsOn();
 
-            if ( !_Atomic && !( this->u_SREG & _BV( SREG_I ) ) ) GlobalInterruptsOff();
+            if (!_Atomic && !(this->u_SREG & _BV(SREG_I) ) )     GlobalInterruptsOff();
         } else
             SREG = this->u_SREG;
     }
+
     const uint8_t u_SREG;
 };
 
@@ -386,28 +395,30 @@ struct Atomic_RestoreState {
 #elif defined(__arm__)
 
 /*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ void GlobalInterruptsOff( void )
+_INLINE_ void GlobalInterruptsOff(void)
 {
     __asm__ __volatile__ ("cpsid i" ::);
 }
-_INLINE_ void GlobalInterruptsOn( void )
+
+_INLINE_ void GlobalInterruptsOn(void)
 {
     __asm__ __volatile__ ("cpsie i" ::);
 }
 
 /*** ARMv7M specific helper functions. ***/
-_INLINE_ void WriteGlobalInterrupts( uint32_t u_Value )
+_INLINE_ void WriteGlobalInterrupts(uint32_t u_Value)
 {
     __asm__ __volatile__ ("MSR primask, %0" : : "r" (u_Value) );
 }
-_INLINE_ uint32_t ReadGlobalInterrupts( void )
+
+_INLINE_ uint32_t ReadGlobalInterrupts(void)
 {
     uint32_t u_Return;
 
     __asm__ __volatile__ ("MRS %0, primask" : "=r" (u_Return) );
+
     return u_Return;
 }
-
 
 /*********************************************************************
     Atomic_RestoreState ARMv7M specific.
@@ -417,54 +428,56 @@ _INLINE_ uint32_t ReadGlobalInterrupts( void )
 
 template< bool _Atomic, bool _SafeRestore = false >
 struct Atomic_RestoreState {
-
-    _INLINE_ Atomic_RestoreState( void ) : u_PRIMASK( ReadGlobalInterrupts() )
+    _INLINE_ Atomic_RestoreState(void) : u_PRIMASK(ReadGlobalInterrupts() )
     {
-        ( _Atomic ? GlobalInterruptsOff : GlobalInterruptsOn )();
+        (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
     }
 
-    _INLINE_ ~Atomic_RestoreState( void )
+    _INLINE_ ~Atomic_RestoreState(void)
     {
-        if ( _SafeRestore ) {
-            if ( _Atomic && !( this->u_PRIMASK  & 0x1 ) ) GlobalInterruptsOn();
+        if (_SafeRestore) {
+            if (_Atomic && !(this->u_PRIMASK & 0x1) )     GlobalInterruptsOn();
 
-            if ( !_Atomic && ( this->u_PRIMASK  & 0x1 ) ) GlobalInterruptsOff();
+            if (!_Atomic && (this->u_PRIMASK & 0x1) )     GlobalInterruptsOff();
         } else
-            WriteGlobalInterrupts( this->u_PRIMASK );
+            WriteGlobalInterrupts(this->u_PRIMASK);
     }
+
     const uint32_t u_PRIMASK;
 };
 
 /****	PIC32 specific.	****/
-#elif defined( PIC32 )
+#elif defined(PIC32)
 
 /*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ void GlobalInterruptsOff( void )
+_INLINE_ void GlobalInterruptsOff(void)
 {
     __asm__ __volatile__ ("di" ::);
 }
-_INLINE_ void GlobalInterruptsOn( void )
+
+_INLINE_ void GlobalInterruptsOn(void)
 {
     __asm__ __volatile__ ("ei" ::);
 }
 
 /*** PIC32 specific helper functions. ***/
-_INLINE_ uint32_t GlobalInterruptsOffReturn( void )
+_INLINE_ uint32_t GlobalInterruptsOffReturn(void)
 {
     uint32_t u_Return;
 
     __asm__ __volatile__ ("di    %0" : "=r" (u_Return));
+
     return u_Return;
 }
 
-_INLINE_ uint32_t GlobalInterruptsOnReturn( void )
+_INLINE_ uint32_t GlobalInterruptsOnReturn(void)
 {
     uint32_t u_Return;
 
     __asm__ __volatile__ ("ei    %0" : "=r" (u_Return));
+
     return u_Return;
 }
-
 
 /*********************************************************************
     Atomic_RestoreState PIC32 specific.
@@ -473,30 +486,31 @@ _INLINE_ uint32_t GlobalInterruptsOnReturn( void )
 
 template< bool _Atomic, bool _Unused = true >
 struct Atomic_RestoreState {
-
-    _INLINE_ Atomic_RestoreState( void ) : u_Status( ( _Atomic ? GlobalInterruptsOffReturn : GlobalInterruptsOnReturn )() )
+    _INLINE_ Atomic_RestoreState(void) : u_Status( (_Atomic ? GlobalInterruptsOffReturn : GlobalInterruptsOnReturn)() )
     {
         return;
     }
 
-    _INLINE_ ~Atomic_RestoreState( void )
+    _INLINE_ ~Atomic_RestoreState(void)
     {
-        if ( _Atomic && ( this->u_Status  & 0x1 ) ) GlobalInterruptsOn();
+        if (_Atomic && (this->u_Status & 0x1) )     GlobalInterruptsOn();
 
-        if ( !_Atomic && !( this->u_Status  & 0x1 ) ) GlobalInterruptsOff();
+        if (!_Atomic && !(this->u_Status & 0x1) )     GlobalInterruptsOff();
     }
+
     const uint32_t u_Status;
 };
 
-#elif defined( __AVR32__ )
+#elif defined(__AVR32__)
     #include <interrupt_avr32.h>
 
 /*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ void GlobalInterruptsOff( void )
+_INLINE_ void GlobalInterruptsOff(void)
 {
     Disable_global_interrupt();
 }
-_INLINE_ void GlobalInterruptsOn( void )
+
+_INLINE_ void GlobalInterruptsOn(void)
 {
     Enable_global_interrupt();
 }
@@ -508,24 +522,24 @@ _INLINE_ void GlobalInterruptsOn( void )
 
 template< bool _Atomic, bool _Unused = true >
 struct Atomic_RestoreState {
-
-    _INLINE_ Atomic_RestoreState( void ) : b_Status( Is_global_interrupt_enabled() )
+    _INLINE_ Atomic_RestoreState(void) : b_Status(Is_global_interrupt_enabled() )
     {
-        ( _Atomic ? GlobalInterruptsOff : GlobalInterruptsOn )();
+        (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
     }
 
-    _INLINE_ ~Atomic_RestoreState( void )
+    _INLINE_ ~Atomic_RestoreState(void)
     {
-        if ( _Atomic && this->b_Status ) GlobalInterruptsOn();
+        if (_Atomic && this->b_Status)   GlobalInterruptsOn();
 
-        if ( !_Atomic && !this->b_Status ) GlobalInterruptsOff();
+        if (!_Atomic && !this->b_Status)   GlobalInterruptsOff();
     }
+
     const bool b_Status;
 };
+
 #else
     #error AtomicBlock does not currently support this architecture.
 #endif
-
 
 /*********************************************************************
     Atomic_Force interface.
@@ -536,16 +550,16 @@ struct Atomic_RestoreState {
 
 template< bool _Atomic, bool _Unused = true >
 struct Atomic_Force {
-    _INLINE_ Atomic_Force( void )
+    _INLINE_ Atomic_Force(void)
     {
-        ( _Atomic ? GlobalInterruptsOff : GlobalInterruptsOn )();
+        (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
     }
-    _INLINE_ ~Atomic_Force( void )
+
+    _INLINE_ ~Atomic_Force(void)
     {
-        ( _Atomic ? GlobalInterruptsOn : GlobalInterruptsOff )();
+        (_Atomic ? GlobalInterruptsOn : GlobalInterruptsOff)();
     }
 };
-
 
 /*********************************************************************
     Atomic_None interface.
@@ -557,7 +571,6 @@ struct Atomic_Force {
 *********************************************************************/
 
 template< bool _Unused_A = true, bool _Unused_B = true > struct Atomic_None {};
-
 
 /*********************************************************************
     Main high-level interfaces.
@@ -579,11 +592,12 @@ template< template< bool, bool > class _AtomicMode, bool _SafeRestore = false >
 struct AtomicBlock
     :   _AtomicMode< true, _SafeRestore >,
         _AtomicInline< AtomicBlock< _AtomicMode, _SafeRestore > > {
-    _INLINE_ explicit AtomicBlock( void ) : _AtomicMode< true, _SafeRestore >(), _AtomicInline< AtomicBlock< _AtomicMode, _SafeRestore > >()
+    _INLINE_ explicit AtomicBlock(void) : _AtomicMode< true, _SafeRestore >(), _AtomicInline< AtomicBlock< _AtomicMode, _SafeRestore > >()
     {
         return;
     }
-    _INLINE_ ~AtomicBlock( void )
+
+    _INLINE_ ~AtomicBlock(void)
     {
         return;
     }
@@ -593,11 +607,13 @@ template< template< bool, bool > class _AtomicMode, bool _SafeRestore = false >
 struct NonAtomicBlock
     :   _AtomicMode< false, _SafeRestore >,
         _AtomicInline< NonAtomicBlock< _AtomicMode, _SafeRestore > > {
-    _INLINE_ explicit NonAtomicBlock( void ) : _AtomicMode< false, _SafeRestore >(), _AtomicInline< NonAtomicBlock< _AtomicMode, _SafeRestore > >()
+    _INLINE_ explicit NonAtomicBlock(void) : _AtomicMode< false, _SafeRestore >(), _AtomicInline< NonAtomicBlock< _AtomicMode,
+                                                                                                                  _SafeRestore > >()
     {
         return;
     }
-    _INLINE_ ~NonAtomicBlock( void )
+
+    _INLINE_ ~NonAtomicBlock(void)
     {
         return;
     }
@@ -607,11 +623,12 @@ template< template< bool, bool > class _AtomicMode >
 struct AtomicBlockSafe
     :   _AtomicMode< true, true >,
         _AtomicInline< AtomicBlockSafe< _AtomicMode > > {
-    _INLINE_ explicit AtomicBlockSafe( void ) : _AtomicMode< true, true >(), _AtomicInline< AtomicBlockSafe< _AtomicMode > >()
+    _INLINE_ explicit AtomicBlockSafe(void) : _AtomicMode< true, true >(), _AtomicInline< AtomicBlockSafe< _AtomicMode > >()
     {
         return;
     }
-    _INLINE_ ~AtomicBlockSafe( void )
+
+    _INLINE_ ~AtomicBlockSafe(void)
     {
         return;
     }
@@ -621,16 +638,16 @@ template< template< bool, bool > class _AtomicMode >
 struct NonAtomicBlockSafe
     :   _AtomicMode< false, true >,
         _AtomicInline< NonAtomicBlockSafe< _AtomicMode > > {
-    _INLINE_ explicit NonAtomicBlockSafe( void ) : _AtomicMode< false, true >(), _AtomicInline< NonAtomicBlockSafe< _AtomicMode > >()
+    _INLINE_ explicit NonAtomicBlockSafe(void) : _AtomicMode< false, true >(), _AtomicInline< NonAtomicBlockSafe< _AtomicMode > >()
     {
         return;
     }
-    _INLINE_ ~NonAtomicBlockSafe( void )
+
+    _INLINE_ ~NonAtomicBlockSafe(void)
     {
         return;
     }
 };
-
 
 /*********************************************************************
     AtomicIf helper.
@@ -640,12 +657,13 @@ struct NonAtomicBlockSafe
 *********************************************************************/
 
 template< bool b_UseAtomic, template< bool, bool > class _AtomicMode = Atomic_RestoreState >
-struct AtomicIf { typedef AtomicBlock< Atomic_None > AType;
+struct AtomicIf {
+    typedef AtomicBlock< Atomic_None > AType;
 };
 
 template< template< bool, bool > class _AtomicMode >
-struct AtomicIf< true, _AtomicMode > { typedef AtomicBlock< _AtomicMode > AType;
+struct AtomicIf< true, _AtomicMode > {
+    typedef AtomicBlock< _AtomicMode > AType;
 };
 
 #endif
-

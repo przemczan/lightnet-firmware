@@ -1,0 +1,29 @@
+{
+    "editor.formatOnSave": true,
+    "uncrustify.executablePath.windows": "uncrustify",
+    "uncrustify.defaultConfigFile": "${workspaceFolder}/uncrustify.cfg",
+    "Workspace_Formatter.includePattern": [
+        "*.cpp",
+        "*.hpp",
+        "*.c",
+        "*.h"
+    ],
+    "Workspace_Formatter.excludePattern": [
+        "**/build",
+        "**/.*",
+        "**/.vscode",
+        "**/.idea",
+        "**/.pio",
+        "/docs",
+        "/lib/WebSockets",
+        "/firmware"
+    ],
+    "uncrustify.excludePaths": [
+        "${workspaceFolder}/.pio",
+        "${workspaceFolder}/.vscode",
+        "${workspaceFolder}/.idea",
+        "${workspaceFolder}/lib/WebSockets",
+        "${workspaceFolder}/firmware/twiboot_for_arduino"
+    ],
+    "editor.defaultFormatter": "zachflower.uncrustify"
+}

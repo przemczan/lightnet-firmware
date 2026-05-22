@@ -27,7 +27,6 @@ void RGBController::turnOff()
     FastLED.showColor(CRGB::Black);
 }
 
-
 void RGBController::color(uint8_t r, uint8_t g, uint8_t b)
 {
     #if RGBC_DEBUG
@@ -74,9 +73,9 @@ void RGBController::updateOutputs()
     if (this->useGammaCorrection) {
         FastLED.showColor(
             CRGB(
-            gammaValueR(this->colorValue.r),
-            gammaValueG(this->colorValue.g),
-            gammaValueB(this->colorValue.b)
+                gammaValueR(this->colorValue.r),
+                gammaValueG(this->colorValue.g),
+                gammaValueB(this->colorValue.b)
             ),
             effective
         );
@@ -125,4 +124,5 @@ void RGBController::setColorTemperature(ColorTemperature colorTemperature)
     FastLED.setTemperature(this->colorTemperature);
     this->updateOutputs();
 }
+
 #endif  // LIGHTNET_TARGET_CONTROLLER

@@ -43,7 +43,10 @@ class LightnetPanel
     private:
         typedef void (*onInitializationPullReceived_t)(Protocol::PacketInitializationPull *);
 
-        struct ReceivedCounts { uint16_t receivedCount; uint16_t droppedCount; };
+        struct ReceivedCounts {
+            uint16_t receivedCount;
+            uint16_t droppedCount;
+        };
 
         List<LightnetPanelEdge *> *edges;
         volatile state_t state = STATE_IDLE;

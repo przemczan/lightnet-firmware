@@ -11,5 +11,6 @@ class Panel
         List<Edge *> *edges;
 
         Panel(uint8_t _index);
+
         ~Panel();
 };

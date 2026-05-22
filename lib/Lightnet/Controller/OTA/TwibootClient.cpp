@@ -2,10 +2,14 @@
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
-#include "../../Utils/Debug.hpp"
+    #include "../../Utils/Debug.hpp"
 
-bool TwibootClient::connect(uint8_t address, ChipInfo *info,
-                             uint8_t maxRetries, uint16_t retryDelayMs)
+bool TwibootClient::connect(
+    uint8_t   address,
+    ChipInfo *info,
+    uint8_t   maxRetries,
+    uint16_t  retryDelayMs
+)
 {
     for (uint8_t attempt = 0; attempt < maxRetries; attempt++) {
         // CMD_WAIT (0x00) aborts the boot countdown and verifies the bootloader
@@ -16,11 +20,13 @@ bool TwibootClient::connect(uint8_t address, ChipInfo *info,
 
         if (err == 0) {
             PRINTF("[TWIBOOT] connected @ 0x%02X (attempt %d)\n", address, attempt + 1);
+
             if (info) {
                 info->pageSize  = PAGE_SIZE;
                 info->flashSize = 28 * 1024;
                 info->bootloaderVersion = 0;
             }
+
             return true;
         }
 
@@ -30,11 +36,16 @@ bool TwibootClient::connect(uint8_t address, ChipInfo *info,
     }
 
     PRINTF("[TWIBOOT] connect failed after %d attempts\n", maxRetries);
+
     return false;
 }
 
-bool TwibootClient::programFlash(uint8_t address, const uint8_t *data, size_t size,
-                                  void (*progressCb)(uint8_t pct))
+bool TwibootClient::programFlash(
+    uint8_t        address,
+    const uint8_t *data,
+    size_t         size,
+    void (*        progressCb)(uint8_t pct)
+)
 {
     uint16_t numPages = (uint16_t)((size + PAGE_SIZE - 1) / PAGE_SIZE);
 
@@ -45,6 +56,7 @@ bool TwibootClient::programFlash(uint8_t address, const uint8_t *data, size_t si
 
         if (!writePage(address, byteAddr, data + byteAddr)) {
             PRINTF("[TWIBOOT] write failed at page %u (addr 0x%04X)\n", page, byteAddr);
+
             return false;
         }
 
@@ -56,13 +68,14 @@ bool TwibootClient::programFlash(uint8_t address, const uint8_t *data, size_t si
     }
 
     PRINTLN("[TWIBOOT] programFlash done");
+
     return true;
 }
 
 bool TwibootClient::verifyFlash(uint8_t address, const uint8_t *data, size_t size)
 {
     uint16_t numPages = (uint16_t)((size + PAGE_SIZE - 1) / PAGE_SIZE);
-    uint8_t  buf[PAGE_SIZE];
+    uint8_t buf[PAGE_SIZE];
 
     PRINTF("[TWIBOOT] verifying %u pages\n", numPages);
 
@@ -71,11 +84,13 @@ bool TwibootClient::verifyFlash(uint8_t address, const uint8_t *data, size_t siz
 
         if (!readPage(address, byteAddr, buf)) {
             PRINTF("[TWIBOOT] read failed at page %u (addr 0x%04X)\n", page, byteAddr);
+
             return false;
         }
 
         if (memcmp(buf, data + byteAddr, PAGE_SIZE) != 0) {
             PRINTF("[TWIBOOT] verify mismatch at page %u\n", page);
+
             return false;
         }
 
@@ -83,6 +98,7 @@ bool TwibootClient::verifyFlash(uint8_t address, const uint8_t *data, size_t siz
     }
 
     PRINTLN("[TWIBOOT] verify OK");
+
     return true;
 }
 
@@ -93,10 +109,12 @@ bool TwibootClient::startApp(uint8_t address)
 
     if (err != 0) {
         PRINTF("[TWIBOOT] startApp failed @ 0x%02X (err=%d)\n", address, err);
+
         return false;
     }
 
     PRINTF("[TWIBOOT] app started @ 0x%02X\n", address);
+
     return true;
 }
 
@@ -126,8 +144,10 @@ bool TwibootClient::writePage(uint8_t address, uint16_t byteAddr, const uint8_t 
         Wire.write(data + c * CHUNK, CHUNK);
 
         uint8_t err = Wire.endTransmission();
+
         if (err != 0) {
             PRINTF("[TWIBOOT] writePage chunk %d err=%d @ 0x%04X\n", c, err, chunkAddr);
+
             return false;
         }
 
@@ -145,10 +165,12 @@ bool TwibootClient::readPage(uint8_t address, uint16_t byteAddr, uint8_t *buf)
     Wire.write(MEMTYPE_FLASH);
     Wire.write((uint8_t)(byteAddr >> 8));
     Wire.write((uint8_t)(byteAddr & 0xFF));
+
     if (Wire.endTransmission() != 0) return false;
 
     // Read PAGE_SIZE bytes in 32-byte chunks
     uint16_t received = 0;
+
     while (received < PAGE_SIZE) {
         uint8_t chunk = (uint8_t)min((uint16_t)32, (uint16_t)(PAGE_SIZE - received));
         uint8_t got   = Wire.requestFrom(address, chunk);
@@ -163,14 +185,20 @@ bool TwibootClient::readPage(uint8_t address, uint16_t byteAddr, uint8_t *buf)
     return received == PAGE_SIZE;
 }
 
-uint8_t TwibootClient::sendCmd(uint8_t address, uint8_t cmd,
-                                const uint8_t *args, uint8_t argLen)
+uint8_t TwibootClient::sendCmd(
+    uint8_t        address,
+    uint8_t        cmd,
+    const uint8_t *args,
+    uint8_t        argLen
+)
 {
     Wire.beginTransmission(address);
     Wire.write(cmd);
+
     if (args && argLen > 0) {
         Wire.write(args, argLen);
     }
+
     return Wire.endTransmission();
 }
 

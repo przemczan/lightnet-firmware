@@ -64,6 +64,7 @@ void PanelsInitializer::updateEdgeState()
     // does the transition decoding.
     uint8_t state = digitalRead(this->config.intPinNo);
     uint16_t timestamp = (uint16_t)(micros() * 2);
+
     this->pingEdge->updateEdgeState(state, timestamp);
 }
 
@@ -85,6 +86,7 @@ void PanelsInitializer::pull()
 
     if (error) {
         PRINTKV("[PULL] error", error);
+
         return;
     }
 

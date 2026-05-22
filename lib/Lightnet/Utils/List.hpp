@@ -12,11 +12,13 @@ class List
         } item;
 
         item *items = NULL;
+
         void (*clearCallback)(T);
+
         volatile uint16_t size = 0;
 
     public:
-        List(void (*clearCallback)(T) = NULL);
+        List(void(*clearCallback)(T) = NULL);
         ~List();
         void push(T data);
         void remove(T data);
@@ -26,13 +28,13 @@ class List
         T last();
         bool find(T data);
         bool find(T data, uint16_t *outIndex);
-        bool filterOne(bool (*callback)(T), uint16_t *outIndex);
+        bool filterOne(bool ( *callback )(T), uint16_t *outIndex);
         void clear();
         uint16_t getSize();
 };
 
 template<typename T>
-List<T>::List(void (*clearCallback)(T))
+List<T>::List(void(*clearCallback)(T))
 {
     this->clearCallback = clearCallback;
 }
@@ -54,6 +56,7 @@ template<typename T>
 void List<T>::remove(T data)
 {
     unsigned long index;
+
     if (this->find(data, index)) {
         this->removeByIndex(index);
     }
@@ -70,7 +73,9 @@ void List<T>::removeByIndex(uint16_t index)
                 (this->size - (index + 1)) * sizeof(item)
             );
         }
+
         this->items = (item *)realloc(this->items, --this->size * sizeof(item));
+
         if (!this->size) {
             this->items = 0;
         }
@@ -111,11 +116,13 @@ template<typename T>
 bool List<T>::find(T data)
 {
     uint16_t index = this->size;
+
     while (index--) {
         if (this->items[index].data == data) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -123,25 +130,31 @@ template<typename T>
 bool List<T>::find(T data, uint16_t *outIndex)
 {
     uint16_t index = this->size;
+
     while (index--) {
         if (this->items[index].data == data) {
             *outIndex = index;
+
             return true;
         }
     }
+
     return false;
 }
 
 template<typename T>
-bool List<T>::filterOne(bool (*callback)(T), uint16_t *outIndex)
+bool List<T>::filterOne(bool ( *callback )(T), uint16_t *outIndex)
 {
     uint16_t index = this->size;
+
     while (index--) {
         if (callback(this->items[index])) {
             *outIndex = index;
+
             return true;
         }
     }
+
     return false;
 }
 
@@ -154,6 +167,7 @@ void List<T>::clear()
                 this->clearCallback(this->items[this->size].data);
             }
         }
+
         this->size = 0;
         free(this->items);
         this->items = NULL;

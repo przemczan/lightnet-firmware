@@ -82,6 +82,7 @@ uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *stat
 void PanelsController::enterBootloader(uint8_t address)
 {
     Protocol::PacketEnterBootloader packet;
+
     packet.token = Protocol::BOOTLOADER_ENTRY_TOKEN;
     LNBus.sendPacketNack(address, &packet, sizeof(packet), Protocol::PACKET_ENTER_BOOTLOADER);
 }

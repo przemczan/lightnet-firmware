@@ -2,7 +2,7 @@
 
 #include "main.h"
 #if DEMO_ENABLED
-#include "demo.hpp"
+    #include "demo.hpp"
 #endif
 
 #if defined(ARDUINO_ARCH_ESP8266)
@@ -29,6 +29,7 @@
 #endif
 
 uint16_t const SERVER_PORT = 80;
+
 #define CONFIG_PORTAL_TIMEOUT 120
 
 uint8_t state = 0;
@@ -36,19 +37,22 @@ DNSServer dns;
 PanelsController *panelsController;
 AsyncWebServer *webServer;
 AsyncWiFiManager *wifiManager;
-MessageServer *messageServer;
-MessageHandler *messageHandler;
+WebsocketServer *websocketServer;
+WebsocketHandler *websocketHandler;
 AppServer *appServer;
-Lightnet::AnimationScheduler *animScheduler = nullptr;
-Lightnet::PaletteStore       *paletteStore  = nullptr;
-Lightnet::AppearanceStore    *appearance    = nullptr;
-Lightnet::SceneStore         *sceneStore    = nullptr;
-Lightnet::ScenePlayer        *scenePlayer   = nullptr;
-Lightnet::AnimationService   *animService   = nullptr;
-Lightnet::AnimationServer    *animServer    = nullptr;
-TwibootClient          *twibootClient    = nullptr;
-PanelFlasher           *panelFlasher     = nullptr;
-FirmwareUpdateServer   *fwUpdateServer   = nullptr;
+Lightnet::AnimationScheduler *animScheduler    = nullptr;
+Lightnet::PaletteStore *paletteStore     = nullptr;
+Lightnet::AppearanceStore *appearance       = nullptr;
+Lightnet::SceneStore *sceneStore       = nullptr;
+Lightnet::ScenePlayer *scenePlayer      = nullptr;
+Lightnet::AnimationService *animService      = nullptr;
+Lightnet::AppearanceServer *appearanceServer = nullptr;
+Lightnet::PaletteServer *paletteServer    = nullptr;
+Lightnet::SceneServer *sceneServer      = nullptr;
+Lightnet::AnimationServer *animServer       = nullptr;
+TwibootClient *twibootClient    = nullptr;
+PanelFlasher *panelFlasher     = nullptr;
+FirmwareUpdateServer *fwUpdateServer   = nullptr;
 SerialFirmwareReceiver *serialFwReceiver = nullptr;
 
 void setupMDNS()
@@ -67,11 +71,17 @@ void setupMDNS()
 
 // Send an ANIM_FADE packet to one panel then fire a General Call START.
 // Each call uses a unique groupId so the START only triggers this panel.
-static void sendPanelFade(uint8_t addr, uint16_t durationMs,
-                           uint8_t brightFrom, uint8_t brightTo,
-                           uint8_t groupId, uint8_t seqId)
+static void sendPanelFade(
+    uint8_t  addr,
+    uint16_t durationMs,
+    uint8_t  brightFrom,
+    uint8_t  brightTo,
+    uint8_t  groupId,
+    uint8_t  seqId
+)
 {
     Protocol::PacketAnimationPrepare prep;
+
     prep.animType       = Lightnet::ANIM_FADE;
     prep.group_id       = groupId;
     prep.flags          = 0;
@@ -88,8 +98,10 @@ static void sendPanelFade(uint8_t addr, uint16_t durationMs,
     delayMicroseconds(300);
 
     Protocol::PacketAnimationStart start;
+
     start.seq_id   = seqId;
     start.group_id = groupId;
+
     for (uint8_t retry = 0; retry < 2; retry++) {
         LNBus.sendPacketNack(0x00, &start, sizeof(start), Protocol::PACKET_ANIMATION_START);
         delayMicroseconds(200);
@@ -101,13 +113,16 @@ void selfTest()
     PRINTLN("[SELF TEST BEGIN]");
 
     uint16_t panelCount = LNPanelsInitializer.getPanels()->getSize();
+
     if (panelCount == 0) {
         PRINTLN("[SELF TEST END]");
+
         return;
     }
 
     // Divide 1 s evenly; clamp so each in-panel animation has enough resolution.
     uint16_t stepMs = 1000 / panelCount;
+
     if (stepMs < 10) stepMs = 10;
 
     uint8_t groupId = 1;
@@ -115,25 +130,32 @@ void selfTest()
 
     // Fade in: forward order — each panel fades 0→255 over stepMs
     for (uint16_t i = 0; i < panelCount; i++) {
-        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;        
+        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
+
         panelsController->setBrightness(addr, 0);
         panelsController->turnOn(addr);
         sendPanelFade(addr, stepMs, 0, 255, groupId++, seqId++);
+
         if (seqId == 0) seqId = 1;
+
         delay(stepMs);
     }
 
     // Fade out: reverse order — each panel fades 255→0 over stepMs
     for (uint16_t i = panelCount; i-- > 0; ) {
         uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
+
         sendPanelFade(addr, stepMs, 255, 0, groupId++, seqId++);
+
         if (seqId == 0) seqId = 1;
+
         delay(stepMs);
     }
 
     // Restore panels to off state ready for normal use
     for (uint16_t i = 0; i < panelCount; i++) {
         uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
+
         panelsController->turnOff(addr);
         panelsController->setBrightness(addr, 128);
     }
@@ -151,7 +173,7 @@ void sendConfiguration()
 
         panelsController->sendConfiguration(
             panel->index,
-            { .useGammaCorrection = true, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip}
+            { .useGammaCorrection = true, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip }
             // { .useGammaCorrection = false, .colorTemperature = UncorrectedTemperature , .colorCorrection = UncorrectedColor}
 
         );
@@ -162,6 +184,7 @@ void setupOTA()
 {
     // Reuse the same hostname already registered with MDNS
     char buffer[20];
+
     #ifdef ARDUINO_ARCH_ESP8266
     sprintf(buffer, "lightnet-%04X", ESP.getChipId());
     #else
@@ -190,16 +213,17 @@ void setupWiFi()
     // Ensure the DNS server is started on the standard DNS port 53
     // pointing all traffic to the ESP8266 AP IP (192.168.4.1)
     wifiManager = new AsyncWiFiManager(webServer, &dns);
-    
+
     webServer->begin();
-    
-    messageServer = new MessageServer(webServer);
-    messageHandler = new MessageHandler(messageServer, panelsController, animScheduler);
+
+    websocketServer = new WebsocketServer(webServer);
+    websocketHandler = new WebsocketHandler(websocketServer, panelsController, animScheduler);
     appServer = new AppServer(webServer);
-    
+
     setupMDNS();
-    
+
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
+
     // This will block for 30 seconds if it can't connect.
     // If you want it non-blocking, you'd need to use startConfigPortal() instead.
     if (!wifiManager->autoConnect("Lightnet-Controller")) {
@@ -216,16 +240,16 @@ void setupWiFi()
 
 void setup()
 {
-#ifdef SIM_SERIAL_BAUD
+    #ifdef SIM_SERIAL_BAUD
     Serial.begin(SIM_SERIAL_BAUD);
-#else
+    #else
     Serial.begin(57600);
-#endif
+    #endif
 
-    LNPanelsInitializer.configure({.sdaPinNo = IIC_SDA_PIN,
-                                   .sclPinNo = IIC_SCL_PIN,
-                                   .edgePinNo = INITIALIZER_EDGE_PIN_NO,
-                                   .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO});
+    LNPanelsInitializer.configure({ .sdaPinNo = IIC_SDA_PIN,
+                                    .sclPinNo = IIC_SCL_PIN,
+                                    .edgePinNo = INITIALIZER_EDGE_PIN_NO,
+                                    .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO });
     LNPanelsInitializer.start();
 
     pinMode(LED_PIN, OUTPUT);
@@ -244,7 +268,7 @@ void setup()
 
     // not needed if panels power controll work
     // will send reset command to N devices to reset them if they are running
-    //panelsController->resetDevices(50);
+    // panelsController->resetDevices(50);
     // panels have 100ms delay on startup, we need to wait for them to initialize
     // additional time is needed if they were reset by command above (up to 100ms)
     // delay(300);
@@ -259,7 +283,7 @@ void loop()
     if (LNPanelsInitializer.isReady()) {
         digitalWrite(LED_PIN, LOW);
 
-        // IMPORTANT: WiFiManager needs the DNS server to process requests 
+        // IMPORTANT: WiFiManager needs the DNS server to process requests
         // to trigger the Captive Portal redirect.
         if (wifiManager != nullptr) {
             dns.processNextRequest();
@@ -281,9 +305,9 @@ void loop()
                 // Hoist here so PaletteStore/AppearanceStore can read /config/ and
                 // /palettes/ before the WiFi captive portal can block for 30 s.
                 #ifdef ARDUINO_ARCH_ESP32
-                    SPIFFS.begin(true);
+                SPIFFS.begin(true);
                 #else
-                    SPIFFS.begin();
+                SPIFFS.begin();
                 #endif
 
                 paletteStore = new Lightnet::PaletteStore();
@@ -294,15 +318,20 @@ void loop()
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, LNPanelsInitializer, *paletteStore);
                 animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
 
-#if DEMO_ENABLED
+                #if DEMO_ENABLED
                 initDemos(*animService, *sceneStore, *scenePlayer, *animScheduler,
                           *panelsController, LNPanelsInitializer);
-#endif
+                #endif
 
                 setupWiFi();
 
-                animServer = new Lightnet::AnimationServer(*webServer, *appearance, *paletteStore,
-                                                            *scenePlayer, *animService, *animScheduler);
+                appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore);
+                appearanceServer->begin();
+                paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
+                paletteServer->begin();
+                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService);
+                sceneServer->begin();
+                animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance);
                 animServer->begin();
                 break;
 
@@ -311,19 +340,26 @@ void loop()
                 MDNS.update();
                 #endif
                 ArduinoOTA.handle();
+
                 if (serialFwReceiver) serialFwReceiver->run();
+
                 if (panelFlasher) panelFlasher->run();
+
                 if (!panelFlasher || !panelFlasher->isActive()) {
-                    messageHandler->handleIncommingMessages();
+                    websocketHandler->handleIncommingMessages();
+
                     if (animScheduler) animScheduler->tick(millis());
+
                     if (scenePlayer)   scenePlayer->tick(millis());
-#ifdef SIM_MODE
+
+                    #ifdef SIM_MODE
                     SimPanels.tick();
-#endif
-#if DEMO_ENABLED
+                    #endif
+                    #if DEMO_ENABLED
                     runDemos();
-#endif
+                    #endif
                 }
+
                 break;
         }
     }

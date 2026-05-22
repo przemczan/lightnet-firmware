@@ -84,9 +84,9 @@ bool LightnetPanelEdge::isReady()
 bool LightnetPanelEdge::isFinished()
 {
     return
-        this->state == LightnetPanelEdge::STATE_READY ||
-        this->state == LightnetPanelEdge::STATE_BOOT_TIMEOUT ||
-        this->state == LightnetPanelEdge::STATE_NOT_CONNECTED;
+        (this->state == LightnetPanelEdge::STATE_READY) ||
+        (this->state == LightnetPanelEdge::STATE_BOOT_TIMEOUT) ||
+        (this->state == LightnetPanelEdge::STATE_NOT_CONNECTED);
 }
 
 void LightnetPanelEdge::setState(uint8_t state)
@@ -116,6 +116,7 @@ void LightnetPanelEdge::setState(uint8_t state)
             PRINTKV("LightnetPanelEdge state change", "READY");
             break;
     }
+
     this->state = state;
 }
 

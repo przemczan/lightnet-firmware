@@ -10,7 +10,6 @@
 #define PACK __attribute__((__packed__))
 
 namespace Protocol {
-
     // v4: PacketAnimationPrepare carries ColorRef (4 B) instead of ColorRGB (3 B) for
     // colorFrom/colorTo, and panels now hold a current palette + base colors + global
     // brightness. Panels and controller must match versions.
@@ -60,61 +59,61 @@ namespace Protocol {
 
     typedef struct PACK {
         uint16_t panelIndex;
-        uint8_t state;
+        uint8_t  state;
         ColorRGB color;
-        uint8_t brightness;
+        uint8_t  brightness;
     } PanelState;
 
 // BEGIN Common packet structures
     typedef struct PACK {
         packetType_t type;
-        uint16_t protocolVersion;
+        uint16_t     protocolVersion;
     } PacketHeader;
 
     typedef struct PACK {
         PacketHeader header;
-        uint16_t headerCrc;
+        uint16_t     headerCrc;
     } PacketMeta;
 // END
 
 // BEGIN Packets definitions
     typedef struct PACK {
         PacketMeta meta;
-        uint16_t panelIndex;
+        uint16_t   panelIndex;
     } PacketInitializationPull;
 
     typedef struct PACK {
         PacketMeta meta;
-        uint16_t panelIndex;
-        uint16_t edgeIndex;
+        uint16_t   panelIndex;
+        uint16_t   edgeIndex;
     } PacketRegisterEdge;
 
     typedef struct PACK {
         PacketMeta meta;
-        uint8_t on;
+        uint8_t    on;
     } PacketTurnOnOff;
 
     typedef struct PACK {
         PacketMeta meta;
-        Color color;
+        Color      color;
     } PacketSetColor;
 
     typedef struct PACK {
         PacketMeta meta;
-        uint8_t brightness;
+        uint8_t    brightness;
     } PacketSetBrightness;
 
     typedef struct PACK {
         PacketMeta meta;
-        Color color;
-        uint8_t brightness;
+        Color      color;
+        uint8_t    brightness;
     } PacketSetColorAndBrightness;
 
     typedef struct PACK {
         PacketMeta meta;
-        uint16_t panelIndex;
-        uint8_t edgeIndex;
-        uint16_t connectedPanelIndex;
+        uint16_t   panelIndex;
+        uint8_t    edgeIndex;
+        uint16_t   connectedPanelIndex;
     } PacketPanelEdgeInfo;
 
     typedef struct PACK {
@@ -123,15 +122,15 @@ namespace Protocol {
     } PacketPanelState;
 
     typedef struct PACK {
-        PacketMeta meta;
-        bool useGammaCorrection;
-        ColorTemperature colorTemperature;
+        PacketMeta         meta;
+        bool               useGammaCorrection;
+        ColorTemperature   colorTemperature;
         LEDColorCorrection colorCorrection;
     } PacketPanelConfiguration;
 
     // Animation Framework Packets (see AnimationTypes.hpp for details)
     typedef struct PACK {
-        PacketMeta meta;
+        PacketMeta         meta;
         uint8_t            animType;
         uint8_t            group_id;
         uint8_t            flags;
@@ -178,15 +177,15 @@ namespace Protocol {
     // palette (all panels), or unicast for per-layer overrides.
     // count must be 1..PALETTE_STOPS. Only `count` stops are read.
     typedef struct PACK {
-        PacketMeta meta;
-        uint8_t              count;
+        PacketMeta             meta;
+        uint8_t                count;
         Lightnet::GradientStop stops[Lightnet::PALETTE_STOPS];
     } PacketSetPalette;  // 5 + 1 + 64 = 70 bytes
 
     // Replace the panel's 3 base colors (primary, secondary, tertiary).
     typedef struct PACK {
         PacketMeta meta;
-        ColorRGB colors[Lightnet::BASE_COLORS_COUNT];
+        ColorRGB   colors[Lightnet::BASE_COLORS_COUNT];
     } PacketSetBaseColors;  // 5 + 9 = 14 bytes
 
     // Replace the panel's global brightness multiplier (0..255).
@@ -195,6 +194,7 @@ namespace Protocol {
         PacketMeta meta;
         uint8_t    value;
     } PacketSetGlobalBrightness;  // 6 bytes
+
 // END
 
     // Both controller and panel must agree on this value.

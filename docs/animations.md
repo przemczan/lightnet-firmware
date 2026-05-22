@@ -578,7 +578,7 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 ## 9. WebSocket Triggers
 
-Connect to `ws://lightnet-<chipid>.local/ws` using the binary MessageApi protocol.
+Connect to `ws://lightnet-<chipid>.local/ws` using the binary WebsocketApi protocol.
 
 To fire a beat trigger for a REACTIVE animation on group 1 with peak level 200:
 

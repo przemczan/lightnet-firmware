@@ -80,6 +80,7 @@ void CircularQueue::readData(void *&data, uint16_t &size)
     }
 
     size = 0;
+
     uint8_t sizeBytes = sizeof(uint16_t);
 
     while (sizeBytes--) {
@@ -112,11 +113,12 @@ bool CircularQueue::empty()
 
 void CircularQueue::dumpMeta()
 {
-    PRINTF("\nWri: %u, Rea: %u, Tai: %u, Sof: %u, Cnt: %u\n",
-           (uintptr_t)this->writePointer - (uintptr_t)this->head,
-           (uintptr_t)this->readPointer - (uintptr_t)this->head,
-           (uintptr_t)this->tail - (uintptr_t)this->head,
-           (uintptr_t)this->softTail - (uintptr_t)this->head,
-           this->itemsCount
+    PRINTF(
+        "\nWri: %u, Rea: %u, Tai: %u, Sof: %u, Cnt: %u\n",
+        (uintptr_t)this->writePointer - (uintptr_t)this->head,
+        (uintptr_t)this->readPointer - (uintptr_t)this->head,
+        (uintptr_t)this->tail - (uintptr_t)this->head,
+        (uintptr_t)this->softTail - (uintptr_t)this->head,
+        this->itemsCount
     );
 }

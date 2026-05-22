@@ -30,12 +30,12 @@ class LightnetBus
         uint8_t sendPacketAck(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
         uint8_t sendPacketNack(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type);
         uint8_t sendPacketWithResponse(
-            uint8_t address,
-            void *packet,
-            uint8_t packetSize,
+            uint8_t                address,
+            void *                 packet,
+            uint8_t                packetSize,
             Protocol::packetType_t packetType,
-            void *responseBuffer,
-            uint8_t responseSize
+            void *                 responseBuffer,
+            uint8_t                responseSize
         );
         uint8_t sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type);
         uint8_t sendResponseData(void *data, uint8_t size);
@@ -52,6 +52,7 @@ class LightnetBus
     private:
         onPacketReceived_t onPacketReceivedCallback;
         onPacketRequested_t onPacketRequestedCallback;
+
         void onReceive(int size);
         void onRequest();
         static void onReceiveService(int size);

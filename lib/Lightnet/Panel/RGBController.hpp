@@ -40,5 +40,8 @@ class RGBController
         uint8_t brightness();
         void brightness(uint8_t brightness);
         void globalBrightness(uint8_t value);  // 0..255 multiplier on the final output
-        uint8_t globalBrightness() const { return globalBrightnessValue; }
+        uint8_t globalBrightness() const
+        {
+            return globalBrightnessValue;
+        }
 };

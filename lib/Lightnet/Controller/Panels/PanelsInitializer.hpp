@@ -25,7 +25,9 @@ class PanelsInitializer
         void start();
         bool isReady();
         void updateEdgeState();
+
         List<Panel *> *getPanels();
+
         Panel *getPanelByIndex(uint16_t panelIndex);
         void configure(configuration_t config);
         void boot();

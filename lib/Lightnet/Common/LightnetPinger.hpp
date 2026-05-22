@@ -51,8 +51,8 @@ class LightnetPinger
         uint16_t pingStartedAt      = 0;
 
         volatile StateEntry ring[STATE_RING_SIZE];
-        volatile uint8_t    ringHead = 0;
-        uint8_t             ringTail = 0;
+        volatile uint8_t ringHead = 0;
+        uint8_t ringTail = 0;
 
     public:
         LightnetPinger(uint8_t _pinNo);
@@ -61,5 +61,6 @@ class LightnetPinger
         void ping(ping_type_t type);
         bool getAndResetHandshake();
         bool getAndResetDone();
+
         unsigned long lastPingSentAt();
 };

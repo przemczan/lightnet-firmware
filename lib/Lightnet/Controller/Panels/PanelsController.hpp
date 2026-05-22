@@ -8,8 +8,8 @@
 class PanelsController
 {
     typedef struct {
-        bool useGammaCorrection;
-        ColorTemperature colorTemperature;
+        bool               useGammaCorrection;
+        ColorTemperature   colorTemperature;
         LEDColorCorrection colorCorrection;
     } panelConfiguration_t;
 

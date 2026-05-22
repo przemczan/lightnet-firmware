@@ -27,7 +27,7 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
 
 ## 1. WebSocket Binary API
 
-Connect to `ws://lightnet-<chipid>.local/ws`. All frames are binary. The protocol is defined in `lib/Lightnet/MessageApi/MessageApi.hpp`.
+Connect to `ws://lightnet-<chipid>.local/ws`. All frames are binary. The protocol is defined in `lib/Lightnet/Controller/API/websocket/WebsocketApi.hpp` (namespace `WebsocketApi`).
 
 ### 1.1 Packet structure
 

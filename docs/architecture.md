@@ -65,20 +65,59 @@ All firmware code lives under `lib/Lightnet/`. Files marked *(scenes)* exist onl
 
 ### Controller/ — ESP8266/ESP32 only
 
+**Panels/**
+
 | File | Purpose |
 |---|---|
 | `PanelsInitializer` | Discovery orchestrator; assigns panel indices, builds edge graph |
 | `PanelsController` | Unicast commands to panels: color, brightness, configuration, enter-bootloader |
 | `Panel` / `Edge` | In-memory data model of discovered topology |
+
+**Animations/** *(scenes folder name)*
+
+| File | Purpose |
+|---|---|
 | `AnimationScheduler` | `playOnPanels()` PREPARE+START sequence; `tick()` drives controller-computed runners at 60 fps |
 | `AnimationRunner` | Base class for controller-computed runners: `WaveRunner`, `RippleRunner`, `ChaseRunner` |
+
+**Scenes/** *(scenes)*
+
+| File | Purpose |
+|---|---|
+| `ScenePlayer` | Loads and ticks multi-layer scenes; resolves palettes, fires steps |
+| `SceneParser` | Parses scene JSON into `SceneLayer[]` structs |
+| `SceneStore` | SPIFFS persistence for scene files at `/scenes/<name>.json` |
+| `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop |
+
+**Palettes/** *(scenes)*
+
+| File | Purpose |
+|---|---|
+| `PaletteStore` | Built-in palettes compiled in; `resolve(name)` → `GradientStop[]` |
+
+**Appearance/** *(scenes)*
+
+| File | Purpose |
+|---|---|
+| `AppearanceStore` | Owns `/config/appearance.json`; atomic writes, broadcasts to panels on change |
+
+**API/http/** *(scenes)*
+
+| Class | Routes | Purpose |
+|---|---|---|
+| `AppearanceServer` | `GET/PUT /api/appearance`, `/api/brightness`, `/api/colors`, `/api/palette` | Appearance read/write |
+| `PaletteServer` | `GET/POST /api/palettes`, `GET/DELETE /api/palettes/*` | Palette CRUD |
+| `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/status`, `/api/scenes/stop`, `/api/scenes/play` | Scene CRUD + playback |
+| `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
+
+**OTA/**
+
+| File | Purpose |
+|---|---|
 | `TwibootClient` | twiboot host protocol over raw Wire (bypasses LNBus). `connect()` / `writePage()` / `startApp()` |
 | `PanelFlasher` | Non-blocking OTA state machine: `ENTER_BL → WAIT_BL → FLASHING → VERIFY → NEXT_PANEL` |
 | `FirmwareUpdateServer` | `POST /api/firmware/panels`, `GET /api/firmware/status` |
 | `SerialFirmwareReceiver` | Firmware upload over 57600-baud USB serial (LNFW framing + CRC-16) |
-| `PaletteStore` *(scenes)* | Built-in palettes compiled in; `resolve(name)` → `GradientStop[]` |
-| `AppearanceStore` *(scenes)* | Owns `/config/appearance.json`; atomic writes, broadcasts to panels on change |
-| `AnimationServer` *(scenes)* | HTTP appearance + scene API routes on the shared port-80 server |
 
 ### Panel/ — ATmega only
 
@@ -89,13 +128,13 @@ All firmware code lives under `lib/Lightnet/`. Files marked *(scenes)* exist onl
 | `AnimationPlayer` | 4-deep animation queue. Tick every ~16 ms. *(scenes)* Resolves `ColorRef` → RGB against panel's current palette + base colors |
 | `BootloaderBridge` | Writes EEPROM boot-magic `0xB007` then software-jumps to twiboot |
 
-### MessageApi/ — WebSocket (controller only)
+### Controller/API/websocket/ — WebSocket (controller only)
 
 | File | Purpose |
 |---|---|
-| `MessageServer` | `AsyncWebSocket` on `/ws`; lock-free queue swap between ISR and main loop |
-| `MessageHandler` | Decodes and dispatches commands; *(scenes)* handles `ANIMATION_TRIGGER` |
-| `MessageApi` | Binary packet structs for all commands/responses |
+| `WebsocketServer` | `AsyncWebSocket` on `/ws`; lock-free queue swap between ISR and main loop |
+| `WebsocketHandler` | Decodes and dispatches commands; *(scenes)* handles `ANIMATION_TRIGGER` |
+| `WebsocketApi` | Binary packet structs and namespace for all commands/responses |
 
 ### Utils/
 
@@ -222,7 +261,7 @@ Sequence after `LNPanelsInitializer.isReady() == true` (state machine `case 0`):
 5. *(scenes)* `AppearanceStore::loadAndApply()` — reads `/config/appearance.json`, broadcasts brightness + base colors + palette **before** WiFi (captive portal can block for up to 120 s)
 6. `AnimationScheduler` initialised
 7. `setupWiFi()` — `AsyncWiFiManager` auto-connects or opens config portal "Lightnet-Controller"
-8. `AsyncWebServer` starts on port 80 → registers `MessageServer` (WebSocket `/ws`), `AppServer` (static SPIFFS), `FirmwareUpdateServer`, *(scenes)* `AnimationServer`
+8. `AsyncWebServer` starts on port 80 → registers `WebsocketServer` (WebSocket `/ws`), `AppServer` (static SPIFFS), `FirmwareUpdateServer`, *(scenes)* `AppearanceServer` + `PaletteServer` + `SceneServer` + `AnimationServer`
 9. `ArduinoOTA.begin()` — controller self-update over WiFi
 10. MDNS registered as `lightnet-<chipid>.local`, service `_lightnet._tcp`
 
@@ -231,7 +270,7 @@ Main loop (`case 1`):
 ArduinoOTA.handle();
 serialFwReceiver->run();
 panelFlasher->run();
-messageHandler->handleIncommingMessages();
+websocketHandler->handleIncommingMessages();
 if (animScheduler) animScheduler->tick(millis());   // drives controller-computed runners
 MDNS.update();  // ESP8266 only
 ```

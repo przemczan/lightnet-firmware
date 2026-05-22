@@ -17,6 +17,7 @@ void LightnetPinger::updateState(uint8_t state, uint16_t timestamp)
     if (busIsDisabled) return;
 
     uint8_t next = (this->ringHead + 1) & (STATE_RING_SIZE - 1);
+
     if (next != this->ringTail) {
         this->ring[this->ringHead].state     = state;
         this->ring[this->ringHead].timestamp = timestamp;
@@ -28,14 +29,16 @@ void LightnetPinger::processState()
 {
     // Main loop context. Drain queued samples and run edge-transition decoding.
     while (this->ringTail != this->ringHead) {
-        uint8_t  state     = this->ring[this->ringTail].state;
+        uint8_t state     = this->ring[this->ringTail].state;
         uint16_t timestamp = this->ring[this->ringTail].timestamp;
+
         this->ringTail = (this->ringTail + 1) & (STATE_RING_SIZE - 1);
 
         if (this->busState && !state) {
             this->pingStartedAt = timestamp;
         } else if (!this->busState && state) {
             uint16_t duration = timestamp - this->pingStartedAt;
+
             if (duration >= HANDSHAKE_MIN && duration <= HANDSHAKE_MAX) {
                 this->hasHandshake = true;
             } else if (duration >= DONE_MIN && duration <= DONE_MAX) {
@@ -69,15 +72,15 @@ bool LightnetPinger::getAndResetHandshake()
     bool state;
 
     #if IS_ESP
-        noInterrupts();
+    noInterrupts();
+    state = this->hasHandshake;
+    this->hasHandshake = false;
+    interrupts();
+    #else
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
         state = this->hasHandshake;
         this->hasHandshake = false;
-        interrupts();
-    #else
-        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-            state = this->hasHandshake;
-            this->hasHandshake = false;
-        }
+    }
     #endif
 
     if (state) {
@@ -92,15 +95,15 @@ bool LightnetPinger::getAndResetDone()
     bool state;
 
     #if IS_ESP
-        noInterrupts();
+    noInterrupts();
+    state = this->hasDone;
+    this->hasDone = false;
+    interrupts();
+    #else
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
         state = this->hasDone;
         this->hasDone = false;
-        interrupts();
-    #else
-        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-            state = this->hasDone;
-            this->hasDone = false;
-        }
+    }
     #endif
 
     if (state) {

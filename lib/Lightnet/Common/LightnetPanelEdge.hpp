@@ -28,6 +28,7 @@ class LightnetPanelEdge
         static const uint8_t STATE_READY         = 5;
 
         LightnetPanelEdge(uint8_t _pinNo);
+
         ~LightnetPanelEdge();
         void updateEdgeState(uint8_t state, uint16_t timestamp);
         void processEdgeState();

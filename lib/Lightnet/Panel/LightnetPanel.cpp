@@ -33,6 +33,7 @@ void LightnetPanel::updateEdgesStates(uint8_t pinStates, uint16_t timestamp)
     // ISR context. Bit i of pinStates corresponds to edge i (caller is
     // responsible for the pin-to-edge bit ordering).
     uint16_t count = this->edges->getSize();
+
     for (uint16_t i = 0; i < count; i++) {
         this->edges->get(i)->updateEdgeState((pinStates >> i) & 1, timestamp);
     }
@@ -41,6 +42,7 @@ void LightnetPanel::updateEdgesStates(uint8_t pinStates, uint16_t timestamp)
 void LightnetPanel::processEdgeStates()
 {
     uint16_t count = this->edges->getSize();
+
     for (uint16_t i = 0; i < count; i++) {
         this->edges->get(i)->processEdgeState();
     }
@@ -80,18 +82,18 @@ void LightnetPanel::run()
 
         case STATE_READY:
             LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, this->index);
-#if !IS_ESP
+            #if !IS_ESP
             // Enable I2C General Call reception (GCIE bit in TWAR)
             TWAR |= 0x01;
-#endif
+            #endif
             this->setState(STATE_WORKING);
             PRINTKV("===> [READY]", this->index);
-#if DEBUG
+            #if DEBUG
             // Serial.print(F("[PANEL] TWI_BUFFER_SIZE="));
             // Serial.print(TWI_BUFFER_SIZE);
             Serial.print(F(" MAX_PACKET_SIZE="));
             Serial.println(Protocol::MAX_PACKET_SIZE);
-#endif
+            #endif
             break;
 
         case STATE_WORKING:
@@ -233,20 +235,21 @@ void LightnetPanel::handleIncomingPackets()
 
     while (this->packetsToHandle->dequeue((void *&)packet, size)) {
         uint8_t vErr = Protocol::validatePacket(packet, size);
-#if DEBUG
+        #if DEBUG
         Serial.print(F("[PKT] type="));
         Serial.print(packet->header.type);
         Serial.print(F(" size="));
         Serial.print(size);
         Serial.print(F(" vErr="));
         Serial.println(vErr);
-#endif
+        #endif
+
         if (!vErr) {
             this->handlePacket(packet, size);
         }
     }
 
-#if DEBUG
+    #if DEBUG
     uint32_t now = millis();
 
     if (now - this->lastLogMs >= 1000) {
@@ -263,7 +266,8 @@ void LightnetPanel::handleIncomingPackets()
 
         this->lastLogMs = now;
     }
-#endif
+
+    #endif
 }
 
 void LightnetPanel::fetchIncommingPackets()
@@ -271,6 +275,7 @@ void LightnetPanel::fetchIncommingPackets()
     noInterrupts();
 
     CircularQueue *temp = this->incomingPackets;
+
     this->incomingPackets = this->packetsToHandle;
     this->packetsToHandle = temp;
     this->incomingPackets->reset();
@@ -339,11 +344,11 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             delay(10);
             digitalWrite(6, 0);
 
-            MCUSR   =  MCUSR  & B11110111;
+            MCUSR   =  MCUSR & B11110111;
             WDTCSR  =  WDTCSR | B00011000;
             WDTCSR  =  B00000001;
             WDTCSR  =  WDTCSR | B01000000;
-            MCUSR   =  MCUSR  & B11110111;
+            MCUSR   =  MCUSR & B11110111;
             delay(50);
             break;
 
@@ -381,12 +386,12 @@ void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
 void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet)
 {
     this->rgbController->gammaCorrection(packet->useGammaCorrection);
-#if !defined(USE_LIGHT_WS2812)
+    #if !defined(USE_LIGHT_WS2812)
     // Color correction and temperature require FastLED internals; not available
     // in the light_ws2812 path (ATmega88P), where gamma is handled manually.
     this->rgbController->setColorTemperature(packet->colorTemperature);
     this->rgbController->setColorCorrection(packet->colorCorrection);
-#endif
+    #endif
 }
 
 LightnetPanel::ReceivedCounts LightnetPanel::getAndResetReceivedCount()
@@ -395,11 +400,15 @@ LightnetPanel::ReceivedCounts LightnetPanel::getAndResetReceivedCount()
     portENTER_CRITICAL(&this->queueMux);
     #else
     noInterrupts();
+
     #endif
 
     uint16_t receivedCount = this->receivedCount;
+
     this->receivedCount = 0;
+
     uint16_t droppedCount = this->droppedCount;
+
     this->droppedCount = 0;
 
     #ifdef ARDUINO_ARCH_ESP32
@@ -431,6 +440,7 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
             break;
 
         default:
+
             if (!this->incomingPackets->enqueue(packet, size)) {
                 this->droppedCount++;
             }
@@ -470,6 +480,7 @@ void LightnetPanel::onPacketRequested()
         case Protocol::PACKET_FETCH_ANIM_STATE:
         {
             Protocol::PacketAnimationStatus status;
+
             Protocol::setPacketMeta(&status.meta, Protocol::PACKET_FETCH_ANIM_STATE);
             this->animPlayer.fillStatus(&status);
             LNBus.sendResponseData(&status, sizeof(status));
@@ -517,14 +528,16 @@ void LightnetPanel::handleAnimationUpdateParams(Protocol::PacketAnimationUpdateP
 
 void LightnetPanel::handleEnterBootloader(Protocol::PacketEnterBootloader *packet)
 {
-#if !IS_ESP
+    #if !IS_ESP
+
     if (packet->token != BootloaderBridge::ENTRY_TOKEN) {
         return;
     }
+
     PRINTLN("[BOOTLOADER] entering — saving address and resetting");
     BootloaderBridge::prepareAndReset(this->index);
     // execution never reaches here
-#endif
+    #endif
 }
 
 // ============================================================================

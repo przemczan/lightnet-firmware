@@ -30,7 +30,6 @@ void LightnetBus::onReceive(int size)
     uint8_t buffer[size];
 
     Wire.readBytes(&buffer[0], size);
-
     this->onPacketReceivedCallback((Protocol::PacketMeta *)&buffer[0], size);
 }
 
@@ -112,7 +111,6 @@ uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Pro
 uint8_t LightnetBus::sendData(uint8_t address, void *data, uint8_t size, bool end)
 {
     delayMicroseconds(3);
-
     Wire.beginTransmission(address);
     Wire.write((uint8_t *)data, size);
 
@@ -132,25 +130,29 @@ uint8_t LightnetBus::sendPacketNack(uint8_t address, void *packet, uint8_t size,
 }
 
 uint8_t LightnetBus::sendPacketWithResponse(
-    uint8_t address,
-    void *packet,
-    uint8_t packetSize,
+    uint8_t                address,
+    void *                 packet,
+    uint8_t                packetSize,
     Protocol::packetType_t packetType,
-    void *responseBuffer,
-    uint8_t responseSize
+    void *                 responseBuffer,
+    uint8_t                responseSize
 )
 {
     uint8_t writeErr = this->sendPacket(address, packet, packetSize, packetType, false);
+
     if (writeErr != 0) {
         PRINTF("[BUS] write err=%d addr=0x%02X\n", writeErr, address);
+
         return 1;
     }
 
     delayMicroseconds(3);
 
     uint8_t readErr = this->requestPacket(address, responseBuffer, responseSize);
+
     if (readErr != 0) {
         PRINTF("[BUS] read err=%d addr=0x%02X\n", readErr, address);
+
         return 2;
     }
 
@@ -175,15 +177,18 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
 
     if (!receivedSize || receivedSize != size) {
         PRINTF("[BUS] ack size got=%d expected=%d\n", receivedSize, size);
+
         return 1;
     }
 
     uint8_t vErr = Protocol::validatePacket(buffer, receivedSize);
+
     if (vErr == 0) {
         return 0;
     }
 
     PRINTF("[BUS] ack validate err=%d\n", vErr);
+
     return 2;
 }
 
@@ -193,6 +198,7 @@ uint8_t LightnetBus::requestData(uint8_t address, void *buffer, uint8_t maxSize)
 
     if (receivedSize > maxSize) {
         PRINTLN("Max data length exceeded");
+
         return 0;
     }
 

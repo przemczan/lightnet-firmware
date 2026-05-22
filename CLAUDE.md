@@ -18,7 +18,7 @@ Two distinct binaries are compiled from one source tree. `LIGHTNET_TARGET_CONTRO
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
 | [`docs/firmware.md`](docs/firmware.md) | PlatformIO environments, pin assignments, panel OTA (twiboot), serial upload, controller ArduinoOTA, debugging |
-| [`docs/api.md`](docs/api.md) | WebSocket binary protocol (MessageApi) + all HTTP endpoints, request/response format |
+| [`docs/api.md`](docs/api.md) | WebSocket binary protocol (WebsocketApi) + all HTTP endpoints, request/response format |
 | [`docs/animations.md`](docs/animations.md) | Scenes, layers, animation types, palettes, color references, HTTP API usage, examples |
 | [`animation-system-plan.md`](animation-system-plan.md) | Full design document for the scenes branch — architectural decisions, struct layouts, verification checklist |
 

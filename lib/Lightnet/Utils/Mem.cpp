@@ -22,9 +22,11 @@ void dumpMem(uint8_t *mem, size_t size, uint8_t width)
 
     while (index++ < size) {
         PRINTF("%02X ", *mem++);
+
         if (!(index % width)) {
             PRINT("\n");
         }
     }
+
     PRINT("\n");
 }

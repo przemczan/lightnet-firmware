@@ -23,7 +23,8 @@
       "PowerShell(& \"C:\\\\Users\\\\przem\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e initializer_wemos 2>&1)",
       "Bash(C:/Users/przem/.platformio/penv/Scripts/pio.exe run *)",
       "Bash(C:\\\\Users\\\\przem\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe run *)",
-      "PowerShell(& \"C:\\\\Users\\\\przem\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e initializer_wemos 2>&1 | Select-Object -Last 20)"
+      "PowerShell(& \"C:\\\\Users\\\\przem\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -e initializer_wemos 2>&1 | Select-Object -Last 20)",
+      "PowerShell(Get-ChildItem -Recurse -Path \"D:\\\\Projects\\\\Lightnet\\\\lightnet-firmware\\\\lib\\\\Lightnet\\\\MessageApi\" -File | Select-Object -ExpandProperty FullName | ForEach-Object {$_.Replace\\(\"D:\\\\Projects\\\\Lightnet\\\\lightnet-firmware\\\\\", \"\"\\)} | Sort-Object)"
     ]
   }
 }
