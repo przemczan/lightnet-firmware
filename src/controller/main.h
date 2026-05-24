@@ -31,6 +31,7 @@
     #include "API/http/PaletteServer.hpp"
     #include "API/http/SceneServer.hpp"
     #include "API/http/AnimationServer.hpp"
+    #include "API/http/PanelServer.hpp"
     #include "Scenes/ScenePlayer.hpp"
     #include "Scenes/SceneParser.hpp"
     #include "Scenes/SceneStore.hpp"

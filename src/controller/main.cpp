@@ -50,6 +50,7 @@ Lightnet::AppearanceServer *appearanceServer = nullptr;
 Lightnet::PaletteServer *paletteServer    = nullptr;
 Lightnet::SceneServer *sceneServer      = nullptr;
 Lightnet::AnimationServer *animServer       = nullptr;
+Lightnet::PanelServer *panelServer      = nullptr;
 TwibootClient *twibootClient    = nullptr;
 PanelFlasher *panelFlasher     = nullptr;
 FirmwareUpdateServer *fwUpdateServer   = nullptr;
@@ -333,6 +334,8 @@ void loop()
                 sceneServer->begin();
                 animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance);
                 animServer->begin();
+                panelServer = new Lightnet::PanelServer(*webServer, *panelsController);
+                panelServer->begin();
                 break;
 
             case 1:

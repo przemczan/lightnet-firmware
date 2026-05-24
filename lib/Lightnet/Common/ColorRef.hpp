@@ -17,7 +17,7 @@ namespace Lightnet {
 
         union {
             struct __attribute__((__packed__)) {
-                uint8_t r, g, b
+                uint8_t r, g, b;
             }     rgb;
             struct __attribute__((__packed__)) {
                 uint8_t pos, _0, _1;

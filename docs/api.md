@@ -21,6 +21,7 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
    - [Scenes](#23-scenes)
    - [Animations](#24-animations)
    - [Firmware updates](#25-firmware-updates)
+   - [Panels](#26-panels)
 3. [Error handling](#3-error-handling)
 
 ---
@@ -361,6 +362,26 @@ State values:
 | `"error"` | Flash failed — see `"error"` field |
 
 On error, the response includes an additional `"error"` string field.
+
+---
+
+### 2.6 Panels
+
+Direct per-panel control. These endpoints bypass the animation system — any running animation continues to compute and will overwrite the values on its next frame.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/panels` | — | `[{"address":N,"on":true,"color":"#RRGGBB","brightness":N},...]` |
+| `GET` | `/api/panels/edges` | — | `[{"panel":N,"edge":N,"connectedPanel":N,"connectedEdge":N},...]` |
+| `PUT` | `/api/panels/:address/on` | `{"value":1}` | `{}` |
+| `PUT` | `/api/panels/:address/brightness` | `{"value":128}` | `{}` |
+| `PUT` | `/api/panels/:address/color` | `{"color":"#FF0000"}` | `{}` |
+
+`:address` is the panel's I²C index as returned by `GET /api/panels`.
+
+`GET /api/panels` fetches the live state of each discovered panel over I²C. Panels that do not respond are omitted from the array. `connectedPanel` and `connectedEdge` in the edges response are `0` when an edge slot is unoccupied.
+
+These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_BRIGHTNESS`, `SET_COLOR`, `GET_PANELS_STATES`, and `GET_EDGES_LIST` commands.
 
 ---
 
