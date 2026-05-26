@@ -259,11 +259,12 @@ Scene names: 1–18 chars, `[a-zA-Z0-9_-]`. (18-char limit keeps the SPIFFS path
 | `POST` | `/api/scenes/play` | Full scene JSON body (inline play, not saved) | `{}` |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `{}` |
 | `POST` | `/api/scenes/stop` | — | `{}` |
+| `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `{"ok":true,"speed":2.0}` |
 | `GET` | `/api/scenes/status` | — | See below |
 
 Status response while playing:
 ```json
-{"playing": true, "scene": "sunset", "loop": true, "layers": 2}
+{"playing": true, "scene": "sunset", "loop": true, "layers": 2, "speed": 1.0}
 ```
 
 Status when idle: `{"playing": false}`

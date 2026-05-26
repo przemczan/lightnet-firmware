@@ -11,7 +11,7 @@ namespace Lightnet {
         PaletteStore&       _paletteStore
     )
         : scheduler(_scheduler), initializer(_initializer), paletteStore(_paletteStore),
-        lCount(0), loop(false), playing(false)
+        lCount(0), loop(false), playing(false), speed(1.0f)
     {
         memset(name, 0, sizeof(name));
         memset(defaultPalette, 0, sizeof(defaultPalette));
@@ -28,7 +28,8 @@ namespace Lightnet {
         const char *             newName,
         const char *             paletteDefault,
         const Protocol::ColorRGB newBaseColors[BASE_COLORS_COUNT],
-        uint32_t                 nowMs
+        uint32_t                 nowMs,
+        float                    newSpeed
     )
     {
         stop();
@@ -36,6 +37,7 @@ namespace Lightnet {
         lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
         memcpy(layers, newLayers, lCount * sizeof(SceneLayer));
         loop = newLoop;
+        speed = (newSpeed < 0.1f) ? 0.1f : (newSpeed > 10.0f) ? 10.0f : newSpeed;
 
         strncpy(name, newName ? newName : "", sizeof(name) - 1);
         name[sizeof(name) - 1] = '\0';
@@ -100,8 +102,10 @@ namespace Lightnet {
             if (step.durationMs == 0) continue; // infinite — never auto-advance
 
             uint32_t elapsed = (uint32_t)(nowMs - stepStartMs[i]);
+            uint32_t threshold = (speed == 1.0f) ? (uint32_t)step.durationMs
+                                 : (uint32_t)((float)step.durationMs / speed);
 
-            if (elapsed < (uint32_t)step.durationMs) continue;
+            if (elapsed < threshold) continue;
 
             uint8_t nextStep = currentStep[i] + 1;
 
@@ -133,26 +137,30 @@ namespace Lightnet {
 
         if (panelCount == 0) return;
 
+        uint16_t effectiveDurationMs = (step.durationMs == 0 || speed == 1.0f)
+            ? step.durationMs
+            : (uint16_t)min((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
+
         if (isRunnerType(step.animType)) {
             Protocol::ColorRGB color = resolveColorToRgb(step.colorFrom, layerIdx);
             AnimationRunner *runner = nullptr;
 
             if (step.animType == RUN_WAVE) {
                 runner = new WaveRunner(layer.groupId, panels, panelCount,
-                                        step.durationMs, step.params[0], color);
+                                        effectiveDurationMs, step.params[0], color);
             } else if (step.animType == RUN_RIPPLE) {
                 runner = new RippleRunner(layer.groupId, panels, panelCount,
-                                          step.params[1], step.durationMs,
+                                          step.params[1], effectiveDurationMs,
                                           step.params[0], color);
             } else if (step.animType == RUN_CHASE) {
                 runner = new ChaseRunner(layer.groupId, panels, panelCount,
-                                         step.durationMs, color);
+                                         effectiveDurationMs, color);
             }
 
             if (runner) scheduler.addRunner(runner);
         } else {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
-                                   step.durationMs,
+                                   effectiveDurationMs,
                                    step.colorFrom, step.colorTo,
                                    step.brightnessFrom, step.brightnessTo,
                                    step.params[0], step.params[1],
@@ -242,8 +250,8 @@ namespace Lightnet {
             snprintf(buf, bufLen, "{\"playing\":false}");
         } else {
             snprintf(buf, bufLen,
-                     "{\"playing\":true,\"scene\":\"%s\",\"loop\":%s,\"layers\":%u}",
-                     name, loop ? "true" : "false", (unsigned)lCount);
+                     "{\"playing\":true,\"scene\":\"%s\",\"loop\":%s,\"layers\":%u,\"speed\":%.1f}",
+                     name, loop ? "true" : "false", (unsigned)lCount, (double)speed);
         }
     }
 }  // namespace Lightnet

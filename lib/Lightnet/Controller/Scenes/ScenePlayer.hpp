@@ -80,11 +80,22 @@ namespace Lightnet {
                 const char *             name,
                 const char *             paletteDefault,
                 const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
-                uint32_t                 nowMs
+                uint32_t                 nowMs,
+                float                    speed = 1.0f
             );
 
             void stop();
             void tick(uint32_t nowMs);
+
+            // Change playback speed of the current scene. Takes effect on next step.
+            void setSpeed(float s)
+            {
+                if (s < 0.1f) s = 0.1f;
+                if (s > 10.0f) s = 10.0f;
+                speed = s;
+            }
+
+            float getSpeed() const { return speed; }
 
             bool        isPlaying()   const
             {
@@ -121,6 +132,7 @@ namespace Lightnet {
             uint8_t lCount;
             bool loop;
             bool playing;
+            float speed;
             char name[20];
             char defaultPalette[16];
             Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];

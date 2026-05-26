@@ -1,4 +1,5 @@
 #include "SceneServer.hpp"
+#include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <FS.h>
 #ifdef ARDUINO_ARCH_ESP32
@@ -154,6 +155,7 @@ namespace Lightnet {
         server.on("/api/scenes/stop", HTTP_POST, [this](AsyncWebServerRequest *r){
             handlePostStopScene(r);
         });
+        server.on("/api/scenes/speed", HTTP_POST, dispatchLarge(&SceneServer::handlePostSetSpeed), nullptr, bodyLarge);
         server.on("/api/scenes/play", HTTP_POST, dispatchLarge(&SceneServer::handlePostPlayScene), nullptr, bodyLarge);
         server.on("/api/scenes", HTTP_POST, dispatchLarge(&SceneServer::handlePostSaveScene), nullptr, bodyLarge);
         server.on("/api/scenes/*", HTTP_GET, [this](AsyncWebServerRequest *r){
@@ -315,5 +317,38 @@ namespace Lightnet {
     {
         animService.stopScene();
         sendOk(req);
+    }
+
+    void SceneServer::handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
+    {
+        // Body: {"speed": <float 0.1-10.0>}
+        const char *p   = (const char *)body;
+        const char *end = p + len;
+
+        if (!jsonEnterObject(p, end)) { sendError(req, 400, "expected_object"); return; }
+
+        float speed = 1.0f;
+        bool found = false;
+        char key[12];
+
+        while (jsonNextKey(p, end, key, sizeof(key))) {
+            if (strcmp(key, "speed") == 0) {
+                if (!jsonReadFloat(p, end, &speed)) { sendError(req, 400, "speed: not a number"); return; }
+
+                found = true;
+            } else {
+                jsonSkipValue(p, end);
+            }
+        }
+
+        if (!found) { sendError(req, 400, "speed: required"); return; }
+
+        if (speed < 0.1f || speed > 10.0f) { sendError(req, 422, "speed: must be 0.1-10.0"); return; }
+
+        animService.setSceneSpeed(speed);
+
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"ok\":true,\"speed\":%.1f}", (double)speed);
+        sendOkJson(req, buf);
     }
 }  // namespace Lightnet

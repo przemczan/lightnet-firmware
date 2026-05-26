@@ -102,6 +102,15 @@ namespace Lightnet {
     }
 
 // ---------------------------------------------------------------------------
+// Speed
+// ---------------------------------------------------------------------------
+
+    void AnimationService::setSceneSpeed(float speed)
+    {
+        player.setSpeed(speed);
+    }
+
+// ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------
 
@@ -112,7 +121,7 @@ namespace Lightnet {
         player.loadAndPlay(parsed.layers, parsed.layerCount,
                            parsed.loop, parsed.name,
                            palName, parsed.baseColors,
-                           millis());
+                           millis(), parsed.speed);
 
         return SceneResult::success();
     }

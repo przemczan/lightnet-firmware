@@ -31,6 +31,7 @@ namespace Lightnet {
             void handlePostPlayScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePostPlaySceneByName(AsyncWebServerRequest *req);
             void handlePostStopScene(AsyncWebServerRequest *req);
+            void handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
 
             static void sendOk(AsyncWebServerRequest *req);
             static void sendOkJson(AsyncWebServerRequest *req, const char *json);

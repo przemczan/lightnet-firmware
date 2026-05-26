@@ -212,6 +212,44 @@ namespace Lightnet {
         return true;
     }
 
+    inline bool jsonReadFloat(const char *& p, const char *end, float *out)
+    {
+        jsonSkipWs(p, end);
+
+        if (p >= end) return false;
+
+        bool negative = false;
+
+        if (*p == '-') { negative = true; p++; }
+
+        if (p >= end || *p < '0' || *p > '9') return false;
+
+        long intPart = 0;
+
+        while (p < end && *p >= '0' && *p <= '9') {
+            intPart = intPart * 10 + (*p - '0');
+            p++;
+        }
+
+        float frac = 0.0f;
+
+        if (p < end && *p == '.') {
+            p++;
+            float divisor = 10.0f;
+
+            while (p < end && *p >= '0' && *p <= '9') {
+                frac += (float)(*p - '0') / divisor;
+                divisor *= 10.0f;
+                p++;
+            }
+        }
+
+        *out = (float)intPart + frac;
+        if (negative) *out = -*out;
+
+        return true;
+    }
+
     inline bool jsonReadBool(const char *& p, const char *end, bool *out)
     {
         jsonSkipWs(p, end);

@@ -101,6 +101,10 @@ namespace Lightnet {
             // Stop the currently playing scene.
             void stopScene();
 
+            // Change the playback speed of the currently playing scene [0.1, 10.0].
+            // Takes effect at the start of the next step.
+            void setSceneSpeed(float speed);
+
         private:
             SceneStore& scenes;
             ScenePlayer& player;

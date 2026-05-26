@@ -258,6 +258,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 | `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version. |
 | `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. (18-char limit keeps the SPIFFS path within the 31-character filesystem limit.) |
 | `loop` | No | `false` | When `true`, all layers restart from step 0 after their last step completes. |
+| `speed` | No | `1.0` | Playback speed multiplier [0.1, 10.0]. Scales all step durations — `2.0` plays twice as fast, `0.5` at half speed. Can also be changed while playing via `POST /api/scenes/speed`. |
 | `colors` | No | white/black/black | Scene's base colours for `userColors` palette and `{"useColor":N}` references. |
 | `palette` | No | `"userColors"` | Active palette for all layers that don't have their own override. |
 | `layers` | Yes | — | Array of 1–8 layer objects. |
@@ -556,7 +557,8 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 | `POST` | `/api/scenes/play` | Full scene JSON body — plays inline, not saved to SPIFFS |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) |
 | `POST` | `/api/scenes/stop` | — |
-| `GET` | `/api/scenes/status` | `{"playing":false}` or `{"playing":true,"scene":"sunset","loop":true,"layers":2}` |
+| `POST` | `/api/scenes/speed` | `{"speed":<float>}` — change playback speed [0.1, 10.0] while playing |
+| `GET` | `/api/scenes/status` | `{"playing":false}` or `{"playing":true,"scene":"sunset","loop":true,"layers":2,"speed":1.0}` |
 
 ### One-shot / triggers
 

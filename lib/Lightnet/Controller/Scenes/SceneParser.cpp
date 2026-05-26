@@ -612,6 +612,7 @@ namespace Lightnet {
         memset(&out, 0, sizeof(out));
         out.schemaVersion = 1;
         out.loop = false;
+        out.speed = 1.0f;
         strncpy(out.palette, "userColors", sizeof(out.palette) - 1);
         out.baseColors[0] = { 0xFF, 0xFF, 0xFF };
         out.baseColors[1] = { 0x00, 0x00, 0x00 };
@@ -651,6 +652,15 @@ namespace Lightnet {
 
                     return false;
                 }
+            } else if (strcmp(key, "speed") == 0) {
+                if (!jsonReadFloat(p, end, &out.speed)) {
+                    strncpy(out.errMsg, "speed: not a number", sizeof(out.errMsg));
+
+                    return false;
+                }
+
+                if (out.speed < 0.1f) out.speed = 0.1f;
+                if (out.speed > 10.0f) out.speed = 10.0f;
             } else if (strcmp(key, "palette") == 0) {
                 if (!jsonReadString(p, end, out.palette, sizeof(out.palette))) {
                     strncpy(out.errMsg, "palette: not a string", sizeof(out.errMsg));

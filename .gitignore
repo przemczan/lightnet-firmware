@@ -33,3 +33,5 @@ node_modules
 *.lst
 *.lss
 *.map
+
+.claude
