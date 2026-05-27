@@ -15,6 +15,7 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
    - [Packet structure](#11-packet-structure)
    - [Commands](#12-commands)
    - [Responses](#13-responses)
+   - [Sending a command — worked example](#14-sending-a-command--worked-example)
 2. [HTTP API](#2-http-api)
    - [Appearance](#21-appearance)
    - [Palettes](#22-palettes)

@@ -1,0 +1,21 @@
+site_name: Lightnet Firmware
+site_description: Controller and panel firmware documentation
+docs_dir: docs
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep orange
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+nav:
+  - Overview: overview.md
+  - Getting Started: getting-started.md
+  - Hardware: hardware.md
+  - Architecture: architecture.md
+  - API Reference: api.md
+  - Animations & Scenes: animations.md
+  - OTA & Updates: ota.md
+  - Troubleshooting: troubleshooting.md
