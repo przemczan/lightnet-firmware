@@ -1,0 +1,222 @@
+#pragma once
+
+#include <Arduino.h>
+#include "../Utils/Crc.hpp"
+#include "LightnetConfig.hpp"
+#include "Palette.hpp"
+#include "ColorRef.hpp"
+#include <FastLED.h>
+
+#define PACK __attribute__((__packed__))
+
+namespace Protocol {
+    // v4: PacketAnimationPrepare carries ColorRef (4 B) instead of ColorRGB (3 B) for
+    // colorFrom/colorTo, and panels now hold a current palette + base colors + global
+    // brightness. Panels and controller must match versions.
+    const uint16_t VERSION = 4;
+    // Packet size needs to fit the new SET_PALETTE payload (PALETTE_STOPS * 4 = 64 B)
+    // plus PacketMeta (5 B header + 2 B header CRC = 7 B). 80 B leaves margin.
+    const uint8_t MAX_PACKET_SIZE = 80;
+    const uint8_t PULLING_ADDRESS = 120;
+
+    enum packetType_t: uint8_t {
+        PACKET_NOOP = 0,
+        PACKET_ACK = 1,
+        PACKET_INITIALIZATION_PULL = 2,
+        PACKET_REGISTER_EDGE = 3,
+        PACKET_TURN_ON_OFF = 4,
+        PACKET_SET_COLOR = 5,
+        PACKET_SET_BRIGHTNESS = 6,
+        PACKET_SET_COLOR_AND_BRIGHTNESS = 7,
+        PACKET_REGISTER_EDGE_ACK = 8,
+        PACKET_PANEL_EDGE_INFO = 9,
+        PACKET_FETCH_STATE = 10,
+        PACKET_PANEL_CONFIGURATION = 11,
+        PACKET_ANIMATION_PREPARE = 12,       // animation framework
+        PACKET_ANIMATION_START = 13,         // animation framework (General Call)
+        PACKET_ANIMATION_CONTROL = 14,       // animation framework
+        PACKET_FETCH_ANIM_STATE = 15,        // animation framework
+        PACKET_ANIMATION_UPDATE_PARAMS = 16, // animation framework (General Call)
+        PACKET_SET_PALETTE = 17,             // unicast or General Call — 16-stop palette
+        PACKET_SET_BASE_COLORS = 18,         // unicast or General Call — 3 RGB triples
+        PACKET_SET_GLOBAL_BRIGHTNESS = 19,   // General Call — 1 byte multiplier
+        PACKET_RESET_DEVICE = 200,
+        PACKET_ENTER_BOOTLOADER = 201,
+    };
+
+    typedef struct PACK {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+    } ColorRGB;
+
+    // there were plans for supporting FastLED's HSV but... to much effort
+    typedef struct PACK {
+        union {
+            ColorRGB rgb;
+        };
+    } Color;
+
+    typedef struct PACK {
+        uint16_t panelIndex;
+        uint8_t  state;
+        ColorRGB color;
+        uint8_t  brightness;
+    } PanelState;
+
+// BEGIN Common packet structures
+    typedef struct PACK {
+        packetType_t type;
+        uint16_t     protocolVersion;
+    } PacketHeader;
+
+    typedef struct PACK {
+        PacketHeader header;
+        uint16_t     headerCrc;
+    } PacketMeta;
+// END
+
+// BEGIN Packets definitions
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   panelIndex;
+    } PacketInitializationPull;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   panelIndex;
+        uint16_t   edgeIndex;
+    } PacketRegisterEdge;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    on;
+    } PacketTurnOnOff;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        Color      color;
+    } PacketSetColor;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    brightness;
+    } PacketSetBrightness;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        Color      color;
+        uint8_t    brightness;
+    } PacketSetColorAndBrightness;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   panelIndex;
+        uint8_t    edgeIndex;
+        uint16_t   connectedPanelIndex;
+    } PacketPanelEdgeInfo;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        PanelState panelState;
+    } PacketPanelState;
+
+    typedef struct PACK {
+        PacketMeta         meta;
+        bool               useGammaCorrection;
+        ColorTemperature   colorTemperature;
+        LEDColorCorrection colorCorrection;
+    } PacketPanelConfiguration;
+
+    // Animation Framework Packets (see AnimationTypes.hpp for details)
+    typedef struct PACK {
+        PacketMeta         meta;
+        uint8_t            animType;
+        uint8_t            group_id;
+        uint8_t            flags;
+        uint8_t            transitionMs;
+        uint16_t           durationMs;
+        Lightnet::ColorRef colorFrom;       // 4 B — panel resolves at frame time
+        Lightnet::ColorRef colorTo;         // 4 B
+        uint8_t            brightnessFrom;
+        uint8_t            brightnessTo;
+        uint8_t            param1;
+        uint8_t            param2;
+    } PacketAnimationPrepare;  // 23 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    seq_id;
+        uint8_t    group_id;
+    } PacketAnimationStart;  // 7 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    cmd;
+    } PacketAnimationControl;  // 6 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    seq_id;
+        uint8_t    group_id;
+        uint8_t    param_type;
+        uint8_t    value;
+        uint8_t    transitionMs;
+    } PacketAnimationUpdateParams;  // 10 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    animType;
+        uint8_t    group_id;
+        uint16_t   elapsedMs;
+        uint16_t   durationMs;
+        uint8_t    queueLen;
+    } PacketAnimationStatus;  // 11 bytes
+
+    // Replace the panel's current palette. Sent via General Call for scene-level
+    // palette (all panels), or unicast for per-layer overrides.
+    // count must be 1..PALETTE_STOPS. Only `count` stops are read.
+    typedef struct PACK {
+        PacketMeta             meta;
+        uint8_t                count;
+        Lightnet::GradientStop stops[Lightnet::PALETTE_STOPS];
+    } PacketSetPalette;  // 5 + 1 + 64 = 70 bytes
+
+    // Replace the panel's 3 base colors (primary, secondary, tertiary).
+    typedef struct PACK {
+        PacketMeta meta;
+        ColorRGB   colors[Lightnet::BASE_COLORS_COUNT];
+    } PacketSetBaseColors;  // 5 + 9 = 14 bytes
+
+    // Replace the panel's global brightness multiplier (0..255).
+    // Sent via General Call so all panels receive simultaneously.
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    value;
+    } PacketSetGlobalBrightness;  // 6 bytes
+
+// END
+
+    // Both controller and panel must agree on this value.
+    // Panel side: checked in handleEnterBootloader().
+    // Controller side: written into PacketEnterBootloader.token.
+    const uint8_t BOOTLOADER_ENTRY_TOKEN = 0xB0;
+
+    // token must equal BOOTLOADER_ENTRY_TOKEN to prevent accidental triggering
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    token;
+    } PacketEnterBootloader;  // 6 bytes
+
+    uint8_t validatePacket(void *packet, uint8_t size);
+    void setPacketMeta(void *packet, packetType_t type);
+
+    const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);
+
+    namespace Colors {
+        const Color RED = { { 255, 0, 0 } };
+        const Color GREEN = { { 0, 255, 0 } };
+        const Color BLUE = { { 0, 0, 255 } };
+        const Color WHITE = { { 255, 255, 255 } };
+    }
+}

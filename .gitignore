@@ -1,0 +1,37 @@
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.pio
+.pioenvs
+.piolibdeps
+.clang_complete
+.gcc-flags.json
+*.cmx
+
+node_modules
+
+*.o
+*.elf
+*.bin
+*.hex
+*.lst
+*.lss
+*.map
+
+.claude
