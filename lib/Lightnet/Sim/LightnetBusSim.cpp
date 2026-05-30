@@ -7,13 +7,22 @@
 
 static void logPacket(uint8_t addr, const void *data, uint8_t size)
 {
-    Serial.printf("[SIM:SEND] %lu %u", millis(), addr);
+    // Build the whole line in a stack buffer and write it in one Serial call.
+    // Per-byte printf() is ~N× slower due to function-call overhead at 80 MHz.
+    char buf[8 + 12 + Protocol::MAX_PACKET_SIZE * 3 + 2];
+    int n = snprintf(buf, sizeof(buf), "[SIM:SEND] %lu %u", millis(), addr);
 
     const uint8_t *b = (const uint8_t *)data;
 
-    for (uint8_t i = 0; i < size; i++) Serial.printf(" %02X", b[i]);
+    for (uint8_t i = 0; i < size && n + 3 < (int)sizeof(buf); i++) {
+        buf[n++] = ' ';
+        buf[n++] = "0123456789ABCDEF"[b[i] >> 4];
+        buf[n++] = "0123456789ABCDEF"[b[i] & 0xF];
+    }
 
-    Serial.println();
+    buf[n++] = '\n';
+    buf[n]   = '\0';
+    Serial.print(buf);
 }
 
 // ============================================================================

@@ -211,6 +211,7 @@ void setupWiFi()
     WiFi.mode(WIFI_STA);
 
     webServer = new AsyncWebServer(SERVER_PORT);
+    DefaultHeaders::Instance().addHeader("Connection", "close");
     // Ensure the DNS server is started on the standard DNS port 53
     // pointing all traffic to the ESP8266 AP IP (192.168.4.1)
     wifiManager = new AsyncWiFiManager(webServer, &dns);
