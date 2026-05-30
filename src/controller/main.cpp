@@ -281,7 +281,7 @@ void loop()
 {
     LNPanelsInitializer.boot();
 
-    if (LNPanelsInitializer.isReady()) {
+    if (LNPanelsInitializer.isFinished()) {
         digitalWrite(LED_PIN, LOW);
 
         // IMPORTANT: WiFiManager needs the DNS server to process requests

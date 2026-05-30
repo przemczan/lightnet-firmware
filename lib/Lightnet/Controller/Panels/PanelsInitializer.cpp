@@ -170,9 +170,9 @@ void PanelsInitializer::onInterrupt()
     LNPanelsInitializer.updateEdgeState();
 }
 
-bool PanelsInitializer::isReady()
+bool PanelsInitializer::isFinished()
 {
-    return this->pingEdge->isReady();
+    return this->pingEdge->isFinished();
 }
 
 Panel *PanelsInitializer::getPanelByIndex(uint16_t panelIndex)

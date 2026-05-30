@@ -23,7 +23,7 @@ class PanelsInitializer
         PanelsInitializer();
         ~PanelsInitializer();
         void start();
-        bool isReady();
+        bool isFinished();
         void updateEdgeState();
 
         List<Panel *> *getPanels();

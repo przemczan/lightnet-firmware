@@ -86,7 +86,7 @@ void PanelsInitializer::boot()
 {
 }
 
-bool PanelsInitializer::isReady()
+bool PanelsInitializer::isFinished()
 {
     return simReady;
 }
