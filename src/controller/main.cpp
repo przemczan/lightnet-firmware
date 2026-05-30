@@ -356,7 +356,14 @@ void loop()
                     if (scenePlayer)   scenePlayer->tick(millis());
 
                     #ifdef SIM_MODE
-                    SimPanels.tick();
+                    {
+                        static uint32_t lastSimTick = 0;
+                        uint32_t now = millis();
+                        if ((uint32_t)(now - lastSimTick) >= 16) {
+                            lastSimTick = now;
+                            SimPanels.tick();
+                        }
+                    }
                     #endif
                     #if DEMO_ENABLED
                     runDemos();
