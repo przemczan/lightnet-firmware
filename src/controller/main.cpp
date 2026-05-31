@@ -197,6 +197,7 @@ void setupOTA()
     });
     ArduinoOTA.onEnd([]() {
         PRINTLN("[OTA] controller update done — rebooting");
+        if (appearance) appearance->flush();
     });
     ArduinoOTA.onError([](ota_error_t error) {
         PRINTF("[OTA] error %u\n", error);
@@ -353,6 +354,8 @@ void loop()
                     if (animScheduler) animScheduler->tick(millis());
 
                     if (scenePlayer)   scenePlayer->tick(millis());
+
+                    if (appearance)    appearance->tick(millis());
 
                     #ifdef SIM_MODE
                     {

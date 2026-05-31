@@ -206,15 +206,9 @@ All endpoints return `application/json`. Successful mutations return `200 {}`. A
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `GET` | `/api/appearance` | — | `{"brightness":N,"baseColors":["#..","#..","#.."],"palette":"..."}` |
-| `PUT` | `/api/appearance` | Any subset of the three fields | `{}` |
-| `GET` | `/api/brightness` | — | `{"value":N}` |
-| `PUT` | `/api/brightness` | `{"value":128}` | `{}` |
-| `GET` | `/api/colors` | — | `{"primary":"#..","secondary":"#..","tertiary":"#.."}` |
-| `PUT` | `/api/colors` | Any subset of the three slots | `{}` |
-| `GET` | `/api/palette` | — | `{"palette":"lava"}` |
-| `PUT` | `/api/palette` | `{"palette":"lava"}` | `{}` |
+| `PATCH` | `/api/appearance` | Any subset of the three fields | `{}` |
 
-All `PUT` endpoints persist to `/config/appearance.json` atomically and broadcast the updated value to all panels immediately.
+Persists to `/config/appearance.json` atomically and broadcasts the updated value to all panels immediately.
 
 ---
 
@@ -222,7 +216,7 @@ All `PUT` endpoints persist to `/config/appearance.json` atomically and broadcas
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/palettes` | — | `["rainbow","lava","ocean",...]` |
+| `GET` | `/api/palettes` | — | `{"rainbow":{...},"lava":{...},...}` — map of name → Palette JSON |
 | `GET` | `/api/palettes/:name` | — | Palette JSON |
 | `POST` | `/api/palettes` | Palette JSON | `{}` |
 | `DELETE` | `/api/palettes/:name` | — | `403` if built-in |

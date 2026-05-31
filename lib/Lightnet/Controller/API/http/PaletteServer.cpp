@@ -42,16 +42,41 @@ namespace Lightnet {
 
     void PaletteServer::handleListPalettes(AsyncWebServerRequest *req)
     {
-        char buf[512];
-        int n = snprintf(buf, sizeof(buf), "[\"userColors\"");
+        AsyncResponseStream *res = req->beginResponseStream("application/json");
+        GradientStop stops[PALETTE_STOPS];
+        uint8_t count;
+        bool first = true;
+        char buf[128];
 
-        for (uint8_t i = 0; i < palettes.builtInCount() && n + 32 < (int)sizeof(buf); i++) {
-            n += snprintf(buf + n, sizeof(buf) - n, ",\"%s\"", palettes.builtInName(i));
+        auto writeEntry = [&](const char *name) {
+            if (!first) res->print(",");
+            first = false;
+            snprintf(buf, sizeof(buf), "\"%s\":{\"schemaVersion\":1,\"name\":\"%s\",\"stops\":[", name, name);
+            res->print(buf);
+            for (uint8_t i = 0; i < count; i++) {
+                char hex[8];
+                jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
+                snprintf(buf, sizeof(buf), "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
+                res->print(buf);
+            }
+            res->print("]}");
+        };
+
+        res->print("{");
+
+        count = 0;
+        PaletteStore::buildUserColors(appearance.baseColors(), stops, count);
+        writeEntry("userColors");
+
+        for (uint8_t i = 0; i < palettes.builtInCount(); i++) {
+            const char *name = palettes.builtInName(i);
+            count = 0;
+            if (palettes.resolve(name, stops, count)) writeEntry(name);
         }
 
         Dir d = SPIFFS.openDir("/palettes/");
 
-        while (d.next() && n + 32 < (int)sizeof(buf)) {
+        while (d.next()) {
             String fn = d.fileName();
             const char *base = fn.c_str();
 
@@ -65,13 +90,14 @@ namespace Lightnet {
 
                 if (nlen < sizeof(name) && !palettes.isBuiltIn(name)) {
                     memcpy(name, base, nlen);
-                    n += snprintf(buf + n, sizeof(buf) - n, ",\"%s\"", name);
+                    count = 0;
+                    if (palettes.resolve(name, stops, count)) writeEntry(name);
                 }
             }
         }
 
-        snprintf(buf + n, sizeof(buf) - n, "]");
-        Http::sendOkJson(req, buf);
+        res->print("}");
+        req->send(res);
     }
 
     void PaletteServer::handleGetPaletteByName(AsyncWebServerRequest *req)

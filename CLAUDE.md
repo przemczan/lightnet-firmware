@@ -52,6 +52,19 @@ Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`. When 
 ---
 
 
+## API changes
+
+Whenever you add, remove, or rename an HTTP endpoint, update **all** of the following:
+
+- `openapi.json` — path keys and any referenced URLs
+- `docs/api.md` — endpoint table
+- `docs/architecture.md` — server route summary table
+- `docs/animations/api.md` — if the endpoint is appearance/animation-related
+- Any inline doc comments in source that reference the path (e.g. `AppearanceStore.hpp`)
+- `lightnet-mobile` client (`LightnetHttpClient.kt`) if the endpoint is consumed there
+
+---
+
 ## Key facts for coding
 
 - **Single entry point**: `src/main.cpp` — includes `controller/main.h` or `panel/main.hpp` based on `LIGHTNET_TARGET_CONTROLLER`.

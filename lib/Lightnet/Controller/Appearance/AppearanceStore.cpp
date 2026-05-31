@@ -15,10 +15,11 @@ namespace Lightnet {
         const char *APPEARANCE_PATH     = "/config/appearance.json";
         const char *APPEARANCE_TMP_PATH = "/config/appearance.json.tmp";
         const uint8_t APPEARANCE_SCHEMA = 1;
+        const uint32_t FLUSH_INTERVAL_MS = 10000; // configurable: ms between dirty and SPIFFS write
     } // anonymous namespace
 
     AppearanceStore::AppearanceStore(AnimationScheduler& _scheduler, const PaletteStore& _palettes)
-        : scheduler(_scheduler), palettes(_palettes)
+        : scheduler(_scheduler), palettes(_palettes), dirtyAt(0)
     {
         writeDefaults();
     }
@@ -179,6 +180,32 @@ namespace Lightnet {
         SPIFFS.rename(APPEARANCE_TMP_PATH, APPEARANCE_PATH);
     }
 
+    void AppearanceStore::markDirty()
+    {
+        if (dirtyAt == 0) {
+            dirtyAt = millis();
+            if (dirtyAt == 0) dirtyAt = 1; // avoid false "clean" if millis() returns 0
+        }
+    }
+
+    void AppearanceStore::tick(uint32_t now)
+    {
+        if (dirtyAt == 0) return;
+
+        if ((uint32_t)(now - dirtyAt) >= FLUSH_INTERVAL_MS) {
+            writeFile();
+            dirtyAt = 0;
+        }
+    }
+
+    void AppearanceStore::flush()
+    {
+        if (dirtyAt == 0) return;
+
+        writeFile();
+        dirtyAt = 0;
+    }
+
     void AppearanceStore::broadcastSelectedPalette()
     {
         GradientStop stops[PALETTE_STOPS];
@@ -197,7 +224,7 @@ namespace Lightnet {
     bool AppearanceStore::setBrightness(uint8_t value)
     {
         brightnessValue = value;
-        writeFile();
+        markDirty();
         scheduler.broadcastGlobalBrightness(value);
 
         return true;
@@ -208,7 +235,7 @@ namespace Lightnet {
         if (slot >= BASE_COLORS_COUNT) return false;
 
         baseColorsValue[slot] = color;
-        writeFile();
+        markDirty();
         scheduler.broadcastBaseColors(baseColorsValue);
 
         // If the active palette is userColors, the visible color also changes — re-push.
@@ -225,7 +252,7 @@ namespace Lightnet {
             baseColorsValue[i] = colors[i];
         }
 
-        writeFile();
+        markDirty();
         scheduler.broadcastBaseColors(baseColorsValue);
 
         if (strcmp(paletteValue, "userColors") == 0) {
@@ -243,7 +270,7 @@ namespace Lightnet {
 
         strncpy(paletteValue, name, sizeof(paletteValue));
         paletteValue[sizeof(paletteValue) - 1] = '\0';
-        writeFile();
+        markDirty();
         broadcastSelectedPalette();
 
         return true;

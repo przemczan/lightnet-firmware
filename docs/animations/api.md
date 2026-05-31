@@ -37,20 +37,11 @@ These are persisted in `/config/appearance.json` and restored on every boot. The
 ### HTTP endpoints
 
 ```http
-GET  /api/appearance
-PUT  /api/appearance        {"brightness":192, "baseColors":["#FF4400","#FF8800","#000000"], "palette":"lava"}
-
-GET  /api/brightness
-PUT  /api/brightness        {"value": 128}
-
-GET  /api/colors
-PUT  /api/colors            {"primary":"#FF0000"}          ← any subset; unspecified slots unchanged
-
-GET  /api/palette
-PUT  /api/palette           {"palette": "lava"}            ← name must exist in PaletteStore
+GET    /api/appearance
+PATCH  /api/appearance        {"brightness":192, "baseColors":["#FF4400","#FF8800","#000000"], "palette":"lava"}
 ```
 
-All `PUT` endpoints return `200 {}` on success, `422 {"error":"..."}` on invalid input, persist atomically to SPIFFS, and broadcast to panels.
+All fields are optional — omit any you don't want to change. Returns `200 {}` on success, `422 {"error":"..."}` on invalid input, persists atomically to SPIFFS, and broadcasts to panels.
 
 ---
 
@@ -64,12 +55,12 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 |---|---|---|
 | `GET` | `/api/appearance` | `{"brightness":N,"baseColors":["#..","#..","#.."],"palette":"..."}` |
 | `PUT` | `/api/appearance` | Same shape, any subset of fields |
-| `GET` | `/api/brightness` | `{"value":N}` |
-| `PUT` | `/api/brightness` | `{"value":N}` — N: 0–255 |
-| `GET` | `/api/colors` | `{"primary":"#..","secondary":"#..","tertiary":"#.."}` |
-| `PUT` | `/api/colors` | Any subset of `primary`/`secondary`/`tertiary` |
-| `GET` | `/api/palette` | `{"palette":"lava"}` |
-| `PUT` | `/api/palette` | `{"palette":"lava"}` — must be a known palette name |
+| `GET` | `/api/appearance/brightness` | `{"value":N}` |
+| `PUT` | `/api/appearance/brightness` | `{"value":N}` — N: 0–255 |
+| `GET` | `/api/appearance/colors` | `{"primary":"#..","secondary":"#..","tertiary":"#.."}` |
+| `PUT` | `/api/appearance/colors` | Any subset of `primary`/`secondary`/`tertiary` |
+| `GET` | `/api/appearance/palette` | `{"palette":"lava"}` |
+| `PUT` | `/api/appearance/palette` | `{"palette":"lava"}` — must be a known palette name |
 
 ### Palettes (library management)
 
@@ -184,7 +175,7 @@ For chained steps on a notification (e.g. pulse → fade), use a short scene via
 }
 ```
 
-Change colour mid-flight: `PUT /api/colors {"primary":"#0044FF"}` — the breathe immediately shifts to blue on the next frame.
+Change colour mid-flight: `PUT /api/appearance/colors {"primary":"#0044FF"}` — the breathe immediately shifts to blue on the next frame.
 
 ---
 

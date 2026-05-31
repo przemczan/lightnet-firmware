@@ -114,7 +114,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | Class | Routes | Purpose |
 |---|---|---|
-| `AppearanceServer` | `GET/PUT /api/appearance`, `/api/brightness`, `/api/colors`, `/api/palette` | Appearance read/write |
+| `AppearanceServer` | `GET /api/appearance`, `PATCH /api/appearance` | Appearance read/write |
 | `PaletteServer` | `GET/POST /api/palettes`, `GET/DELETE /api/palettes/*` | Palette CRUD |
 | `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/status`, `/api/scenes/stop`, `/api/scenes/play` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |

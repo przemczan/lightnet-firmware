@@ -10,7 +10,12 @@
 namespace Lightnet {
 // Owns `/config/appearance.json` — the persistent record of how the lights currently
 // look (global brightness, base colors, selected palette). On boot, load+apply broadcasts
-// the values to all panels. Mutators atomically rewrite the file and broadcast to panels.
+// the values to all panels.
+//
+// Writes are deferred: mutators update in-memory state and broadcast to panels immediately,
+// but SPIFFS is only written after APPEARANCE_FLUSH_INTERVAL_MS has elapsed since the
+// first un-persisted change. Call tick() from the main loop to drive this. Call flush()
+// before any graceful reboot to guarantee the latest state is saved.
 //
 // SPIFFS layout:
 //   /config/appearance.json
@@ -33,9 +38,16 @@ namespace Lightnet {
             // can block.
             void loadAndApply();
 
-            // Mutators — each one updates in-memory state, persists to SPIFFS, and broadcasts
-            // the relevant packet to the panels. Returns false on validation failure (e.g.
-            // PUT /api/palette with an unknown palette name).
+            // Call from the main loop. Flushes to SPIFFS when the deferred-write interval
+            // has elapsed since the first un-persisted change.
+            void tick(uint32_t now);
+
+            // Write immediately if dirty. Call before any graceful reboot.
+            void flush();
+
+            // Mutators — each one updates in-memory state and broadcasts to panels.
+            // SPIFFS is written lazily via tick(). Returns false on validation failure (e.g.
+            // PATCH /api/appearance with an unknown palette name).
             bool setBrightness(uint8_t value);
             bool setBaseColor(uint8_t slot, Protocol::ColorRGB color);
             bool setAllBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
@@ -68,9 +80,12 @@ namespace Lightnet {
             char paletteValue[20];         // 19 chars max + null
 
             // Persistence helpers
-            bool readFile(); // returns true if a valid file existed
-            void writeFile(); // atomic tmp+rename
+            bool readFile();    // returns true if a valid file existed
+            void writeFile();   // atomic tmp+rename
             void writeDefaults(); // populate in-memory state with defaults
+            void markDirty();   // record that in-memory state needs flushing
+
+            uint32_t dirtyAt; // millis() when state first became dirty; 0 = clean
 
             // Resolve and broadcast the currently selected palette (handling the
             // synthetic "userColors" case).

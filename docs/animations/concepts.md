@@ -242,7 +242,7 @@ Samples the active palette (the one pushed to the panel for this layer) at posit
 "color": {"useColor": 2}   // tertiary
 ```
 
-References one of the three scene (or global) base colours. The panel resolves against its current `baseColors` state. Updating base colours via `PUT /api/colors` while an animation using `useColor` is running will change the displayed colour on the next frame. This is `ColorRef{kind=2}`.
+References one of the three scene (or global) base colours. The panel resolves against its current `baseColors` state. Updating base colours via `PUT /api/appearance/colors` while an animation using `useColor` is running will change the displayed colour on the next frame. This is `ColorRef{kind=2}`.
 
 ---
 

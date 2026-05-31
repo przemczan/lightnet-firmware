@@ -24,12 +24,6 @@ namespace Lightnet {
             void registerRoutes();
 
             void handleGetAppearance(AsyncWebServerRequest *req);
-            void handleGetBrightness(AsyncWebServerRequest *req);
-            void handleGetColors(AsyncWebServerRequest *req);
-            void handleGetPalette(AsyncWebServerRequest *req);
-            void handlePutAppearance(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
-            void handlePutBrightness(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
-            void handlePutColors(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
-            void handlePutPalette(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
+            void handlePatchAppearance(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
     };
 }  // namespace Lightnet

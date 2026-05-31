@@ -1,0 +1,516 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Lightnet",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/appearance": {
+      "get": {
+        "summary": "Get Appearance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Appearance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "brightness": 128,
+                "baseColors": [
+                  "#FF0000",
+                  "#00FF00",
+                  "#0000FF"
+                ],
+                "palette": "lava"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/palettes": {
+      "get": {
+        "summary": "List Palettes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": { "type": "integer" },
+                      "name": { "type": "string" },
+                      "stops": { "type": "array" }
+                    }
+                  }
+                },
+                "example": {
+                  "lava": {
+                    "schemaVersion": 1,
+                    "name": "lava",
+                    "stops": [[0,"#000000"],[255,"#FFFFFF"]]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Palette",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "schemaVersion": 1,
+                "name": "my-palette",
+                "stops": [
+                  [
+                    0,
+                    "#000000"
+                  ],
+                  [
+                    128,
+                    "#FF4400"
+                  ],
+                  [
+                    255,
+                    "#FFFFFF"
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/palettes/{{paletteName}}": {
+      "get": {
+        "summary": "Get Palette By Name",
+        "parameters": [
+          {
+            "name": "{paletteName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Palette By Name",
+        "parameters": [
+          {
+            "name": "{paletteName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scenes": {
+      "post": {
+        "summary": "Create Scene",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "schemaVersion": 1,
+                "name": "sunset",
+                "loop": true,
+                "layers": []
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Scenes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scenes/{{sceneName}}": {
+      "get": {
+        "summary": "Get Scene By Name",
+        "parameters": [
+          {
+            "name": "{sceneName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Scene By Name",
+        "parameters": [
+          {
+            "name": "{sceneName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scenes/play": {
+      "post": {
+        "summary": "Play Inline Scene",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "schemaVersion": 1,
+                "name": "inline-scene",
+                "loop": true,
+                "layers": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenes/{{sceneName}}/play": {
+      "post": {
+        "summary": "Play Stored Scene By Name",
+        "parameters": [
+          {
+            "name": "{sceneName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scenes/stop": {
+      "post": {
+        "summary": "Stop Scene Playback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/scenes/speed": {
+      "post": {
+        "summary": "Set Scene Playback Speed",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "speed": 2.0
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenes/status": {
+      "get": {
+        "summary": "Get Scene Playback Status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/animations/play": {
+      "post": {
+        "summary": "Play One-Shot Animation",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "group": 250,
+                "panels": "all",
+                "type": "PULSE",
+                "color": "#FF0000",
+                "brightnessFrom": 0,
+                "brightnessTo": 255,
+                "duration": 600,
+                "params": [
+                  64,
+                  128,
+                  64
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/animations/trigger": {
+      "post": {
+        "summary": "Trigger Reactive Animation",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "group": 1,
+                "value": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firmware/panels": {
+      "post": {
+        "summary": "Upload And Flash Panel Firmware",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/firmware/status": {
+      "get": {
+        "summary": "Get Firmware Flash Status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/panels": {
+      "get": {
+        "summary": "List Panels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/panels/edges": {
+      "get": {
+        "summary": "Get Panel Edges",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/panels/{{panelAddress}}/on": {
+      "put": {
+        "summary": "Set Panel On State",
+        "parameters": [
+          {
+            "name": "{panelAddress",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "value": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/panels/{{panelAddress}}/brightness": {
+      "put": {
+        "summary": "Set Panel Brightness",
+        "parameters": [
+          {
+            "name": "{panelAddress",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "value": 128
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/panels/{{panelAddress}}/color": {
+      "put": {
+        "summary": "Set Panel Color",
+        "parameters": [
+          {
+            "name": "{panelAddress",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "color": "#FF0000"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
