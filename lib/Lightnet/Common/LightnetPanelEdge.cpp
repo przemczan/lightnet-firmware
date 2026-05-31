@@ -93,27 +93,27 @@ void LightnetPanelEdge::setState(uint8_t state)
 {
     switch (state) {
         case LightnetPanelEdge::STATE_IDLE:
-            PRINTKV("LightnetPanelEdge state change", "IDLE");
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("LightnetPanelEdge state change", "IDLE"));
             break;
 
         case LightnetPanelEdge::STATE_WELCOME_SENT:
-            PRINTKV("LightnetPanelEdge state change", "WELCOME SENT");
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("LightnetPanelEdge state change", "WELCOME SENT"));
             break;
 
         case LightnetPanelEdge::STATE_NOT_CONNECTED:
-            PRINTKV("LightnetPanelEdge state change", "NOT CONNECTED");
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("LightnetPanelEdge state change", "NOT CONNECTED"));
             break;
 
         case LightnetPanelEdge::STATE_BOOTING:
-            PRINTKV("LightnetPanelEdge state change", "BOOTING");
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("LightnetPanelEdge state change", "BOOTING"));
             break;
 
         case LightnetPanelEdge::STATE_BOOT_TIMEOUT:
-            PRINTKV("LightnetPanelEdge state change", "BOOT TIMEOUT");
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("LightnetPanelEdge state change", "BOOT TIMEOUT"));
             break;
 
         case LightnetPanelEdge::STATE_READY:
-            PRINTKV("LightnetPanelEdge state change", "READY");
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("LightnetPanelEdge state change", "READY"));
             break;
     }
 

@@ -1,0 +1,17 @@
+#pragma once
+
+// ── Panel geometry ─────────────────────────────────────────────────────────────
+#define NUMBER_OF_EDGES 3   // supported range: 3–5
+                            // (6 edges requires a separate PC-port ISR — future work)
+
+// ── Debug sub-switches ────────────────────────────────────────────────────────
+// Panel builds use DEBUG=0 by default (platformio.ini); all sub-switches are 0.
+// Set DEBUG=1 for your panel env in platformio.ini, then uncomment below:
+// #define DEBUG_RGB_CTRL 1
+
+// ── Edge pin assignments ──────────────────────────────────────────────────────
+#define EDGE_1_PIN  9   // PB1 / PCINT1
+#define EDGE_2_PIN 10   // PB2 / PCINT2
+#define EDGE_3_PIN 11   // PB3 / PCINT3
+#define EDGE_4_PIN 12   // PB4 / PCINT4  (also MISO — free during normal op)
+#define EDGE_5_PIN 13   // PB5 / PCINT5  (also SCK  — free during normal op)

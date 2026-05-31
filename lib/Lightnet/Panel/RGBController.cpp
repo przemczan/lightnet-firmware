@@ -1,7 +1,6 @@
 #ifndef LIGHTNET_TARGET_CONTROLLER
 #include "RGBController.hpp"
-
-#define RGBC_DEBUG 0
+#include "../Utils/Debug.hpp"
 
 RGBController::RGBController()
 {
@@ -11,52 +10,39 @@ RGBController::RGBController()
 
 void RGBController::turnOn()
 {
-    #if RGBC_DEBUG
-    PRINTLN("on");
-    #endif
     this->isOn = true;
     this->updateOutputs();
+    maybeLog();
 }
 
 void RGBController::turnOff()
 {
-    #if RGBC_DEBUG
-    PRINTLN("off");
-    #endif
     this->isOn = false;
     FastLED.showColor(CRGB::Black);
+    maybeLog();
 }
 
 void RGBController::color(uint8_t r, uint8_t g, uint8_t b)
 {
-    #if RGBC_DEBUG
-    PRINTLN4('c', r, g, b);
-    #endif
     this->colorValue.r = r;
     this->colorValue.g = g;
     this->colorValue.b = b;
-
     this->updateOutputs();
+    maybeLog();
 }
 
 void RGBController::color(Protocol::ColorRGB *color)
 {
-    #if RGBC_DEBUG
-    PRINTLN4('c', color->r, color->g, color->b);
-    #endif
     this->colorValue = *color;
-
     this->updateOutputs();
+    maybeLog();
 }
 
 void RGBController::brightness(uint8_t brightness)
 {
-    #if RGBC_DEBUG
-    PRINTKV('b', brightness);
-    #endif
     this->brightnessValue = brightness;
-
     this->updateOutputs();
+    maybeLog();
 }
 
 void RGBController::updateOutputs()
@@ -88,6 +74,7 @@ void RGBController::globalBrightness(uint8_t value)
 {
     this->globalBrightnessValue = value;
     this->updateOutputs();
+    maybeLog();
 }
 
 bool RGBController::on()
@@ -123,6 +110,27 @@ void RGBController::setColorTemperature(ColorTemperature colorTemperature)
     this->colorTemperature = colorTemperature;
     FastLED.setTemperature(this->colorTemperature);
     this->updateOutputs();
+}
+
+void RGBController::maybeLog()
+{
+    DEBUG_IF(DEBUG_RGB_CTRL, {
+        uint8_t eff = (uint16_t(brightnessValue) * globalBrightnessValue + 128) >> 8;
+
+        if (colorValue.r == lastLogColor.r && colorValue.g == lastLogColor.g &&
+            colorValue.b == lastLogColor.b && brightnessValue == lastLogBrightness &&
+            globalBrightnessValue == lastLogGlobal && isOn == lastLogOn) {
+            return;
+        }
+
+        lastLogColor      = colorValue;
+        lastLogBrightness = brightnessValue;
+        lastLogGlobal     = globalBrightnessValue;
+        lastLogOn         = isOn;
+
+        D_PRINTLN("[RGB]", colorValue.r, colorValue.g, colorValue.b,
+                  "br:", brightnessValue, "gl:", globalBrightnessValue, "eff:", eff, "on:", isOn);
+    });
 }
 
 #endif  // LIGHTNET_TARGET_CONTROLLER

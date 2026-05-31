@@ -67,7 +67,7 @@ Whenever you add, remove, or rename an HTTP endpoint, update **all** of the foll
 
 ## Key facts for coding
 
-- **Single entry point**: `src/main.cpp` — includes `controller/main.h` or `panel/main.hpp` based on `LIGHTNET_TARGET_CONTROLLER`.
+- **Single entry point**: `src/main.cpp` — includes `controller/main.hpp` or `panel/main.hpp` based on `LIGHTNET_TARGET_CONTROLLER`.
 - **I²C protocol version**: v4 (`VERSION` constant in `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
 - **`animScheduler->tick(millis())`** must be called in the main loop `case 1`.
 - **SPIFFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.json`.

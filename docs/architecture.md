@@ -45,7 +45,7 @@ The firmware compiles to two completely different binaries from a single source 
 ```mermaid
 graph LR
   M["src/main.cpp"] --> CC{"LIGHTNET_TARGET_CONTROLLER?"}
-  CC -- defined --> ESP["src/controller/main.h\n(ESP8266 / ESP32)"]
+  CC -- defined --> ESP["src/controller/main.hpp\n(ESP8266 / ESP32)"]
   CC -- not defined --> ATM["src/panel/main.hpp\n(ATmega)"]
 ```
 

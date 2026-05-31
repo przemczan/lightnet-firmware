@@ -19,7 +19,7 @@ void WebsocketHandler::handleIncommingMessages()
         return;
     }
 
-    PRINTKV("[CMD HANDLER] processing messages", queue->size());
+    D_PRINTLN("[CMD HANDLER] processing messages", queue->size());
 
     WebsocketApi::Internal::Message *message;
     uint16_t size;
@@ -56,7 +56,7 @@ uint8_t WebsocketHandler::handleMessage(WebsocketApi::Internal::Message *message
 
     uint8_t error = this->validateCommand(command, message->payloadSize);
 
-    PRINTKV("[CMD HANDLER] cmd validation result", error);
+    D_PRINTLN("[CMD HANDLER] cmd validation result", error);
 
     if (error) {
         return ERROR_MESSAGE_INVALID_COMMAND;
@@ -67,7 +67,7 @@ uint8_t WebsocketHandler::handleMessage(WebsocketApi::Internal::Message *message
 
 uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint16_t size, uint32_t clientId)
 {
-    PRINTF("[CMD HANDLER] handling cmd [client:%u, type:%u]\n", clientId, command->header.type);
+    D_PRINTF("[CMD HANDLER] handling cmd [client:%u, type:%u]\n", clientId, command->header.type);
 
     uint8_t error = 0;
 
@@ -97,7 +97,7 @@ uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint1
             break;
     }
 
-    PRINTKV("[CMD HANDLER] done handling", error);
+    D_PRINTLN("[CMD HANDLER] done handling", error);
 
     return error;
 }

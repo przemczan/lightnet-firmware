@@ -1,12 +1,7 @@
 #pragma once
 
-// DEMO_ENABLED is set via build flags in platformio.ini (default 1).
-// Override by editing build_flags_controller in platformio.ini.
-#ifndef DEMO_ENABLED
-    #define DEMO_ENABLED 0
-#endif
-
 #ifdef LIGHTNET_TARGET_CONTROLLER
+    #include "config.hpp"
 
     #include <Arduino.h>
     #include "Panels/PanelsInitializer.hpp"
@@ -42,9 +37,6 @@
     #include <ArduinoOTA.h>
     #ifdef ARDUINO_ARCH_ESP32
         #include <SPIFFS.h>
-    #endif
-    #ifdef SIM_MODE
-        #include "SimPanelManager.hpp"
     #endif
 
 #endif

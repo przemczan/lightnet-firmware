@@ -5,148 +5,148 @@
     #include "../../../lib/Lightnet/Utils/Debug.hpp"
     #include <Arduino.h>
 
-namespace Lightnet {
-// ============================================================================
-// Construction
-// ============================================================================
+    namespace Lightnet {
+        // ============================================================================
+        // Construction
+        // ============================================================================
 
-    DemoRunner::DemoRunner(
-        AnimationService&   _animService,
-        SceneStore&         _sceneStore,
-        ScenePlayer&        _scenePlayer,
-        AnimationScheduler& _scheduler,
-        PanelsController&   _panels,
-        PanelsInitializer&  _initializer
-    )
-        : animService(_animService), sceneStore(_sceneStore), scenePlayer(_scenePlayer),
-        scheduler(_scheduler), panels(_panels), initializer(_initializer), index(0)
-    {
-    }
-
-// ============================================================================
-// Demo dispatch
-// ============================================================================
-
-    void DemoRunner::run()
-    {
-        if (index == 0) Serial.println("[SIM:DEMO] start");
-
-        PRINTKV("[DEMO] running demo", (int)index);
-
-        switch (index) {
-            // -- Verification demos (exercise specific animation code paths) --
-            case  0: demoInvertedBreathe();
-                break;
-            case  1: demoRapidTransitions();
-                break;
-            case  2: demoExtremePulse();
-                break;
-            case  3: demoWaveRippleSequence();
-                break;
-            case  4: demoReactiveBeats();
-                break;
-            case  5: demoRainbowFade();
-                break;
-            case  6: demoWaveAndChase();
-                break;
-            // -- Scene-based demos (full pipeline: AnimationService → ScenePlayer) --
-            case  7: demoWarmBreathe();
-                break;
-            case  8: demoLavaWave();
-                break;
-            case  9: demoSunsetSequence();
-                break;
-            case 10: demoFireReactive();
-                break;
-            case 11: demoAuroraChase();
-                break;
-            case 12: demoRippleCascade();
-                break;
+        DemoRunner::DemoRunner(
+            AnimationService&   _animService,
+            SceneStore&         _sceneStore,
+            ScenePlayer&        _scenePlayer,
+            AnimationScheduler& _scheduler,
+            PanelsController&   _panels,
+            PanelsInitializer&  _initializer
+        )
+            : animService(_animService), sceneStore(_sceneStore), scenePlayer(_scenePlayer),
+            scheduler(_scheduler), panels(_panels), initializer(_initializer), index(0)
+        {
         }
 
-        index = (index + 1) % 13;
+        // ============================================================================
+        // Demo dispatch
+        // ============================================================================
 
-        if (index == 0) Serial.println("[SIM:DEMO] end");
-    }
+        void DemoRunner::run()
+        {
+            if (index == 0) Serial.println("[SIM:DEMO] start");
 
-// ============================================================================
-// Helpers
-// ============================================================================
+            DEBUG_IF(DEBUG_DEMO, D_PRINTLN("[DEMO] running demo", (int)index));
 
-    uint8_t DemoRunner::resolvePanels(uint8_t *out, uint8_t maxCount) const
-    {
-        List<Panel *> *list = initializer.getPanels();
-        uint16_t total = list->getSize();
-        uint8_t count = 0;
+            switch (index) {
+                // -- Verification demos (exercise specific animation code paths) --
+                case  0: demoInvertedBreathe();
+                    break;
+                case  1: demoRapidTransitions();
+                    break;
+                case  2: demoExtremePulse();
+                    break;
+                case  3: demoWaveRippleSequence();
+                    break;
+                case  4: demoReactiveBeats();
+                    break;
+                case  5: demoRainbowFade();
+                    break;
+                case  6: demoWaveAndChase();
+                    break;
+                // -- Scene-based demos (full pipeline: AnimationService → ScenePlayer) --
+                case  7: demoWarmBreathe();
+                    break;
+                case  8: demoLavaWave();
+                    break;
+                case  9: demoSunsetSequence();
+                    break;
+                case 10: demoFireReactive();
+                    break;
+                case 11: demoAuroraChase();
+                    break;
+                case 12: demoRippleCascade();
+                    break;
+            }
 
-        for (uint16_t i = 0; i < total && count < maxCount; i++) {
-            out[count++] = (uint8_t)list->get(i)->index;
+            index = (index + 1) % 13;
+
+            if (index == 0) Serial.println("[SIM:DEMO] end");
         }
 
-        return count;
-    }
+        // ============================================================================
+        // Helpers
+        // ============================================================================
 
-    void DemoRunner::setAll(Protocol::ColorRGB rgb, uint8_t brightness)
-    {
-        uint8_t addrs[LIGHTNET_MAX_PANELS];
-        uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
-        Protocol::Color c;
+        uint8_t DemoRunner::resolvePanels(uint8_t *out, uint8_t maxCount) const
+        {
+            List<Panel *> *list = initializer.getPanels();
+            uint16_t total = list->getSize();
+            uint8_t count = 0;
 
-        c.rgb = rgb;
+            for (uint16_t i = 0; i < total && count < maxCount; i++) {
+                out[count++] = (uint8_t)list->get(i)->index;
+            }
 
-        for (uint8_t i = 0; i < count; i++) {
-            panels.setColorAndBrightness(addrs[i], c, brightness);
-            panels.turnOn(addrs[i]);
-        }
-    }
-
-    void DemoRunner::turnOffAll()
-    {
-        uint8_t addrs[LIGHTNET_MAX_PANELS];
-        uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
-
-        for (uint8_t i = 0; i < count; i++) {
-            panels.turnOff(addrs[i]);
+            return count;
         }
 
-        delay(500);
-    }
+        void DemoRunner::setAll(Protocol::ColorRGB rgb, uint8_t brightness)
+        {
+            uint8_t addrs[LIGHTNET_MAX_PANELS];
+            uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
+            Protocol::Color c;
 
-    void DemoRunner::seedScene(const char *name, const char *json)
-    {
-        if (!sceneStore.exists(name)) {
-            auto r = animService.saveScene(json, strlen(json));
+            c.rgb = rgb;
 
-            if (!r.ok()) {
-                PRINTF("[DEMO] seed failed for %s: %s\n", name, r.msg);
+            for (uint8_t i = 0; i < count; i++) {
+                panels.setColorAndBrightness(addrs[i], c, brightness);
+                panels.turnOn(addrs[i]);
             }
         }
-    }
 
-    void DemoRunner::playScene(const char *name, uint32_t durationMs)
-    {
-        auto r = animService.playSceneByName(name);
+        void DemoRunner::turnOffAll()
+        {
+            uint8_t addrs[LIGHTNET_MAX_PANELS];
+            uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
 
-        if (!r.ok()) {
-            PRINTF("[DEMO] play failed for %s: %s\n", name, r.msg);
+            for (uint8_t i = 0; i < count; i++) {
+                panels.turnOff(addrs[i]);
+            }
 
-            return;
+            delay(500);
         }
 
-        spinWait(durationMs);
-        animService.stopScene();
-    }
+        void DemoRunner::seedScene(const char *name, const char *json)
+        {
+            if (!sceneStore.exists(name)) {
+                auto r = animService.saveScene(json, strlen(json));
 
-    void DemoRunner::spinWait(uint32_t ms)
-    {
-        uint32_t deadline = millis() + ms;
-
-        while ((int32_t)(millis() - deadline) < 0) {
-            scenePlayer.tick(millis());
-            delay(16);
+                if (!r.ok()) {
+                    DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed failed for %s: %s\n", name, r.msg));
+                }
+            }
         }
-    }
-}  // namespace Lightnet
+
+        void DemoRunner::playScene(const char *name, uint32_t durationMs)
+        {
+            auto r = animService.playSceneByName(name);
+
+            if (!r.ok()) {
+                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] play failed for %s: %s\n", name, r.msg));
+
+                return;
+            }
+
+            spinWait(durationMs);
+            animService.stopScene();
+        }
+
+        void DemoRunner::spinWait(uint32_t ms)
+        {
+            uint32_t deadline = millis() + ms;
+
+            while ((int32_t)(millis() - deadline) < 0) {
+                scenePlayer.tick(millis());
+                delay(16);
+            }
+        }
+    } // namespace Lightnet
 
 #endif  // DEMO_ENABLED
 #endif  // LIGHTNET_TARGET_CONTROLLER

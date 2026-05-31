@@ -35,3 +35,7 @@ node_modules
 *.map
 
 .claude
+
+# Per-device configuration (copy from *.example)
+src/controller.config.hpp
+src/panel.config.hpp

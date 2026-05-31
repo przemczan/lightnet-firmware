@@ -24,7 +24,14 @@ class RGBController
         LEDColorCorrection colorCorrection = UncorrectedColor;
         ColorTemperature colorTemperature = UncorrectedTemperature;
 
+        // Tracking fields for delta-based debug logging (DEBUG_RGB_CTRL)
+        Protocol::ColorRGB lastLogColor = { 0, 0, 0 };
+        uint8_t lastLogBrightness = 0;
+        uint8_t lastLogGlobal = 0;
+        bool lastLogOn = false;
+
         void updateOutputs();
+        void maybeLog();
 
     public:
         RGBController();

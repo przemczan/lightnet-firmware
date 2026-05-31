@@ -1,36 +1,6 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
-#include "main.h"
-#if DEMO_ENABLED
-    #include "demo.hpp"
-#endif
-
-#if defined(ARDUINO_ARCH_ESP8266)
-    #define INITIALIZER_EDGE_PIN_NO 13
-    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 12
-    #define LED_PIN 2
-    #define IIC_SDA_PIN 4
-    #define IIC_SCL_PIN 5
-    #define PANELS_POWER_PIN 14
-#elif defined(ARDUINO_ARCH_ESP32)
-    #define INITIALIZER_EDGE_PIN_NO 12
-    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
-    #define LED_PIN 2
-    #define IIC_SDA_PIN 4
-    #define IIC_SCL_PIN 5
-    #define PANELS_POWER_PIN 21
-#else
-    #define INITIALIZER_EDGE_PIN_NO 8
-    #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 2
-    #define LED_PIN 13
-    #define IIC_SDA_PIN 4
-    #define IIC_SCL_PIN 5
-    #define PANELS_POWER_PIN 3
-#endif
-
-uint16_t const SERVER_PORT = 80;
-
-#define CONFIG_PORTAL_TIMEOUT 120
+#include "main.hpp"
 
 uint8_t state = 0;
 DNSServer dns;
@@ -60,9 +30,9 @@ void setupMDNS()
     char buffer[20];
 
     #ifdef ARDUINO_ARCH_ESP8266
-    sprintf(buffer, "lightnet-%04X\0", ESP.getChipId());
+        sprintf(buffer, "lightnet-%04X\0", ESP.getChipId());
     #else
-    sprintf(buffer, "lightnet-%08X\0", ESP.getEfuseMac());
+        sprintf(buffer, "lightnet-%08X\0", ESP.getEfuseMac());
     #endif
 
     MDNS.begin(&buffer[0]);
@@ -110,12 +80,12 @@ static void sendPanelFade(
 
 void selfTest()
 {
-    PRINTLN("[SELF TEST BEGIN]");
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST BEGIN]"));
 
     uint16_t panelCount = LNPanelsInitializer.getPanels()->getSize();
 
     if (panelCount == 0) {
-        PRINTLN("[SELF TEST END]");
+        DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST END]"));
 
         return;
     }
@@ -160,7 +130,7 @@ void selfTest()
         panelsController->setBrightness(addr, 128);
     }
 
-    PRINTLN("[SELF TEST END]");
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST END]"));
 }
 
 void sendConfiguration()
@@ -186,24 +156,25 @@ void setupOTA()
     char buffer[20];
 
     #ifdef ARDUINO_ARCH_ESP8266
-    sprintf(buffer, "lightnet-%04X", ESP.getChipId());
+        sprintf(buffer, "lightnet-%04X", ESP.getChipId());
     #else
-    sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
+        sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
     #endif
 
     ArduinoOTA.setHostname(buffer);
     ArduinoOTA.onStart([]() {
-        PRINTLN("[OTA] controller update starting");
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] controller update starting"));
     });
     ArduinoOTA.onEnd([]() {
-        PRINTLN("[OTA] controller update done — rebooting");
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] controller update done — rebooting"));
+
         if (appearance) appearance->flush();
     });
     ArduinoOTA.onError([](ota_error_t error) {
-        PRINTF("[OTA] error %u\n", error);
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[OTA] error %u\n", error));
     });
     ArduinoOTA.begin();
-    PRINTLN("[OTA] ArduinoOTA ready");
+    DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] ArduinoOTA ready"));
 }
 
 void setupWiFi()
@@ -242,9 +213,9 @@ void setupWiFi()
 void setup()
 {
     #ifdef SIM_SERIAL_BAUD
-    Serial.begin(SIM_SERIAL_BAUD);
+        Serial.begin(SIM_SERIAL_BAUD);
     #else
-    Serial.begin(57600);
+        Serial.begin(57600);
     #endif
 
     LNPanelsInitializer.configure({ .sdaPinNo = IIC_SDA_PIN,
@@ -257,13 +228,13 @@ void setup()
     // digitalWrite(LED_PIN, LOW);
 
     pinMode(PANELS_POWER_PIN, OUTPUT);
-    PRINTLN("reseting panels power...");
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("reseting panels power..."));
     digitalWrite(PANELS_POWER_PIN, LOW);
     delay(100);
     digitalWrite(PANELS_POWER_PIN, HIGH);
-    PRINTLN("waiting for panels to boot");
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panels to boot"));
     delay(500);
-    PRINTLN("Initializing...");
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
     panelsController = new PanelsController();
 
@@ -304,9 +275,9 @@ void loop()
                 // Hoist here so PaletteStore/AppearanceStore can read /config/ and
                 // /palettes/ before the WiFi captive portal can block for 30 s.
                 #ifdef ARDUINO_ARCH_ESP32
-                SPIFFS.begin(true);
+                    SPIFFS.begin(true);
                 #else
-                SPIFFS.begin();
+                    SPIFFS.begin();
                 #endif
 
                 paletteStore = new Lightnet::PaletteStore();
@@ -317,9 +288,9 @@ void loop()
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, LNPanelsInitializer, *paletteStore);
                 animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
 
-                #if DEMO_ENABLED
-                initDemos(*animService, *sceneStore, *scenePlayer, *animScheduler,
-                          *panelsController, LNPanelsInitializer);
+                #if DEMO_MODE
+                    initDemos(*animService, *sceneStore, *scenePlayer, *animScheduler,
+                              *panelsController, LNPanelsInitializer);
                 #endif
 
                 setupWiFi();
@@ -335,12 +306,12 @@ void loop()
                 panelServer = new Lightnet::PanelServer(*webServer, *panelsController);
                 panelServer->begin();
 
-                PRINTLN("Initialization complete");
+                DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
                 break;
 
             case 1:
                 #ifdef ARDUINO_ARCH_ESP8266
-                MDNS.update();
+                    MDNS.update();
                 #endif
                 ArduinoOTA.handle();
 
@@ -358,18 +329,18 @@ void loop()
                     if (appearance)    appearance->tick(millis());
 
                     #ifdef SIM_MODE
-                    {
-                        static uint32_t lastSimTick = 0;
-                        uint32_t now = millis();
+                        {
+                            static uint32_t lastSimTick = 0;
+                            uint32_t now = millis();
 
-                        if ((uint32_t)(now - lastSimTick) >= 16) {
-                            lastSimTick = now;
-                            SimPanels.tick();
+                            if ((uint32_t)(now - lastSimTick) >= 16) {
+                                lastSimTick = now;
+                                SimPanels.tick();
+                            }
                         }
-                    }
                     #endif
-                    #if DEMO_ENABLED
-                    runDemos();
+                    #if DEMO_MODE
+                        runDemos();
                     #endif
                 }
 

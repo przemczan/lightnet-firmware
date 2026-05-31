@@ -2,14 +2,10 @@
 
 #include "main.hpp"
 
-#define EDGE_1_PIN 9
-#define EDGE_2_PIN 10
-#define EDGE_3_PIN 11
-
-// Edge pins PB1, PB2, PB3 map to LNPanel edges 0, 1, 2 (the order in which
-// addEdge() is called below). The ISR re-packs PINB so that bit i of
-// pinStates is the level of edge i, then forwards the snapshot + TCNT1 to
-// LNPanel.updateEdgesStates(). TCNT1 runs at F_CPU/8 = 0.5 µs/tick.
+// Edge pins PB1..PBN map to LNPanel edges 0..N-1 (the order addEdge() is called).
+// The ISR re-packs PINB so that bit i of pinStates is the level of edge i, then
+// forwards the snapshot + TCNT1 to LNPanel.updateEdgesStates().
+// TCNT1 runs at F_CPU/8 = 0.5 µs/tick.
 
 void setup()
 {
@@ -26,22 +22,41 @@ void setup()
     digitalWrite(PD6, 0);
 
     Serial.begin(57600);
-    #if DEBUG
-    PRINTLN("");
-    #endif
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN(""));
 
     LNPanel.addEdge(EDGE_1_PIN);
-    LNPanel.addEdge(EDGE_2_PIN);
-    LNPanel.addEdge(EDGE_3_PIN);
+    #if NUMBER_OF_EDGES >= 2
+        LNPanel.addEdge(EDGE_2_PIN);
+    #endif
+    #if NUMBER_OF_EDGES >= 3
+        LNPanel.addEdge(EDGE_3_PIN);
+    #endif
+    #if NUMBER_OF_EDGES >= 4
+        LNPanel.addEdge(EDGE_4_PIN);
+    #endif
+    #if NUMBER_OF_EDGES >= 5
+        LNPanel.addEdge(EDGE_5_PIN);
+    #endif
 
     LNPanel.configure({});
 
-    PRINTLN("===> [PANEL]");
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("===> [PANEL]"));
 
-    // PCIE0 is for PB port
+    // PCIE0 is for PB port — enable PC INTs for the active edge pins
     PCICR |= (1 << PCIE0);
-    // enable PC INTs for Edge pins 1-3
-    PCMSK0 |= (1 << PCINT1) | (1 << PCINT2) | (1 << PCINT3);
+    PCMSK0 |= (1 << PCINT1);  // edge 1: PB1
+    #if NUMBER_OF_EDGES >= 2
+        PCMSK0 |= (1 << PCINT2); // edge 2: PB2
+    #endif
+    #if NUMBER_OF_EDGES >= 3
+        PCMSK0 |= (1 << PCINT3); // edge 3: PB3
+    #endif
+    #if NUMBER_OF_EDGES >= 4
+        PCMSK0 |= (1 << PCINT4); // edge 4: PB4
+    #endif
+    #if NUMBER_OF_EDGES >= 5
+        PCMSK0 |= (1 << PCINT5); // edge 5: PB5
+    #endif
 
     delay(100);
 }
@@ -53,9 +68,11 @@ void loop()
 
 ISR(PCINT0_vect)
 {
-    // Edges 0,1,2 live on PB1,PB2,PB3 → shift PINB so bit i is edge i's level.
+    // PB1..PBN → shift PINB so bit i is edge i's level.
     // TCNT1 16-bit read is atomic here (interrupts disabled in ISR).
-    LNPanel.updateEdgesStates((PINB >> 1) & 0x07, TCNT1);
+    static constexpr uint8_t edgeMask = (1 << NUMBER_OF_EDGES) - 1;
+
+    LNPanel.updateEdgesStates((PINB >> 1) & edgeMask, TCNT1);
 }
 
 #endif

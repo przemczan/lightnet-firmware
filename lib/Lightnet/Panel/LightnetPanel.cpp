@@ -83,17 +83,14 @@ void LightnetPanel::run()
         case STATE_READY:
             LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, this->index);
             #if !IS_ESP
-            // Enable I2C General Call reception (GCIE bit in TWAR)
-            TWAR |= 0x01;
+                // Enable I2C General Call reception (GCIE bit in TWAR)
+                TWAR |= 0x01;
             #endif
             this->setState(STATE_WORKING);
-            PRINTKV("===> [READY]", this->index);
-            #if DEBUG
-            // Serial.print(F("[PANEL] TWI_BUFFER_SIZE="));
-            // Serial.print(TWI_BUFFER_SIZE);
-            Serial.print(F(" MAX_PACKET_SIZE="));
-            Serial.println(Protocol::MAX_PACKET_SIZE);
-            #endif
+            DEBUG_IF(DEBUG_DISCOVERY, {
+            D_PRINTLN("===> [READY]", this->index);
+            D_PRINTLN("MAX_PACKET_SIZE=", Protocol::MAX_PACKET_SIZE);
+        });
             break;
 
         case STATE_WORKING:
@@ -156,7 +153,7 @@ void LightnetPanel::registerEdges()
 
 void LightnetPanel::beginEdgeRegistration()
 {
-    PRINTKV("[EDGE][REGISTER] begin", this->nextEdgeToRegister);
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][REGISTER] begin", this->nextEdgeToRegister));
 
     LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, Protocol::PULLING_ADDRESS);
     this->setRegisterState(REGISTER_STATE_SEND);
@@ -164,15 +161,16 @@ void LightnetPanel::beginEdgeRegistration()
 
 void LightnetPanel::endEdgeRegistration()
 {
-    PRINTLN("[EDGE][REGISTER] end");
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][REGISTER] end"));
 
     LNBus.end();
 
-    PRINTLN("[EDGE][BOOT] begin");
-
     LightnetPanelEdge *edge = this->edges->get(this->nextEdgeToRegister);
 
-    PRINTKV("[EDGE][BOOT] timeout is", edge->getBootTimeout());
+    DEBUG_IF(DEBUG_DISCOVERY, {
+        D_PRINTLN("[EDGE][BOOT] begin");
+        D_PRINTLN("[EDGE][BOOT] timeout is", edge->getBootTimeout());
+    });
 
     this->setRegisterState(REGISTER_STATE_BOOT);
 }
@@ -180,7 +178,7 @@ void LightnetPanel::endEdgeRegistration()
 void LightnetPanel::bootEdge()
 {
     if (this->parentEdgeIndex == this->nextEdgeToRegister) {
-        PRINTLN("[EDGE][BOOT] Skipping parent edge");
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][BOOT] Skipping parent edge"));
         this->setNextEdgeToRegister();
 
         return;
@@ -191,7 +189,7 @@ void LightnetPanel::bootEdge()
     edge->boot();
 
     if (edge->isFinished()) {
-        PRINTLN("[EDGE][BOOT] done");
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][BOOT] done"));
         this->setNextEdgeToRegister();
     }
 }
@@ -218,7 +216,7 @@ void LightnetPanel::setRegisterState(register_state_t state)
 
 void LightnetPanel::setState(state_t state)
 {
-    PRINTKV("[STATE]", state);
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[STATE]", state));
     this->state = state;
 }
 
@@ -236,12 +234,12 @@ void LightnetPanel::handleIncomingPackets()
     while (this->packetsToHandle->dequeue((void *&)packet, size)) {
         uint8_t vErr = Protocol::validatePacket(packet, size);
         #if DEBUG
-        Serial.print(F("[PKT] type="));
-        Serial.print(packet->header.type);
-        Serial.print(F(" size="));
-        Serial.print(size);
-        Serial.print(F(" vErr="));
-        Serial.println(vErr);
+            Serial.print(F("[PKT] type="));
+            Serial.print(packet->header.type);
+            Serial.print(F(" size="));
+            Serial.print(size);
+            Serial.print(F(" vErr="));
+            Serial.println(vErr);
         #endif
 
         if (!vErr) {
@@ -250,22 +248,22 @@ void LightnetPanel::handleIncomingPackets()
     }
 
     #if DEBUG
-    uint32_t now = millis();
+        uint32_t now = millis();
 
-    if (now - this->lastLogMs >= 1000) {
-        auto counts = this->getAndResetReceivedCount();
+        if (now - this->lastLogMs >= 1000) {
+            auto counts = this->getAndResetReceivedCount();
 
-        Serial.print(F("[PANEL] rx="));
-        Serial.print(counts.receivedCount);
-        Serial.print(F(" drop="));
-        Serial.print(counts.droppedCount);
-        Serial.print(F(" lastRx="));
-        Serial.print(LNBus.lastRxSize);
-        Serial.print(F(" maxRx="));
-        Serial.println(LNBus.maxRxSize);
+            Serial.print(F("[PANEL] rx="));
+            Serial.print(counts.receivedCount);
+            Serial.print(F(" drop="));
+            Serial.print(counts.droppedCount);
+            Serial.print(F(" lastRx="));
+            Serial.print(LNBus.lastRxSize);
+            Serial.print(F(" maxRx="));
+            Serial.println(LNBus.maxRxSize);
 
-        this->lastLogMs = now;
-    }
+            this->lastLogMs = now;
+        }
 
     #endif
 }
@@ -387,19 +385,19 @@ void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration 
 {
     this->rgbController->gammaCorrection(packet->useGammaCorrection);
     #if !defined(USE_LIGHT_WS2812)
-    // Color correction and temperature require FastLED internals; not available
-    // in the light_ws2812 path (ATmega88P), where gamma is handled manually.
-    this->rgbController->setColorTemperature(packet->colorTemperature);
-    this->rgbController->setColorCorrection(packet->colorCorrection);
+        // Color correction and temperature require FastLED internals; not available
+        // in the light_ws2812 path (ATmega88P), where gamma is handled manually.
+        this->rgbController->setColorTemperature(packet->colorTemperature);
+        this->rgbController->setColorCorrection(packet->colorCorrection);
     #endif
 }
 
 LightnetPanel::ReceivedCounts LightnetPanel::getAndResetReceivedCount()
 {
     #ifdef ARDUINO_ARCH_ESP32
-    portENTER_CRITICAL(&this->queueMux);
+        portENTER_CRITICAL(&this->queueMux);
     #else
-    noInterrupts();
+        noInterrupts();
 
     #endif
 
@@ -412,9 +410,9 @@ LightnetPanel::ReceivedCounts LightnetPanel::getAndResetReceivedCount()
     this->droppedCount = 0;
 
     #ifdef ARDUINO_ARCH_ESP32
-    portEXIT_CRITICAL(&this->queueMux);
+        portEXIT_CRITICAL(&this->queueMux);
     #else
-    interrupts();
+        interrupts();
     #endif
 
     return { .receivedCount = receivedCount, .droppedCount = droppedCount };
@@ -430,7 +428,7 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 
             if (!this->index) {
                 this->index = ((Protocol::PacketInitializationPull *)packet)->panelIndex;
-                PRINTKV("[EDGE][REGISTER] Got index", this->index);
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][REGISTER] Got index", this->index));
             }
 
             break;
@@ -530,13 +528,13 @@ void LightnetPanel::handleEnterBootloader(Protocol::PacketEnterBootloader *packe
 {
     #if !IS_ESP
 
-    if (packet->token != BootloaderBridge::ENTRY_TOKEN) {
-        return;
-    }
+        if (packet->token != BootloaderBridge::ENTRY_TOKEN) {
+            return;
+        }
 
-    PRINTLN("[BOOTLOADER] entering — saving address and resetting");
-    BootloaderBridge::prepareAndReset(this->index);
-    // execution never reaches here
+        DEBUG_IF(DEBUG_INIT, ("[BOOTLOADER] entering — saving address and resetting"));
+        BootloaderBridge::prepareAndReset(this->index);
+        // execution never reaches here
     #endif
 }
 

@@ -1,0 +1,20 @@
+#pragma once
+
+// ── Mode flags ────────────────────────────────────────────────────────────────
+#define DEMO_MODE 0
+// SIM_MODE is set via platformio.ini (controller_wemos_sim env only)
+
+// ── Debug sub-switches ────────────────────────────────────────────────────────
+// All sub-switches default to 1 when DEBUG=1 (see lib/Lightnet/Utils/Debug.hpp).
+// Uncomment to disable a specific area:
+// #define DEBUG_API          0   // WebSocket / HTTP API logs
+// #define DEBUG_RGB_CTRL     0   // LED controller logs
+// #define DEBUG_LIGHTNET_BUS 0   // I²C bus logs
+// #define DEBUG_FLASHER      0   // OTA / panel flash logs
+// #define DEBUG_DISCOVERY    0   // panel discovery / ping logs
+// #define DEBUG_INIT         0   // startup / init logs
+// #define DEBUG_DEMO         0   // demo logs
+
+// ── Server settings ───────────────────────────────────────────────────────────
+#define CONFIG_PORTAL_TIMEOUT 120
+#define SERVER_PORT 80

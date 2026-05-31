@@ -18,15 +18,15 @@ void dumpMem(uint8_t *mem, size_t size, uint8_t width)
 {
     uint16_t index = 0;
 
-    PRINT("\n");
+    D_PRINT("\n");
 
     while (index++ < size) {
-        PRINTF("%02X ", *mem++);
+        D_PRINTF("%02X ", *mem++);
 
         if (!(index % width)) {
-            PRINT("\n");
+            D_PRINT("\n");
         }
     }
 
-    PRINT("\n");
+    D_PRINT("\n");
 }

@@ -4,8 +4,8 @@
 LightnetBus::LightnetBus()
 {
     #if !IS_ESP
-    Wire.onReceive(LightnetBus::onReceiveService);
-    Wire.onRequest(LightnetBus::onRequestService);
+        Wire.onReceive(LightnetBus::onReceiveService);
+        Wire.onRequest(LightnetBus::onRequestService);
     #endif
 }
 
@@ -59,9 +59,9 @@ void LightnetBus::begin(uint8_t address)
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 {
     #if IS_ESP32
-    Wire.begin(sdaPin, sclPin, address);
+        Wire.begin(sdaPin, sclPin, address);
     #else
-    Wire.begin(address);
+        Wire.begin(address);
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -69,12 +69,12 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 void LightnetBus::begin()
 {
     #if IS_ESP
-    Wire.begin();
-    #if IS_ESP8266
-    Wire.setClockStretchLimit(1500);
-    #endif
+        Wire.begin();
+        #if IS_ESP8266
+            Wire.setClockStretchLimit(1500);
+        #endif
     #else
-    Wire.begin();
+        Wire.begin();
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -82,12 +82,12 @@ void LightnetBus::begin()
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 {
     #if IS_ESP
-    Wire.begin(sdaPin, sclPin);
-    #if IS_ESP8266
-    Wire.setClockStretchLimit(1500);
-    #endif
+        Wire.begin(sdaPin, sclPin);
+        #if IS_ESP8266
+            Wire.setClockStretchLimit(1500);
+        #endif
     #else
-    Wire.begin();
+        Wire.begin();
     #endif
     Wire.setClock(BUS_FREQUENCY);
 }
@@ -95,9 +95,9 @@ void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 void LightnetBus::end()
 {
     #if IS_ESP8266
-    twi_stop();
+        twi_stop();
     #elif !IS_ESP
-    Wire.end();
+        Wire.end();
     #endif
 }
 
@@ -141,7 +141,7 @@ uint8_t LightnetBus::sendPacketWithResponse(
     uint8_t writeErr = this->sendPacket(address, packet, packetSize, packetType, false);
 
     if (writeErr != 0) {
-        PRINTF("[BUS] write err=%d addr=0x%02X\n", writeErr, address);
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] write err=%d addr=0x%02X\n", writeErr, address));
 
         return 1;
     }
@@ -151,7 +151,7 @@ uint8_t LightnetBus::sendPacketWithResponse(
     uint8_t readErr = this->requestPacket(address, responseBuffer, responseSize);
 
     if (readErr != 0) {
-        PRINTF("[BUS] read err=%d addr=0x%02X\n", readErr, address);
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] read err=%d addr=0x%02X\n", readErr, address));
 
         return 2;
     }
@@ -176,7 +176,7 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
     uint8_t receivedSize = this->requestData(address, buffer, size);
 
     if (!receivedSize || receivedSize != size) {
-        PRINTF("[BUS] ack size got=%d expected=%d\n", receivedSize, size);
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] ack size got=%d expected=%d\n", receivedSize, size));
 
         return 1;
     }
@@ -187,7 +187,7 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
         return 0;
     }
 
-    PRINTF("[BUS] ack validate err=%d\n", vErr);
+    DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] ack validate err=%d\n", vErr));
 
     return 2;
 }
@@ -197,7 +197,7 @@ uint8_t LightnetBus::requestData(uint8_t address, void *buffer, uint8_t maxSize)
     uint8_t receivedSize = Wire.requestFrom(address, maxSize, (uint8_t)true);
 
     if (receivedSize > maxSize) {
-        PRINTLN("Max data length exceeded");
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN("Max data length exceeded"));
 
         return 0;
     }

@@ -1,5 +1,5 @@
 #pragma once
-#ifdef SIM_MODE
+#if defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)
 
     #include <stdint.h>
     #include "../Common/Protocol.hpp"
@@ -130,4 +130,4 @@ class SimRGBController
 // Make AnimationPlayer.hpp compile without changes in SIM_MODE
 using RGBController = SimRGBController;
 
-#endif  // SIM_MODE
+#endif  // SIM_MODE && LIGHTNET_TARGET_CONTROLLER

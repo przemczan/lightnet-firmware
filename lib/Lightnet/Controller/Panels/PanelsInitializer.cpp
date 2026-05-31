@@ -73,7 +73,7 @@ void PanelsInitializer::pull()
     Protocol::PacketInitializationPull pullPacket;
 
     pullPacket.panelIndex = this->currentPanelIndex;
-    PRINTKV("[PULL] pulling panel", pullPacket.panelIndex);
+    D_PRINTLN("[PULL] pulling panel", pullPacket.panelIndex);
 
     uint8_t error = LNBus.sendPacketWithResponse(
         Protocol::PULLING_ADDRESS,
@@ -85,7 +85,7 @@ void PanelsInitializer::pull()
     );
 
     if (error) {
-        PRINTKV("[PULL] error", error);
+        D_PRINTLN("[PULL] error", error);
 
         return;
     }
@@ -101,7 +101,7 @@ void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
         return this->registerPanel(packet);
     }
 
-    PRINTLN3("[REGISTER] edge", packet->panelIndex, packet->edgeIndex);
+    D_PRINTLN("[REGISTER] edge", packet->panelIndex, packet->edgeIndex);
 
     Edge *edge = new Edge(panel, packet->edgeIndex);
 
@@ -113,10 +113,10 @@ void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
 void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
 {
     if (!packet->panelIndex) {
-        PRINTLN("[ERROR] Got panel with index = 0.");
+        D_PRINTLN("[ERROR] Got panel with index = 0.");
     }
 
-    PRINTLN3("[REGISTER] panel", packet->panelIndex, packet->edgeIndex);
+    D_PRINTLN("[REGISTER] panel", packet->panelIndex, packet->edgeIndex);
 
     Panel *panel = new Panel(packet->panelIndex);
     Edge *edge = new Edge(panel, packet->edgeIndex);

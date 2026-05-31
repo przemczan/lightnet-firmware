@@ -46,7 +46,7 @@ namespace Lightnet {
         bool valid = readFile();
 
         if (!valid) {
-            PRINTLN("[APPEARANCE] no valid file; writing defaults");
+            D_PRINTLN("[APPEARANCE] no valid file; writing defaults");
             writeDefaults();
             writeFile();
         }
@@ -78,7 +78,7 @@ namespace Lightnet {
         long schema = j.getInt("schemaVersion");
 
         if (schema > 0 && schema != APPEARANCE_SCHEMA) {
-            PRINTLN("[APPEARANCE] schema mismatch — falling back to defaults");
+            D_PRINTLN("[APPEARANCE] schema mismatch — falling back to defaults");
             writeDefaults();
             writeFile();
 
@@ -146,7 +146,7 @@ namespace Lightnet {
         File f = SPIFFS.open(APPEARANCE_TMP_PATH, "w");
 
         if (!f) {
-            PRINTLN("[APPEARANCE] failed to open tmp file");
+            D_PRINTLN("[APPEARANCE] failed to open tmp file");
 
             return;
         }

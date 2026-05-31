@@ -26,9 +26,9 @@ WebsocketServer::~WebsocketServer()
 CircularQueue *WebsocketServer::getIncommingMessages()
 {
     #ifdef ARDUINO_ARCH_ESP32
-    portENTER_CRITICAL(&this->queueMux);
+        portENTER_CRITICAL(&this->queueMux);
     #else
-    noInterrupts();
+        noInterrupts();
 
     #endif
 
@@ -39,9 +39,9 @@ CircularQueue *WebsocketServer::getIncommingMessages()
     this->cmdQueue->reset();
 
     #ifdef ARDUINO_ARCH_ESP32
-    portEXIT_CRITICAL(&this->queueMux);
+        portEXIT_CRITICAL(&this->queueMux);
     #else
-    interrupts();
+        interrupts();
     #endif
 
     return this->executionQueue;
@@ -53,8 +53,8 @@ void WebsocketServer::sendMessage(WebsocketApi::Internal::Message *message)
         return;
     }
 
-    DEBUG_BLOCK({
-        PRINT("[CMD SRV] response:");
+    DEBUG_IF(DEBUG_API, {
+        D_PRINT("[CMD SRV] response:");
         dumpMem(message->payload, message->payloadSize);
     });
 
@@ -68,8 +68,8 @@ void WebsocketServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, 
 
         if (info->final && info->index == 0 && info->len == len) {
             if (info->opcode == WS_BINARY) {
-                DEBUG_BLOCK({
-                    PRINT("[CMD SRV] message:");
+                DEBUG_IF(DEBUG_API, {
+                    D_PRINT("[CMD SRV] message:");
                     dumpMem(data, len);
                 });
 
@@ -82,9 +82,9 @@ void WebsocketServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, 
 WebsocketServer::ReceivedCounts WebsocketServer::getAndResetReceivedCount()
 {
     #ifdef ARDUINO_ARCH_ESP32
-    portENTER_CRITICAL(&this->queueMux);
+        portENTER_CRITICAL(&this->queueMux);
     #else
-    noInterrupts();
+        noInterrupts();
 
     #endif
 
@@ -97,9 +97,9 @@ WebsocketServer::ReceivedCounts WebsocketServer::getAndResetReceivedCount()
     this->droppedCount = 0;
 
     #ifdef ARDUINO_ARCH_ESP32
-    portEXIT_CRITICAL(&this->queueMux);
+        portEXIT_CRITICAL(&this->queueMux);
     #else
-    interrupts();
+        interrupts();
     #endif
 
     return { .receivedCount = receivedCount, .droppedCount = droppedCount };
@@ -120,15 +120,15 @@ void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, 
     memcpy(message->payload, payload, size);
 
     #ifdef ARDUINO_ARCH_ESP32
-    portENTER_CRITICAL(&this->queueMux);
+        portENTER_CRITICAL(&this->queueMux);
     #endif
 
     if (!this->cmdQueue->enqueue(message, messageSize)) {
         this->droppedCount++;
-        PRINTLN("[CMD SRV][ERROR] queue full");
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[CMD SRV][ERROR] queue full"));
     }
 
     #ifdef ARDUINO_ARCH_ESP32
-    portEXIT_CRITICAL(&this->queueMux);
+        portEXIT_CRITICAL(&this->queueMux);
     #endif
 }

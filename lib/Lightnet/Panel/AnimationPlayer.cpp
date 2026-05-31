@@ -87,7 +87,7 @@ namespace Lightnet {
     {
         // Enqueue animation in the queue
         if (queueCount >= 4) {
-            PRINTLN("[ANIM] queue full, PREPARE dropped");
+            D_PRINTLN("[ANIM] queue full, PREPARE dropped");
 
             return;
         }

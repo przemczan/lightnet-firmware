@@ -22,7 +22,7 @@ FirmwareUpdateServer::FirmwareUpdateServer(AsyncWebServer *server, PanelFlasher 
             return;
         }
 
-        PRINTLN("[FW] upload complete, starting panel flash");
+        D_PRINTLN("[FW] upload complete, starting panel flash");
         this->flasher->startFlashing(FIRMWARE_PATH);
 
         PanelFlasher::Status s = this->flasher->getStatus();
@@ -66,11 +66,11 @@ void FirmwareUpdateServer::handleUploadBody(
 )
 {
     if (index == 0) {
-        PRINTF("[FW] upload start, total=%u bytes\n", (unsigned)total);
+        D_PRINTF("[FW] upload start, total=%u bytes\n", (unsigned)total);
         uploadFile = SPIFFS.open(FIRMWARE_PATH, "w");
 
         if (!uploadFile) {
-            PRINTLN("[FW] ERROR: cannot open /panel_fw.bin for writing");
+            D_PRINTLN("[FW] ERROR: cannot open /panel_fw.bin for writing");
             request->send(507, "application/json",
                           "{\"error\":\"SPIFFS write failed\"}");
 
@@ -85,7 +85,7 @@ void FirmwareUpdateServer::handleUploadBody(
     if (index + len == total) {
         if (uploadFile) {
             uploadFile.close();
-            PRINTF("[FW] upload done, %u bytes written\n", (unsigned)total);
+            D_PRINTF("[FW] upload done, %u bytes written\n", (unsigned)total);
         }
     }
 }
