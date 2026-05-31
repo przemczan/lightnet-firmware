@@ -12,7 +12,7 @@
         }
 
         // Accept any arguments, but pass them to our failing function
-        #define D_PRINTF(...) _unsupported_printf(__VA_ARGS__)
+        #define D_PRINTF // (...) _unsupported_printf(__VA_ARGS__)
     #endif
 
     #define DEBUG_BLOCK(...) do { __VA_ARGS__; } while (0)

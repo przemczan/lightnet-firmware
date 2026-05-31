@@ -76,10 +76,6 @@ uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint1
             error = this->cmdToggle((WebsocketApi::Cmd::Toggle *)command);
             break;
 
-        case WebsocketApi::SET_BRIGHTNESS:
-            error = this->cmdSetBrightness((WebsocketApi::Cmd::SetBrightness *)command);
-            break;
-
         case WebsocketApi::SET_COLOR:
             error = this->cmdSetColor((WebsocketApi::Cmd::SetColor *)command);
             break;
@@ -113,19 +109,6 @@ uint8_t WebsocketHandler::cmdToggle(WebsocketApi::Cmd::Toggle *command)
         &packet,
         sizeof(packet),
         Protocol::PACKET_TURN_ON_OFF);
-}
-
-uint8_t WebsocketHandler::cmdSetBrightness(WebsocketApi::Cmd::SetBrightness *command)
-{
-    Protocol::PacketSetBrightness packet;
-
-    packet.brightness = command->brightness;
-
-    return LNBus.sendPacketNack(
-        command->address,
-        &packet,
-        sizeof(packet),
-        Protocol::PACKET_SET_BRIGHTNESS);
 }
 
 uint8_t WebsocketHandler::cmdSetColor(WebsocketApi::Cmd::SetColor *command)

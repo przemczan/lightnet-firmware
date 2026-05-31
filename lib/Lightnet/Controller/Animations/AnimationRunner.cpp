@@ -67,17 +67,20 @@ namespace Lightnet {
         // So wave center position = -1.5 + (panelCount + 2) * (elapsed / durationMs)
         float waveCenter = -1.5f + (float)(panelCount + 2) * (float)elapsed / (float)durationMs;
 
-        // Send SET_BRIGHTNESS to each panel based on distance from wave center
-        Protocol::PacketSetBrightness brightness;
+        Protocol::PacketSetColor colorPkt;
 
-        Protocol::setPacketMeta(&brightness.meta, Protocol::PACKET_SET_BRIGHTNESS);
+        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
 
         for (uint8_t i = 0; i < panelCount; i++) {
             uint8_t brightness_val = computeWaveBrightness((float)i, waveCenter);
 
             if (brightness_val != lastBrightness[i]) {
-                brightness.brightness = brightness_val;
-                LNBus.sendPacketNack(panelAddresses[i], &brightness, sizeof(brightness), Protocol::PACKET_SET_BRIGHTNESS);
+                colorPkt.color.rgb = {
+                    (uint8_t)((uint16_t)color.r * brightness_val / 255),
+                    (uint8_t)((uint16_t)color.g * brightness_val / 255),
+                    (uint8_t)((uint16_t)color.b * brightness_val / 255)
+                };
+                LNBus.sendPacketNack(panelAddresses[i], &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
                 lastBrightness[i] = brightness_val;
             }
         }
@@ -147,15 +150,14 @@ namespace Lightnet {
         float maxRadius = (float)(panelCount + 1);
         float rippleRadius = maxRadius * (float)elapsed / (float)durationMs;
 
-        Protocol::PacketSetBrightness brightness;
+        Protocol::PacketSetColor colorPkt;
 
-        Protocol::setPacketMeta(&brightness.meta, Protocol::PACKET_SET_BRIGHTNESS);
+        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
 
         for (uint8_t i = 0; i < panelCount; i++) {
             float distance = fabsf((float)i - (float)originPanel);
             float ringWidth = (float)rippleWidth / 2.0f;
 
-            // Brightness based on proximity to ripple ring
             float dist_from_ring = fabsf(distance - rippleRadius);
             uint8_t brightness_val = 0;
 
@@ -164,8 +166,12 @@ namespace Lightnet {
             }
 
             if (brightness_val != lastBrightness[i]) {
-                brightness.brightness = brightness_val;
-                LNBus.sendPacketNack(panelAddresses[i], &brightness, sizeof(brightness), Protocol::PACKET_SET_BRIGHTNESS);
+                colorPkt.color.rgb = {
+                    (uint8_t)((uint16_t)color.r * brightness_val / 255),
+                    (uint8_t)((uint16_t)color.g * brightness_val / 255),
+                    (uint8_t)((uint16_t)color.b * brightness_val / 255)
+                };
+                LNBus.sendPacketNack(panelAddresses[i], &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
                 lastBrightness[i] = brightness_val;
             }
         }
@@ -213,16 +219,20 @@ namespace Lightnet {
         // Position: which panel is lit (0 to panelCount-1)
         uint8_t litPanel = (uint8_t)((float)elapsed / (float)durationMs * (float)panelCount) % panelCount;
 
-        Protocol::PacketSetBrightness brightness;
+        Protocol::PacketSetColor colorPkt;
 
-        Protocol::setPacketMeta(&brightness.meta, Protocol::PACKET_SET_BRIGHTNESS);
+        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
 
         for (uint8_t i = 0; i < panelCount; i++) {
             uint8_t brightness_val = (i == litPanel) ? 255 : 0;
 
             if (brightness_val != lastBrightness[i]) {
-                brightness.brightness = brightness_val;
-                LNBus.sendPacketNack(panelAddresses[i], &brightness, sizeof(brightness), Protocol::PACKET_SET_BRIGHTNESS);
+                colorPkt.color.rgb = {
+                    (uint8_t)((uint16_t)color.r * brightness_val / 255),
+                    (uint8_t)((uint16_t)color.g * brightness_val / 255),
+                    (uint8_t)((uint16_t)color.b * brightness_val / 255)
+                };
+                LNBus.sendPacketNack(panelAddresses[i], &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
                 lastBrightness[i] = brightness_val;
             }
         }

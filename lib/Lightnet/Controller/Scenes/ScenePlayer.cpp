@@ -162,7 +162,6 @@ namespace Lightnet {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
                                    step.colorFrom, step.colorTo,
-                                   step.brightnessFrom, step.brightnessTo,
                                    step.params[0], step.params[1],
                                    panels, panelCount);
         }

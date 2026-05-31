@@ -29,8 +29,6 @@ namespace Lightnet {
         uint16_t        durationMs,
         const ColorRef& colorFrom,
         const ColorRef& colorTo,
-        uint8_t         brightnessFrom,
-        uint8_t         brightnessTo,
         uint8_t         param1,
         uint8_t         param2,
         const uint8_t * panelAddresses,
@@ -48,8 +46,6 @@ namespace Lightnet {
         prepare.durationMs = durationMs;
         prepare.colorFrom = colorFrom;
         prepare.colorTo = colorTo;
-        prepare.brightnessFrom = brightnessFrom;
-        prepare.brightnessTo = brightnessTo;
         prepare.param1 = param1;
         prepare.param2 = param2;
 
@@ -243,8 +239,6 @@ namespace Lightnet {
         uint16_t                  durationMs,
         const Protocol::ColorRGB& colorFrom,
         const Protocol::ColorRGB& colorTo,
-        uint8_t                   brightnessFrom,
-        uint8_t                   brightnessTo,
         uint8_t                   param1,
         uint8_t                   param2,
         const uint8_t *           panelAddresses,
@@ -255,8 +249,7 @@ namespace Lightnet {
         ColorRef to   = ColorRef_rgb(colorTo.r, colorTo.g, colorTo.b);
 
         playOnPanels(group_id, animType, flags, durationMs, from, to,
-                     brightnessFrom, brightnessTo, param1, param2,
-                     panelAddresses, panelCount);
+                     param1, param2, panelAddresses, panelCount);
     }
 
 // ============================================================================

@@ -4,7 +4,7 @@ icon: material/book-open-outline
 
 # Concepts
 
-The Lightnet animation system lets you define multi-layer, palette-driven light shows in JSON and send them to panels over HTTP. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Controller runners are computed on the ESP and stream per-panel brightness each frame.
+The Lightnet animation system lets you define multi-layer, palette-driven light shows in JSON and send them to panels over HTTP. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Controller runners are computed on the ESP and stream per-panel color values each frame.
 
 The palette and scene model draws inspiration from the [WLED](https://github.com/Aircoookie/WLED) project.
 
@@ -48,7 +48,7 @@ Because groups are independent, panels can run several overlapping layers simult
 A **step** is a single animation segment within a layer's sequence. Steps are executed in order, advancing automatically when `durationMs` elapses. A step can be:
 
 - A **panel-local animation** (`"type": "BREATHE"`, etc.) — runs entirely on the ATmega with zero per-frame I²C traffic
-- A **controller runner** (`"runner": "WAVE"`, etc.) — computed on the ESP each frame, sends per-panel brightness over I²C
+- A **controller runner** (`"runner": "WAVE"`, etc.) — computed on the ESP each frame, sends per-panel color values over I²C
 
 ---
 
@@ -157,17 +157,14 @@ A layer can specify its own palette, overriding the scene-level default for the 
       "sequence": [
         {
           "type": "TRANSITION",
-          "colorFrom": {"useColor": 2},
+          "colorFrom": "#000000",
           "colorTo":   {"useColor": 0},
-          "brightnessFrom": 0,
-          "brightnessTo": 220,
           "duration": 3000
         },
         {
           "type": "BREATHE",
-          "color": {"useColor": 0},
-          "brightnessFrom": 60,
-          "brightnessTo": 220,
+          "colorFrom": "#000000",
+          "colorTo": {"useColor": 0},
           "duration": 4000,
           "loop": true
         }
@@ -286,7 +283,7 @@ Runners can be mixed with panel-local steps in the same sequence:
 ```json
 "sequence": [
   {"runner": "RIPPLE", "color": "#FF4400", "duration": 1500, "params": [2, 0]},
-  {"type": "FADE", "color": "#FF4400", "brightnessTo": 0, "duration": 800}
+  {"type": "FADE", "colorFrom": "#FF4400", "colorTo": "#000000", "duration": 800}
 ]
 ```
 

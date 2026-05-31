@@ -91,15 +91,14 @@ namespace Lightnet {
 
             jsonFormatHex(state.color.r, state.color.g, state.color.b, hex);
 
-            char entry[80];
+            char entry[72];
 
             snprintf(entry, sizeof(entry),
-                     "%s{\"address\":%u,\"on\":%s,\"color\":\"%s\",\"brightness\":%u}",
+                     "%s{\"address\":%u,\"on\":%s,\"color\":\"%s\"}",
                      first ? "" : ",",
                      (unsigned)panel->index,
                      state.state ? "true" : "false",
-                     hex,
-                     (unsigned)state.brightness);
+                     hex);
             response->print(entry);
             first = false;
         }
@@ -166,17 +165,6 @@ namespace Lightnet {
             }
 
             panelsController.turnOnOff(addr, (uint8_t)v);
-            Http::sendOk(req);
-        } else if (strcmp(action, "brightness") == 0) {
-            long v = j.getInt("value");
-
-            if (v < 0 || v > 255) {
-                Http::sendError(req, 422, "value_out_of_range");
-
-                return;
-            }
-
-            panelsController.setBrightness(addr, (uint8_t)v);
             Http::sendOk(req);
         } else if (strcmp(action, "color") == 0) {
             char hex[16];

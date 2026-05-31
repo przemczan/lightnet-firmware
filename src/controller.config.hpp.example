@@ -1,5 +1,7 @@
 #pragma once
 
+#define DEBUG 0
+
 // ── Mode flags ────────────────────────────────────────────────────────────────
 #define DEMO_MODE 0
 // SIM_MODE is set via platformio.ini (controller_wemos_sim env only)

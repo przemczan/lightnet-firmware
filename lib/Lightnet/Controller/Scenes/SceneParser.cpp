@@ -196,26 +196,6 @@ namespace Lightnet {
 
                     return false;
                 }
-            } else if (strcmp(key, "brightnessFrom") == 0) {
-                long v;
-
-                if (!jsonReadUInt(p, end, &v) || v > 255) {
-                    strncpy(errMsg, "step.brightnessFrom out of range", errLen);
-
-                    return false;
-                }
-
-                step.brightnessFrom = (uint8_t)v;
-            } else if (strcmp(key, "brightnessTo") == 0) {
-                long v;
-
-                if (!jsonReadUInt(p, end, &v) || v > 255) {
-                    strncpy(errMsg, "step.brightnessTo out of range", errLen);
-
-                    return false;
-                }
-
-                step.brightnessTo = (uint8_t)v;
             } else if (strcmp(key, "duration") == 0) {
                 long v;
 
@@ -304,9 +284,7 @@ namespace Lightnet {
         static bool parseStep(const char *& p, const char *end, SceneStep& step, char *errMsg, size_t errLen)
         {
             memset(&step, 0, sizeof(step));
-            step.animType       = ANIM_SOLID;
-            step.brightnessFrom = 255;
-            step.brightnessTo   = 255;
+            step.animType = ANIM_SOLID;
 
             bool hasType = false;
 
@@ -561,9 +539,7 @@ namespace Lightnet {
         SceneStep& step = layer.steps[0];
 
         memset(&step, 0, sizeof(step));
-        step.animType       = ANIM_SOLID;
-        step.brightnessFrom = 255;
-        step.brightnessTo   = 255;
+        step.animType = ANIM_SOLID;
 
         bool hasType = false;
 

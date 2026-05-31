@@ -19,8 +19,6 @@ All panel-local animations run entirely on the ATmega with **zero per-frame I²C
 | `type` | string | Animation type name (see below) |
 | `colorFrom` / `colorTo` | color ref | Start and end colours — see [Color References](concepts.md#color-references) |
 | `color` | color ref | Alias for `colorTo` when only one colour is needed |
-| `brightnessFrom` | 0–255 | Starting brightness (default 255) |
-| `brightnessTo` | 0–255 | Ending brightness (default 255) |
 | `duration` | 0–65535 ms | Animation duration. `0` = infinite, valid only on the last step of a looping scene. |
 | `loop` | bool | Loop this individual step indefinitely (FLAG_LOOP). |
 | `pingpong` | bool | Reverse direction at end instead of looping (FLAG_PINGPONG). |
@@ -30,10 +28,10 @@ All panel-local animations run entirely on the ATmega with **zero per-frame I²C
 
 ### SOLID
 
-Holds a static colour and brightness. Use as the last step to freeze the panel.
+Holds a static colour. Use as the last step to freeze the panel.
 
 ```json
-{"type": "SOLID", "color": "#FF4400", "brightnessTo": 200}
+{"type": "SOLID", "color": "#FF4400"}
 ```
 
 No parameters.
@@ -42,10 +40,10 @@ No parameters.
 
 ### FADE
 
-Linearly interpolates brightness from `brightnessFrom` to `brightnessTo`. The colour stays fixed at `colorTo`.
+Linearly interpolates colour from `colorFrom` to `colorTo`.
 
 ```json
-{"type": "FADE", "color": "#0044FF", "brightnessFrom": 255, "brightnessTo": 0, "duration": 1500}
+{"type": "FADE", "colorFrom": "#0044FF", "colorTo": "#000000", "duration": 1500}
 ```
 
 No parameters.
@@ -54,15 +52,13 @@ No parameters.
 
 ### TRANSITION
 
-Simultaneously interpolates both colour (from `colorFrom` to `colorTo`) and brightness.
+Interpolates colour from `colorFrom` to `colorTo` (equivalent to FADE).
 
 ```json
 {
   "type": "TRANSITION",
   "colorFrom": "#000000",
   "colorTo":   "#FF4400",
-  "brightnessFrom": 0,
-  "brightnessTo": 200,
   "duration": 2000
 }
 ```
@@ -73,10 +69,10 @@ No parameters.
 
 ### BREATHE
 
-Sinusoidal (parabolic-approximation) brightness envelope: rises to `brightnessTo`, falls back to `brightnessFrom`, and repeats. Colour is fixed at `colorTo`.
+Sinusoidal (parabolic-approximation) colour envelope: oscillates between `colorFrom` and `colorTo` and repeats.
 
 ```json
-{"type": "BREATHE", "color": "#0088FF", "brightnessFrom": 10, "brightnessTo": 220, "duration": 3000, "loop": true}
+{"type": "BREATHE", "colorFrom": "#000000", "colorTo": "#0088FF", "duration": 3000, "loop": true}
 ```
 
 | params index | Meaning | Default |
@@ -87,10 +83,10 @@ Sinusoidal (parabolic-approximation) brightness envelope: rises to `brightnessTo
 
 ### PULSE
 
-3-phase (rise → hold → fall) brightness flash. Colour is fixed at `colorTo`.
+3-phase (rise → hold → fall) colour flash. Interpolates between `colorFrom` and `colorTo`.
 
 ```json
-{"type": "PULSE", "color": "#FFFFFF", "brightnessFrom": 0, "brightnessTo": 255, "duration": 600, "params": [64, 64]}
+{"type": "PULSE", "colorFrom": "#000000", "colorTo": "#FFFFFF", "duration": 600, "params": [64, 64]}
 ```
 
 | params index | Meaning | Range |
@@ -104,10 +100,10 @@ The **hold** phase is whatever remains: `hold_pct = 255 − rise − fall`. If r
 
 ### BLINK
 
-Binary on/off at a fixed period. On = `brightnessTo`, off = `brightnessFrom`. Colour from `colorTo`.
+Binary toggle between `colorTo` (on) and `colorFrom` (off) at a fixed period.
 
 ```json
-{"type": "BLINK", "color": "#FF0000", "brightnessFrom": 0, "brightnessTo": 255, "duration": 0, "loop": true, "params": [50]}
+{"type": "BLINK", "colorFrom": "#000000", "colorTo": "#FF0000", "duration": 0, "loop": true, "params": [50]}
 ```
 
 | params index | Meaning | Default |
@@ -121,7 +117,7 @@ Binary on/off at a fixed period. On = `brightnessTo`, off = `brightnessFrom`. Co
 6-step integer HSV→RGB rainbow rotation. Ignores `colorFrom`/`colorTo`.
 
 ```json
-{"type": "HUE_CYCLE", "brightnessTo": 200, "duration": 0, "loop": true, "params": [10]}
+{"type": "HUE_CYCLE", "duration": 0, "loop": true, "params": [10]}
 ```
 
 | params index | Meaning | Default |
@@ -132,10 +128,10 @@ Binary on/off at a fixed period. On = `brightnessTo`, off = `brightnessFrom`. Co
 
 ### STROBE
 
-Binary flash at a frequency in Hz. On = `brightnessTo`, off = 0. Colour from `colorTo`.
+Binary flash at a frequency in Hz. On = `colorTo`, off = black.
 
 ```json
-{"type": "STROBE", "color": "#FFFFFF", "brightnessTo": 255, "duration": 2000, "params": [20]}
+{"type": "STROBE", "color": "#FFFFFF", "duration": 2000, "params": [20]}
 ```
 
 | params index | Meaning | Default |
@@ -146,15 +142,13 @@ Binary flash at a frequency in Hz. On = `brightnessTo`, off = 0. Colour from `co
 
 ### REACTIVE
 
-Decay-model animation triggered by WebSocket beats. Rests at `colorFrom`/`brightnessFrom`; on trigger, instantly jumps to `colorTo`/`brightnessTo` then decays back over time.
+Decay-model animation triggered by WebSocket beats. Rests at `colorFrom`; on trigger, instantly jumps to `colorTo` then decays back over time.
 
 ```json
 {
   "type": "REACTIVE",
-  "colorFrom":      "#110000",
-  "colorTo":        "#FF8800",
-  "brightnessFrom": 20,
-  "brightnessTo":   255,
+  "colorFrom": "#110000",
+  "colorTo":   "#FF8800",
   "duration": 0,
   "params": [180]
 }
@@ -173,14 +167,14 @@ Triggers are sent via WebSocket — see [API → WebSocket Triggers](api.md#webs
 
 ## Controller Runners
 
-Runners are computed on the controller ESP each frame and send per-panel brightness over I²C. They appear as steps with a `"runner"` field instead of `"type"`.
+Runners are computed on the controller ESP each frame and send scaled `SET_COLOR` packets over I²C. They appear as steps with a `"runner"` field instead of `"type"`.
 
 ### Common runner step fields
 
 | Field | Type | Notes |
 |---|---|---|
 | `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`) |
-| `color` | color ref | Colour sent to all panels before the runner begins |
+| `color` | color ref | Colour for the runner effect |
 | `duration` | ms | Total duration of the runner effect |
 | `params` | array | Runner-specific parameters |
 
@@ -188,7 +182,7 @@ Runners are computed on the controller ESP each frame and send per-panel brightn
 
 ### WAVE
 
-A brightness envelope (triangular wave) sweeps from one end of the panel list to the other.
+A colour envelope (triangular wave) sweeps from one end of the panel list to the other. The colour is scaled by the wave intensity at each panel position.
 
 ```json
 {
@@ -207,7 +201,7 @@ A brightness envelope (triangular wave) sweeps from one end of the panel list to
 
 ### RIPPLE
 
-A brightness ring expands outward from an origin panel. Distance is based on index, not physical position.
+A colour ring expands outward from an origin panel. Distance is based on index, not physical position.
 
 ```json
 {

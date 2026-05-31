@@ -292,14 +292,6 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             this->handleSetColor((Protocol::PacketSetColor *)packet);
             break;
 
-        case Protocol::PACKET_SET_BRIGHTNESS:
-            this->handleSetBrightness((Protocol::PacketSetBrightness *)packet);
-            break;
-
-        case Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS:
-            this->handleSetColorAndBrightness((Protocol::PacketSetColorAndBrightness *)packet);
-            break;
-
         case Protocol::PACKET_PANEL_CONFIGURATION:
             this->handlePanelConfiguration((Protocol::PacketPanelConfiguration *)packet);
             break;
@@ -365,20 +357,9 @@ void LightnetPanel::handleTurnOnOf(Protocol::PacketTurnOnOff *packet)
     }
 }
 
-void LightnetPanel::handleSetColorAndBrightness(Protocol::PacketSetColorAndBrightness *packet)
-{
-    this->rgbController->color(&packet->color.rgb);
-    this->rgbController->brightness(packet->brightness);
-}
-
 void LightnetPanel::handleSetColor(Protocol::PacketSetColor *packet)
 {
     this->rgbController->color(&packet->color.rgb);
-}
-
-void LightnetPanel::handleSetBrightness(Protocol::PacketSetBrightness *packet)
-{
-    this->rgbController->brightness(packet->brightness);
 }
 
 void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet)
@@ -470,7 +451,6 @@ void LightnetPanel::onPacketRequested()
             packet.panelState.panelIndex = this->index;
             packet.panelState.state = this->rgbController->on();
             packet.panelState.color = this->rgbController->color();
-            packet.panelState.brightness = this->rgbController->brightness();
 
             LNBus.sendResponsePacket(&packet, sizeof(packet), Protocol::PACKET_FETCH_STATE);
             break;

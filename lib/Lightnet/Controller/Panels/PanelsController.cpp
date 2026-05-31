@@ -1,15 +1,5 @@
 #include "PanelsController.hpp"
 
-uint8_t PanelsController::setColorAndBrightness(uint8_t address, Protocol::Color color, uint8_t brightness)
-{
-    Protocol::PacketSetColorAndBrightness packet;
-
-    packet.color = color;
-    packet.brightness = brightness;
-
-    return LNBus.sendPacketAck(address, &packet, sizeof(packet), Protocol::PACKET_SET_COLOR_AND_BRIGHTNESS);
-}
-
 uint8_t PanelsController::setColor(uint8_t address, Protocol::Color color)
 {
     Protocol::PacketSetColor packet;
@@ -17,15 +7,6 @@ uint8_t PanelsController::setColor(uint8_t address, Protocol::Color color)
     packet.color = color;
 
     return LNBus.sendPacketAck(address, &packet, sizeof(packet), Protocol::PACKET_SET_COLOR);
-}
-
-uint8_t PanelsController::setBrightness(uint8_t address, uint8_t brightness)
-{
-    Protocol::PacketSetBrightness packet;
-
-    packet.brightness = brightness;
-
-    return LNBus.sendPacketNack(address, &packet, sizeof(packet), Protocol::PACKET_SET_BRIGHTNESS);
 }
 
 uint8_t PanelsController::turnOnOff(uint8_t address, uint8_t on)

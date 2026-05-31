@@ -89,7 +89,6 @@ namespace Lightnet {
 
             // Output state (cached from last tick)
             ::Protocol::ColorRGB currentColor;
-            uint8_t currentBrightness;
 
             // Palette + base colors (resolved into ColorRGB when animation references them).
             // Defaults: 2-stop white→white palette and white/black/black base colors,

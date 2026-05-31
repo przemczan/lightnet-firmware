@@ -120,7 +120,7 @@ MSG_ANIMATION_TRIGGER (type=8) payload:
   uint8_t value   = 200   // 0-255 peak level
 ```
 
-The controller broadcasts `PACKET_ANIMATION_UPDATE_PARAMS` with `PARAM_TRIGGER` to all panels in that group. Each panel running a REACTIVE animation on that group instantly jumps to `brightnessTo`/`colorTo` and begins decaying at its configured `decayRate`.
+The controller broadcasts `PACKET_ANIMATION_UPDATE_PARAMS` with `PARAM_TRIGGER` to all panels in that group. Each panel running a REACTIVE animation on that group instantly jumps to `colorTo` and begins decaying toward `colorFrom` at its configured `decayRate`.
 
 For music sync, fire triggers on beat events. At 120 BPM the inter-beat window is 500 ms. The controller spends only ~140 µs of I²C time per trigger; between triggers there is zero I²C traffic.
 
@@ -137,9 +137,8 @@ Use `POST /api/animations/play` to send a single animation step directly, bypass
   "group": 250,
   "panels": "all",
   "type": "PULSE",
-  "color": "#FF0000",
-  "brightnessFrom": 0,
-  "brightnessTo": 255,
+  "colorFrom": "#000000",
+  "colorTo": "#FF0000",
   "duration": 500,
   "params": [64, 64]
 }
@@ -166,8 +165,7 @@ For chained steps on a notification (e.g. pulse → fade), use a short scene via
       "group": 1,
       "panels": "all",
       "sequence": [
-        {"type": "BREATHE", "color": {"useColor": 0},
-         "brightnessFrom": 20, "brightnessTo": 200,
+        {"type": "BREATHE", "colorFrom": "#000000", "colorTo": {"useColor": 0},
          "duration": 4000, "loop": true}
       ]
     }
@@ -191,7 +189,7 @@ Change colour mid-flight: `PUT /api/appearance/colors {"primary":"#0044FF"}` —
       "group": 1,
       "panels": "all",
       "sequence": [
-        {"type": "SOLID", "color": {"palette": 128}, "brightnessTo": 80}
+        {"type": "SOLID", "color": {"palette": 128}}
       ]
     },
     {
@@ -199,7 +197,7 @@ Change colour mid-flight: `PUT /api/appearance/colors {"primary":"#0044FF"}` —
       "panels": "all",
       "sequence": [
         {"runner": "WAVE", "color": {"palette": 220}, "duration": 4000, "params": [4]},
-        {"type": "SOLID", "color": {"palette": 128}, "brightnessTo": 80, "duration": 1000}
+        {"type": "SOLID", "color": {"palette": 128}, "duration": 1000}
       ]
     }
   ]
@@ -224,10 +222,8 @@ Group 1 holds a static dim background. Group 2 cycles: bright wave sweeps across
       "sequence": [
         {
           "type": "REACTIVE",
-          "colorFrom":      {"palette": 50},
-          "colorTo":        {"palette": 220},
-          "brightnessFrom": 20,
-          "brightnessTo":   255,
+          "colorFrom": {"palette": 50},
+          "colorTo":   {"palette": 220},
           "duration": 0,
           "params": [210]
         }
@@ -253,7 +249,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
       "panels": [0, 1, 2, 3, 4],
       "palette": "ocean",
       "sequence": [
-        {"type": "HUE_CYCLE", "brightnessTo": 180, "duration": 0, "loop": true, "params": [8]}
+        {"type": "HUE_CYCLE", "duration": 0, "loop": true, "params": [8]}
       ]
     },
     {
@@ -261,7 +257,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
       "panels": [5, 6, 7, 8, 9],
       "palette": "lava",
       "sequence": [
-        {"type": "BREATHE", "color": {"palette": 200}, "brightnessFrom": 30, "brightnessTo": 220, "duration": 3000, "loop": true}
+        {"type": "BREATHE", "colorFrom": "#000000", "colorTo": {"palette": 200}, "duration": 3000, "loop": true}
       ]
     }
   ]
@@ -289,11 +285,10 @@ Panels 0–4 cycle through ocean hues. Panels 5–9 breathe lava orange. Spatial
         {"type": "TRANSITION",
          "colorFrom": {"palette": 200},
          "colorTo":   {"useColor": 0},
-         "brightnessFrom": 255, "brightnessTo": 150,
          "duration": 2000},
         {"type": "BREATHE",
-         "color": {"useColor": 0},
-         "brightnessFrom": 80, "brightnessTo": 180,
+         "colorFrom": "#000000",
+         "colorTo":   {"useColor": 0},
          "duration": 0}
       ]
     }
@@ -320,7 +315,6 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 | `runner` value | `WAVE`, `RIPPLE`, or `CHASE` |
 | `duration` | 0–65535 ms; 0 only on the last step of a looping scene |
 | Color values | Valid `#RRGGBB` hex, `{r,g,b}` each 0–255, `{"palette":0-255}`, or `{"useColor":0-2}` |
-| `brightness*` | 0–255 |
 | `params[i]` | 0–255 |
 | `params` length | 0–4 |
 | Panel indices | 0–(discovered panel count − 1) |

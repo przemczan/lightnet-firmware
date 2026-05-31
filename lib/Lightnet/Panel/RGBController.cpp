@@ -38,23 +38,11 @@ void RGBController::color(Protocol::ColorRGB *color)
     maybeLog();
 }
 
-void RGBController::brightness(uint8_t brightness)
-{
-    this->brightnessValue = brightness;
-    this->updateOutputs();
-    maybeLog();
-}
-
 void RGBController::updateOutputs()
 {
     if (!this->isOn) {
         return;
     }
-
-    // Apply the global brightness multiplier as a final stage on top of the
-    // per-animation brightness value. (a*b + 128) >> 8 is the standard q8 mul
-    // with rounding so brightness 255 × 255 = 255 (not 254).
-    uint8_t effective = (uint8_t)(((uint16_t)this->brightnessValue * this->globalBrightnessValue + 128) >> 8);
 
     if (this->useGammaCorrection) {
         FastLED.showColor(
@@ -63,10 +51,10 @@ void RGBController::updateOutputs()
                 gammaValueG(this->colorValue.g),
                 gammaValueB(this->colorValue.b)
             ),
-            effective
+            this->globalBrightnessValue
         );
     } else {
-        FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), effective);
+        FastLED.showColor(CRGB(this->colorValue.r, this->colorValue.g, this->colorValue.b), this->globalBrightnessValue);
     }
 }
 
@@ -85,11 +73,6 @@ bool RGBController::on()
 Protocol::ColorRGB RGBController::color()
 {
     return this->colorValue;
-}
-
-uint8_t RGBController::brightness()
-{
-    return this->brightnessValue;
 }
 
 void RGBController::gammaCorrection(bool use)
@@ -115,21 +98,18 @@ void RGBController::setColorTemperature(ColorTemperature colorTemperature)
 void RGBController::maybeLog()
 {
     DEBUG_IF(DEBUG_RGB_CTRL, {
-        uint8_t eff = (uint16_t(brightnessValue) * globalBrightnessValue + 128) >> 8;
-
         if (colorValue.r == lastLogColor.r && colorValue.g == lastLogColor.g &&
-            colorValue.b == lastLogColor.b && brightnessValue == lastLogBrightness &&
+            colorValue.b == lastLogColor.b &&
             globalBrightnessValue == lastLogGlobal && isOn == lastLogOn) {
             return;
         }
 
-        lastLogColor      = colorValue;
-        lastLogBrightness = brightnessValue;
-        lastLogGlobal     = globalBrightnessValue;
-        lastLogOn         = isOn;
+        lastLogColor  = colorValue;
+        lastLogGlobal = globalBrightnessValue;
+        lastLogOn     = isOn;
 
         D_PRINTLN("[RGB]", colorValue.r, colorValue.g, colorValue.b,
-                  "br:", brightnessValue, "gl:", globalBrightnessValue, "eff:", eff, "on:", isOn);
+                  "gl:", globalBrightnessValue, "on:", isOn);
     });
 }
 

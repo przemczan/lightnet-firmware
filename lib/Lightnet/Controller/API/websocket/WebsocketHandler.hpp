@@ -28,7 +28,6 @@ class WebsocketHandler
         uint8_t handleMessage(WebsocketApi::Internal::Message *message, uint16_t size);
         uint8_t handleCommand(WebsocketApi::PacketMeta *command, uint16_t size, uint32_t clientId);
         uint8_t cmdToggle(WebsocketApi::Cmd::Toggle *command);
-        uint8_t cmdSetBrightness(WebsocketApi::Cmd::SetBrightness *command);
         uint8_t cmdSetColor(WebsocketApi::Cmd::SetColor *command);
         uint8_t cmdGetPanelsStates(uint32_t clientId);
         uint8_t cmdGetEdgesList(uint32_t clientId);

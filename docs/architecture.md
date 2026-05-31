@@ -79,7 +79,7 @@ All firmware code lives under `lib/Lightnet/`.
 | File | Purpose |
 |---|---|
 | `PanelsInitializer` | Discovery orchestrator; assigns panel indices, builds edge graph |
-| `PanelsController` | Unicast commands to panels: color, brightness, configuration, enter-bootloader |
+| `PanelsController` | Unicast commands to panels: color, on/off, configuration, enter-bootloader |
 | `Panel` / `Edge` | In-memory data model of discovered topology |
 
 **Animations/**
@@ -173,9 +173,8 @@ Defined in `Common/Protocol.hpp`. All packets use `__attribute__((__packed__))` 
 | 3 | `REGISTER_EDGE` | P→C | 9 B | Panel index + edge index |
 | 4 | `TURN_ON_OFF` | C→P | 6 B | |
 | 5 | `SET_COLOR` | C→P | 8 B | |
-| 6 | `SET_BRIGHTNESS` | C→P | 6 B | |
 | 11 | `PANEL_CONFIGURATION` | C→P | — | Gamma correction, color temp/correction |
-| 12 | `ANIMATION_PREPARE` | C→P | 21 B (v3) / 23 B (v4) | Unicast; buffers animation, arms for group start |
+| 12 | `ANIMATION_PREPARE` | C→P | 21 B | Unicast; buffers animation, arms for group start |
 | 13 | `ANIMATION_START` | General Call | 7 B | Fires all panels with matching group_id |
 | 14 | `ANIMATION_CONTROL` | C→P | 6 B | STOP / PAUSE / RESUME / CLEAR_QUEUE |
 | 15 | `FETCH_ANIM_STATE` | C→P | 5 B | Panel replies with 11 B status |
@@ -219,11 +218,11 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 
 | Runner | Description | Bandwidth |
 |---|---|---|
-| `WaveRunner` | Triangular brightness envelope sweeps across panel list | Per-frame SET_BRIGHTNESS only on changed panels (~3/frame) |
+| `WaveRunner` | Triangular envelope sweeps across panel list — sends scaled SET_COLOR per panel | Per-frame SET_COLOR only on changed panels (~3/frame) |
 | `RippleRunner` | Ring expands from origin panel by index-distance | Same |
 | `ChaseRunner` | Single lit panel travels through list | Same |
 
-Delta optimization: all runners cache `lastBrightness[]` per panel and only send I²C when the value changes.
+Delta optimization: all runners cache the last sent color level per panel and only send I²C when the value changes.
 
 ### Bandwidth budget
 

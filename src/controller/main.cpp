@@ -57,10 +57,8 @@ static void sendPanelFade(
     prep.flags          = 0;
     prep.transitionMs   = 0;
     prep.durationMs     = durationMs;
-    prep.colorFrom      = Lightnet::ColorRef_rgb(255, 255, 255);
-    prep.colorTo        = Lightnet::ColorRef_rgb(255, 255, 255);  // ANIM_FADE holds colorTo
-    prep.brightnessFrom = brightFrom;
-    prep.brightnessTo   = brightTo;
+    prep.colorFrom      = Lightnet::ColorRef_rgb(brightFrom, brightFrom, brightFrom);
+    prep.colorTo        = Lightnet::ColorRef_rgb(brightTo, brightTo, brightTo);
     prep.param1         = 0;
     prep.param2         = 0;
     LNBus.sendPacketAck(addr, &prep, sizeof(prep), Protocol::PACKET_ANIMATION_PREPARE);
@@ -102,7 +100,6 @@ void selfTest()
     for (uint16_t i = 0; i < panelCount; i++) {
         uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
 
-        panelsController->setBrightness(addr, 0);
         panelsController->turnOn(addr);
         sendPanelFade(addr, stepMs, 0, 255, groupId++, seqId++);
 
@@ -127,7 +124,6 @@ void selfTest()
         uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
 
         panelsController->turnOff(addr);
-        panelsController->setBrightness(addr, 128);
     }
 
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST END]"));

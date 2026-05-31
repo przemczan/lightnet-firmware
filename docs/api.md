@@ -76,20 +76,6 @@ Turn a panel's LED on or off.
 
 ---
 
-#### SET_BRIGHTNESS (type 2)
-
-Set a panel's LED brightness directly.
-
-| Offset | Size | Field | Type | Description |
-|---|---|---|---|---|
-| 0 | 1 B | `address` | uint8 | Panel index |
-| 1 | 1 B | `brightness` | uint8 | `0` = off, `255` = full |
-
-!!! note
-    This bypasses the animation system. Any running animation continues to compute and will overwrite this value on its next frame.
-
----
-
 #### SET_COLOR (type 3)
 
 Set a panel's LED colour directly.
@@ -101,13 +87,13 @@ Set a panel's LED colour directly.
 | 2 | 1 B | `g` | uint8 | Green channel |
 | 3 | 1 B | `b` | uint8 | Blue channel |
 
-Same caveat as SET_BRIGHTNESS — running animations overwrite on next tick.
+Running animations overwrite this on the next tick.
 
 ---
 
 #### GET_PANELS_STATES (type 5)
 
-Request the current state (on/off, colour, brightness) of all discovered panels. The controller replies with a PANELS_STATES response on the same client connection.
+Request the current state (on/off, colour) of all discovered panels. The controller replies with a PANELS_STATES response on the same client connection.
 
 No payload.
 
@@ -142,7 +128,7 @@ Responses are sent **controller → client** in reply to query commands.
 
 #### PANELS_STATES (type 6)
 
-Sent in reply to GET_PANELS_STATES. `payloadSize = 2 + N×8`.
+Sent in reply to GET_PANELS_STATES. `payloadSize = 2 + N×7`.
 
 **Payload header (2 bytes):**
 
@@ -150,7 +136,7 @@ Sent in reply to GET_PANELS_STATES. `payloadSize = 2 + N×8`.
 |---|---|---|---|---|
 | 0 | 2 B | `length` | uint16 | Number of panel state entries (N) |
 
-**Per entry × N (8 bytes each):**
+**Per entry × N (7 bytes each):**
 
 | Offset | Size | Field | Type | Description |
 |---|---|---|---|---|
@@ -159,7 +145,6 @@ Sent in reply to GET_PANELS_STATES. `payloadSize = 2 + N×8`.
 | 3 | 1 B | `color_r` | uint8 | Red channel |
 | 4 | 1 B | `color_g` | uint8 | Green channel |
 | 5 | 1 B | `color_b` | uint8 | Blue channel |
-| 6 | 1 B | `brightness` | uint8 | Current brightness |
 
 ---
 
@@ -280,9 +265,8 @@ Content-Type: application/json
   "group": 250,
   "panels": "all",
   "type": "PULSE",
-  "color": "#FF0000",
-  "brightnessFrom": 0,
-  "brightnessTo": 255,
+  "colorFrom": "#000000",
+  "colorTo": "#FF0000",
   "duration": 600,
   "params": [64, 128, 64]
 }
@@ -361,17 +345,16 @@ Direct per-panel control. These endpoints bypass the animation system — any ru
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/panels` | — | `[{"address":N,"on":true,"color":"#RRGGBB","brightness":N},...]` |
+| `GET` | `/api/panels` | — | `[{"address":N,"on":true,"color":"#RRGGBB"},...]` |
 | `GET` | `/api/panels/edges` | — | `[{"panel":N,"edge":N,"connectedPanel":N,"connectedEdge":N},...]` |
 | `PUT` | `/api/panels/:address/on` | `{"value":1}` | `{}` |
-| `PUT` | `/api/panels/:address/brightness` | `{"value":128}` | `{}` |
 | `PUT` | `/api/panels/:address/color` | `{"color":"#FF0000"}` | `{}` |
 
 `:address` is the panel's I²C index as returned by `GET /api/panels`.
 
 `GET /api/panels` fetches the live state of each discovered panel over I²C. Panels that do not respond are omitted from the array. `connectedPanel` and `connectedEdge` in the edges response are `0` when an edge slot is unoccupied.
 
-These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_BRIGHTNESS`, `SET_COLOR`, `GET_PANELS_STATES`, and `GET_EDGES_LIST` commands.
+These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANELS_STATES`, and `GET_EDGES_LIST` commands.
 
 ---
 

@@ -82,8 +82,6 @@ class LightnetPanel
 
         void handleTurnOnOf(Protocol::PacketTurnOnOff *packet);
         void handleSetColor(Protocol::PacketSetColor *packet);
-        void handleSetBrightness(Protocol::PacketSetBrightness *packet);
-        void handleSetColorAndBrightness(Protocol::PacketSetColorAndBrightness *packet);
         void handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet);
 
         // Animation framework handlers

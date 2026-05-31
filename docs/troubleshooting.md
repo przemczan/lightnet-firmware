@@ -43,7 +43,7 @@ ws.onopen = () => {
 
 ws.onmessage = (e) => {
   // Response is PANELS_STATES (type 6).
-  // Parse: length (uint16) then N × (panelIndex, state, r, g, b, brightness).
+  // Parse: length (uint16) then N × (panelIndex uint16, state uint8, r uint8, g uint8, b uint8). 7 bytes per entry.
   const view = new DataView(e.data);
   const n = view.getUint16(16, true);
   // ...

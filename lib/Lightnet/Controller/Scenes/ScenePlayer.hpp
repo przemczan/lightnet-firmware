@@ -40,8 +40,6 @@ namespace Lightnet {
         uint16_t durationMs; // 0 = infinite (only valid on last step of looping scene)
         ColorRef colorFrom;  // 4 bytes
         ColorRef colorTo;    // 4 bytes
-        uint8_t  brightnessFrom;
-        uint8_t  brightnessTo;
         uint8_t  params[4];  // type-specific, params[0..1] sent via PREPARE
     };
 

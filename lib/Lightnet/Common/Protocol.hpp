@@ -10,10 +10,11 @@
 #define PACK __attribute__((__packed__))
 
 namespace Protocol {
-    // v4: PacketAnimationPrepare carries ColorRef (4 B) instead of ColorRGB (3 B) for
-    // colorFrom/colorTo, and panels now hold a current palette + base colors + global
-    // brightness. Panels and controller must match versions.
-    const uint16_t VERSION = 4;
+    // v5: per-panel brightness removed. PacketAnimationPrepare no longer carries
+    // brightnessFrom/brightnessTo — animations express brightness through color.
+    // PanelState no longer includes a brightness field.
+    // Panels and controller must match versions.
+    const uint16_t VERSION = 5;
     // Packet size needs to fit the new SET_PALETTE payload (PALETTE_STOPS * 4 = 64 B)
     // plus PacketMeta (5 B header + 2 B header CRC = 7 B). 80 B leaves margin.
     const uint8_t MAX_PACKET_SIZE = 80;
@@ -26,8 +27,6 @@ namespace Protocol {
         PACKET_REGISTER_EDGE = 3,
         PACKET_TURN_ON_OFF = 4,
         PACKET_SET_COLOR = 5,
-        PACKET_SET_BRIGHTNESS = 6,
-        PACKET_SET_COLOR_AND_BRIGHTNESS = 7,
         PACKET_REGISTER_EDGE_ACK = 8,
         PACKET_PANEL_EDGE_INFO = 9,
         PACKET_FETCH_STATE = 10,
@@ -61,7 +60,6 @@ namespace Protocol {
         uint16_t panelIndex;
         uint8_t  state;
         ColorRGB color;
-        uint8_t  brightness;
     } PanelState;
 
 // BEGIN Common packet structures
@@ -100,17 +98,6 @@ namespace Protocol {
 
     typedef struct PACK {
         PacketMeta meta;
-        uint8_t    brightness;
-    } PacketSetBrightness;
-
-    typedef struct PACK {
-        PacketMeta meta;
-        Color      color;
-        uint8_t    brightness;
-    } PacketSetColorAndBrightness;
-
-    typedef struct PACK {
-        PacketMeta meta;
         uint16_t   panelIndex;
         uint8_t    edgeIndex;
         uint16_t   connectedPanelIndex;
@@ -138,11 +125,9 @@ namespace Protocol {
         uint16_t           durationMs;
         Lightnet::ColorRef colorFrom;       // 4 B — panel resolves at frame time
         Lightnet::ColorRef colorTo;         // 4 B
-        uint8_t            brightnessFrom;
-        uint8_t            brightnessTo;
         uint8_t            param1;
         uint8_t            param2;
-    } PacketAnimationPrepare;  // 23 bytes
+    } PacketAnimationPrepare;  // 21 bytes
 
     typedef struct PACK {
         PacketMeta meta;

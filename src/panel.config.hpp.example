@@ -1,5 +1,7 @@
 #pragma once
 
+#define DEBUG 0
+
 // ── Panel geometry ─────────────────────────────────────────────────────────────
 #define NUMBER_OF_EDGES 3   // supported range: 3–5
                             // (6 edges requires a separate PC-port ISR — future work)

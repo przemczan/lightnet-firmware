@@ -11,7 +11,6 @@ namespace Lightnet {
         rgbController(nullptr), lastTickMs(0), paletteCount(2)
     {
         currentColor = { 0, 0, 0 };
-        currentBrightness = 0;
 
         // Default palette: white at both ends so any palette-position lookup returns white
         // until the controller pushes a real palette.
@@ -102,8 +101,6 @@ namespace Lightnet {
         slot.durationMs = pkt->durationMs;
         slot.colorFrom = pkt->colorFrom;
         slot.colorTo = pkt->colorTo;
-        slot.brightnessFrom = pkt->brightnessFrom;
-        slot.brightnessTo = pkt->brightnessTo;
         slot.param1 = pkt->param1;
         slot.param2 = pkt->param2;
         slot.startMs = 0; // filled in when animation starts
@@ -172,10 +169,6 @@ namespace Lightnet {
 
                         anim.colorTo = ColorRef_rgb(c.r, c.g, c.b);
                     }
-
-                    if (anim.flags & FLAG_CURRENT_BRIGHTNESS_FROM) anim.brightnessFrom = rgbController->brightness();
-
-                    if (anim.flags & FLAG_CURRENT_BRIGHTNESS_TO)   anim.brightnessTo   = rgbController->brightness();
                 }
 
                 if (animType == ANIM_REACTIVE) {
@@ -323,9 +316,7 @@ namespace Lightnet {
     {
         switch (animType) {
             case ANIM_SOLID:
-                // Already set via colorTo/brightnessTo in PREPARE
                 currentColor = resolveColorRef(queue[queueHead].colorTo);
-                currentBrightness = queue[queueHead].brightnessTo;
                 break;
 
             case ANIM_FADE:
@@ -371,26 +362,6 @@ namespace Lightnet {
 
     void AnimationPlayer::tickFade(uint16_t elapsed)
     {
-        AnimationState& anim = queue[queueHead];
-
-        uint8_t progress_q8;
-
-        if (durationMs > 0) {
-            uint32_t prog = (uint32_t)elapsed * 256 / durationMs;
-
-            progress_q8 = (prog > 255) ? 255 : (uint8_t)prog;
-        } else {
-            progress_q8 = 255;
-        }
-
-        currentColor = resolveColorRef(anim.colorTo); // color doesn't change in FADE
-        currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, progress_q8);
-    }
-
-    void AnimationPlayer::tickTransition(uint16_t elapsed)
-    {
-        AnimationState& anim = queue[queueHead];
-
         uint8_t progress_q8;
 
         if (durationMs > 0) {
@@ -404,13 +375,27 @@ namespace Lightnet {
         ::Protocol::ColorRGB cFrom, cTo;
         resolveCurrentColors(&cFrom, &cTo);
         rgbLerp(cFrom, cTo, progress_q8, &currentColor);
-        currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, progress_q8);
+    }
+
+    void AnimationPlayer::tickTransition(uint16_t elapsed)
+    {
+        uint8_t progress_q8;
+
+        if (durationMs > 0) {
+            uint32_t prog = (uint32_t)elapsed * 256 / durationMs;
+
+            progress_q8 = (prog > 255) ? 255 : (uint8_t)prog;
+        } else {
+            progress_q8 = 255;
+        }
+
+        ::Protocol::ColorRGB cFrom, cTo;
+        resolveCurrentColors(&cFrom, &cTo);
+        rgbLerp(cFrom, cTo, progress_q8, &currentColor);
     }
 
     void AnimationPlayer::tickBreathe(uint16_t elapsed)
     {
-        AnimationState& anim = queue[queueHead];
-
         if (durationMs == 0) return;
 
         // Wrap elapsed so FLAG_LOOP cycles correctly
@@ -427,8 +412,9 @@ namespace Lightnet {
         uint8_t inv_sq = (uint8_t)(((uint16_t)inv * inv) >> 8);
         uint8_t ease   = (uint8_t)(255 - inv_sq);
 
-        currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, ease);
-        currentColor = resolveColorRef(anim.colorTo);
+        ::Protocol::ColorRGB cFrom, cTo;
+        resolveCurrentColors(&cFrom, &cTo);
+        rgbLerp(cFrom, cTo, ease, &currentColor);
     }
 
     void AnimationPlayer::tickPulse(uint16_t elapsed)
@@ -465,8 +451,9 @@ namespace Lightnet {
             progress_q8 = 255 - (uint8_t)((uint32_t)fall_elapsed * 256 / (fall_duration + 1));
         }
 
-        currentColor = resolveColorRef(anim.colorTo);
-        currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, progress_q8);
+        ::Protocol::ColorRGB cFrom, cTo;
+        resolveCurrentColors(&cFrom, &cTo);
+        rgbLerp(cFrom, cTo, progress_q8, &currentColor);
     }
 
     void AnimationPlayer::tickBlink(uint16_t elapsed)
@@ -479,8 +466,9 @@ namespace Lightnet {
         uint16_t phase = elapsed % (period_ms * 2);
         bool on = (phase < period_ms);
 
-        currentColor = resolveColorRef(anim.colorTo);
-        currentBrightness = on ? anim.brightnessTo : anim.brightnessFrom;
+        ::Protocol::ColorRGB cFrom, cTo;
+        resolveCurrentColors(&cFrom, &cTo);
+        currentColor = on ? cTo : cFrom;
     }
 
     void AnimationPlayer::tickHueCycle(uint16_t elapsed)
@@ -526,7 +514,6 @@ namespace Lightnet {
         }
 
         currentColor = { r, g, b };
-        currentBrightness = anim.brightnessTo;
     }
 
     void AnimationPlayer::tickStrobe(uint16_t elapsed)
@@ -539,14 +526,12 @@ namespace Lightnet {
         uint16_t period_ms = 1000 / hz;
         bool on = (elapsed % period_ms) < (period_ms / 2);
 
-        currentColor = resolveColorRef(anim.colorTo);
-        currentBrightness = on ? anim.brightnessTo : 0;
+        ::Protocol::ColorRGB cTo = resolveColorRef(anim.colorTo);
+        currentColor = on ? cTo : ::Protocol::ColorRGB{0, 0, 0};
     }
 
     void AnimationPlayer::tickReactive(uint16_t elapsed)
     {
-        AnimationState& anim = queue[queueHead];
-
         // Decay reactiveLevel over time
         if (reactiveLevel > 0) {
             uint16_t since_trigger = (uint16_t)(millis() - reactiveTriggerMs);
@@ -555,12 +540,10 @@ namespace Lightnet {
             reactiveLevel = (decay_amount >= reactiveLevel) ? 0 : (uint8_t)(reactiveLevel - decay_amount);
         }
 
-        // Blend base color toward peak based on reactiveLevel.
         ::Protocol::ColorRGB cFrom, cTo;
 
         resolveCurrentColors(&cFrom, &cTo);
         rgbLerp(cFrom, cTo, reactiveLevel, &currentColor);
-        currentBrightness = lerp8(anim.brightnessFrom, anim.brightnessTo, reactiveLevel);
     }
 
 // ============================================================================
@@ -642,6 +625,5 @@ namespace Lightnet {
         // RGBController::updateOutputs() checks isOn and is a no-op when off,
         // so a TURN_OFF command is naturally respected without any override here.
         rgbController->color(currentColor.r, currentColor.g, currentColor.b);
-        rgbController->brightness(currentBrightness);
     }
 }  // namespace Lightnet
