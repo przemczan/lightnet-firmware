@@ -21,7 +21,6 @@
     #ifdef ARDUINO_ARCH_ESP32
         #include <ESPmDNS.h>
     #endif
-    #include "AppServer.hpp"
     #include "Protocol.hpp"
     #include "Animations/AnimationScheduler.hpp"
     #include "Animations/AnimationRunner.hpp"

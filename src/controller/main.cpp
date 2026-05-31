@@ -39,7 +39,6 @@ AsyncWebServer *webServer;
 AsyncWiFiManager *wifiManager;
 WebsocketServer *websocketServer;
 WebsocketHandler *websocketHandler;
-AppServer *appServer;
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
 Lightnet::PaletteStore *paletteStore     = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
@@ -220,7 +219,6 @@ void setupWiFi()
 
     websocketServer = new WebsocketServer(webServer);
     websocketHandler = new WebsocketHandler(websocketServer, panelsController, animScheduler);
-    appServer = new AppServer(webServer);
 
     setupMDNS();
 
