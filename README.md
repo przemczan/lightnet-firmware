@@ -46,6 +46,9 @@ pio run -e panel_atmega328pb
 
 # Serial monitor (57600 baud)
 pio device monitor -e controller_wemos
+
+# Run native host-side unit tests (no device needed)
+pio test -e native
 ```
 
 **Panel bootloader** — Use precompiled or compile your own:
@@ -69,6 +72,7 @@ See [docs/ota.md](docs/ota.md) for full bootloader setup and panel OTA process.
 | [docs/ota.md](docs/ota.md) | Panel OTA (twiboot bootloader — precompiled + compilation), serial firmware upload, update flow |
 | [docs/api.md](docs/api.md) | WebSocket binary protocol + full HTTP API reference (appearance, palettes, scenes, animations, firmware) |
 | [docs/animations.md](docs/animations.md) | Scene structure, animation types, palettes, color references, sequencing, HTTP API usage, examples |
+| [docs/testing.md](docs/testing.md) | Native host-side unit tests, what's covered, how to add new suites, MinGW setup |
 
 ---
 

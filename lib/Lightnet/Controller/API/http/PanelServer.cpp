@@ -1,4 +1,5 @@
 #include "PanelServer.hpp"
+#include "HttpHelpers.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include "../../../Common/Protocol.hpp"
 #include "../../Panels/PanelsInitializer.hpp"
@@ -10,43 +11,6 @@
 
 namespace Lightnet {
     namespace {
-        struct BodyBuf {
-            size_t  len, cap;
-            uint8_t data[1];
-        };
-
-        bool appendBody(AsyncWebServerRequest *req, const uint8_t *data, size_t len, size_t total, size_t maxCap)
-        {
-            BodyBuf *buf = (BodyBuf *)req->_tempObject;
-
-            if (!buf) {
-                size_t cap = (total > 0) ? total : 64;
-
-                if (cap > maxCap) cap = maxCap;
-
-                buf = (BodyBuf *)malloc(sizeof(BodyBuf) + cap);
-
-                if (!buf) return false;
-
-                buf->len = 0;
-                buf->cap = cap;
-                req->_tempObject = buf;
-                req->onDisconnect([req]() {
-                    if (req->_tempObject) {
-                        free(req->_tempObject);
-                        req->_tempObject = nullptr;
-                    }
-                });
-            }
-
-            if (buf->len + len > buf->cap) return false;
-
-            memcpy(buf->data + buf->len, data, len);
-            buf->len += len;
-
-            return true;
-        }
-
         // Parse /api/panels/<addr>/<action> — returns false on malformed URL.
         bool parseAddrAction(const char *url, uint8_t *addrOut, char *actionOut, size_t actionLen)
         {
@@ -95,43 +59,8 @@ namespace Lightnet {
         registerRoutes();
     }
 
-    void PanelServer::sendOk(AsyncWebServerRequest *req)
-    {
-        req->send(200, "application/json", "{\"ok\":true}");
-    }
-
-    void PanelServer::sendOkJson(AsyncWebServerRequest *req, const char *json)
-    {
-        req->send(200, "application/json", json);
-    }
-
-    void PanelServer::sendError(AsyncWebServerRequest *req, int code, const char *msg)
-    {
-        char buf[128];
-
-        snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
-        req->send(code, "application/json", buf);
-    }
-
     void PanelServer::registerRoutes()
     {
-        auto bodySmall = [this](AsyncWebServerRequest *r, uint8_t *d, size_t l, size_t i, size_t t) {
-                             if (!appendBody(r, d, l, t, MAX_BODY_SMALL)) sendError(r, 413, "body_too_large");
-                         };
-        auto dispatchSmall = [this](void (PanelServer::*m)(AsyncWebServerRequest *, const uint8_t *, size_t)) {
-                                 return [this, m](AsyncWebServerRequest *r) {
-                                            BodyBuf *buf = (BodyBuf *)r->_tempObject;
-
-                                            if (!buf) {
-                                                sendError(r, 400, "empty_body");
-
-                                                return;
-                                            }
-
-                                            (this->*m)(r, buf->data, buf->len);
-                                 };
-                             };
-
         // Specific routes must be registered before the wildcard.
         server.on("/api/panels", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetPanels(r);
@@ -139,7 +68,8 @@ namespace Lightnet {
         server.on("/api/panels/edges", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetEdges(r);
         });
-        server.on("/api/panels/*", HTTP_PUT, dispatchSmall(&PanelServer::handlePutPanel), nullptr, bodySmall);
+        Http::onBody(server, "/api/panels/*", HTTP_PUT, Http::MAX_BODY_SMALL,
+                     this, &PanelServer::handlePutPanel);
     }
 
     void PanelServer::handleGetPanels(AsyncWebServerRequest *req)
@@ -219,7 +149,7 @@ namespace Lightnet {
         char action[16];
 
         if (!parseAddrAction(req->url().c_str(), &addr, action, sizeof(action))) {
-            sendError(req, 400, "bad_url");
+            Http::sendError(req, 400, "bad_url");
 
             return;
         }
@@ -230,29 +160,29 @@ namespace Lightnet {
             long v = j.getInt("value");
 
             if (v < 0 || v > 1) {
-                sendError(req, 422, "value_must_be_0_or_1");
+                Http::sendError(req, 422, "value_must_be_0_or_1");
 
                 return;
             }
 
             panelsController.turnOnOff(addr, (uint8_t)v);
-            sendOk(req);
+            Http::sendOk(req);
         } else if (strcmp(action, "brightness") == 0) {
             long v = j.getInt("value");
 
             if (v < 0 || v > 255) {
-                sendError(req, 422, "value_out_of_range");
+                Http::sendError(req, 422, "value_out_of_range");
 
                 return;
             }
 
             panelsController.setBrightness(addr, (uint8_t)v);
-            sendOk(req);
+            Http::sendOk(req);
         } else if (strcmp(action, "color") == 0) {
             char hex[16];
 
             if (!j.getString("color", hex, sizeof(hex))) {
-                sendError(req, 422, "missing_color");
+                Http::sendError(req, 422, "missing_color");
 
                 return;
             }
@@ -260,7 +190,7 @@ namespace Lightnet {
             uint8_t r, g, b;
 
             if (!jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) {
-                sendError(req, 422, "bad_hex_color");
+                Http::sendError(req, 422, "bad_hex_color");
 
                 return;
             }
@@ -269,9 +199,9 @@ namespace Lightnet {
 
             color.rgb = { r, g, b };
             panelsController.setColor(addr, color);
-            sendOk(req);
+            Http::sendOk(req);
         } else {
-            sendError(req, 404, "not_found");
+            Http::sendError(req, 404, "not_found");
         }
     }
 }  // namespace Lightnet

@@ -20,6 +20,7 @@ Two distinct binaries are compiled from one source tree. `LIGHTNET_TARGET_CONTRO
 | [`docs/firmware.md`](docs/firmware.md) | PlatformIO environments, pin assignments, panel OTA (twiboot), serial upload, controller ArduinoOTA, debugging |
 | [`docs/api.md`](docs/api.md) | WebSocket binary protocol (WebsocketApi) + all HTTP endpoints, request/response format |
 | [`docs/animations.md`](docs/animations.md) | Scenes, layers, animation types, palettes, color references, HTTP API usage, examples |
+| [`docs/testing.md`](docs/testing.md) | Native host-side unit tests, what's covered, how to add new tests, MinGW setup |
 
 ---
 
@@ -35,7 +36,18 @@ pio device monitor -e controller_wemos   # serial monitor (57600 baud)
 
 Environments: `controller_esp8266` / `controller_wemos` / `controller_esp32` for the controller; `panel_nanoatmega328` / `panel_atmega328pb` / `panel_atmega328p` for panels. See [`docs/firmware.md`](docs/firmware.md#1-build-environments) for full details.
 
-There are no automated tests.
+## Tests
+
+Native host-side unit tests cover the pure C++ utilities (no Arduino, no hardware). Run via PlatformIO:
+
+```bash
+pio test -e native                       # all suites
+pio test -e native -f test_simplejson    # single suite
+```
+
+On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
+
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 

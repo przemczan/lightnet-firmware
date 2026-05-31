@@ -31,11 +31,5 @@ namespace Lightnet {
             void handlePutBrightness(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePutColors(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePutPalette(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
-
-            static void sendOk(AsyncWebServerRequest *req);
-            static void sendOkJson(AsyncWebServerRequest *req, const char *json);
-            static void sendError(AsyncWebServerRequest *req, int code, const char *msg);
-
-            static constexpr size_t MAX_BODY_SMALL = 512;
     };
 }  // namespace Lightnet

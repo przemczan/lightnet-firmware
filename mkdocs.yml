@@ -25,3 +25,4 @@ nav:
     - API & Examples: animations/api.md
   - OTA & Updates: ota.md
   - Troubleshooting: troubleshooting.md
+  - Testing: testing.md

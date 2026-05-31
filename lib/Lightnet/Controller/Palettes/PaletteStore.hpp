@@ -47,13 +47,8 @@ namespace Lightnet {
             // Name of the i-th built-in (0..builtInCount()-1), nullptr if out of range.
             const char * builtInName(uint8_t i) const;
 
-            // Parse a palette JSON file (the format written by save()) into stops.
-            // Used by resolve() for SPIFFS palettes; also callable directly.
-            static bool parsePaletteJson(
-                const char *  json,
-                size_t        len,
-                GradientStop *outStops,
-                uint8_t&      outCount
-            );
+            // Palette JSON parsing lives in PaletteJson.hpp as a free function
+            // (Lightnet::parsePaletteJson) — no SPIFFS dependency so it can be
+            // exercised by native unit tests.
     };
 }  // namespace Lightnet

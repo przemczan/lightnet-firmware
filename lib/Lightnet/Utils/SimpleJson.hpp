@@ -20,13 +20,21 @@ namespace Lightnet {
 
 // Returns pointer to the value start (after `key:` + whitespace) of the first
 // top-level occurrence of `key` in the JSON object body, or nullptr.
+//
+// The body is expected to be a JSON object — the leading whitespace and `{`
+// are skipped so the search runs at depth 0 *inside* the object (where the
+// keys actually live).
     inline const char * jsonFindKey(const char *body, size_t len, const char *key)
     {
         const char *end  = body + len;
         size_t klen = strlen(key);
         int depth = 0;
+        const char *p = body;
 
-        for (const char *p = body; p + klen + 2 <= end; p++) {
+        while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
+        if (p < end && *p == '{') p++;
+
+        for (; p + klen + 2 <= end; p++) {
             if (*p == '{' || *p == '[') {
                 depth++;
                 continue;

@@ -1,49 +1,11 @@
 #include "AppearanceServer.hpp"
+#include "HttpHelpers.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <string.h>
 #include <stdio.h>
 
 namespace Lightnet {
-    namespace {
-        struct BodyBuf {
-            size_t  len, cap;
-            uint8_t data[1];
-        };
-
-        bool appendBody(AsyncWebServerRequest *req, const uint8_t *data, size_t len, size_t total, size_t maxCap)
-        {
-            BodyBuf *buf = (BodyBuf *)req->_tempObject;
-
-            if (!buf) {
-                size_t cap = (total > 0) ? total : 256;
-
-                if (cap > maxCap) cap = maxCap;
-
-                buf = (BodyBuf *)malloc(sizeof(BodyBuf) + cap);
-
-                if (!buf) return false;
-
-                buf->len = 0;
-                buf->cap = cap;
-                req->_tempObject = buf;
-                req->onDisconnect([req]() {
-                    if (req->_tempObject) {
-                        free(req->_tempObject);
-                        req->_tempObject = nullptr;
-                    }
-                });
-            }
-
-            if (buf->len + len > buf->cap) return false;
-
-            memcpy(buf->data + buf->len, data, len);
-            buf->len += len;
-
-            return true;
-        }
-    } // anonymous namespace
-
     AppearanceServer::AppearanceServer(
         AsyncWebServer&  _server,
         AppearanceStore& _appearance,
@@ -58,60 +20,29 @@ namespace Lightnet {
         registerRoutes();
     }
 
-    void AppearanceServer::sendOk(AsyncWebServerRequest *req)
-    {
-        req->send(200, "application/json", "{\"ok\":true}");
-    }
-
-    void AppearanceServer::sendOkJson(AsyncWebServerRequest *req, const char *json)
-    {
-        req->send(200, "application/json", json);
-    }
-
-    void AppearanceServer::sendError(AsyncWebServerRequest *req, int code, const char *msg)
-    {
-        char buf[128];
-
-        snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
-        req->send(code, "application/json", buf);
-    }
-
     void AppearanceServer::registerRoutes()
     {
-        auto bodySmall = [this](AsyncWebServerRequest *r, uint8_t *d, size_t l, size_t i, size_t t) {
-                             if (!appendBody(r, d, l, t, MAX_BODY_SMALL)) sendError(r, 413, "body_too_large");
-                         };
-
-        auto dispatchSmall = [this](void (AppearanceServer::*m)(AsyncWebServerRequest *, const uint8_t *, size_t)) {
-                                 return [this, m](AsyncWebServerRequest *r) {
-                                            BodyBuf *buf = (BodyBuf *)r->_tempObject;
-
-                                            if (!buf) {
-                                                sendError(r, 400, "empty_body");
-
-                                                return;
-                                            }
-
-                                            (this->*m)(r, buf->data, buf->len);
-                                 };
-                             };
-
-        server.on("/api/appearance", HTTP_GET, [this](AsyncWebServerRequest *r){
+        server.on("/api/appearance", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetAppearance(r);
         });
-        server.on("/api/brightness", HTTP_GET, [this](AsyncWebServerRequest *r){
+        server.on("/api/brightness", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetBrightness(r);
         });
-        server.on("/api/colors", HTTP_GET, [this](AsyncWebServerRequest *r){
+        server.on("/api/colors", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetColors(r);
         });
-        server.on("/api/palette", HTTP_GET, [this](AsyncWebServerRequest *r){
+        server.on("/api/palette", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetPalette(r);
         });
-        server.on("/api/appearance", HTTP_PUT, dispatchSmall(&AppearanceServer::handlePutAppearance), nullptr, bodySmall);
-        server.on("/api/brightness", HTTP_PUT, dispatchSmall(&AppearanceServer::handlePutBrightness), nullptr, bodySmall);
-        server.on("/api/colors", HTTP_PUT, dispatchSmall(&AppearanceServer::handlePutColors), nullptr, bodySmall);
-        server.on("/api/palette", HTTP_PUT, dispatchSmall(&AppearanceServer::handlePutPalette), nullptr, bodySmall);
+
+        Http::onBody(server, "/api/appearance", HTTP_PUT, Http::MAX_BODY_SMALL,
+                     this, &AppearanceServer::handlePutAppearance);
+        Http::onBody(server, "/api/brightness", HTTP_PUT, Http::MAX_BODY_SMALL,
+                     this, &AppearanceServer::handlePutBrightness);
+        Http::onBody(server, "/api/colors", HTTP_PUT, Http::MAX_BODY_SMALL,
+                     this, &AppearanceServer::handlePutColors);
+        Http::onBody(server, "/api/palette", HTTP_PUT, Http::MAX_BODY_SMALL,
+                     this, &AppearanceServer::handlePutPalette);
     }
 
     void AppearanceServer::handleGetAppearance(AsyncWebServerRequest *req)
@@ -127,7 +58,7 @@ namespace Lightnet {
         snprintf(buf, sizeof(buf),
                  "{\"brightness\":%u,\"baseColors\":[\"%s\",\"%s\",\"%s\"],\"palette\":\"%s\"}",
                  (unsigned)appearance.brightness(), h0, h1, h2, appearance.paletteName());
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 
     void AppearanceServer::handleGetBrightness(AsyncWebServerRequest *req)
@@ -135,7 +66,7 @@ namespace Lightnet {
         char buf[32];
 
         snprintf(buf, sizeof(buf), "{\"value\":%u}", (unsigned)appearance.brightness());
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 
     void AppearanceServer::handleGetColors(AsyncWebServerRequest *req)
@@ -149,7 +80,7 @@ namespace Lightnet {
         char buf[128];
 
         snprintf(buf, sizeof(buf), "{\"primary\":\"%s\",\"secondary\":\"%s\",\"tertiary\":\"%s\"}", h0, h1, h2);
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 
     void AppearanceServer::handleGetPalette(AsyncWebServerRequest *req)
@@ -157,7 +88,7 @@ namespace Lightnet {
         char buf[64];
 
         snprintf(buf, sizeof(buf), "{\"palette\":\"%s\"}", appearance.paletteName());
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 
     void AppearanceServer::handlePutBrightness(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -166,13 +97,13 @@ namespace Lightnet {
         long v = j.getInt("value");
 
         if (v < 0 || v > 255) {
-            sendError(req, 422, "value_out_of_range");
+            Http::sendError(req, 422, "value_out_of_range");
 
             return;
         }
 
         appearance.setBrightness((uint8_t)v);
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void AppearanceServer::handlePutColors(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -190,7 +121,7 @@ namespace Lightnet {
             uint8_t r, g, b;
 
             if (!jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) {
-                sendError(req, 422, "bad_hex_color");
+                Http::sendError(req, 422, "bad_hex_color");
 
                 return;
             }
@@ -210,7 +141,7 @@ namespace Lightnet {
 
         if (any) appearance.setAllBaseColors(all);
 
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void AppearanceServer::handlePutPalette(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -219,18 +150,18 @@ namespace Lightnet {
         char name[20];
 
         if (!j.getString("palette", name, sizeof(name))) {
-            sendError(req, 422, "missing_palette");
+            Http::sendError(req, 422, "missing_palette");
 
             return;
         }
 
         if (!appearance.setPalette(name)) {
-            sendError(req, 404, "unknown_palette");
+            Http::sendError(req, 404, "unknown_palette");
 
             return;
         }
 
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void AppearanceServer::handlePutAppearance(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -241,7 +172,7 @@ namespace Lightnet {
             long v = j.getInt("brightness");
 
             if (v < 0 || v > 255) {
-                sendError(req, 422, "brightness_out_of_range");
+                Http::sendError(req, 422, "brightness_out_of_range");
 
                 return;
             }
@@ -271,12 +202,12 @@ namespace Lightnet {
 
         if (j.getString("palette", palName, sizeof(palName))) {
             if (!appearance.setPalette(palName)) {
-                sendError(req, 404, "unknown_palette");
+                Http::sendError(req, 404, "unknown_palette");
 
                 return;
             }
         }
 
-        sendOk(req);
+        Http::sendOk(req);
     }
 }  // namespace Lightnet

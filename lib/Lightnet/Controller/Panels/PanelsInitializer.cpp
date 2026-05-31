@@ -41,7 +41,7 @@ void PanelsInitializer::start()
 
 void PanelsInitializer::boot()
 {
-    if (this->pingEdge->isReady()) {
+    if (this->pingEdge->isFinished()) {
         return;
     }
 

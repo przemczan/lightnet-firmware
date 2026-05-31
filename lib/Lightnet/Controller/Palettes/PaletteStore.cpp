@@ -1,5 +1,5 @@
 #include "PaletteStore.hpp"
-#include "../../Utils/SimpleJson.hpp"
+#include "PaletteJson.hpp"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +112,7 @@ namespace Lightnet {
         f.close();
         buf[n] = '\0';
 
-        return parsePaletteJson(buf, n, outStops, outCount);
+        return Lightnet::parsePaletteJson(buf, n, outStops, outCount);
     }
 
     bool PaletteStore::isBuiltIn(const char *name) const
@@ -220,43 +220,4 @@ namespace Lightnet {
         return SPIFFS.remove(path);
     }
 
-// Parse palette JSON: {"schemaVersion":1,"name":"x","stops":[[pos,"#RRGGBB"],...]}
-    bool PaletteStore::parsePaletteJson(
-        const char *  json,
-        size_t        len,
-        GradientStop *outStops,
-        uint8_t&      outCount
-    )
-    {
-        outCount = 0;
-
-        if (!json || len == 0) return false;
-
-        const char *p   = jsonFindKey(json, len, "stops");
-        const char *end = json + len;
-
-        if (!p || !jsonEnterArray(p, end)) return false;
-
-        while (outCount < PALETTE_STOPS && jsonNextElement(p, end)) {
-            if (!jsonEnterArray(p, end)) return false;
-
-            long pos;
-
-            if (!jsonNextElement(p, end) || !jsonReadUInt(p, end, &pos) || pos > 255) return false;
-
-            char hex[16];
-            uint8_t r, g, b;
-
-            if (!jsonNextElement(p, end) ||
-                !jsonReadString(p, end, hex, sizeof(hex)) ||
-                !jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) return false;
-
-            // Inner array must end after exactly two elements.
-            if (jsonNextElement(p, end)) return false;
-
-            outStops[outCount++] = { (uint8_t)pos, r, g, b };
-        }
-
-        return outCount >= 1;
-    }
 }  // namespace Lightnet

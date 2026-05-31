@@ -75,6 +75,14 @@ The Lightnet firmware lives in one source tree and compiles into **two binaries*
 
     [:material-arrow-right: Troubleshooting](troubleshooting.md)
 
+-   :material-flask-outline: **Testing**
+
+    ---
+
+    Native host-side unit tests, what's testable without a device, and how to add a new suite.
+
+    [:material-arrow-right: Testing](testing.md)
+
 </div>
 
 ---

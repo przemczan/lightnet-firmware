@@ -88,6 +88,9 @@ pio device monitor -e controller_wemos
 
 # Build everything
 pio run
+
+# Run native host-side unit tests (no device needed — see Testing)
+pio test -e native
 ```
 
 !!! info "Post-build `.bin` generation"
@@ -98,3 +101,4 @@ pio run
 - [Hardware](hardware.md) — pin assignments and panel connectivity
 - [Architecture](architecture.md) — source tree and internal design
 - [OTA & Updates](ota.md) — panel updates over I²C and controller self-update
+- [Testing](testing.md) — native unit tests and how to add new ones

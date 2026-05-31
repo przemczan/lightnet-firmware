@@ -33,12 +33,7 @@ namespace Lightnet {
             void handlePostStopScene(AsyncWebServerRequest *req);
             void handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
 
-            static void sendOk(AsyncWebServerRequest *req);
-            static void sendOkJson(AsyncWebServerRequest *req, const char *json);
-            static void sendError(AsyncWebServerRequest *req, int code, const char *msg);
             static void sendSceneError(AsyncWebServerRequest *req, const SceneResult& r);
             static int sceneErrorCode(SceneError e);
-
-            static constexpr size_t MAX_BODY_LARGE = 4096;
     };
 }  // namespace Lightnet

@@ -283,8 +283,6 @@ void loop()
     LNPanelsInitializer.boot();
 
     if (LNPanelsInitializer.isFinished()) {
-        digitalWrite(LED_PIN, LOW);
-
         // IMPORTANT: WiFiManager needs the DNS server to process requests
         // to trigger the Captive Portal redirect.
         if (wifiManager != nullptr) {
@@ -337,6 +335,8 @@ void loop()
                 animServer->begin();
                 panelServer = new Lightnet::PanelServer(*webServer, *panelsController);
                 panelServer->begin();
+
+                PRINTLN("Initialization complete");
                 break;
 
             case 1:
@@ -360,6 +360,7 @@ void loop()
                     {
                         static uint32_t lastSimTick = 0;
                         uint32_t now = millis();
+
                         if ((uint32_t)(now - lastSimTick) >= 16) {
                             lastSimTick = now;
                             SimPanels.tick();

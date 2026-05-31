@@ -1,4 +1,5 @@
 #include "SceneServer.hpp"
+#include "HttpHelpers.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <FS.h>
@@ -7,78 +8,8 @@
 #endif
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 namespace Lightnet {
-    namespace {
-        bool isSafeName(const char *name)
-        {
-            if (!name || !name[0]) return false;
-
-            for (const char *c = name; *c; c++) {
-                if (!((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') ||
-                      (*c >= '0' && *c <= '9') || *c == '_' || *c == '-')) return false;
-            }
-
-            return strlen(name) <= 18;
-        }
-
-        bool nameFromUrl(const char *url, const char *prefix, char *out, size_t outLen)
-        {
-            size_t pfxLen = strlen(prefix);
-
-            if (strncmp(url, prefix, pfxLen) != 0) return false;
-
-            const char *start = url + pfxLen;
-            const char *slash = strchr(start, '/');
-            size_t len = slash ? (size_t)(slash - start) : strlen(start);
-
-            if (len == 0 || len >= outLen) return false;
-
-            memcpy(out, start, len);
-            out[len] = '\0';
-
-            return true;
-        }
-
-        struct BodyBuf {
-            size_t  len, cap;
-            uint8_t data[1];
-        };
-
-        bool appendBody(AsyncWebServerRequest *req, const uint8_t *data, size_t len, size_t total, size_t maxCap)
-        {
-            BodyBuf *buf = (BodyBuf *)req->_tempObject;
-
-            if (!buf) {
-                size_t cap = (total > 0) ? total : 256;
-
-                if (cap > maxCap) cap = maxCap;
-
-                buf = (BodyBuf *)malloc(sizeof(BodyBuf) + cap);
-
-                if (!buf) return false;
-
-                buf->len = 0;
-                buf->cap = cap;
-                req->_tempObject = buf;
-                req->onDisconnect([req]() {
-                    if (req->_tempObject) {
-                        free(req->_tempObject);
-                        req->_tempObject = nullptr;
-                    }
-                });
-            }
-
-            if (buf->len + len > buf->cap) return false;
-
-            memcpy(buf->data + buf->len, data, len);
-            buf->len += len;
-
-            return true;
-        }
-    } // anonymous namespace
-
     SceneServer::SceneServer(
         AsyncWebServer&   _server,
         ScenePlayer&      _player,
@@ -93,27 +24,9 @@ namespace Lightnet {
         registerRoutes();
     }
 
-    void SceneServer::sendOk(AsyncWebServerRequest *req)
-    {
-        req->send(200, "application/json", "{\"ok\":true}");
-    }
-
-    void SceneServer::sendOkJson(AsyncWebServerRequest *req, const char *json)
-    {
-        req->send(200, "application/json", json);
-    }
-
-    void SceneServer::sendError(AsyncWebServerRequest *req, int code, const char *msg)
-    {
-        char buf[128];
-
-        snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
-        req->send(code, "application/json", buf);
-    }
-
     void SceneServer::sendSceneError(AsyncWebServerRequest *req, const SceneResult& r)
     {
-        sendError(req, sceneErrorCode(r.err), r.msg);
+        Http::sendError(req, sceneErrorCode(r.err), r.msg);
     }
 
     int SceneServer::sceneErrorCode(SceneError e)
@@ -128,51 +41,40 @@ namespace Lightnet {
 
     void SceneServer::registerRoutes()
     {
-        auto bodyLarge = [this](AsyncWebServerRequest *r, uint8_t *d, size_t l, size_t i, size_t t) {
-                             if (!appendBody(r, d, l, t, MAX_BODY_LARGE)) sendError(r, 413, "body_too_large");
-                         };
-
-        auto dispatchLarge = [this](void (SceneServer::*m)(AsyncWebServerRequest *, const uint8_t *, size_t)) {
-                                 return [this, m](AsyncWebServerRequest *r) {
-                                            BodyBuf *buf = (BodyBuf *)r->_tempObject;
-
-                                            if (!buf) {
-                                                sendError(r, 400, "empty_body");
-
-                                                return;
-                                            }
-
-                                            (this->*m)(r, buf->data, buf->len);
-                                 };
-                             };
-
-        server.on("/api/scenes", HTTP_GET, [this](AsyncWebServerRequest *r){
-            handleListScenes(r);
-        });
-        server.on("/api/scenes/status", HTTP_GET, [this](AsyncWebServerRequest *r){
+        // Specific action routes before wildcard and general routes.
+        server.on("/api/scenes/status", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetSceneStatus(r);
         });
-        server.on("/api/scenes/stop", HTTP_POST, [this](AsyncWebServerRequest *r){
+        server.on("/api/scenes/stop", HTTP_POST, [this](AsyncWebServerRequest *r) {
             handlePostStopScene(r);
         });
-        server.on("/api/scenes/speed", HTTP_POST, dispatchLarge(&SceneServer::handlePostSetSpeed), nullptr, bodyLarge);
-        server.on("/api/scenes/play", HTTP_POST, dispatchLarge(&SceneServer::handlePostPlayScene), nullptr, bodyLarge);
-        server.on("/api/scenes", HTTP_POST, dispatchLarge(&SceneServer::handlePostSaveScene), nullptr, bodyLarge);
-        server.on("/api/scenes/*", HTTP_GET, [this](AsyncWebServerRequest *r){
+        Http::onBody(server, "/api/scenes/speed", HTTP_POST, Http::MAX_BODY_LARGE,
+                     this, &SceneServer::handlePostSetSpeed);
+        Http::onBody(server, "/api/scenes/play", HTTP_POST, Http::MAX_BODY_LARGE,
+                     this, &SceneServer::handlePostPlayScene);
+        // Wildcard routes before general /api/scenes routes.
+        server.on("/api/scenes/*", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetSceneByName(r);
         });
-        server.on("/api/scenes/*", HTTP_DELETE, [this](AsyncWebServerRequest *r){
+        server.on("/api/scenes/*", HTTP_DELETE, [this](AsyncWebServerRequest *r) {
             handleDeleteScene(r);
         });
-        server.on("/api/scenes/*", HTTP_POST, [this](AsyncWebServerRequest *r){
+        server.on("/api/scenes/*", HTTP_POST, [this](AsyncWebServerRequest *r) {
             handlePostPlaySceneByName(r);
         });
+        // General routes last.
+        server.on("/api/scenes", HTTP_GET, [this](AsyncWebServerRequest *r) {
+            handleListScenes(r);
+        });
+        Http::onBody(server, "/api/scenes", HTTP_POST, Http::MAX_BODY_LARGE,
+                     this, &SceneServer::handlePostSaveScene);
     }
 
     void SceneServer::handleListScenes(AsyncWebServerRequest *req)
     {
         char buf[512];
         Dir d = SPIFFS.openDir("/scenes/");
+
         int n = snprintf(buf, sizeof(buf), "[");
         bool first = true;
 
@@ -200,7 +102,7 @@ namespace Lightnet {
         }
 
         snprintf(buf + n, sizeof(buf) - n, "]");
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 
     void SceneServer::handleGetSceneStatus(AsyncWebServerRequest *req)
@@ -208,15 +110,16 @@ namespace Lightnet {
         char buf[128];
 
         player.writeStatusJson(buf, sizeof(buf));
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 
     void SceneServer::handleGetSceneByName(AsyncWebServerRequest *req)
     {
         char name[24];
 
-        if (!nameFromUrl(req->url().c_str(), "/api/scenes/", name, sizeof(name)) || !isSafeName(name)) {
-            sendError(req, 400, "invalid_name");
+        if (!Http::nameFromUrl(req->url().c_str(), "/api/scenes/", name, sizeof(name)) ||
+            !Http::isSafeName(name)) {
+            Http::sendError(req, 400, "invalid_name");
 
             return;
         }
@@ -226,7 +129,7 @@ namespace Lightnet {
         snprintf(path, sizeof(path), "/scenes/%s.json", name);
 
         if (!SPIFFS.exists(path)) {
-            sendError(req, 404, "not_found");
+            Http::sendError(req, 404, "not_found");
 
             return;
         }
@@ -238,8 +141,9 @@ namespace Lightnet {
     {
         char name[24];
 
-        if (!nameFromUrl(req->url().c_str(), "/api/scenes/", name, sizeof(name)) || !isSafeName(name)) {
-            sendError(req, 400, "invalid_name");
+        if (!Http::nameFromUrl(req->url().c_str(), "/api/scenes/", name, sizeof(name)) ||
+            !Http::isSafeName(name)) {
+            Http::sendError(req, 400, "invalid_name");
 
             return;
         }
@@ -249,13 +153,13 @@ namespace Lightnet {
         snprintf(path, sizeof(path), "/scenes/%s.json", name);
 
         if (!SPIFFS.exists(path)) {
-            sendError(req, 404, "not_found");
+            Http::sendError(req, 404, "not_found");
 
             return;
         }
 
         SPIFFS.remove(path);
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void SceneServer::handlePostSaveScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -268,7 +172,7 @@ namespace Lightnet {
             return;
         }
 
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void SceneServer::handlePostPlayScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -281,7 +185,7 @@ namespace Lightnet {
             return;
         }
 
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void SceneServer::handlePostPlaySceneByName(AsyncWebServerRequest *req)
@@ -289,15 +193,15 @@ namespace Lightnet {
         const char *url = req->url().c_str();
 
         if (!strstr(url + strlen("/api/scenes/"), "/play")) {
-            sendError(req, 404, "not_found");
+            Http::sendError(req, 404, "not_found");
 
             return;
         }
 
         char name[24];
 
-        if (!nameFromUrl(url, "/api/scenes/", name, sizeof(name)) || !isSafeName(name)) {
-            sendError(req, 400, "invalid_name");
+        if (!Http::nameFromUrl(url, "/api/scenes/", name, sizeof(name)) || !Http::isSafeName(name)) {
+            Http::sendError(req, 400, "invalid_name");
 
             return;
         }
@@ -310,13 +214,13 @@ namespace Lightnet {
             return;
         }
 
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void SceneServer::handlePostStopScene(AsyncWebServerRequest *req)
     {
         animService.stopScene();
-        sendOk(req);
+        Http::sendOk(req);
     }
 
     void SceneServer::handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -325,7 +229,7 @@ namespace Lightnet {
         const char *p   = (const char *)body;
         const char *end = p + len;
 
-        if (!jsonEnterObject(p, end)) { sendError(req, 400, "expected_object"); return; }
+        if (!jsonEnterObject(p, end)) { Http::sendError(req, 400, "expected_object"); return; }
 
         float speed = 1.0f;
         bool found = false;
@@ -333,7 +237,7 @@ namespace Lightnet {
 
         while (jsonNextKey(p, end, key, sizeof(key))) {
             if (strcmp(key, "speed") == 0) {
-                if (!jsonReadFloat(p, end, &speed)) { sendError(req, 400, "speed: not a number"); return; }
+                if (!jsonReadFloat(p, end, &speed)) { Http::sendError(req, 400, "speed: not a number"); return; }
 
                 found = true;
             } else {
@@ -341,14 +245,15 @@ namespace Lightnet {
             }
         }
 
-        if (!found) { sendError(req, 400, "speed: required"); return; }
+        if (!found) { Http::sendError(req, 400, "speed: required"); return; }
 
-        if (speed < 0.1f || speed > 10.0f) { sendError(req, 422, "speed: must be 0.1-10.0"); return; }
+        if (speed < 0.1f || speed > 10.0f) { Http::sendError(req, 422, "speed: must be 0.1-10.0"); return; }
 
         animService.setSceneSpeed(speed);
 
         char buf[48];
+
         snprintf(buf, sizeof(buf), "{\"ok\":true,\"speed\":%.1f}", (double)speed);
-        sendOkJson(req, buf);
+        Http::sendOkJson(req, buf);
     }
 }  // namespace Lightnet
