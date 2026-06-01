@@ -18,6 +18,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include "HttpUrl.hpp"
+#include "../../../Utils/Debug.hpp"
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -30,35 +31,33 @@ namespace Lightnet {
         constexpr size_t MAX_BODY_LARGE = 4096;
 
         // ============================================================================
-        // Response helpers
-        // ============================================================================
-
-        inline void sendOk(AsyncWebServerRequest *req)
-        {
-            req->send(200, "application/json", "{\"ok\":true}");
-        }
-
-        inline void sendOkJson(AsyncWebServerRequest *req, const char *json)
-        {
-            req->send(200, "application/json", json);
-        }
-
-        inline void sendError(AsyncWebServerRequest *req, int code, const char *msg)
-        {
-            char buf[128];
-
-            snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
-            req->send(code, "application/json", buf);
-        }
-
-        // URL / name parsing helpers (isSafeName, nameFromUrl) live in HttpUrl.hpp
-        // so they can be unit-tested without ESPAsyncWebServer.
-
-        // ============================================================================
         // Body buffering (chunked request body → single null-terminated buffer)
         // ============================================================================
 
         namespace detail {
+            constexpr size_t LOG_TRUNCATE = 80;
+
+            inline void logResponse(AsyncWebServerRequest *req, int status, const char *body)
+            {
+                size_t blen = body ? strlen(body) : 0;
+
+                if (blen > LOG_TRUNCATE)
+                    D_PRINTF("[HTTP] %s %s -> %d %.*s...\n",
+                             req->methodToString(), req->url().c_str(), status, (int)LOG_TRUNCATE, body);
+                else
+                    D_PRINTF("[HTTP] %s %s -> %d %s\n",
+                             req->methodToString(), req->url().c_str(), status, body ? body : "");
+            }
+
+            inline void logBody(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
+            {
+                size_t show = len < LOG_TRUNCATE ? len : LOG_TRUNCATE;
+
+                D_PRINTF("[HTTP] %s %s <- %.*s%s\n",
+                         req->methodToString(), req->url().c_str(), (int)show, (const char *)body,
+                         len > LOG_TRUNCATE ? "..." : "");
+            }
+
             struct BodyBuf {
                 size_t  len, cap;
                 uint8_t data[1];
@@ -105,6 +104,34 @@ namespace Lightnet {
             }
         } // namespace detail
 
+        // ============================================================================
+        // Response helpers
+        // ============================================================================
+
+        // URL / name parsing helpers (isSafeName, nameFromUrl) live in HttpUrl.hpp
+        // so they can be unit-tested without ESPAsyncWebServer.
+
+        inline void sendOk(AsyncWebServerRequest *req)
+        {
+            DEBUG_IF(DEBUG_API, detail::logResponse(req, 200, "{\"ok\":true}"));
+            req->send(200, "application/json", "{\"ok\":true}");
+        }
+
+        inline void sendOkJson(AsyncWebServerRequest *req, const char *json)
+        {
+            DEBUG_IF(DEBUG_API, detail::logResponse(req, 200, json));
+            req->send(200, "application/json", json);
+        }
+
+        inline void sendError(AsyncWebServerRequest *req, int code, const char *msg)
+        {
+            char buf[128];
+
+            snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
+            DEBUG_IF(DEBUG_API, detail::logResponse(req, code, buf));
+            req->send(code, "application/json", buf);
+        }
+
         // Register a route that buffers the request body, then dispatches to a member
         // function with signature: void T::method(AsyncWebServerRequest *, const uint8_t *body, size_t len).
         //
@@ -130,6 +157,7 @@ namespace Lightnet {
                                      return;
                                  }
 
+                                 DEBUG_IF(DEBUG_API, detail::logBody(req, buf->data, buf->len));
                                  (instance->*memberFn)(req, buf->data, buf->len);
                              };
             auto onChunk = [maxBody](
