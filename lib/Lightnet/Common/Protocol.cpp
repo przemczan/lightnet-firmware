@@ -1,6 +1,6 @@
 #include "Protocol.hpp"
 
-uint8_t Protocol::validatePacket(void *packet, uint8_t size)
+uint8_t Protocol::validatePacket(void *packet, uint8_t size, bool validateProtocolVersion)
 {
     if (size < sizeof(PacketMeta)) {
         return 1;
@@ -12,7 +12,7 @@ uint8_t Protocol::validatePacket(void *packet, uint8_t size)
         return 2;
     }
 
-    if (meta->header.protocolVersion != Protocol::VERSION) {
+    if (validateProtocolVersion && meta->header.protocolVersion != Protocol::VERSION) {
         return 3;
     }
 

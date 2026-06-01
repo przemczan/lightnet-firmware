@@ -193,7 +193,7 @@ namespace Protocol {
         uint8_t    token;
     } PacketEnterBootloader;  // 6 bytes
 
-    uint8_t validatePacket(void *packet, uint8_t size);
+    uint8_t validatePacket(void *packet, uint8_t size, bool validateProtocolVersion = true);
     void setPacketMeta(void *packet, packetType_t type);
 
     const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);

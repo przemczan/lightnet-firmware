@@ -232,7 +232,11 @@ void LightnetPanel::handleIncomingPackets()
     uint16_t size;
 
     while (this->packetsToHandle->dequeue((void *&)packet, size)) {
-        uint8_t vErr = Protocol::validatePacket(packet, size);
+        // ignore version validation for flashing-related packets
+        bool validateProtocolVersion = (packet->header.type == Protocol::PACKET_ENTER_BOOTLOADER) ||
+                                       (packet->header.type == Protocol::PACKET_RESET_DEVICE);
+        uint8_t vErr = Protocol::validatePacket(packet, size, validateProtocolVersion);
+
         #if DEBUG
             Serial.print(F("[PKT] type="));
             Serial.print(packet->header.type);

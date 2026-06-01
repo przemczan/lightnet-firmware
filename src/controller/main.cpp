@@ -43,48 +43,11 @@ void setupMDNS()
     MDNS.addService("lightnet", "tcp", SERVER_PORT);
 }
 
-// Send an ANIM_FADE packet to one panel then fire a General Call START.
-// Each call uses a unique groupId so the START only triggers this panel.
-static void sendPanelFade(
-    uint8_t  addr,
-    uint16_t durationMs,
-    uint8_t  brightFrom,
-    uint8_t  brightTo,
-    uint8_t  groupId,
-    uint8_t  seqId
-)
-{
-    Protocol::PacketAnimationPrepare prep;
-
-    prep.animType       = Lightnet::ANIM_FADE;
-    prep.group_id       = groupId;
-    prep.flags          = 0;
-    prep.transitionMs   = 0;
-    prep.durationMs     = durationMs;
-    prep.colorFrom      = Lightnet::ColorRef_rgb(brightFrom, brightFrom, brightFrom);
-    prep.colorTo        = Lightnet::ColorRef_rgb(brightTo, brightTo, brightTo);
-    prep.param1         = 0;
-    prep.param2         = 0;
-    LNBus.sendPacketAck(addr, &prep, sizeof(prep), Protocol::PACKET_ANIMATION_PREPARE);
-
-    delayMicroseconds(300);
-
-    Protocol::PacketAnimationStart start;
-
-    start.seq_id   = seqId;
-    start.group_id = groupId;
-
-    for (uint8_t retry = 0; retry < 2; retry++) {
-        LNBus.sendPacketNack(0x00, &start, sizeof(start), Protocol::PACKET_ANIMATION_START);
-        delayMicroseconds(200);
-    }
-}
-
 void selfTest()
 {
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST BEGIN]"));
 
-    uint16_t panelCount = LNPanelsInitializer.getPanels()->getSize();
+    uint8_t panelCount = (uint8_t)LNPanelsInitializer.getPanels()->getSize();
 
     if (panelCount == 0) {
         DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST END]"));
@@ -92,42 +55,27 @@ void selfTest()
         return;
     }
 
-    // Divide 1 s evenly; clamp so each in-panel animation has enough resolution.
-    uint16_t stepMs = 1000 / panelCount;
+    uint8_t addrs[Lightnet::LIGHTNET_MAX_PANELS];
 
-    if (stepMs < 10) stepMs = 10;
+    Protocol::Color black;
 
-    uint8_t groupId = 1;
-    uint8_t seqId   = 1;
+    black.rgb = { 0, 0, 0 };
 
-    // Fade in: forward order — each panel fades 0→255 over stepMs
-    for (uint16_t i = 0; i < panelCount; i++) {
-        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
-
-        panelsController->turnOn(addr);
-        sendPanelFade(addr, stepMs, 0, 255, groupId++, seqId++);
-
-        if (seqId == 0) seqId = 1;
-
-        delay(stepMs);
+    for (uint8_t i = 0; i < panelCount; i++) {
+        addrs[i] = LNPanelsInitializer.getPanels()->get(i)->index;
+        panelsController->setColor(addrs[i], black);
+        panelsController->turnOn(addrs[i]);
     }
 
-    // Fade out: reverse order — each panel fades 255→0 over stepMs
-    for (uint16_t i = panelCount; i-- > 0; ) {
-        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
+    Lightnet::WaveRunner wave(1, addrs, panelCount, 1000, 3, { 255, 255, 255 });
 
-        sendPanelFade(addr, stepMs, 255, 0, groupId++, seqId++);
-
-        if (seqId == 0) seqId = 1;
-
-        delay(stepMs);
+    while (!wave.isFinished()) {
+        wave.tick(millis());
+        delay(8);
     }
 
-    // Restore panels to off state ready for normal use
-    for (uint16_t i = 0; i < panelCount; i++) {
-        uint8_t addr = LNPanelsInitializer.getPanels()->get(i)->index;
-
-        panelsController->turnOff(addr);
+    for (uint8_t i = 0; i < panelCount; i++) {
+        panelsController->turnOff(addrs[i]);
     }
 
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("[SELF TEST END]"));
