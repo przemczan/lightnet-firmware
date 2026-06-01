@@ -9,10 +9,10 @@
 
 namespace Lightnet {
     namespace {
-// SPIFFS_OBJ_NAME_LEN = 32 (includes null terminator) → max path = 31 chars.
-// Per-name temp paths like "/scenes/demo_warm_breathe.json.tmp" (34 chars) exceed
-// this limit and SPIFFS.open() returns null. A single fixed-name temp file is
-// always short (15 chars) and safe for single-threaded embedded use.
+        // SPIFFS_OBJ_NAME_LEN = 32 (includes null terminator) → max path = 31 chars.
+        // Per-name temp paths like "/scenes/demo_warm_breathe.json.tmp" (34 chars) exceed
+        // this limit and SPIFFS.open() returns null. A single fixed-name temp file is
+        // always short (15 chars) and safe for single-threaded embedded use.
         static const char SCENE_TMP[] = "/scenes/.write.tmp"; // 18 chars
 
         void scenePath(const char *name, char *out, size_t outLen)

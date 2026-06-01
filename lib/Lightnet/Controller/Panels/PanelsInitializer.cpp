@@ -163,7 +163,7 @@ List<Panel *> *PanelsInitializer::getPanels()
 }
 
 #if IS_ESP
-ICACHE_RAM_ATTR
+    ICACHE_RAM_ATTR
 #endif
 void PanelsInitializer::onInterrupt()
 {

@@ -8,9 +8,9 @@
 
 namespace Lightnet {
     namespace Http {
-// Returns true if `name` is a safe filesystem identifier:
-//   - non-empty, max 18 characters
-//   - only [a-zA-Z0-9_-]
+        // Returns true if `name` is a safe filesystem identifier:
+        //   - non-empty, max 18 characters
+        //   - only [a-zA-Z0-9_-]
         inline bool isSafeName(const char *name)
         {
             if (!name || !name[0]) return false;
@@ -23,9 +23,9 @@ namespace Lightnet {
             return strlen(name) <= 18;
         }
 
-// Extracts the segment immediately after `prefix` (up to next '/' or end)
-// into `out`. Returns false on prefix mismatch, empty segment, or overflow.
-//   e.g. nameFromUrl("/api/palettes/foo/bar", "/api/palettes/", out, ...) → "foo"
+        // Extracts the segment immediately after `prefix` (up to next '/' or end)
+        // into `out`. Returns false on prefix mismatch, empty segment, or overflow.
+        //   e.g. nameFromUrl("/api/palettes/foo/bar", "/api/palettes/", out, ...) → "foo"
         inline bool nameFromUrl(const char *url, const char *prefix, char *out, size_t outLen)
         {
             if (!url || !prefix || !out || outLen == 0) return false;

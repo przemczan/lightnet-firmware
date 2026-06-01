@@ -20,6 +20,10 @@ Lightnet::PaletteServer *paletteServer    = nullptr;
 Lightnet::SceneServer *sceneServer      = nullptr;
 Lightnet::AnimationServer *animServer       = nullptr;
 Lightnet::PanelServer *panelServer      = nullptr;
+Lightnet::ConfigurationStore *configStore    = nullptr;
+Lightnet::AppStateStore *appStateStore       = nullptr;
+Lightnet::ConfigurationServer *configServer  = nullptr;
+Lightnet::StateServer *stateServer           = nullptr;
 TwibootClient *twibootClient    = nullptr;
 PanelFlasher *panelFlasher     = nullptr;
 FirmwareUpdateServer *fwUpdateServer   = nullptr;
@@ -164,7 +168,11 @@ void setupOTA()
     ArduinoOTA.onEnd([]() {
         DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] controller update done — rebooting"));
 
-        if (appearance) appearance->flush();
+        if (appearance)    appearance->flush();
+
+        if (configStore)   configStore->flush();
+
+        if (appStateStore) appStateStore->flush();
     });
     ArduinoOTA.onError([](ota_error_t error) {
         DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[OTA] error %u\n", error));
@@ -284,6 +292,27 @@ void loop()
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, LNPanelsInitializer, *paletteStore);
                 animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
 
+                configStore = new Lightnet::ConfigurationStore();
+                configStore->load();
+
+                appStateStore = new Lightnet::AppStateStore();
+                appStateStore->load();
+
+                {
+                    bool initialIsOn = true;
+
+                    switch (configStore->powerStateOnBoot()) {
+                        case Lightnet::POWER_ALWAYS_OFF: initialIsOn = false;
+                            break;
+                        case Lightnet::POWER_LAST_STATE: initialIsOn = appStateStore->isOn();
+                            break;
+                        default:                         initialIsOn = true;
+                            break;
+                    }
+
+                    appStateStore->setIsOn(initialIsOn);
+                }
+
                 #if DEMO_MODE
                     initDemos(*animService, *sceneStore, *scenePlayer, *animScheduler,
                               *panelsController, LNPanelsInitializer);
@@ -295,12 +324,21 @@ void loop()
                 appearanceServer->begin();
                 paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
                 paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService);
+                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore);
                 sceneServer->begin();
-                animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance);
+                animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance, *appStateStore);
                 animServer->begin();
                 panelServer = new Lightnet::PanelServer(*webServer, *panelsController);
                 panelServer->begin();
+                configServer = new Lightnet::ConfigurationServer(*webServer, *configStore);
+                configServer->begin();
+                stateServer = new Lightnet::StateServer(*webServer,
+                                                        *appStateStore,
+                                                        *panelsController,
+                                                        *animService,
+                                                        *animScheduler,
+                                                        *appearance);
+                stateServer->begin();
 
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
                 break;
@@ -318,11 +356,15 @@ void loop()
                 if (!panelFlasher || !panelFlasher->isActive()) {
                     websocketHandler->handleIncommingMessages();
 
-                    if (animScheduler) animScheduler->tick(millis());
+                    if (animScheduler && appStateStore->isOn()) animScheduler->tick(millis());
 
-                    if (scenePlayer)   scenePlayer->tick(millis());
+                    if (scenePlayer && appStateStore->isOn())   scenePlayer->tick(millis());
 
                     if (appearance)    appearance->tick(millis());
+
+                    if (configStore)   configStore->tick(millis());
+
+                    if (appStateStore) appStateStore->tick(millis());
 
                     #ifdef SIM_MODE
                         {

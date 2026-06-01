@@ -6,11 +6,11 @@
 #include "../../Common/Protocol.hpp"
 
 namespace Lightnet {
-// Owner of all palette definitions. Built-in palettes live in flash. User-defined
-// palettes are stored in SPIFFS at /palettes/<name>.json.
-//
-// Special palette names handled outside this store:
-//   "userColors" — synthesized from base colors at use time; not stored here.
+    // Owner of all palette definitions. Built-in palettes live in flash. User-defined
+    // palettes are stored in SPIFFS at /palettes/<name>.json.
+    //
+    // Special palette names handled outside this store:
+    //   "userColors" — synthesized from base colors at use time; not stored here.
     class PaletteStore
     {
         public:

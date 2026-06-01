@@ -15,7 +15,7 @@ namespace Lightnet {
             void begin();
 
         private:
-            AsyncWebServer&   server;
+            AsyncWebServer& server;
             PanelsController& panelsController;
 
             void registerRoutes();

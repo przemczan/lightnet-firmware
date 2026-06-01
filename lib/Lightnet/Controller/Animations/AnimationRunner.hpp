@@ -31,9 +31,9 @@ namespace Lightnet {
             uint8_t groupId;
     };
 
-// ============================================================================
-// Simple Panel-Local Runner (forwards PREPARE/START, no per-frame updates)
-// ============================================================================
+    // ============================================================================
+    // Simple Panel-Local Runner (forwards PREPARE/START, no per-frame updates)
+    // ============================================================================
 
     class PanelLocalRunner : public AnimationRunner
     {
@@ -49,9 +49,9 @@ namespace Lightnet {
             bool finished;
     };
 
-// ============================================================================
-// Wave Runner — brightness envelope traveling along panel order
-// ============================================================================
+    // ============================================================================
+    // Wave Runner — brightness envelope traveling along panel order
+    // ============================================================================
 
     class WaveRunner : public AnimationRunner
     {
@@ -83,9 +83,9 @@ namespace Lightnet {
             uint8_t computeWaveBrightness(float panelPos, float waveCenter);
     };
 
-// ============================================================================
-// Ripple Runner — distance-based brightness from origin
-// ============================================================================
+    // ============================================================================
+    // Ripple Runner — distance-based brightness from origin
+    // ============================================================================
 
     class RippleRunner : public AnimationRunner
     {
@@ -117,9 +117,9 @@ namespace Lightnet {
             bool finished;
     };
 
-// ============================================================================
-// Chase Runner — single lit panel moving through panel list
-// ============================================================================
+    // ============================================================================
+    // Chase Runner — single lit panel moving through panel list
+    // ============================================================================
 
     class ChaseRunner : public AnimationRunner
     {

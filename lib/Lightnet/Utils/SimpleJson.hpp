@@ -14,16 +14,16 @@
 #include <string.h>
 
 namespace Lightnet {
-// ============================================================================
-// Free helpers (reusable without the class)
-// ============================================================================
+    // ============================================================================
+    // Free helpers (reusable without the class)
+    // ============================================================================
 
-// Returns pointer to the value start (after `key:` + whitespace) of the first
-// top-level occurrence of `key` in the JSON object body, or nullptr.
-//
-// The body is expected to be a JSON object — the leading whitespace and `{`
-// are skipped so the search runs at depth 0 *inside* the object (where the
-// keys actually live).
+    // Returns pointer to the value start (after `key:` + whitespace) of the first
+    // top-level occurrence of `key` in the JSON object body, or nullptr.
+    //
+    // The body is expected to be a JSON object — the leading whitespace and `{`
+    // are skipped so the search runs at depth 0 *inside* the object (where the
+    // keys actually live).
     inline const char * jsonFindKey(const char *body, size_t len, const char *key)
     {
         const char *end  = body + len;
@@ -32,6 +32,7 @@ namespace Lightnet {
         const char *p = body;
 
         while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
+
         if (p < end && *p == '{') p++;
 
         for (; p + klen + 2 <= end; p++) {
@@ -67,7 +68,7 @@ namespace Lightnet {
         return nullptr;
     }
 
-// Parse a non-negative integer starting at p. Returns -1 if not a digit sequence.
+    // Parse a non-negative integer starting at p. Returns -1 if not a digit sequence.
     inline long jsonParseUInt(const char *p, const char *end)
     {
         if (!p || p >= end || *p < '0' || *p > '9') return -1;
@@ -84,8 +85,8 @@ namespace Lightnet {
         return v;
     }
 
-// Parse a quoted JSON string. Returns false if `p` isn't a `"`, value overflows,
-// or there's no closing quote.
+    // Parse a quoted JSON string. Returns false if `p` isn't a `"`, value overflows,
+    // or there's no closing quote.
     inline bool jsonParseString(const char *p, const char *end, char *out, size_t outLen)
     {
         if (!p || p >= end || *p != '"') return false;
@@ -111,7 +112,7 @@ namespace Lightnet {
         return true;
     }
 
-// Parse a `#RRGGBB` hex colour into r/g/b bytes. Returns false on malformed input.
+    // Parse a `#RRGGBB` hex colour into r/g/b bytes. Returns false on malformed input.
     inline bool jsonParseHexColor(const char *s, size_t len, uint8_t *r, uint8_t *g, uint8_t *b)
     {
         if (len != 7 || s[0] != '#') return false;
@@ -136,7 +137,7 @@ namespace Lightnet {
         return true;
     }
 
-// Format RGB as `#RRGGBB` into out (must be at least 8 bytes).
+    // Format RGB as `#RRGGBB` into out (must be at least 8 bytes).
     inline void jsonFormatHex(uint8_t r, uint8_t g, uint8_t b, char *out)
     {
         static const char hx[] = "0123456789ABCDEF";
@@ -151,19 +152,19 @@ namespace Lightnet {
         out[7] = '\0';
     }
 
-// ============================================================================
-// Cursor-based primitives — for streaming parsers (SceneParser, PaletteStore)
-//
-// Every function takes the cursor by reference and advances it past whatever
-// it consumed. `jsonRead*` returns false on malformed input. Use these together
-// with the iterators below to walk arbitrary JSON without hand-rolling the same
-// whitespace / comma / quote bookkeeping in every parser.
-//
-// Difference from the by-value `jsonParseString` above: cursor `jsonReadString`
-// truncates silently if `outLen` is too small but still advances past the
-// closing quote (so the surrounding parser stays in sync). The by-value form
-// rejects on overflow.
-// ============================================================================
+    // ============================================================================
+    // Cursor-based primitives — for streaming parsers (SceneParser, PaletteStore)
+    //
+    // Every function takes the cursor by reference and advances it past whatever
+    // it consumed. `jsonRead*` returns false on malformed input. Use these together
+    // with the iterators below to walk arbitrary JSON without hand-rolling the same
+    // whitespace / comma / quote bookkeeping in every parser.
+    //
+    // Difference from the by-value `jsonParseString` above: cursor `jsonReadString`
+    // truncates silently if `outLen` is too small but still advances past the
+    // closing quote (so the surrounding parser stays in sync). The by-value form
+    // rejects on overflow.
+    // ============================================================================
 
     inline void jsonSkipWs(const char *& p, const char *end)
     {
@@ -228,7 +229,10 @@ namespace Lightnet {
 
         bool negative = false;
 
-        if (*p == '-') { negative = true; p++; }
+        if (*p == '-') {
+            negative = true;
+            p++;
+        }
 
         if (p >= end || *p < '0' || *p > '9') return false;
 
@@ -243,6 +247,7 @@ namespace Lightnet {
 
         if (p < end && *p == '.') {
             p++;
+
             float divisor = 10.0f;
 
             while (p < end && *p >= '0' && *p <= '9') {
@@ -253,6 +258,7 @@ namespace Lightnet {
         }
 
         *out = (float)intPart + frac;
+
         if (negative) *out = -*out;
 
         return true;
@@ -279,7 +285,7 @@ namespace Lightnet {
         return false;
     }
 
-// Skip any JSON value (string, number, bool, null, object, array).
+    // Skip any JSON value (string, number, bool, null, object, array).
     inline bool jsonSkipValue(const char *& p, const char *end);
 
     inline bool jsonSkipObject(const char *& p, const char *end)
@@ -387,28 +393,28 @@ namespace Lightnet {
         return true;
     }
 
-// ============================================================================
-// Container iterators
-//
-// Pattern for objects:
-//     if (!jsonEnterObject(p, end)) return false;
-//     char key[N];
-//     while (jsonNextKey(p, end, key, sizeof(key))) {
-//         if      (strcmp(key, "foo") == 0) { ... read foo value ... }
-//         else if (strcmp(key, "bar") == 0) { ... read bar value ... }
-//         else jsonSkipValue(p, end);
-//     }
-//
-// Pattern for arrays:
-//     if (!jsonEnterArray(p, end)) return false;
-//     while (jsonNextElement(p, end)) {
-//         ... read element value ...   // p points at the element
-//     }
-//
-// `jsonNextKey` returning true leaves p at the value start (past `:` + ws).
-// `jsonNextElement` returning true leaves p at the element start.
-// Both consume the closing `}`/`]` when they return false.
-// ============================================================================
+    // ============================================================================
+    // Container iterators
+    //
+    // Pattern for objects:
+    //     if (!jsonEnterObject(p, end)) return false;
+    //     char key[N];
+    //     while (jsonNextKey(p, end, key, sizeof(key))) {
+    //         if      (strcmp(key, "foo") == 0) { ... read foo value ... }
+    //         else if (strcmp(key, "bar") == 0) { ... read bar value ... }
+    //         else jsonSkipValue(p, end);
+    //     }
+    //
+    // Pattern for arrays:
+    //     if (!jsonEnterArray(p, end)) return false;
+    //     while (jsonNextElement(p, end)) {
+    //         ... read element value ...   // p points at the element
+    //     }
+    //
+    // `jsonNextKey` returning true leaves p at the value start (past `:` + ws).
+    // `jsonNextElement` returning true leaves p at the element start.
+    // Both consume the closing `}`/`]` when they return false.
+    // ============================================================================
 
     inline bool jsonEnterObject(const char *& p, const char *end)
     {
@@ -487,9 +493,9 @@ namespace Lightnet {
         }
     }
 
-// ============================================================================
-// SimpleJson — read accessor for a known-shape JSON object body
-// ============================================================================
+    // ============================================================================
+    // SimpleJson — read accessor for a known-shape JSON object body
+    // ============================================================================
 
     class SimpleJson
     {

@@ -72,15 +72,15 @@ bool LightnetPinger::getAndResetHandshake()
     bool state;
 
     #if IS_ESP
-    noInterrupts();
-    state = this->hasHandshake;
-    this->hasHandshake = false;
-    interrupts();
-    #else
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        noInterrupts();
         state = this->hasHandshake;
         this->hasHandshake = false;
-    }
+        interrupts();
+    #else
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            state = this->hasHandshake;
+            this->hasHandshake = false;
+        }
     #endif
 
     if (state) {
@@ -95,15 +95,15 @@ bool LightnetPinger::getAndResetDone()
     bool state;
 
     #if IS_ESP
-    noInterrupts();
-    state = this->hasDone;
-    this->hasDone = false;
-    interrupts();
-    #else
-    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        noInterrupts();
         state = this->hasDone;
         this->hasDone = false;
-    }
+        interrupts();
+    #else
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            state = this->hasDone;
+            this->hasDone = false;
+        }
     #endif
 
     if (state) {

@@ -29,9 +29,9 @@ namespace Lightnet {
         constexpr size_t MAX_BODY_SMALL = 512;
         constexpr size_t MAX_BODY_LARGE = 4096;
 
-// ============================================================================
-// Response helpers
-// ============================================================================
+        // ============================================================================
+        // Response helpers
+        // ============================================================================
 
         inline void sendOk(AsyncWebServerRequest *req)
         {
@@ -51,12 +51,12 @@ namespace Lightnet {
             req->send(code, "application/json", buf);
         }
 
-// URL / name parsing helpers (isSafeName, nameFromUrl) live in HttpUrl.hpp
-// so they can be unit-tested without ESPAsyncWebServer.
+        // URL / name parsing helpers (isSafeName, nameFromUrl) live in HttpUrl.hpp
+        // so they can be unit-tested without ESPAsyncWebServer.
 
-// ============================================================================
-// Body buffering (chunked request body → single null-terminated buffer)
-// ============================================================================
+        // ============================================================================
+        // Body buffering (chunked request body → single null-terminated buffer)
+        // ============================================================================
 
         namespace detail {
             struct BodyBuf {
@@ -105,20 +105,20 @@ namespace Lightnet {
             }
         } // namespace detail
 
-// Register a route that buffers the request body, then dispatches to a member
-// function with signature: void T::method(AsyncWebServerRequest *, const uint8_t *body, size_t len).
-//
-// Usage:
-//   Http::onBody(server, "/api/palettes", HTTP_POST, Http::MAX_BODY_LARGE,
-//                this, &PaletteServer::handlePostPalette);
+        // Register a route that buffers the request body, then dispatches to a member
+        // function with signature: void T::method(AsyncWebServerRequest *, const uint8_t *body, size_t len).
+        //
+        // Usage:
+        //   Http::onBody(server, "/api/palettes", HTTP_POST, Http::MAX_BODY_LARGE,
+        //                this, &PaletteServer::handlePostPalette);
         template <typename T>
         void onBody(
-            AsyncWebServer&    server,
-            const char *       uri,
-            WebRequestMethod   method,
-            size_t             maxBody,
-            T *                instance,
-            void (T::*         memberFn)(AsyncWebServerRequest *, const uint8_t *, size_t)
+            AsyncWebServer& server,
+            const char *uri,
+            WebRequestMethod method,
+            size_t maxBody,
+            T *instance,
+            void (T::* memberFn)(AsyncWebServerRequest *, const uint8_t *, size_t)
         )
         {
             auto onRequest = [instance, memberFn](AsyncWebServerRequest *req) {
@@ -134,11 +134,11 @@ namespace Lightnet {
                              };
             auto onChunk = [maxBody](
                 AsyncWebServerRequest *r,
-                uint8_t *              d,
-                size_t                 l,
+                uint8_t *d,
+                size_t l,
                 size_t /*index*/,
-                size_t                 t
-            ) {
+                size_t t
+                           ) {
                                if (!detail::appendBody(r, d, l, t, maxBody)) {
                                    sendError(r, 413, "body_too_large");
                                }

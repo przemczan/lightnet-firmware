@@ -6,7 +6,7 @@
 #include "ScenePlayer.hpp"
 
 namespace Lightnet {
-// Result of parsing a scene JSON body. Stack-allocated in route handlers (~2.2 KB).
+    // Result of parsing a scene JSON body. Stack-allocated in route handlers (~2.2 KB).
     struct SceneParseResult {
         bool               valid;
         char               errMsg[64];
@@ -23,12 +23,12 @@ namespace Lightnet {
         SceneLayer         layers[SCENE_MAX_LAYERS];
     };
 
-// Parse `len` bytes of scene JSON from `json` into `out`.
-// Returns true on success; on failure out.valid is false and out.errMsg is set.
+    // Parse `len` bytes of scene JSON from `json` into `out`.
+    // Returns true on success; on failure out.valid is false and out.errMsg is set.
     bool parseScene(const char *json, size_t len, SceneParseResult& out);
 
-// Parse a flat one-shot body {"group":N,"panels":...,...step fields...} into a
-// single-layer SceneLayer. Returns false + errMsg on validation failure.
+    // Parse a flat one-shot body {"group":N,"panels":...,...step fields...} into a
+    // single-layer SceneLayer. Returns false + errMsg on validation failure.
     bool parseOneShotBody(
         const char *json,
         size_t      len,

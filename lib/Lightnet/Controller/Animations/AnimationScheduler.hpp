@@ -9,10 +9,10 @@
 #include "../../Utils/List.hpp"
 
 namespace Lightnet {
-// Forward declare AnimationRunner (defined in AnimationRunner.hpp)
+    // Forward declare AnimationRunner (defined in AnimationRunner.hpp)
     class AnimationRunner;
 
-// Per-panel animation tracking record (in-memory state)
+    // Per-panel animation tracking record (in-memory state)
     struct AnimationRecord {
         uint8_t  animType;  // current animation type
         uint8_t  groupId;   // current group ID

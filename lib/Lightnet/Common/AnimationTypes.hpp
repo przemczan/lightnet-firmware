@@ -5,9 +5,9 @@
 #include "ColorRef.hpp"
 
 namespace Lightnet {
-// ============================================================================
-// Animation Types (panel-local and references)
-// ============================================================================
+    // ============================================================================
+    // Animation Types (panel-local and references)
+    // ============================================================================
 
     enum AnimationType : uint8_t {
         ANIM_SOLID       = 0,// hold colorTo
@@ -32,9 +32,9 @@ namespace Lightnet {
         return t >= 64;
     }
 
-// ============================================================================
-// Animation Flags (bitfield)
-// ============================================================================
+    // ============================================================================
+    // Animation Flags (bitfield)
+    // ============================================================================
 
     enum AnimationFlags : uint8_t {
         FLAG_LOOP       = 0x01,// loop animation indefinitely
@@ -47,9 +47,9 @@ namespace Lightnet {
         FLAG_CURRENT_COLOR_TO   = 0x10,// override colorTo with current LED color
     };
 
-// ============================================================================
-// Animation Control Commands
-// ============================================================================
+    // ============================================================================
+    // Animation Control Commands
+    // ============================================================================
 
     enum AnimationControl : uint8_t {
         ANIM_CTRL_STOP        = 1,// stop immediately, hold current frame
@@ -58,9 +58,9 @@ namespace Lightnet {
         ANIM_CTRL_CLEAR_QUEUE = 4, // clear queued animations
     };
 
-// ============================================================================
-// Animation Parameter Update Types (for UPDATE_PARAMS packet)
-// ============================================================================
+    // ============================================================================
+    // Animation Parameter Update Types (for UPDATE_PARAMS packet)
+    // ============================================================================
 
     enum AnimationParamType : uint8_t {
         PARAM_TRIGGER         = 1,// REACTIVE: trigger peak (value = peak level)
@@ -68,9 +68,9 @@ namespace Lightnet {
         PARAM_SPEED_SCALE     = 3,// speed multiplier for running animations
     };
 
-// ============================================================================
-// Panel-Side Animation State (22 bytes)
-// ============================================================================
+    // ============================================================================
+    // Panel-Side Animation State (22 bytes)
+    // ============================================================================
 
     struct __attribute__((__packed__)) AnimationState {
         uint8_t  animType;   // AnimationType enum
@@ -85,9 +85,9 @@ namespace Lightnet {
         uint8_t  param2;     // type-specific
     };
 
-// ============================================================================
-// Verification (note: packet structs are defined in Protocol.hpp)
-// ============================================================================
+    // ============================================================================
+    // Verification (note: packet structs are defined in Protocol.hpp)
+    // ============================================================================
 
-// static_assert(sizeof(AnimationState) == 22, "AnimationState must be 22 bytes");
+    // static_assert(sizeof(AnimationState) == 22, "AnimationState must be 22 bytes");
 }  // namespace Lightnet

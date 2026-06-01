@@ -137,7 +137,7 @@ namespace Lightnet {
 
         if (panelCount == 0) return;
 
-        uint16_t effectiveDurationMs = (step.durationMs == 0 || speed == 1.0f)
+        uint16_t effectiveDurationMs = ((step.durationMs == 0) || (speed == 1.0f))
             ? step.durationMs
             : (uint16_t)min((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
 

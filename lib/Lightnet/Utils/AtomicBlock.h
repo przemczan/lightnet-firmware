@@ -354,188 +354,188 @@ class _AtomicInline
 #ifdef __AVR__
     #include <avr/io.h>
 
-/*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ static void GlobalInterruptsOff(void)
-{
-    __asm__ __volatile__ ("cli" ::);
-}
-
-_INLINE_ static void GlobalInterruptsOn(void)
-{
-    __asm__ __volatile__ ("sei" ::);
-}
-
-/*********************************************************************
-    Atomic_RestoreState AVR specific.
-        This will cause SREG to be returned to its original value
-        at the end of its life. Its function depends on '_Atomic'.
-*********************************************************************/
-
-template< bool _Atomic, bool _SafeRestore = false >
-struct Atomic_RestoreState {
-    _INLINE_ Atomic_RestoreState(void) : u_SREG(SREG)
+    /*** GlobalInterrupts On/Off function prototypes must not change. ***/
+    _INLINE_ static void GlobalInterruptsOff(void)
     {
-        ( (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn) )();
+        __asm__ __volatile__ ("cli" ::);
     }
 
-    _INLINE_ ~Atomic_RestoreState(void)
+    _INLINE_ static void GlobalInterruptsOn(void)
     {
-        if (_SafeRestore) {
-            if (_Atomic && (this->u_SREG & _BV(SREG_I) ) )     GlobalInterruptsOn();
-
-            if (!_Atomic && !(this->u_SREG & _BV(SREG_I) ) )     GlobalInterruptsOff();
-        } else
-            SREG = this->u_SREG;
+        __asm__ __volatile__ ("sei" ::);
     }
 
-    const uint8_t u_SREG;
-};
+    /*********************************************************************
+        Atomic_RestoreState AVR specific.
+            This will cause SREG to be returned to its original value
+            at the end of its life. Its function depends on '_Atomic'.
+    *********************************************************************/
 
-/****	ARM specific.	****/
+    template< bool _Atomic, bool _SafeRestore = false >
+    struct Atomic_RestoreState {
+        _INLINE_ Atomic_RestoreState(void) : u_SREG(SREG)
+        {
+            ( (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn) )();
+        }
+
+        _INLINE_ ~Atomic_RestoreState(void)
+        {
+            if (_SafeRestore) {
+                if (_Atomic && (this->u_SREG & _BV(SREG_I) ) )     GlobalInterruptsOn();
+
+                if (!_Atomic && !(this->u_SREG & _BV(SREG_I) ) )     GlobalInterruptsOff();
+            } else
+                SREG = this->u_SREG;
+        }
+
+        const uint8_t u_SREG;
+    };
+
+    /****	ARM specific.	****/
 #elif defined(__arm__)
 
-/*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ void GlobalInterruptsOff(void)
-{
-    __asm__ __volatile__ ("cpsid i" ::);
-}
-
-_INLINE_ void GlobalInterruptsOn(void)
-{
-    __asm__ __volatile__ ("cpsie i" ::);
-}
-
-/*** ARMv7M specific helper functions. ***/
-_INLINE_ void WriteGlobalInterrupts(uint32_t u_Value)
-{
-    __asm__ __volatile__ ("MSR primask, %0" : : "r" (u_Value) );
-}
-
-_INLINE_ uint32_t ReadGlobalInterrupts(void)
-{
-    uint32_t u_Return;
-
-    __asm__ __volatile__ ("MRS %0, primask" : "=r" (u_Return) );
-
-    return u_Return;
-}
-
-/*********************************************************************
-    Atomic_RestoreState ARMv7M specific.
-        This will cause PRIMASK to be returned to its original value
-        at the end of its life. Its function depends on '_Atomic'.
-*********************************************************************/
-
-template< bool _Atomic, bool _SafeRestore = false >
-struct Atomic_RestoreState {
-    _INLINE_ Atomic_RestoreState(void) : u_PRIMASK(ReadGlobalInterrupts() )
+    /*** GlobalInterrupts On/Off function prototypes must not change. ***/
+    _INLINE_ void GlobalInterruptsOff(void)
     {
-        (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
+        __asm__ __volatile__ ("cpsid i" ::);
     }
 
-    _INLINE_ ~Atomic_RestoreState(void)
+    _INLINE_ void GlobalInterruptsOn(void)
     {
-        if (_SafeRestore) {
-            if (_Atomic && !(this->u_PRIMASK & 0x1) )     GlobalInterruptsOn();
-
-            if (!_Atomic && (this->u_PRIMASK & 0x1) )     GlobalInterruptsOff();
-        } else
-            WriteGlobalInterrupts(this->u_PRIMASK);
+        __asm__ __volatile__ ("cpsie i" ::);
     }
 
-    const uint32_t u_PRIMASK;
-};
+    /*** ARMv7M specific helper functions. ***/
+    _INLINE_ void WriteGlobalInterrupts(uint32_t u_Value)
+    {
+        __asm__ __volatile__ ("MSR primask, %0" : : "r" (u_Value) );
+    }
 
-/****	PIC32 specific.	****/
+    _INLINE_ uint32_t ReadGlobalInterrupts(void)
+    {
+        uint32_t u_Return;
+
+        __asm__ __volatile__ ("MRS %0, primask" : "=r" (u_Return) );
+
+        return u_Return;
+    }
+
+    /*********************************************************************
+        Atomic_RestoreState ARMv7M specific.
+            This will cause PRIMASK to be returned to its original value
+            at the end of its life. Its function depends on '_Atomic'.
+    *********************************************************************/
+
+    template< bool _Atomic, bool _SafeRestore = false >
+    struct Atomic_RestoreState {
+        _INLINE_ Atomic_RestoreState(void) : u_PRIMASK(ReadGlobalInterrupts() )
+        {
+            (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
+        }
+
+        _INLINE_ ~Atomic_RestoreState(void)
+        {
+            if (_SafeRestore) {
+                if (_Atomic && !(this->u_PRIMASK & 0x1) )     GlobalInterruptsOn();
+
+                if (!_Atomic && (this->u_PRIMASK & 0x1) )     GlobalInterruptsOff();
+            } else
+                WriteGlobalInterrupts(this->u_PRIMASK);
+        }
+
+        const uint32_t u_PRIMASK;
+    };
+
+    /****	PIC32 specific.	****/
 #elif defined(PIC32)
 
-/*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ void GlobalInterruptsOff(void)
-{
-    __asm__ __volatile__ ("di" ::);
-}
-
-_INLINE_ void GlobalInterruptsOn(void)
-{
-    __asm__ __volatile__ ("ei" ::);
-}
-
-/*** PIC32 specific helper functions. ***/
-_INLINE_ uint32_t GlobalInterruptsOffReturn(void)
-{
-    uint32_t u_Return;
-
-    __asm__ __volatile__ ("di    %0" : "=r" (u_Return));
-
-    return u_Return;
-}
-
-_INLINE_ uint32_t GlobalInterruptsOnReturn(void)
-{
-    uint32_t u_Return;
-
-    __asm__ __volatile__ ("ei    %0" : "=r" (u_Return));
-
-    return u_Return;
-}
-
-/*********************************************************************
-    Atomic_RestoreState PIC32 specific.
-        Safe mode is unused on the PIC32 platform.
-*********************************************************************/
-
-template< bool _Atomic, bool _Unused = true >
-struct Atomic_RestoreState {
-    _INLINE_ Atomic_RestoreState(void) : u_Status( (_Atomic ? GlobalInterruptsOffReturn : GlobalInterruptsOnReturn)() )
+    /*** GlobalInterrupts On/Off function prototypes must not change. ***/
+    _INLINE_ void GlobalInterruptsOff(void)
     {
-        return;
+        __asm__ __volatile__ ("di" ::);
     }
 
-    _INLINE_ ~Atomic_RestoreState(void)
+    _INLINE_ void GlobalInterruptsOn(void)
     {
-        if (_Atomic && (this->u_Status & 0x1) )     GlobalInterruptsOn();
-
-        if (!_Atomic && !(this->u_Status & 0x1) )     GlobalInterruptsOff();
+        __asm__ __volatile__ ("ei" ::);
     }
 
-    const uint32_t u_Status;
-};
+    /*** PIC32 specific helper functions. ***/
+    _INLINE_ uint32_t GlobalInterruptsOffReturn(void)
+    {
+        uint32_t u_Return;
+
+        __asm__ __volatile__ ("di    %0" : "=r" (u_Return));
+
+        return u_Return;
+    }
+
+    _INLINE_ uint32_t GlobalInterruptsOnReturn(void)
+    {
+        uint32_t u_Return;
+
+        __asm__ __volatile__ ("ei    %0" : "=r" (u_Return));
+
+        return u_Return;
+    }
+
+    /*********************************************************************
+        Atomic_RestoreState PIC32 specific.
+            Safe mode is unused on the PIC32 platform.
+    *********************************************************************/
+
+    template< bool _Atomic, bool _Unused = true >
+    struct Atomic_RestoreState {
+        _INLINE_ Atomic_RestoreState(void) : u_Status( (_Atomic ? GlobalInterruptsOffReturn : GlobalInterruptsOnReturn)() )
+        {
+            return;
+        }
+
+        _INLINE_ ~Atomic_RestoreState(void)
+        {
+            if (_Atomic && (this->u_Status & 0x1) )     GlobalInterruptsOn();
+
+            if (!_Atomic && !(this->u_Status & 0x1) )     GlobalInterruptsOff();
+        }
+
+        const uint32_t u_Status;
+    };
 
 #elif defined(__AVR32__)
     #include <interrupt_avr32.h>
 
-/*** GlobalInterrupts On/Off function prototypes must not change. ***/
-_INLINE_ void GlobalInterruptsOff(void)
-{
-    Disable_global_interrupt();
-}
-
-_INLINE_ void GlobalInterruptsOn(void)
-{
-    Enable_global_interrupt();
-}
-
-/*********************************************************************
-    Atomic_RestoreState AVR32 specific.
-        Safe mode is unused on the AVR32 platform.
-*********************************************************************/
-
-template< bool _Atomic, bool _Unused = true >
-struct Atomic_RestoreState {
-    _INLINE_ Atomic_RestoreState(void) : b_Status(Is_global_interrupt_enabled() )
+    /*** GlobalInterrupts On/Off function prototypes must not change. ***/
+    _INLINE_ void GlobalInterruptsOff(void)
     {
-        (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
+        Disable_global_interrupt();
     }
 
-    _INLINE_ ~Atomic_RestoreState(void)
+    _INLINE_ void GlobalInterruptsOn(void)
     {
-        if (_Atomic && this->b_Status)   GlobalInterruptsOn();
-
-        if (!_Atomic && !this->b_Status)   GlobalInterruptsOff();
+        Enable_global_interrupt();
     }
 
-    const bool b_Status;
-};
+    /*********************************************************************
+        Atomic_RestoreState AVR32 specific.
+            Safe mode is unused on the AVR32 platform.
+    *********************************************************************/
+
+    template< bool _Atomic, bool _Unused = true >
+    struct Atomic_RestoreState {
+        _INLINE_ Atomic_RestoreState(void) : b_Status(Is_global_interrupt_enabled() )
+        {
+            (_Atomic ? GlobalInterruptsOff : GlobalInterruptsOn)();
+        }
+
+        _INLINE_ ~Atomic_RestoreState(void)
+        {
+            if (_Atomic && this->b_Status)   GlobalInterruptsOn();
+
+            if (!_Atomic && !this->b_Status)   GlobalInterruptsOff();
+        }
+
+        const bool b_Status;
+    };
 
 #else
     #error AtomicBlock does not currently support this architecture.

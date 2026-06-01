@@ -19,7 +19,7 @@ class WebsocketServer
         volatile uint16_t droppedCount = 0;
 
         #ifdef ARDUINO_ARCH_ESP32
-        portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
+            portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
         #endif
 
         void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);

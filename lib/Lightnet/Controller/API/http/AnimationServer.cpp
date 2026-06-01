@@ -9,9 +9,11 @@ namespace Lightnet {
         AsyncWebServer&     _server,
         AnimationService&   _animService,
         AnimationScheduler& _scheduler,
-        AppearanceStore&    _appearance
+        AppearanceStore&    _appearance,
+        AppStateStore&      _appState
     )
-        : server(_server), animService(_animService), scheduler(_scheduler), appearance(_appearance)
+        : server(_server), animService(_animService), scheduler(_scheduler),
+        appearance(_appearance), appState(_appState)
     {
     }
 
@@ -45,6 +47,12 @@ namespace Lightnet {
 
     void AnimationServer::handleOneShotPlay(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
+        if (!appState.isOn()) {
+            Http::sendError(req, 409, "system_off");
+
+            return;
+        }
+
         auto r = animService.playOneShot((const char *)body, len,
                                          appearance.paletteName(), appearance.baseColors());
 
@@ -59,6 +67,12 @@ namespace Lightnet {
 
     void AnimationServer::handleAnimTrigger(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
+        if (!appState.isOn()) {
+            Http::sendError(req, 409, "system_off");
+
+            return;
+        }
+
         SimpleJson j(body, len);
         long grp = j.getInt("group");
         long val = j.getInt("value");

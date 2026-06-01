@@ -228,9 +228,9 @@ namespace Lightnet {
         }
     }
 
-// ============================================================================
-// RGB convenience overload — wraps inline RGB in ColorRefs
-// ============================================================================
+    // ============================================================================
+    // RGB convenience overload — wraps inline RGB in ColorRefs
+    // ============================================================================
 
     void AnimationScheduler::playOnPanels(
         uint8_t                   group_id,
@@ -252,9 +252,9 @@ namespace Lightnet {
                      param1, param2, panelAddresses, panelCount);
     }
 
-// ============================================================================
-// Appearance broadcasts
-// ============================================================================
+    // ============================================================================
+    // Appearance broadcasts
+    // ============================================================================
 
     void AnimationScheduler::broadcastPalette(const GradientStop *stops, uint8_t count)
     {

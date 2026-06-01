@@ -49,7 +49,8 @@ namespace Lightnet {
             case COLORREF_RGB:
                 return ::Protocol::ColorRGB{ ref.rgb.r, ref.rgb.g, ref.rgb.b };
 
-            case COLORREF_PALETTE: {
+            case COLORREF_PALETTE:
+            {
                 ::Protocol::ColorRGB out;
 
                 samplePalette(palette, paletteCount, ref.palette.pos, &out.r, &out.g, &out.b);
@@ -57,7 +58,8 @@ namespace Lightnet {
                 return out;
             }
 
-            case COLORREF_USE_COLOR: {
+            case COLORREF_USE_COLOR:
+            {
                 uint8_t slot = ref.useColor.slot;
 
                 if (slot >= BASE_COLORS_COUNT) slot = 0;
@@ -78,9 +80,9 @@ namespace Lightnet {
         *outTo   = resolveColorRef(anim.colorTo);
     }
 
-// ============================================================================
-// Packet Handlers
-// ============================================================================
+    // ============================================================================
+    // Packet Handlers
+    // ============================================================================
 
     void AnimationPlayer::prepare(const ::Protocol::PacketAnimationPrepare *pkt)
     {
@@ -257,9 +259,9 @@ namespace Lightnet {
         }
     }
 
-// ============================================================================
-// Main Tick Function
-// ============================================================================
+    // ============================================================================
+    // Main Tick Function
+    // ============================================================================
 
     void AnimationPlayer::tick()
     {
@@ -308,9 +310,9 @@ namespace Lightnet {
         applyToLED();
     }
 
-// ============================================================================
-// Animation Computation
-// ============================================================================
+    // ============================================================================
+    // Animation Computation
+    // ============================================================================
 
     void AnimationPlayer::computeFrame(uint16_t elapsed)
     {
@@ -356,9 +358,9 @@ namespace Lightnet {
         }
     }
 
-// ============================================================================
-// Animation Type Handlers
-// ============================================================================
+    // ============================================================================
+    // Animation Type Handlers
+    // ============================================================================
 
     void AnimationPlayer::tickFade(uint16_t elapsed)
     {
@@ -413,6 +415,7 @@ namespace Lightnet {
         uint8_t ease   = (uint8_t)(255 - inv_sq);
 
         ::Protocol::ColorRGB cFrom, cTo;
+
         resolveCurrentColors(&cFrom, &cTo);
         rgbLerp(cFrom, cTo, ease, &currentColor);
     }
@@ -467,6 +470,7 @@ namespace Lightnet {
         bool on = (phase < period_ms);
 
         ::Protocol::ColorRGB cFrom, cTo;
+
         resolveCurrentColors(&cFrom, &cTo);
         currentColor = on ? cTo : cFrom;
     }
@@ -527,7 +531,8 @@ namespace Lightnet {
         bool on = (elapsed % period_ms) < (period_ms / 2);
 
         ::Protocol::ColorRGB cTo = resolveColorRef(anim.colorTo);
-        currentColor = on ? cTo : ::Protocol::ColorRGB{0, 0, 0};
+
+        currentColor = on ? cTo : ::Protocol::ColorRGB{ 0, 0, 0 };
     }
 
     void AnimationPlayer::tickReactive(uint16_t elapsed)
@@ -546,9 +551,9 @@ namespace Lightnet {
         rgbLerp(cFrom, cTo, reactiveLevel, &currentColor);
     }
 
-// ============================================================================
-// Utilities
-// ============================================================================
+    // ============================================================================
+    // Utilities
+    // ============================================================================
 
     uint8_t AnimationPlayer::lerp8(uint8_t a, uint8_t b, uint8_t frac_q8)
     {
@@ -570,9 +575,9 @@ namespace Lightnet {
         out->b = lerp8(a.b, b.b, frac_q8);
     }
 
-// ============================================================================
-// Status and Queue Management
-// ============================================================================
+    // ============================================================================
+    // Status and Queue Management
+    // ============================================================================
 
     void AnimationPlayer::fillStatus(::Protocol::PacketAnimationStatus *out)
     {

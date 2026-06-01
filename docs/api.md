@@ -30,6 +30,8 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
    - [Animations](#24-animations)
    - [Firmware updates](#25-firmware-updates)
    - [Panels](#26-panels)
+   - [Configuration](#27-configuration)
+   - [State](#28-state)
 3. [Error handling](#3-error-handling)
 
 ---
@@ -355,6 +357,41 @@ Direct per-panel control. These endpoints bypass the animation system — any ru
 `GET /api/panels` fetches the live state of each discovered panel over I²C. Panels that do not respond are omitted from the array. `connectedPanel` and `connectedEdge` in the edges response are `0` when an edge slot is unoccupied.
 
 These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANELS_STATES`, and `GET_EDGES_LIST` commands.
+
+---
+
+### 2.7 Configuration
+
+Persistent app-level settings. Stored in `/config/configuration.json` and written atomically with a 5-second deferred-write window.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/configuration` | — | `{"powerStateOnBoot":0}` |
+| `PATCH` | `/api/configuration` | `{"powerStateOnBoot":int}` | `{}` |
+
+**`powerStateOnBoot`** — controls the global power state after a reboot:
+
+| Value | Constant | Behavior |
+|---|---|---|
+| `0` | `POWER_ALWAYS_ON` (default) | Always boot with panels on |
+| `1` | `POWER_ALWAYS_OFF` | Always boot with panels off |
+| `2` | `POWER_LAST_STATE` | Restore the last persisted `isOn` value |
+
+Values outside `0–2` return `422`.
+
+---
+
+### 2.8 State
+
+Runtime power state. Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial value on boot is derived from `powerStateOnBoot` (see §2.7).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/state/power` | — | `{"isOn":true}` |
+| `POST` | `/api/state/power` | `{"isOn":bool}` | `{"isOn":bool}` |
+
+- Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.
+- Setting `isOn: true` turns all panels back on and re-broadcasts the current appearance (brightness, palette, base colors).
 
 ---
 

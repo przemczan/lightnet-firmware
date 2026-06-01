@@ -4,10 +4,10 @@
 #include "LightnetConfig.hpp"
 
 namespace Lightnet {
-// Single palette gradient stop: position (0..255) + RGB color.
-// 4 bytes per stop, PALETTE_STOPS stops per palette = 64 bytes total.
-// Intentionally does not depend on Protocol::ColorRGB so this header can be
-// included by Protocol.hpp without a circular dependency.
+    // Single palette gradient stop: position (0..255) + RGB color.
+    // 4 bytes per stop, PALETTE_STOPS stops per palette = 64 bytes total.
+    // Intentionally does not depend on Protocol::ColorRGB so this header can be
+    // included by Protocol.hpp without a circular dependency.
     struct __attribute__((__packed__)) GradientStop {
         uint8_t pos;
         uint8_t r;
@@ -15,10 +15,10 @@ namespace Lightnet {
         uint8_t b;
     };
 
-// Sample a palette at position 0..255. Linear interpolation between adjacent stops.
-// Writes the resulting (r, g, b) triple into out[0..2].
-// `stops` must contain `count` valid entries with strictly increasing positions.
-// Caller guarantees count >= 1 (defaults to white if violated).
+    // Sample a palette at position 0..255. Linear interpolation between adjacent stops.
+    // Writes the resulting (r, g, b) triple into out[0..2].
+    // `stops` must contain `count` valid entries with strictly increasing positions.
+    // Caller guarantees count >= 1 (defaults to white if violated).
     static inline void samplePalette(
         const GradientStop *stops,
         uint8_t             count,

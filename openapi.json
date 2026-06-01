@@ -480,6 +480,109 @@
         }
       }
     },
+    "/api/configuration": {
+      "get": {
+        "summary": "Get Configuration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "powerStateOnBoot": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Configuration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "422": {
+            "description": "powerStateOnBoot out of range (must be 0, 1, or 2)"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "powerStateOnBoot": {
+                    "type": "integer",
+                    "enum": [0, 1, 2],
+                    "description": "0=ALWAYS_ON, 1=ALWAYS_OFF, 2=LAST_STATE"
+                  }
+                },
+                "required": ["powerStateOnBoot"]
+              },
+              "example": {
+                "powerStateOnBoot": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/state/power": {
+      "get": {
+        "summary": "Get Power State",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "isOn": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Set Power State",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "isOn": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isOn": {
+                    "type": "boolean",
+                    "description": "true = panels on. false = stop animations and turn all panels off."
+                  }
+                },
+                "required": ["isOn"]
+              },
+              "example": {
+                "isOn": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/panels/{{panelAddress}}/color": {
       "put": {
         "summary": "Set Panel Color",

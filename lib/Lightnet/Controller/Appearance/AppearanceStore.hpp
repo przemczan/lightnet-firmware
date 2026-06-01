@@ -6,28 +6,29 @@
 #include "../../Common/Protocol.hpp"
 #include "../Animations/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"
+#include "../../Utils/DeferredWriter.hpp"
 
 namespace Lightnet {
-// Owns `/config/appearance.json` — the persistent record of how the lights currently
-// look (global brightness, base colors, selected palette). On boot, load+apply broadcasts
-// the values to all panels.
-//
-// Writes are deferred: mutators update in-memory state and broadcast to panels immediately,
-// but SPIFFS is only written after APPEARANCE_FLUSH_INTERVAL_MS has elapsed since the
-// first un-persisted change. Call tick() from the main loop to drive this. Call flush()
-// before any graceful reboot to guarantee the latest state is saved.
-//
-// SPIFFS layout:
-//   /config/appearance.json
-//   {
-//     "schemaVersion": 1,
-//     "brightness": 192,
-//     "baseColors": ["#FF4400", "#FF8800", "#000000"],
-//     "palette": "lava"
-//   }
-//
-// The file is written via tmp+rename so a power loss during save never corrupts the
-// previous good copy.
+    // Owns `/config/appearance.json` — the persistent record of how the lights currently
+    // look (global brightness, base colors, selected palette). On boot, load+apply broadcasts
+    // the values to all panels.
+    //
+    // Writes are deferred: mutators update in-memory state and broadcast to panels immediately,
+    // but SPIFFS is only written after APPEARANCE_FLUSH_INTERVAL_MS has elapsed since the
+    // first un-persisted change. Call tick() from the main loop to drive this. Call flush()
+    // before any graceful reboot to guarantee the latest state is saved.
+    //
+    // SPIFFS layout:
+    //   /config/appearance.json
+    //   {
+    //     "schemaVersion": 1,
+    //     "brightness": 192,
+    //     "baseColors": ["#FF4400", "#FF8800", "#000000"],
+    //     "palette": "lava"
+    //   }
+    //
+    // The file is written via tmp+rename so a power loss during save never corrupts the
+    // previous good copy.
     class AppearanceStore
     {
         public:
@@ -37,6 +38,10 @@ namespace Lightnet {
             // Call once after panel discovery completes and before the WiFi captive portal
             // can block.
             void loadAndApply();
+
+            // Re-broadcast current in-memory state to panels without touching SPIFFS.
+            // Call after restoring global power to resync panel state.
+            void reapply();
 
             // Call from the main loop. Flushes to SPIFFS when the deferred-write interval
             // has elapsed since the first un-persisted change.
@@ -80,12 +85,11 @@ namespace Lightnet {
             char paletteValue[20];         // 19 chars max + null
 
             // Persistence helpers
-            bool readFile();    // returns true if a valid file existed
-            void writeFile();   // atomic tmp+rename
+            bool readFile();      // returns true if a valid file existed
+            void writeFile();     // atomic tmp+rename
             void writeDefaults(); // populate in-memory state with defaults
-            void markDirty();   // record that in-memory state needs flushing
 
-            uint32_t dirtyAt; // millis() when state first became dirty; 0 = clean
+            DeferredWriter writer{ 10000 };
 
             // Resolve and broadcast the currently selected palette (handling the
             // synthetic "userColors" case).

@@ -62,7 +62,7 @@ namespace Protocol {
         ColorRGB color;
     } PanelState;
 
-// BEGIN Common packet structures
+    // BEGIN Common packet structures
     typedef struct PACK {
         packetType_t type;
         uint16_t     protocolVersion;
@@ -72,9 +72,9 @@ namespace Protocol {
         PacketHeader header;
         uint16_t     headerCrc;
     } PacketMeta;
-// END
+    // END
 
-// BEGIN Packets definitions
+    // BEGIN Packets definitions
     typedef struct PACK {
         PacketMeta meta;
         uint16_t   panelIndex;
@@ -180,7 +180,7 @@ namespace Protocol {
         uint8_t    value;
     } PacketSetGlobalBrightness;  // 6 bytes
 
-// END
+    // END
 
     // Both controller and panel must agree on this value.
     // Panel side: checked in handleEnterBootloader().

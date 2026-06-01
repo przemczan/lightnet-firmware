@@ -10,14 +10,14 @@
 #include "../../Utils/SimpleJson.hpp"
 
 namespace Lightnet {
-// Parse a palette JSON body of the form:
-//   {"schemaVersion":1,"name":"foo","stops":[[pos,"#RRGGBB"],...]}
-//
-// On success returns true and fills outStops/outCount with up to PALETTE_STOPS
-// entries. If outName/outNameLen are provided, the parsed name is copied there;
-// in that case the parse fails when the JSON has no "name" field.
-//
-// Whitespace inside the JSON is tolerated (cursor helpers skip it).
+    // Parse a palette JSON body of the form:
+    //   {"schemaVersion":1,"name":"foo","stops":[[pos,"#RRGGBB"],...]}
+    //
+    // On success returns true and fills outStops/outCount with up to PALETTE_STOPS
+    // entries. If outName/outNameLen are provided, the parsed name is copied there;
+    // in that case the parse fails when the JSON has no "name" field.
+    //
+    // Whitespace inside the JSON is tolerated (cursor helpers skip it).
     inline bool parsePaletteJson(
         const char *  json,
         size_t        len,
@@ -28,6 +28,7 @@ namespace Lightnet {
     )
     {
         outCount = 0;
+
         if (outName && outNameLen > 0) outName[0] = '\0';
 
         if (!json || len == 0) return false;
@@ -38,6 +39,7 @@ namespace Lightnet {
         if (!jsonEnterObject(p, end)) return false;
 
         char key[32];
+
         while (jsonNextKey(p, end, key, sizeof(key))) {
             if (strcmp(key, "name") == 0) {
                 if (outName) {
@@ -73,6 +75,7 @@ namespace Lightnet {
         }
 
         if (outCount < 1) return false;
+
         if (outName && outNameLen > 0 && outName[0] == '\0') return false;
 
         return true;

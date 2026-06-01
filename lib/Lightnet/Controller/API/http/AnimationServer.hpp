@@ -4,6 +4,7 @@
 #include "../../Scenes/AnimationService.hpp"
 #include "../../Animations/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
+#include "../../AppState/AppStateStore.hpp"
 
 namespace Lightnet {
     class AnimationServer
@@ -13,7 +14,8 @@ namespace Lightnet {
                 AsyncWebServer&     server,
                 AnimationService&   animService,
                 AnimationScheduler& scheduler,
-                AppearanceStore&    appearance
+                AppearanceStore&    appearance,
+                AppStateStore&      appState
             );
 
             void begin();
@@ -23,6 +25,7 @@ namespace Lightnet {
             AnimationService& animService;
             AnimationScheduler& scheduler;
             AppearanceStore& appearance;
+            AppStateStore& appState;
 
             void registerRoutes();
 

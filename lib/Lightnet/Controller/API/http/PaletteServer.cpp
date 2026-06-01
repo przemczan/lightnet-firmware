@@ -49,18 +49,21 @@ namespace Lightnet {
         char buf[128];
 
         auto writeEntry = [&](const char *name) {
-            if (!first) res->print(",");
-            first = false;
-            snprintf(buf, sizeof(buf), "\"%s\":{\"schemaVersion\":1,\"name\":\"%s\",\"stops\":[", name, name);
-            res->print(buf);
-            for (uint8_t i = 0; i < count; i++) {
-                char hex[8];
-                jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
-                snprintf(buf, sizeof(buf), "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
-                res->print(buf);
-            }
-            res->print("]}");
-        };
+                              if (!first) res->print(",");
+
+                              first = false;
+                              snprintf(buf, sizeof(buf), "\"%s\":{\"schemaVersion\":1,\"name\":\"%s\",\"stops\":[", name, name);
+                              res->print(buf);
+
+                              for (uint8_t i = 0; i < count; i++) {
+                                  char hex[8];
+                                  jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
+                                  snprintf(buf, sizeof(buf), "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
+                                  res->print(buf);
+                              }
+
+                              res->print("]}");
+                          };
 
         res->print("{");
 
@@ -70,7 +73,9 @@ namespace Lightnet {
 
         for (uint8_t i = 0; i < palettes.builtInCount(); i++) {
             const char *name = palettes.builtInName(i);
+
             count = 0;
+
             if (palettes.resolve(name, stops, count)) writeEntry(name);
         }
 
@@ -91,6 +96,7 @@ namespace Lightnet {
                 if (nlen < sizeof(name) && !palettes.isBuiltIn(name)) {
                     memcpy(name, base, nlen);
                     count = 0;
+
                     if (palettes.resolve(name, stops, count)) writeEntry(name);
                 }
             }

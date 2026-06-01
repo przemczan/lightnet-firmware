@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 namespace Lightnet {
-// Coordinate for a panel (fixed-point: 1/100 unit)
+    // Coordinate for a panel (fixed-point: 1/100 unit)
     struct PanelCoord {
         uint8_t panelIndex; // panel I2C address
         int16_t x;        // fixed-point, 1/100 unit  (-327 to +327 units)

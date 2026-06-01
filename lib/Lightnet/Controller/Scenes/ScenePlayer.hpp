@@ -11,18 +11,18 @@
 #include "../Panels/PanelsInitializer.hpp"
 
 namespace Lightnet {
-// ============================================================================
-// Scene-internal capacity constants
-// ============================================================================
+    // ============================================================================
+    // Scene-internal capacity constants
+    // ============================================================================
 
     static const uint8_t SCENE_MAX_LAYERS           = 8;
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;
     static const uint8_t SCENE_SCHEMA_VERSION       = 1;
 
-// ============================================================================
-// Panel targeting mode for a layer
-// ============================================================================
+    // ============================================================================
+    // Panel targeting mode for a layer
+    // ============================================================================
 
     enum class PanelTargetMode : uint8_t {
         ALL, // all discovered panels
@@ -30,9 +30,9 @@ namespace Lightnet {
         EXCLUDE, // all panels except listed
     };
 
-// ============================================================================
-// SceneStep — 18 bytes, generic params + ColorRef
-// ============================================================================
+    // ============================================================================
+    // SceneStep — 18 bytes, generic params + ColorRef
+    // ============================================================================
 
     struct __attribute__((__packed__)) SceneStep {
         uint8_t  animType;   // AnimationType (0-31) or RUN_* (64+)
@@ -43,9 +43,9 @@ namespace Lightnet {
         uint8_t  params[4];  // type-specific, params[0..1] sent via PREPARE
     };
 
-// ============================================================================
-// SceneLayer — ~268 bytes
-// ============================================================================
+    // ============================================================================
+    // SceneLayer — ~268 bytes
+    // ============================================================================
 
     struct SceneLayer {
         uint8_t         groupId;
@@ -57,9 +57,9 @@ namespace Lightnet {
         SceneStep       steps[SCENE_MAX_STEPS];
     };
 
-// ============================================================================
-// ScenePlayer
-// ============================================================================
+    // ============================================================================
+    // ScenePlayer
+    // ============================================================================
 
     class ScenePlayer
     {
@@ -89,11 +89,16 @@ namespace Lightnet {
             void setSpeed(float s)
             {
                 if (s < 0.1f) s = 0.1f;
+
                 if (s > 10.0f) s = 10.0f;
+
                 speed = s;
             }
 
-            float getSpeed() const { return speed; }
+            float getSpeed() const
+            {
+                return speed;
+            }
 
             bool        isPlaying()   const
             {

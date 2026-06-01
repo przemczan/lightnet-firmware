@@ -13,9 +13,10 @@ namespace Lightnet {
     SceneServer::SceneServer(
         AsyncWebServer&   _server,
         ScenePlayer&      _player,
-        AnimationService& _animService
+        AnimationService& _animService,
+        AppStateStore&    _appState
     )
-        : server(_server), player(_player), animService(_animService)
+        : server(_server), player(_player), animService(_animService), appState(_appState)
     {
     }
 
@@ -177,6 +178,12 @@ namespace Lightnet {
 
     void SceneServer::handlePostPlayScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
+        if (!appState.isOn()) {
+            Http::sendError(req, 409, "system_off");
+
+            return;
+        }
+
         auto r = animService.playSceneInline((const char *)body, len);
 
         if (!r.ok()) {
@@ -190,6 +197,12 @@ namespace Lightnet {
 
     void SceneServer::handlePostPlaySceneByName(AsyncWebServerRequest *req)
     {
+        if (!appState.isOn()) {
+            Http::sendError(req, 409, "system_off");
+
+            return;
+        }
+
         const char *url = req->url().c_str();
 
         if (!strstr(url + strlen("/api/scenes/"), "/play")) {
@@ -229,7 +242,11 @@ namespace Lightnet {
         const char *p   = (const char *)body;
         const char *end = p + len;
 
-        if (!jsonEnterObject(p, end)) { Http::sendError(req, 400, "expected_object"); return; }
+        if (!jsonEnterObject(p, end)) {
+            Http::sendError(req, 400, "expected_object");
+
+            return;
+        }
 
         float speed = 1.0f;
         bool found = false;
@@ -237,7 +254,11 @@ namespace Lightnet {
 
         while (jsonNextKey(p, end, key, sizeof(key))) {
             if (strcmp(key, "speed") == 0) {
-                if (!jsonReadFloat(p, end, &speed)) { Http::sendError(req, 400, "speed: not a number"); return; }
+                if (!jsonReadFloat(p, end, &speed)) {
+                    Http::sendError(req, 400, "speed: not a number");
+
+                    return;
+                }
 
                 found = true;
             } else {
@@ -245,9 +266,17 @@ namespace Lightnet {
             }
         }
 
-        if (!found) { Http::sendError(req, 400, "speed: required"); return; }
+        if (!found) {
+            Http::sendError(req, 400, "speed: required");
 
-        if (speed < 0.1f || speed > 10.0f) { Http::sendError(req, 422, "speed: must be 0.1-10.0"); return; }
+            return;
+        }
+
+        if (speed < 0.1f || speed > 10.0f) {
+            Http::sendError(req, 422, "speed: must be 0.1-10.0");
+
+            return;
+        }
 
         animService.setSceneSpeed(speed);
 

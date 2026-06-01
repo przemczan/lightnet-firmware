@@ -3,15 +3,15 @@
 #include <stdint.h>
 
 namespace Lightnet {
-// 4-byte color reference sent over the wire and stored in scene structs.
-// The kind byte selects which union member is meaningful.
-//
-// kind=0 (inline RGB)    : rgb.r, rgb.g, rgb.b
-// kind=1 (palette pos)   : palette.pos    (0..255 sample position)
-// kind=2 (base color)    : useColor.slot  (0..BASE_COLORS_COUNT-1)
-//
-// The `rgb` member is named instead of `inline` because `inline` is a C++ keyword.
-// `raw[3]` overlays the payload bytes for memcpy / wire serialization.
+    // 4-byte color reference sent over the wire and stored in scene structs.
+    // The kind byte selects which union member is meaningful.
+    //
+    // kind=0 (inline RGB)    : rgb.r, rgb.g, rgb.b
+    // kind=1 (palette pos)   : palette.pos    (0..255 sample position)
+    // kind=2 (base color)    : useColor.slot  (0..BASE_COLORS_COUNT-1)
+    //
+    // The `rgb` member is named instead of `inline` because `inline` is a C++ keyword.
+    // `raw[3]` overlays the payload bytes for memcpy / wire serialization.
     struct __attribute__((__packed__)) ColorRef {
         uint8_t kind;
 

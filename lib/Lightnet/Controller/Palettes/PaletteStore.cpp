@@ -16,9 +16,9 @@ namespace Lightnet {
             uint8_t            count;
         };
 
-// Built-in gradient palettes. Position is 0..255 across the full range.
-// Each palette must have its first stop at 0 and last stop at 255 for the
-// interpolator to cover the entire space.
+        // Built-in gradient palettes. Position is 0..255 across the full range.
+        // Each palette must have its first stop at 0 and last stop at 255 for the
+        // interpolator to cover the entire space.
         const BuiltInPalette BUILTINS[] = {
             {
                 "rainbow",
@@ -165,8 +165,8 @@ namespace Lightnet {
         return BUILTINS[i].name;
     }
 
-// Fixed temp path — per-name variants like "/palettes/myname.json.tmp" can
-// exceed SPIFFS's 31-char path limit. See SceneStore.cpp for the same rationale.
+    // Fixed temp path — per-name variants like "/palettes/myname.json.tmp" can
+    // exceed SPIFFS's 31-char path limit. See SceneStore.cpp for the same rationale.
     static const char PALETTE_TMP[] = "/palettes/.write.tmp"; // 20 chars
 
     bool PaletteStore::save(const char *name, const GradientStop *stops, uint8_t count) const
@@ -219,5 +219,4 @@ namespace Lightnet {
 
         return SPIFFS.remove(path);
     }
-
 }  // namespace Lightnet

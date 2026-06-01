@@ -14,12 +14,12 @@
 
 namespace Lightnet {
     namespace {
-// ---------------------------------------------------------------------------
-// Domain-specific value parsers
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Domain-specific value parsers
+        // ---------------------------------------------------------------------------
 
-// Parse a JSON value that is either a "#RRGGBB" string or an object describing
-// a colour reference: {"palette":N}, {"useColor":N}, or {"r":R,"g":G,"b":B}.
+        // Parse a JSON value that is either a "#RRGGBB" string or an object describing
+        // a colour reference: {"palette":N}, {"useColor":N}, or {"r":R,"g":G,"b":B}.
         static bool parseColorRef(const char *& p, const char *end, ColorRef& out)
         {
             jsonSkipWs(p, end);
@@ -80,9 +80,9 @@ namespace Lightnet {
             return found;
         }
 
-// ---------------------------------------------------------------------------
-// AnimType / RunnerType string→enum
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // AnimType / RunnerType string→enum
+        // ---------------------------------------------------------------------------
 
         static uint8_t parseAnimTypeName(const char *s)
         {
@@ -118,11 +118,11 @@ namespace Lightnet {
             return 0xFF;
         }
 
-// ---------------------------------------------------------------------------
-// Handle a single step key+value. p already points to the value start.
-// Shared by parseStep (inside sequence array) and parseOneShotBody (root level).
-// Unknown keys are skipped silently.
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Handle a single step key+value. p already points to the value start.
+        // Shared by parseStep (inside sequence array) and parseOneShotBody (root level).
+        // Unknown keys are skipped silently.
+        // ---------------------------------------------------------------------------
 
         static bool handleStepField(
             const char *  key,
@@ -277,9 +277,9 @@ namespace Lightnet {
             return true;
         }
 
-// ---------------------------------------------------------------------------
-// Parse one step object. p points just after the opening '{'.
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Parse one step object. p points just after the opening '{'.
+        // ---------------------------------------------------------------------------
 
         static bool parseStep(const char *& p, const char *end, SceneStep& step, char *errMsg, size_t errLen)
         {
@@ -297,10 +297,10 @@ namespace Lightnet {
             return true;
         }
 
-// ---------------------------------------------------------------------------
-// Parse the "panels" value. Accepts string "all", array [..ids..], or
-// object {"exclude":[..ids..]}.
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Parse the "panels" value. Accepts string "all", array [..ids..], or
+        // object {"exclude":[..ids..]}.
+        // ---------------------------------------------------------------------------
 
         static bool parsePanels(const char *& p, const char *end, SceneLayer& layer, char *errMsg, size_t errLen)
         {
@@ -403,9 +403,9 @@ namespace Lightnet {
             return false;
         }
 
-// ---------------------------------------------------------------------------
-// Parse one layer object. p points just after the opening '{'.
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Parse one layer object. p points just after the opening '{'.
+        // ---------------------------------------------------------------------------
 
         static bool parseLayer(const char *& p, const char *end, SceneLayer& layer, char *errMsg, size_t errLen)
         {
@@ -477,9 +477,9 @@ namespace Lightnet {
             return true;
         }
 
-// ---------------------------------------------------------------------------
-// Parse the "colors" object {primary, secondary, tertiary}.
-// ---------------------------------------------------------------------------
+        // ---------------------------------------------------------------------------
+        // Parse the "colors" object {primary, secondary, tertiary}.
+        // ---------------------------------------------------------------------------
 
         static bool parseColors(
             const char *&      p,
@@ -523,14 +523,14 @@ namespace Lightnet {
         }
     } // anonymous namespace
 
-// ============================================================================
-// Public entry points
-// ============================================================================
+    // ============================================================================
+    // Public entry points
+    // ============================================================================
 
-// Parse a flat one-shot body into a single-layer SceneLayer.
-// Body shape: {"group":N, "panels":..., <step fields>}
-// All step fields (type/runner/color/duration/params/...) live at the root alongside
-// group and panels — no "sequence" array. Reuses handleStepField for the step part.
+    // Parse a flat one-shot body into a single-layer SceneLayer.
+    // Body shape: {"group":N, "panels":..., <step fields>}
+    // All step fields (type/runner/color/duration/params/...) live at the root alongside
+    // group and panels — no "sequence" array. Reuses handleStepField for the step part.
     bool parseOneShotBody(const char *json, size_t len, SceneLayer& layer, char *errMsg, size_t errLen)
     {
         memset(&layer, 0, sizeof(layer));
@@ -636,6 +636,7 @@ namespace Lightnet {
                 }
 
                 if (out.speed < 0.1f) out.speed = 0.1f;
+
                 if (out.speed > 10.0f) out.speed = 10.0f;
             } else if (strcmp(key, "palette") == 0) {
                 if (!jsonReadString(p, end, out.palette, sizeof(out.palette))) {

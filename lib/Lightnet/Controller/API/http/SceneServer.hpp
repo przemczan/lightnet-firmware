@@ -3,6 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include "../../Scenes/ScenePlayer.hpp"
 #include "../../Scenes/AnimationService.hpp"
+#include "../../AppState/AppStateStore.hpp"
 
 namespace Lightnet {
     class SceneServer
@@ -11,7 +12,8 @@ namespace Lightnet {
             SceneServer(
                 AsyncWebServer&   server,
                 ScenePlayer&      player,
-                AnimationService& animService
+                AnimationService& animService,
+                AppStateStore&    appState
             );
 
             void begin();
@@ -20,6 +22,7 @@ namespace Lightnet {
             AsyncWebServer& server;
             ScenePlayer& player;
             AnimationService& animService;
+            AppStateStore& appState;
 
             void registerRoutes();
 
