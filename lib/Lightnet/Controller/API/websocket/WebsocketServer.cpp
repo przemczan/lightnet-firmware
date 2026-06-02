@@ -47,6 +47,11 @@ CircularQueue *WebsocketServer::getIncommingMessages()
     return this->executionQueue;
 }
 
+void WebsocketServer::cleanup()
+{
+    this->socket->cleanupClients(1);
+}
+
 void WebsocketServer::sendMessage(WebsocketApi::Internal::Message *message)
 {
     if (!this->socket->hasClient(message->clientId)) {

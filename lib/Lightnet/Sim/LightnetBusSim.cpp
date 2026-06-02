@@ -14,7 +14,7 @@ static void logPacket(uint8_t addr, const void *data, uint8_t size)
 
     const uint8_t *b = (const uint8_t *)data;
 
-    for (uint8_t i = 0; i < size && n + 3 < (int)sizeof(buf); i++) {
+    for (uint8_t i = 0; i < size && n + 4 < (int)sizeof(buf); i++) {
         buf[n++] = ' ';
         buf[n++] = "0123456789ABCDEF"[b[i] >> 4];
         buf[n++] = "0123456789ABCDEF"[b[i] & 0xF];
@@ -128,8 +128,19 @@ uint8_t LightnetBus::sendPacketWithResponse(
 {
     sendPacket(addr, pkt, pktSize, type, false);
 
-    // Synthesize a valid ACK response so callers don't bail on error
-    if (respBuf && respSize >= sizeof(Protocol::PacketMeta)) {
+    if (!respBuf || respSize < sizeof(Protocol::PacketMeta)) {
+        return 0;
+    }
+
+    memset(respBuf, 0, respSize);
+
+    if (type == Protocol::PACKET_FETCH_STATE &&
+        respSize >= sizeof(Protocol::PacketPanelState))
+    {
+        Protocol::PacketPanelState *rsp = (Protocol::PacketPanelState *)respBuf;
+        Protocol::setPacketMeta(rsp, Protocol::PACKET_FETCH_STATE);
+        SimPanels.getState(addr, &rsp->panelState);
+    } else {
         Protocol::setPacketMeta(respBuf, Protocol::PACKET_ACK);
     }
 

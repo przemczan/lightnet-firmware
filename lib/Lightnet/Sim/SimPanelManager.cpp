@@ -27,6 +27,19 @@ void SimPanelManager::dispatchAll(const void *data, uint8_t size)
     }
 }
 
+bool SimPanelManager::getState(uint8_t address, Protocol::PanelState *state) const
+{
+    for (uint8_t i = 0; i < SIM_PANELS_COUNT; i++) {
+        if (panels[i].getIndex() == address) {
+            panels[i].getState(state);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void SimPanelManager::tick()
 {
     for (uint8_t i = 0; i < SIM_PANELS_COUNT; i++) {

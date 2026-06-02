@@ -79,18 +79,25 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
             }
 
             break;
-        case Protocol::PACKET_SET_BRIGHTNESS:
+        case Protocol::PACKET_SET_COLOR:
 
-            if (size >= sizeof(Protocol::PacketSetBrightness)) {
-                const Protocol::PacketSetBrightness *pkt = (const Protocol::PacketSetBrightness *)data;
+            if (size >= sizeof(Protocol::PacketSetColor)) {
+                const Protocol::PacketSetColor *pkt = (const Protocol::PacketSetColor *)data;
 
-                rgb.brightness(pkt->brightness);
+                rgb.color(pkt->color.rgb.r, pkt->color.rgb.g, pkt->color.rgb.b);
             }
 
             break;
         default:
             break;
     }
+}
+
+void SimPanel::getState(Protocol::PanelState *state) const
+{
+    state->panelIndex = panelIndex;
+    state->state      = rgb.on();
+    state->color      = rgb.color();
 }
 
 void SimPanel::tick()

@@ -2,6 +2,7 @@
 #if defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)
 
     #include <stdint.h>
+    #include "../Utils/Debug.hpp"
     #include "../Common/Protocol.hpp"
 
     // Sim-only replacement for RGBController. No FastLED. No pins.
@@ -120,10 +121,12 @@
                 lastGlobal = globalBrightnessValue;
                 lastOn = isOn;
 
-                Serial.printf("[SIM:LED] %lu %u %02X %02X %02X %02X %02X\n",
-                              millis(), panelIndex,
-                              colorValue.r, colorValue.g, colorValue.b,
-                              brightnessValue, eff);
+                DEBUG_IF(DEBUG_RGB_CTRL,
+                         D_PRINTF("[SIM:LED] %lu %u %02X %02X %02X %02X %02X\n",
+                                  millis(), panelIndex,
+                                  colorValue.r, colorValue.g, colorValue.b,
+                                  brightnessValue, eff)
+                );
             }
     };
 

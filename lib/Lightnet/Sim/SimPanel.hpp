@@ -26,6 +26,7 @@
             }
 
             void handlePacket(const void *data, uint8_t size);
+            void getState(Protocol::PanelState *state) const;
             void tick();
 
         private:

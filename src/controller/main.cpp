@@ -301,6 +301,8 @@ void loop()
 
                 if (panelFlasher) panelFlasher->run();
 
+                websocketServer->cleanup();
+
                 if (!panelFlasher || !panelFlasher->isActive()) {
                     websocketHandler->handleIncommingMessages();
 

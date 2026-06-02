@@ -35,6 +35,7 @@ class WebsocketServer
 
         ~WebsocketServer();
         void start();
+        void cleanup();
         CircularQueue *getIncommingMessages();
         ReceivedCounts getAndResetReceivedCount();
         void sendMessage(WebsocketApi::Internal::Message *message);
