@@ -9,6 +9,11 @@
 class WebsocketServer
 {
     const uint16_t QUEUE_SIZE = 1000;
+    static const uint16_t MAX_CLIENTS = 5;
+    // Inbound commands are tiny (largest is SetColor, ~17 bytes). This caps the
+    // stack VLA built per message in onMessage() so a malformed/oversized frame
+    // can't blow the constrained AsyncTCP callback stack and reset the chip.
+    static const uint16_t MAX_INCOMING_FRAME_SIZE = 256;
 
     private:
         AsyncWebSocket *socket = NULL;

@@ -49,7 +49,7 @@ CircularQueue *WebsocketServer::getIncommingMessages()
 
 void WebsocketServer::cleanup()
 {
-    this->socket->cleanupClients(1);
+    this->socket->cleanupClients(MAX_CLIENTS);
 }
 
 void WebsocketServer::sendMessage(WebsocketApi::Internal::Message *message)
@@ -113,6 +113,13 @@ WebsocketServer::ReceivedCounts WebsocketServer::getAndResetReceivedCount()
 void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, uint16_t size)
 {
     this->receivedCount++;
+
+    // Reject oversized frames before building the stack VLA below.
+    if (size > MAX_INCOMING_FRAME_SIZE) {
+        this->droppedCount++;
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[CMD SRV][ERROR] frame too large", size));
+        return;
+    }
 
     size_t messageSize = sizeof(WebsocketApi::Internal::Message) + size;
     uint8_t buffer[messageSize];

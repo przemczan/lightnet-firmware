@@ -29,6 +29,33 @@ PanelFlasher *panelFlasher     = nullptr;
 FirmwareUpdateServer *fwUpdateServer   = nullptr;
 SerialFirmwareReceiver *serialFwReceiver = nullptr;
 
+// Always-on (not gated by DEBUG) so rare production resets can be diagnosed
+// from the serial log: the reset reason is printed once at every boot.
+void logBootDiagnostics()
+{
+    Serial.println();
+    Serial.print("[BOOT] reset reason: ");
+    #ifdef ARDUINO_ARCH_ESP8266
+        Serial.println(ESP.getResetReason());
+        Serial.print("[BOOT] reset info: ");
+        Serial.println(ESP.getResetInfo());
+        Serial.print("[BOOT] free heap / frag% / maxBlock: ");
+        Serial.print(ESP.getFreeHeap());
+        Serial.print(" / ");
+        Serial.print(ESP.getHeapFragmentation());
+        Serial.print(" / ");
+        Serial.println(ESP.getMaxFreeBlockSize());
+    #else
+        Serial.println((int)esp_reset_reason());   // see esp_reset_reason_t enum
+        Serial.print("[BOOT] free heap / minFree / maxAlloc: ");
+        Serial.print(ESP.getFreeHeap());
+        Serial.print(" / ");
+        Serial.print(ESP.getMinFreeHeap());
+        Serial.print(" / ");
+        Serial.println(ESP.getMaxAllocHeap());
+    #endif
+}
+
 void setupMDNS()
 {
     char buffer[20];
@@ -170,6 +197,8 @@ void setup()
         Serial.begin(57600);
     #endif
 
+    logBootDiagnostics();
+
     LNPanelsInitializer.configure({ .sdaPinNo = IIC_SDA_PIN,
                                     .sclPinNo = IIC_SCL_PIN,
                                     .edgePinNo = INITIALIZER_EDGE_PIN_NO,
@@ -302,6 +331,25 @@ void loop()
                 if (panelFlasher) panelFlasher->run();
 
                 websocketServer->cleanup();
+
+                DEBUG_BLOCK({
+                // Track heap over time to catch fragmentation-driven resets.
+                static uint32_t lastHeapLogMs = 0;
+                uint32_t now = millis();
+
+                if ((uint32_t)(now - lastHeapLogMs) >= 10000) {
+                    lastHeapLogMs = now;
+                    Serial.print("[HEAP] free: ");
+                    Serial.print(ESP.getFreeHeap());
+                    #ifdef ARDUINO_ARCH_ESP8266
+                        Serial.print(" frag%: ");
+                        Serial.print(ESP.getHeapFragmentation());
+                        Serial.print(" maxBlock: ");
+                        Serial.print(ESP.getMaxFreeBlockSize());
+                    #endif
+                    Serial.println();
+                }
+            });
 
                 if (!panelFlasher || !panelFlasher->isActive()) {
                     websocketHandler->handleIncommingMessages();
