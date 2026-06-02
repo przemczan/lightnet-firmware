@@ -65,6 +65,24 @@ Whenever you add, remove, or rename an HTTP endpoint, update **all** of the foll
 
 ---
 
+## Live device tools
+
+### api-shell (`tools/api-shell/`)
+
+Node.js WebSocket client for sending commands to a live controller. Run interactively:
+
+```bash
+cd tools/api-shell && node api-shell.js <controller-ip>
+```
+
+For one-shot queries from Claude Code, inline the protocol directly — `node -e "..."` from `tools/api-shell/` (so `require('ws')` resolves). The CRC is **CRC-16/IBM** (reflected, poly `0xA001`, init `0xFFFF`). Nonce must be `Date.now() % 0x100000000` (not raw `Date.now()` — overflows `writeUInt32LE`).
+
+Packet types: `TOGGLE=1`, `SET_BRIGHTNESS=2`, `SET_COLOR=3`, `GET_EDGES_LIST=4`, `GET_PANELS_STATES=5`, `PANELS_STATES=6`, `EDGES_LIST=7`.
+
+Response payload for `EDGES_LIST`: `u16 count` followed by `count × 8 bytes` (`panel u16`, `edge u16`, `connectedPanel u16`, `connectedEdge u16`). `connectedPanel=0` means unconnected.
+
+---
+
 ## Key facts for coding
 
 - **Single entry point**: `src/main.cpp` — includes `controller/main.hpp` or `panel/main.hpp` based on `LIGHTNET_TARGET_CONTROLLER`.

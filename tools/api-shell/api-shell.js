@@ -119,15 +119,14 @@ function parseResponse(buf) {
         const count  = payload.readUInt16LE(0);
         const panels = [];
         for (let i = 0; i < count; i++) {
-            const off = 2 + i * 7;
-            if (off + 7 > payload.length) break;
+            const off = 2 + i * 6;
+            if (off + 6 > payload.length) break;
             panels.push({
-                index:      payload.readUInt16LE(off),
-                on:         payload.readUInt8(off + 2) !== 0,
-                r:          payload.readUInt8(off + 3),
-                g:          payload.readUInt8(off + 4),
-                b:          payload.readUInt8(off + 5),
-                brightness: payload.readUInt8(off + 6),
+                index: payload.readUInt16LE(off),
+                on:    payload.readUInt8(off + 2) !== 0,
+                r:     payload.readUInt8(off + 3),
+                g:     payload.readUInt8(off + 4),
+                b:     payload.readUInt8(off + 5),
             });
         }
         return { type: 'PANELS_STATES', panels };
@@ -164,8 +163,7 @@ function printResponse(parsed) {
         console.log(`  Panels (${parsed.panels.length}):`);
         for (const p of parsed.panels) {
             const rgb = `rgb(${p.r},${p.g},${p.b})`;
-            const bar = '█'.repeat(Math.round(p.brightness / 25));
-            console.log(`    [${p.index}] ${p.on ? 'ON ' : 'OFF'} br=${p.brightness.toString().padStart(3)} ${bar.padEnd(10)} ${rgb}`);
+            console.log(`    [${p.index}] ${p.on ? 'ON ' : 'OFF'} ${rgb}`);
         }
         return;
     }

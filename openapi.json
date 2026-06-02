@@ -27,16 +27,16 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "brightness": 128,
-                "baseColors": [
-                  "#FF0000",
-                  "#00FF00",
-                  "#0000FF"
-                ],
-                "palette": "lava"
+                "type": "object",
+                "example": {
+                  "brightness": 128,
+                  "baseColors": [
+                    "#FF0000",
+                    "#00FF00",
+                    "#0000FF"
+                  ],
+                  "palette": "lava"
+                }
               }
             }
           }
@@ -61,13 +61,13 @@
                       "name": { "type": "string" },
                       "stops": { "type": "array" }
                     }
-                  }
-                },
-                "example": {
-                  "lava": {
-                    "schemaVersion": 1,
-                    "name": "lava",
-                    "stops": [[0,"#000000"],[255,"#FFFFFF"]]
+                  },
+                  "example": {
+                    "lava": {
+                      "schemaVersion": 1,
+                      "name": "lava",
+                      "stops": [[0,"#000000"],[255,"#FFFFFF"]]
+                    }
                   }
                 }
               }
@@ -87,25 +87,16 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "schemaVersion": 1,
-                "name": "my-palette",
-                "stops": [
-                  [
-                    0,
-                    "#000000"
-                  ],
-                  [
-                    128,
-                    "#FF4400"
-                  ],
-                  [
-                    255,
-                    "#FFFFFF"
+                "type": "object",
+                "example": {
+                  "schemaVersion": 1,
+                  "name": "my-palette",
+                  "stops": [
+                    [0, "#000000"],
+                    [128, "#FF4400"],
+                    [255, "#FFFFFF"]
                   ]
-                ]
+                }
               }
             }
           }
@@ -163,13 +154,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "schemaVersion": 1,
-                "name": "sunset",
-                "loop": true,
-                "layers": []
+                "type": "object",
+                "example": {
+                  "schemaVersion": 1,
+                  "name": "sunset",
+                  "loop": true,
+                  "layers": []
+                }
               }
             }
           }
@@ -236,13 +227,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "schemaVersion": 1,
-                "name": "inline-scene",
-                "loop": true,
-                "layers": []
+                "type": "object",
+                "example": {
+                  "schemaVersion": 1,
+                  "name": "inline-scene",
+                  "loop": true,
+                  "layers": []
+                }
               }
             }
           }
@@ -293,10 +284,10 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "speed": 2.0
+                "type": "object",
+                "example": {
+                  "speed": 2.0
+                }
               }
             }
           }
@@ -327,21 +318,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "group": 250,
-                "panels": "all",
-                "type": "PULSE",
-                "color": "#FF0000",
-                "brightnessFrom": 0,
-                "brightnessTo": 255,
-                "duration": 600,
-                "params": [
-                  64,
-                  128,
-                  64
-                ]
+                "type": "object",
+                "example": {
+                  "group": 250,
+                  "panels": "all",
+                  "type": "PULSE",
+                  "color": "#FF0000",
+                  "brightnessFrom": 0,
+                  "brightnessTo": 255,
+                  "duration": 600,
+                  "params": [64, 128, 64]
+                }
               }
             }
           }
@@ -361,11 +348,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "group": 1,
-                "value": 200
+                "type": "object",
+                "example": {
+                  "group": 1,
+                  "value": 200
+                }
               }
             }
           }
@@ -438,19 +425,27 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "value": 1
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "integer",
+                    "enum": [0, 1],
+                    "description": "0 = off, 1 = on"
+                  }
+                },
+                "required": ["value"],
+                "example": {
+                  "value": 1
+                }
               }
             }
           }
         }
       }
     },
-    "/api/panels/{{panelAddress}}/brightness": {
+    "/api/panels/{{panelAddress}}/color": {
       "put": {
-        "summary": "Set Panel Brightness",
+        "summary": "Set Panel Color",
         "parameters": [
           {
             "name": "{panelAddress",
@@ -470,10 +465,10 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
-              },
-              "example": {
-                "value": 128
+                "type": "object",
+                "example": {
+                  "color": "#FF0000"
+                }
               }
             }
           }
@@ -520,10 +515,10 @@
                     "description": "0=ALWAYS_ON, 1=ALWAYS_OFF, 2=LAST_STATE"
                   }
                 },
-                "required": ["powerStateOnBoot"]
-              },
-              "example": {
-                "powerStateOnBoot": 2
+                "required": ["powerStateOnBoot"],
+                "example": {
+                  "powerStateOnBoot": 2
+                }
               }
             }
           }
@@ -573,42 +568,10 @@
                     "description": "true = panels on. false = stop animations and turn all panels off."
                   }
                 },
-                "required": ["isOn"]
-              },
-              "example": {
-                "isOn": false
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/panels/{{panelAddress}}/color": {
-      "put": {
-        "summary": "Set Panel Color",
-        "parameters": [
-          {
-            "name": "{panelAddress",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              },
-              "example": {
-                "color": "#FF0000"
+                "required": ["isOn"],
+                "example": {
+                  "isOn": false
+                }
               }
             }
           }
