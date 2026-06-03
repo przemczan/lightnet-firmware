@@ -118,6 +118,7 @@ void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, 
     if (size > MAX_INCOMING_FRAME_SIZE) {
         this->droppedCount++;
         DEBUG_IF(DEBUG_API, D_PRINTLN("[CMD SRV][ERROR] frame too large", size));
+
         return;
     }
 
@@ -133,6 +134,8 @@ void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, 
 
     #ifdef ARDUINO_ARCH_ESP32
         portENTER_CRITICAL(&this->queueMux);
+    #else
+        noInterrupts();
     #endif
 
     if (!this->cmdQueue->enqueue(message, messageSize)) {
@@ -142,5 +145,7 @@ void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, 
 
     #ifdef ARDUINO_ARCH_ESP32
         portEXIT_CRITICAL(&this->queueMux);
+    #else
+        interrupts();
     #endif
 }

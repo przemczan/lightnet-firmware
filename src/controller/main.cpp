@@ -56,18 +56,33 @@ void logBootDiagnostics()
     #endif
 }
 
+#ifdef ARDUINO_ARCH_ESP8266
+    // Kept alive for the lifetime of the program so the callback stays registered.
+    WiFiEventHandler mdnsGotIPHandler;
+#endif
+
 void setupMDNS()
 {
     char buffer[20];
 
     #ifdef ARDUINO_ARCH_ESP8266
-        sprintf(buffer, "lightnet-%04X\0", ESP.getChipId());
+        sprintf(buffer, "lightnet-%04X", ESP.getChipId());
     #else
-        sprintf(buffer, "lightnet-%08X\0", ESP.getEfuseMac());
+        sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
     #endif
 
     MDNS.begin(&buffer[0]);
     MDNS.addService("lightnet", "tcp", SERVER_PORT);
+
+    #ifdef ARDUINO_ARCH_ESP8266
+        // The ESP8266 mDNS responder silently stops answering after a STA
+        // reconnect (it loses its 224.0.0.251 multicast/IGMP membership), so
+        // `lightnet-XXXX.local` resolution dies while the device keeps running.
+        // Re-announce every time the station re-acquires an IP. (ESP32's mDNS
+        // task handles this itself, so this is not needed there.)
+        mdnsGotIPHandler = WiFi.onStationModeGotIP(
+            [](const WiFiEventStationModeGotIP &) { MDNS.notifyAPChange(); });
+    #endif
 }
 
 void selfTest()
@@ -171,8 +186,6 @@ void setupWiFi()
     websocketServer = new WebsocketServer(webServer);
     websocketHandler = new WebsocketHandler(websocketServer, panelsController, animScheduler);
 
-    setupMDNS();
-
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
     // This will block for 30 seconds if it can't connect.
@@ -180,6 +193,11 @@ void setupWiFi()
     if (!wifiManager->autoConnect("Lightnet-Controller")) {
         Serial.println("Failed to connect and hit timeout");
     }
+
+    // mDNS must be started only once the station has an IP. Starting it before
+    // the connection (as it was before) leaves the ESP8266 responder bound to
+    // no address, which is a likely cause of intermittent `.local` failures.
+    setupMDNS();
 
     setupOTA();
 
