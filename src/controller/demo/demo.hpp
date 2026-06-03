@@ -6,8 +6,8 @@
 
         // Thin main-facing interface. The DemoRunner instance lives in demo.cpp.
 
-        // Create the DemoRunner, seed demo scene files on SPIFFS if missing.
-        // Call once in case 0, after SPIFFS.begin() and service construction.
+        // Create the DemoRunner, seed demo scene files on the filesystem if missing.
+        // Call once in case 0, after the filesystem.begin() and service construction.
         void initDemos(
             Lightnet::AnimationService&   animService,
             Lightnet::SceneStore&         sceneStore,

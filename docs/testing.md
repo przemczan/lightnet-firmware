@@ -8,7 +8,7 @@ How the firmware is tested, what runs where, and how to add new coverage.
 
 Today the only automated layer is **native host-side unit tests** — pure C++ logic compiled and run on your PC. Fast (under 2 s), no device, no flashing. This is what `pio test -e native` runs.
 
-There is no in-device Unity runner today; hardware-only code paths (SPIFFS I/O, I²C, animation timing) are exercised by running the firmware on a real board and observing serial / WebSocket output.
+There is no in-device Unity runner today; hardware-only code paths (filesystem I/O, I²C, animation timing) are exercised by running the firmware on a real board and observing serial / WebSocket output.
 
 ---
 
@@ -54,7 +54,7 @@ pio test -e native -vvv                  # verbose (compiler output)
 | [`Controller/Palettes/PaletteJson.hpp`](https://github.com/przemczan/lightnet-firmware/blob/master/lib/Lightnet/Controller/Palettes/PaletteJson.hpp) | ✅ | Pure parser, split out of `PaletteStore` specifically for testability |
 | [`Controller/API/http/HttpUrl.hpp`](https://github.com/przemczan/lightnet-firmware/blob/master/lib/Lightnet/Controller/API/http/HttpUrl.hpp) | ✅ | Pure C string helpers, split out of `HttpHelpers.hpp` |
 | `Common/Palette.hpp` (sampler) | ✅ | Pure interpolation math — not yet tested but eligible |
-| `PaletteStore::resolve`/`save`/`exists` | ❌ | Need SPIFFS |
+| `PaletteStore::resolve`/`save`/`exists` | ❌ | Need LittleFS / hardware |
 | HTTP handlers (`PaletteServer`, `SceneServer`, …) | ❌ | Need `AsyncWebServerRequest` mocks; not worth the effort |
 | `AnimationScheduler`, `ScenePlayer` | ❌ | Time-driven, talk to panels over I²C |
 | Panel firmware (ATmega side) | ❌ | Cross-compiled, no native runtime |
@@ -89,7 +89,7 @@ Rule of thumb: **if the file only includes `<stdint.h>`, `<string.h>`, `<stddef.
 
 5. Run `pio test -e native -f test_<name>`.
 
-If the header you want to test currently has an Arduino or SPIFFS dependency, **extract the pure logic into its own header first** — that's how `PaletteJson.hpp` and `HttpUrl.hpp` came to exist. A header that needs Arduino can't be tested natively; one that doesn't, can.
+If the header you want to test currently has an Arduino or filesystem dependency, **extract the pure logic into its own header first** — that's how `PaletteJson.hpp` and `HttpUrl.hpp` came to exist. A header that needs Arduino can't be tested natively; one that doesn't, can.
 
 ---
 

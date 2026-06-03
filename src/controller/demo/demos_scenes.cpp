@@ -1,8 +1,8 @@
-// Scene-based demos — each one saves a named scene to SPIFFS (once, on first
+// Scene-based demos — each one saves a named scene to the filesystem (once, on first
 // boot) and plays it via AnimationService. Group IDs are in the 100+ range so
 // they never collide with user scenes or the verification demos.
 //
-// Scenes are kept permanently on SPIFFS so they are also reachable via HTTP
+// Scenes are kept permanently on the filesystem so they are also reachable via HTTP
 // after boot: POST /api/scenes/demo_warm_breathe/play, etc.
 
 #ifdef LIGHTNET_TARGET_CONTROLLER

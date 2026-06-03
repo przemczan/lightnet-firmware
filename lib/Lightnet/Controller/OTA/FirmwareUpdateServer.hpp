@@ -4,11 +4,7 @@
 
     #include <Arduino.h>
     #include <ESPAsyncWebServer.h>
-    #ifdef ARDUINO_ARCH_ESP32
-        #include <SPIFFS.h>
-    #else
-        #include <FS.h>
-    #endif
+    #include "../../Utils/Fs/Fs.hpp"
     #include "PanelFlasher.hpp"
 
     // Registers HTTP endpoints for firmware management:
@@ -16,7 +12,7 @@
     //   POST /api/firmware/panels   — upload raw firmware binary; flashing starts immediately
     //   GET  /api/firmware/status   — returns JSON with current flash progress
     //
-    // The upload is streamed directly to SPIFFS (/panel_fw.bin) to avoid holding
+    // The upload is streamed directly to /panel_fw.bin to avoid holding
     // the entire binary in RAM.  Once the upload completes, PanelFlasher::startFlashing()
     // is called; the actual I2C programming runs asynchronously in the main loop.
     class FirmwareUpdateServer

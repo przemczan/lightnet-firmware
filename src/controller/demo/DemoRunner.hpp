@@ -21,7 +21,7 @@
             //     real scene files, demonstrating the full pipeline.
             //
             // Usage:
-            //   runner.seedScenes();   // once after SPIFFS mount — writes scene files if missing
+            //   runner.seedScenes();   // once after the filesystem mount — writes scene files if missing
             //   runner.run();          // called from loop — runs one demo then returns
             //
             class DemoRunner
@@ -36,8 +36,8 @@
                         PanelsInitializer&  initializer
                     );
 
-                    // Write all scene-demo JSON files to SPIFFS once (skips files that already exist).
-                    // Call after SPIFFS.begin() and before the first run().
+                    // Write all scene-demo JSON files to the filesystem once (skips files that already exist).
+                    // Call after the filesystem.begin() and before the first run().
                     void seedScenes();
 
                     // Run the next demo in the rotation. Blocks until the demo completes.
@@ -64,7 +64,7 @@
                     // Turn off all panels (up to 3) and wait 500 ms.
                     void turnOffAll();
 
-                    // Save `json` to SPIFFS as scene `name` — only if the file doesn't exist yet.
+                    // Save `json` to the filesystem as scene `name` — only if the file doesn't exist yet.
                     void seedScene(const char *name, const char *json);
 
                     // Play a stored scene for `durationMs`, ticking ScenePlayer internally.

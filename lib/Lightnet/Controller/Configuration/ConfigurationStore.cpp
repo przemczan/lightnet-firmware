@@ -2,10 +2,7 @@
 #include "ConfigurationStore.hpp"
 #include "../../Utils/SimpleJson.hpp"
 #include "../../Utils/Debug.hpp"
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../Utils/Fs/Fs.hpp"
 #include <string.h>
 
 namespace Lightnet {
@@ -58,9 +55,9 @@ namespace Lightnet {
 
     bool ConfigurationStore::readFile()
     {
-        if (!SPIFFS.exists(CONFIG_PATH)) return false;
+        if (!Fs::exists(CONFIG_PATH)) return false;
 
-        File f = SPIFFS.open(CONFIG_PATH, "r");
+        File f = Fs::open(CONFIG_PATH, "r");
 
         if (!f) return false;
 
@@ -91,7 +88,7 @@ namespace Lightnet {
 
     void ConfigurationStore::writeFile()
     {
-        File f = SPIFFS.open(CONFIG_TMP_PATH, "w");
+        File f = Fs::open(CONFIG_TMP_PATH, "w");
 
         if (!f) {
             D_PRINTLN("[CONFIG] failed to open tmp file");
@@ -109,7 +106,7 @@ namespace Lightnet {
 
         f.close();
 
-        SPIFFS.remove(CONFIG_PATH);
-        SPIFFS.rename(CONFIG_TMP_PATH, CONFIG_PATH);
+        Fs::remove(CONFIG_PATH);
+        Fs::rename(CONFIG_TMP_PATH, CONFIG_PATH);
     }
 }  // namespace Lightnet

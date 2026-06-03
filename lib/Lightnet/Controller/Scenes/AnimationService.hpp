@@ -8,7 +8,7 @@
 //   playOneShot     — parse flat one-shot body → play
 //   stopScene       — stop the running scene
 //
-// AnimationService never writes to SPIFFS and never calls AppearanceStore.
+// AnimationService never calls AppearanceStore directly.
 // Callers that need to persist appearance state after play (e.g. the HTTP
 // handler) use the SceneResult::sceneColors / scenePalette fields and
 // call AppearanceStore directly.
@@ -35,7 +35,7 @@ namespace Lightnet {
         Invalid,  // malformed / validation failure
         NotFound, // referenced scene doesn't exist
         SchemaTooNew, // scene was written by a newer firmware
-        IoFailure, // SPIFFS read/write failed
+        IoFailure, // filesystem read/write failed
     };
 
     struct SceneResult {
@@ -84,7 +84,7 @@ namespace Lightnet {
             // to persist appearance. Does not touch AppearanceStore itself.
             SceneResult playSceneByName(const char *name);
 
-            // Parse an inline scene body and start playing (not saved to SPIFFS).
+            // Parse an inline scene body and start playing (not saved to disk).
             SceneResult playSceneInline(const char *body, size_t len);
 
             // Parse a flat one-shot body {"group":N,"panels":...,...step fields...}

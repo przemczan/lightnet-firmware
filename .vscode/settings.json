@@ -25,5 +25,6 @@
         "${workspaceFolder}/lib/WebSockets",
         "${workspaceFolder}/firmware/twiboot_for_arduino"
     ],
-    "editor.defaultFormatter": "zachflower.uncrustify"
+    "editor.defaultFormatter": "zachflower.uncrustify",
+    "C_Cpp.errorSquiggles": "disabled"
 }

@@ -41,7 +41,7 @@ GET    /api/appearance
 PATCH  /api/appearance        {"brightness":192, "baseColors":["#FF4400","#FF8800","#000000"], "palette":"lava"}
 ```
 
-All fields are optional — omit any you don't want to change. Returns `200 {}` on success, `422 {"error":"..."}` on invalid input, persists atomically to SPIFFS, and broadcasts to panels.
+All fields are optional — omit any you don't want to change. Returns `200 {}` on success, `422 {"error":"..."}` on invalid input, persists to the filesystem, and broadcasts to panels.
 
 ---
 
@@ -84,7 +84,7 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/scenes/play` | Full scene JSON body — plays inline, not saved to SPIFFS |
+| `POST` | `/api/scenes/play` | Full scene JSON body — plays inline, not saved to disk |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) |
 | `POST` | `/api/scenes/stop` | — |
 | `POST` | `/api/scenes/speed` | `{"speed":<float>}` — change playback speed [0.1, 10.0] while playing |
@@ -144,7 +144,7 @@ Use `POST /api/animations/play` to send a single animation step directly, bypass
 }
 ```
 
-All the same step fields documented in [Animation Types](types.md) and [Controller Runners](types.md#controller-runners) are supported. The notification runs on group 250 while the ambient scene continues on groups 1–N. The panel's AnimationPlayer handles both groups independently. No SPIFFS involved.
+All the same step fields documented in [Animation Types](types.md) and [Controller Runners](types.md#controller-runners) are supported. The notification runs on group 250 while the ambient scene continues on groups 1–N. The panel's AnimationPlayer handles both groups independently.
 
 For chained steps on a notification (e.g. pulse → fade), use a short scene via `POST /api/scenes/play` with a free group ID instead.
 

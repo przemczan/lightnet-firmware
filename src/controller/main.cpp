@@ -252,14 +252,9 @@ void loop()
                 animScheduler = new Lightnet::AnimationScheduler();
                 animScheduler->initialize();
 
-                // SPIFFS used to be mounted inside AppServer (in setupWiFi).
-                // Hoist here so PaletteStore/AppearanceStore can read /config/ and
-                // /palettes/ before the WiFi captive portal can block for 30 s.
-                #ifdef ARDUINO_ARCH_ESP32
-                    SPIFFS.begin(true);
-                #else
-                    SPIFFS.begin();
-                #endif
+                // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
+                // can read /config/ and /palettes/ before the captive portal blocks.
+                Lightnet::Fs::begin();
 
                 paletteStore = new Lightnet::PaletteStore();
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);

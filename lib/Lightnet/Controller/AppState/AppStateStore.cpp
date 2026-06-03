@@ -2,10 +2,7 @@
 #include "AppStateStore.hpp"
 #include "../../Utils/SimpleJson.hpp"
 #include "../../Utils/Debug.hpp"
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../Utils/Fs/Fs.hpp"
 #include <string.h>
 
 namespace Lightnet {
@@ -56,9 +53,9 @@ namespace Lightnet {
 
     bool AppStateStore::readFile()
     {
-        if (!SPIFFS.exists(APP_STATE_PATH)) return false;
+        if (!Fs::exists(APP_STATE_PATH)) return false;
 
-        File f = SPIFFS.open(APP_STATE_PATH, "r");
+        File f = Fs::open(APP_STATE_PATH, "r");
 
         if (!f) return false;
 
@@ -95,7 +92,7 @@ namespace Lightnet {
 
     void AppStateStore::writeFile()
     {
-        File f = SPIFFS.open(APP_STATE_TMP_PATH, "w");
+        File f = Fs::open(APP_STATE_TMP_PATH, "w");
 
         if (!f) {
             D_PRINTLN("[APP_STATE] failed to open tmp file");
@@ -113,7 +110,7 @@ namespace Lightnet {
 
         f.close();
 
-        SPIFFS.remove(APP_STATE_PATH);
-        SPIFFS.rename(APP_STATE_TMP_PATH, APP_STATE_PATH);
+        Fs::remove(APP_STATE_PATH);
+        Fs::rename(APP_STATE_TMP_PATH, APP_STATE_PATH);
     }
 }  // namespace Lightnet

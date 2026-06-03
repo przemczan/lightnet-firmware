@@ -3,10 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../Utils/Fs/Fs.hpp"
 
 namespace Lightnet {
     namespace {
@@ -95,14 +92,13 @@ namespace Lightnet {
             }
         }
 
-        // Fall through to SPIFFS user palettes
         char path[40];
 
         snprintf(path, sizeof(path), "/palettes/%s.json", name);
 
-        if (!SPIFFS.exists(path)) return false;
+        if (!Fs::exists(path)) return false;
 
-        File f = SPIFFS.open(path, "r");
+        File f = Fs::open(path, "r");
 
         if (!f) return false;
 
@@ -138,7 +134,7 @@ namespace Lightnet {
 
         snprintf(path, sizeof(path), "/palettes/%s.json", name);
 
-        return SPIFFS.exists(path);
+        return Fs::exists(path);
     }
 
     void PaletteStore::buildUserColors(
@@ -165,10 +161,6 @@ namespace Lightnet {
         return BUILTINS[i].name;
     }
 
-    // Fixed temp path — per-name variants like "/palettes/myname.json.tmp" can
-    // exceed SPIFFS's 31-char path limit. See SceneStore.cpp for the same rationale.
-    static const char PALETTE_TMP[] = "/palettes/.write.tmp"; // 20 chars
-
     bool PaletteStore::save(const char *name, const GradientStop *stops, uint8_t count) const
     {
         if (!name || count == 0 || count > PALETTE_STOPS) return false;
@@ -177,7 +169,7 @@ namespace Lightnet {
 
         snprintf(path, sizeof(path), "/palettes/%s.json", name);
 
-        File f = SPIFFS.open(PALETTE_TMP, "w");
+        File f = Fs::open(path, "w");
 
         if (!f) return false;
 
@@ -201,9 +193,6 @@ namespace Lightnet {
         f.print("]}");
         f.close();
 
-        SPIFFS.remove(path);
-        SPIFFS.rename(PALETTE_TMP, path);
-
         return true;
     }
 
@@ -215,8 +204,8 @@ namespace Lightnet {
 
         snprintf(path, sizeof(path), "/palettes/%s.json", name);
 
-        if (!SPIFFS.exists(path)) return false;
+        if (!Fs::exists(path)) return false;
 
-        return SPIFFS.remove(path);
+        return Fs::remove(path);
     }
 }  // namespace Lightnet

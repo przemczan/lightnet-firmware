@@ -40,7 +40,7 @@
         }
     },
             nullptr, // file upload handler (unused — we handle raw body below)
-            // Body chunk handler: stream directly to SPIFFS
+            // Body chunk handler: stream directly to filesystem
             [this](AsyncWebServerRequest *request, uint8_t *data,
                    size_t len, size_t index, size_t total) {
         this->handleUploadBody(request, data, len, index, total);
@@ -67,12 +67,12 @@
     {
         if (index == 0) {
             D_PRINTF("[FW] upload start, total=%u bytes\n", (unsigned)total);
-            uploadFile = SPIFFS.open(FIRMWARE_PATH, "w");
+            uploadFile = Lightnet::Fs::open(FIRMWARE_PATH, "w");
 
             if (!uploadFile) {
                 D_PRINTLN("[FW] ERROR: cannot open /panel_fw.bin for writing");
                 request->send(507, "application/json",
-                              "{\"error\":\"SPIFFS write failed\"}");
+                              "{\"error\":\"filesystem write failed\"}");
 
                 return;
             }

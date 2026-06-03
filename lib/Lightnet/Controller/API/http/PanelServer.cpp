@@ -62,11 +62,11 @@ namespace Lightnet {
     void PanelServer::registerRoutes()
     {
         // Specific routes must be registered before the wildcard.
-        server.on("/api/panels", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetPanels(r);
-        });
         server.on("/api/panels/edges", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetEdges(r);
+        });
+        server.on("/api/panels", HTTP_GET, [this](AsyncWebServerRequest *r) {
+            handleGetPanels(r);
         });
         Http::onBody(server, "/api/panels/*", HTTP_PUT, Http::MAX_BODY_SMALL,
                      this, &PanelServer::handlePutPanel);

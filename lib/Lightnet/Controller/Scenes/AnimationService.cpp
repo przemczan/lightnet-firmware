@@ -25,7 +25,7 @@ namespace Lightnet {
         }
 
         if (!scenes.save(parsed.name, body, len)) {
-            return SceneResult::error(SceneError::IoFailure, "SPIFFS write failed");
+            return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
         }
 
         return SceneResult::success();

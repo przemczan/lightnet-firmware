@@ -43,7 +43,7 @@ Deep dive: [Architecture → Discovery sequence](architecture.md#6-discovery-seq
 
 - **Panel-local animations** — BREATHE, FADE, PULSE, BLINK, HUE_CYCLE, STROBE, REACTIVE, TRANSITION, SOLID. Zero per-frame I²C traffic.
 - **Controller runners** — WAVE, RIPPLE, CHASE. Computed on the ESP each frame; scaled per-panel color values sent over I²C.
-- **Scenes** — multi-layer JSON containers stored on SPIFFS, played back by `ScenePlayer`.
+- **Scenes** — multi-layer JSON containers stored on LittleFS, played back by `ScenePlayer`.
 - **Palettes** — 1–16 stop RGB gradients, sampled in 256 positions at frame time.
 - **Groups** — synchronisation units; panels in the same group fire simultaneously (±2.5 µs jitter via I²C General Call).
 

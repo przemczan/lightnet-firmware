@@ -1,5 +1,5 @@
 #pragma once
-// Pure JSON parser for palette bodies — no SPIFFS, no Arduino dependency.
+// Pure JSON parser for palette bodies — no Arduino dependency.
 // Split out from PaletteStore so it can be unit-tested under `pio test -e native`.
 
 #include <stdint.h>

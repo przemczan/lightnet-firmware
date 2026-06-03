@@ -7,7 +7,7 @@ namespace Lightnet {
     // Owns `/config/app_state.json` — runtime state that should survive reboots
     // when configured to do so (see ConfigurationStore::powerStateOnBoot).
     //
-    // SPIFFS layout:
+    // filesystem layout:
     //   /config/app_state.json
     //   { "schemaVersion": 1, "isOn": true }
     //
@@ -21,7 +21,7 @@ namespace Lightnet {
             // callers derive the boot isOn from ConfigurationStore policy.
             void load();
 
-            // Call from the main loop to drive deferred SPIFFS writes.
+            // Call from the main loop to drive deferred filesystem writes.
             void tick(uint32_t now);
 
             // Flush immediately. Call before any graceful reboot.

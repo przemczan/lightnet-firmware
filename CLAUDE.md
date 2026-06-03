@@ -88,7 +88,7 @@ Response payload for `EDGES_LIST`: `u16 count` followed by `count × 8 bytes` (`
 - **Single entry point**: `src/main.cpp` — includes `controller/main.hpp` or `panel/main.hpp` based on `LIGHTNET_TARGET_CONTROLLER`.
 - **I²C protocol version**: v4 (`VERSION` constant in `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
 - **`animScheduler->tick(millis())`** must be called in the main loop `case 1`.
-- **SPIFFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.json`.
+- **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.json`.
 
 - **`BOOTLOADER_ENTRY_TOKEN = 0xB0`** — both sides of `PACKET_ENTER_BOOTLOADER` must agree on this value. Do not send `CMD_SWITCH_APPLICATION + BOOTTYPE_BOOTLOADER` (bytes `0x01 0x00`) to the twiboot fork — it WDT-resets the panel.
 - **`busIsDisabled` in `LightnetPinger` is static (shared)** — set while any ping pulse is being driven so all pingers drop ISR samples during that window, preventing self-detection.

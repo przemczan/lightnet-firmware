@@ -697,8 +697,7 @@ namespace Lightnet {
             return false;
         }
 
-        // Validate name characters and length. 18-char max keeps
-        // /scenes/<name>.json within SPIFFS's 31-char path limit.
+        // Validate name characters and length.
         size_t nameLen = 0;
 
         for (const char *c = out.name; *c; c++, nameLen++) {

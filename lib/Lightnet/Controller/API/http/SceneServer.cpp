@@ -2,10 +2,7 @@
 #include "HttpHelpers.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../../Utils/Fs/Fs.hpp"
 #include <string.h>
 #include <stdio.h>
 
@@ -74,7 +71,7 @@ namespace Lightnet {
     void SceneServer::handleListScenes(AsyncWebServerRequest *req)
     {
         char buf[512];
-        Dir d = SPIFFS.openDir("/scenes/");
+        FsDir d("/scenes/");
 
         int n = snprintf(buf, sizeof(buf), "[");
         bool first = true;
@@ -129,13 +126,13 @@ namespace Lightnet {
 
         snprintf(path, sizeof(path), "/scenes/%s.json", name);
 
-        if (!SPIFFS.exists(path)) {
+        if (!Fs::exists(path)) {
             Http::sendError(req, 404, "not_found");
 
             return;
         }
 
-        req->send(SPIFFS, path, "application/json");
+        req->send(Fs::raw(), path, "application/json");
     }
 
     void SceneServer::handleDeleteScene(AsyncWebServerRequest *req)
@@ -153,13 +150,13 @@ namespace Lightnet {
 
         snprintf(path, sizeof(path), "/scenes/%s.json", name);
 
-        if (!SPIFFS.exists(path)) {
+        if (!Fs::exists(path)) {
             Http::sendError(req, 404, "not_found");
 
             return;
         }
 
-        SPIFFS.remove(path);
+        Fs::remove(path);
         Http::sendOk(req);
     }
 

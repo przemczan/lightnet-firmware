@@ -95,7 +95,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|
 | `ScenePlayer` | Loads and ticks multi-layer scenes; resolves palettes, fires steps |
 | `SceneParser` | Parses scene JSON into `SceneLayer[]` structs |
-| `SceneStore` | SPIFFS persistence for scene files at `/scenes/<name>.json` |
+| `SceneStore` | Filesystem persistence for scene files at `/scenes/<name>.json` |
 | `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop |
 
 **Palettes/**
@@ -276,20 +276,20 @@ Sequence after `LNPanelsInitializer.isReady() == true`:
 
 ```mermaid
 flowchart TD
-  A[Mount SPIFFS] --> B[sendConfiguration — gamma/color temp to all panels]
+  A[Mount LittleFS] --> B[sendConfiguration — gamma/color temp to all panels]
   B --> C[selfTest — fade-in/out on every panel]
   C --> D[PaletteStore::seedBuiltInsIfMissing]
   D --> E[AppearanceStore::loadAndApply\nbrightness + colors + palette broadcast]
   E --> F[AnimationScheduler init]
   F --> G[setupWiFi — AsyncWiFiManager\nauto-connect or open captive portal]
-  G --> H[AsyncWebServer start port 80\nWebSocket + HTTP API + SPIFFS]
+  G --> H[AsyncWebServer start port 80\nWebSocket + HTTP API + LittleFS]
   H --> I[ArduinoOTA.begin]
   I --> J[mDNS: lightnet-chipid.local\n_lightnet._tcp]
   J --> K[Main loop]
 ```
 
-!!! info "SPIFFS mounted before WiFi"
-    `SPIFFS.begin()` is hoisted before WiFi so `PaletteStore` and `AppearanceStore` can read `/palettes/` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
+!!! info "LittleFS mounted before WiFi"
+    `Fs::begin()` is hoisted before WiFi so `PaletteStore` and `AppearanceStore` can read `/palettes/` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
 
 Main loop (`case 1`):
 ```cpp

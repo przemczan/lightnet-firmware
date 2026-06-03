@@ -1,10 +1,7 @@
 #pragma once
-// SceneStore owns SPIFFS persistence for scene files at /scenes/<name>.json.
+// SceneStore owns filesystem persistence for scene files at /scenes/<name>.json.
 // Raw JSON bytes are stored verbatim so GET is a zero-parse file passthrough;
 // there is no separate binary or re-encoded representation.
-//
-// Atomic write: bytes go to /scenes/<name>.json.tmp, then rename after a successful
-// parse. The original file is never touched until validation succeeds.
 
 #include <stdint.h>
 #include <stddef.h>
@@ -15,7 +12,7 @@ namespace Lightnet {
         public:
             // Atomically write `len` bytes of JSON to /scenes/<name>.json.
             // Caller must already have validated the content via parseScene().
-            // Returns false if the SPIFFS write fails.
+            // Returns false if the filesystem write fails.
             bool save(const char *name, const char *json, size_t len) const;
 
             // Heap-allocate a null-terminated copy of /scenes/<name>.json.

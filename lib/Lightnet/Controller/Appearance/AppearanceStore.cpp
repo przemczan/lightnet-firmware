@@ -2,10 +2,7 @@
 #include "../../Utils/Debug.hpp"
 #include "../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../Utils/Fs/Fs.hpp"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,9 +62,9 @@ namespace Lightnet {
 
     bool AppearanceStore::readFile()
     {
-        if (!SPIFFS.exists(APPEARANCE_PATH)) return false;
+        if (!Fs::exists(APPEARANCE_PATH)) return false;
 
-        File f = SPIFFS.open(APPEARANCE_PATH, "r");
+        File f = Fs::open(APPEARANCE_PATH, "r");
 
         if (!f) return false;
 
@@ -146,10 +143,7 @@ namespace Lightnet {
 
     void AppearanceStore::writeFile()
     {
-        // Ensure /config/ exists. SPIFFS is flat namespace so directories don't have to be
-        // created, but FS implementations that emulate them benefit from the explicit dir.
-        // (On ESP8266 SPIFFS this is a no-op.)
-        File f = SPIFFS.open(APPEARANCE_TMP_PATH, "w");
+        File f = Fs::open(APPEARANCE_TMP_PATH, "w");
 
         if (!f) {
             D_PRINTLN("[APPEARANCE] failed to open tmp file");
@@ -182,8 +176,8 @@ namespace Lightnet {
 
         f.close();
 
-        SPIFFS.remove(APPEARANCE_PATH);
-        SPIFFS.rename(APPEARANCE_TMP_PATH, APPEARANCE_PATH);
+        Fs::remove(APPEARANCE_PATH);
+        Fs::rename(APPEARANCE_TMP_PATH, APPEARANCE_PATH);
     }
 
     void AppearanceStore::tick(uint32_t now)

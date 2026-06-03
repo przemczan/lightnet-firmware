@@ -79,10 +79,10 @@
                         break;
                     }
 
-                    outFile = SPIFFS.open(FIRMWARE_PATH, "w");
+                    outFile = Lightnet::Fs::open(FIRMWARE_PATH, "w");
 
                     if (!outFile) {
-                        replyError("SPIFFS open failed");
+                        replyError("filesystem open failed");
                         reset();
                         break;
                     }

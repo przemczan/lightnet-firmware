@@ -3,15 +3,11 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
     #include <Arduino.h>
-    #ifdef ARDUINO_ARCH_ESP32
-        #include <SPIFFS.h>
-    #else
-        #include <FS.h>
-    #endif
+    #include "../../Utils/Fs/Fs.hpp"
     #include "PanelFlasher.hpp"
 
-    // Receives a panel firmware binary over the USB serial port and stores it to
-    // SPIFFS, then triggers PanelFlasher.
+    // Receives a panel firmware binary over the USB serial port, stores it to
+    // the filesystem, then triggers PanelFlasher.
     //
     // Wire protocol (little-endian):
     //   PC → [4B magic 'L','N','F','W'][4B size][size bytes data][2B CRC-16]

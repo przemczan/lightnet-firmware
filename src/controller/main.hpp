@@ -39,8 +39,6 @@
     #include "OTA/FirmwareUpdateServer.hpp"
     #include "OTA/SerialFirmwareReceiver.hpp"
     #include <ArduinoOTA.h>
-    #ifdef ARDUINO_ARCH_ESP32
-        #include <SPIFFS.h>
-    #endif
+    #include "../../lib/Lightnet/Utils/Fs/Fs.hpp"
 
 #endif

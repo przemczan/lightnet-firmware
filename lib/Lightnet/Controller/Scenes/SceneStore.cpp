@@ -2,19 +2,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../Utils/Fs/Fs.hpp"
 
 namespace Lightnet {
     namespace {
-        // SPIFFS_OBJ_NAME_LEN = 32 (includes null terminator) → max path = 31 chars.
-        // Per-name temp paths like "/scenes/demo_warm_breathe.json.tmp" (34 chars) exceed
-        // this limit and SPIFFS.open() returns null. A single fixed-name temp file is
-        // always short (15 chars) and safe for single-threaded embedded use.
-        static const char SCENE_TMP[] = "/scenes/.write.tmp"; // 18 chars
-
         void scenePath(const char *name, char *out, size_t outLen)
         {
             snprintf(out, outLen, "/scenes/%s.json", name);
@@ -27,16 +18,14 @@ namespace Lightnet {
 
         scenePath(name, path, sizeof(path));
 
-        File f = SPIFFS.open(SCENE_TMP, "w");
+        File f = Fs::open(path, "w");
 
         if (!f) return false;
 
         f.write((const uint8_t *)json, len);
         f.close();
 
-        SPIFFS.remove(path);
-
-        return SPIFFS.rename(SCENE_TMP, path);
+        return true;
     }
 
     char * SceneStore::load(const char *name, size_t& outLen) const
@@ -45,13 +34,13 @@ namespace Lightnet {
 
         scenePath(name, path, sizeof(path));
 
-        if (!SPIFFS.exists(path)) {
+        if (!Fs::exists(path)) {
             outLen = 0;
 
             return nullptr;
         }
 
-        File f = SPIFFS.open(path, "r");
+        File f = Fs::open(path, "r");
 
         if (!f) {
             outLen = 0;
@@ -90,7 +79,7 @@ namespace Lightnet {
 
         scenePath(name, path, sizeof(path));
 
-        return SPIFFS.exists(path);
+        return Fs::exists(path);
     }
 
     bool SceneStore::del(const char *name) const
@@ -99,16 +88,16 @@ namespace Lightnet {
 
         scenePath(name, path, sizeof(path));
 
-        if (!SPIFFS.exists(path)) return false;
+        if (!Fs::exists(path)) return false;
 
-        return SPIFFS.remove(path);
+        return Fs::remove(path);
     }
 
     void SceneStore::listJson(char *buf, size_t bufLen) const
     {
         int n = snprintf(buf, bufLen, "[");
         bool first = true;
-        Dir d = SPIFFS.openDir("/scenes/");
+        FsDir d("/scenes/");
 
         while (d.next() && n + 64 < (int)bufLen) {
             String fn = d.fileName();   // e.g. "/scenes/sunset.json"

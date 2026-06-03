@@ -230,7 +230,7 @@ Palette JSON format:
 | `GET` | `/api/scenes/:name` | — | Scene JSON (file passthrough) |
 | `DELETE` | `/api/scenes/:name` | — | `{}` |
 
-Scene names: 1–18 chars, `[a-zA-Z0-9_-]`. (18-char limit keeps the SPIFFS path `/scenes/<name>.json` within the 31-character filesystem limit.)
+Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
 
 #### Playback
 
@@ -255,7 +255,7 @@ Status when idle: `{"playing": false}`
 
 #### One-shot animation
 
-Plays a single-layer animation directly without saving to SPIFFS. Use this for notifications that overlay an ambient scene on a free group ID.
+Plays a single-layer animation directly without saving to disk. Use this for notifications that overlay an ambient scene on a free group ID.
 
 The body is a **flat object** — step fields (`type`/`runner`, `color`, `duration`, `params`, etc.) sit at the root level alongside `group` and `panels`. There is no `"sequence"` wrapper.
 
@@ -304,7 +304,7 @@ Content-Type: application/octet-stream
 [raw binary body — panel firmware .bin file]
 ```
 
-The body is streamed directly to SPIFFS as `/panel_fw.bin` to avoid buffering in RAM. Once the upload completes, the controller starts flashing panels over I²C one by one in discovery order.
+The body is streamed directly to `/panel_fw.bin` to avoid buffering in RAM. Once the upload completes, the controller starts flashing panels over I²C one by one in discovery order.
 
 **Responses:**
 
@@ -312,8 +312,8 @@ The body is streamed directly to SPIFFS as `/panel_fw.bin` to avoid buffering in
 |---|---|---|
 | `200` | `{"status":"flashing","panels":N}` | Upload accepted, flashing started |
 | `409` | `{"error":"flash already in progress"}` | Another flash is already running |
-| `422` | `{"error":"<msg>"}` | SPIFFS write failure or other error |
-| `507` | `{"error":"SPIFFS write failed"}` | Filesystem full or unavailable |
+| `422` | `{"error":"<msg>"}` | Write failure or other error |
+| `507` | `{"error":"filesystem write failed"}` | Filesystem full or unavailable |
 
 !!! warning "Restart required after flashing"
     After flashing all panels, the **controller must be restarted** so `PanelsInitializer` can re-run discovery with the new panel firmware.
@@ -406,7 +406,7 @@ Runtime power state. Persisted in `/config/app_state.json` with a 5-second defer
 | `409 {"error":"..."}` | Conflict — flash already running, or scene schema version too new for this firmware |
 | `422 {"error":"..."}` | Validation failure — the request body is invalid; no state was changed |
 | `403 {"error":"..."}` | Operation not permitted (e.g. deleting a built-in palette) |
-| `500 {"error":"..."}` | SPIFFS read/write failed |
+| `500 {"error":"..."}` | Filesystem read/write failed |
 | `507 {"error":"..."}` | Insufficient storage (firmware upload endpoint only) |
 
 ### WebSocket

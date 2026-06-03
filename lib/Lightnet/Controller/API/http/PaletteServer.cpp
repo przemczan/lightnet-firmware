@@ -3,10 +3,7 @@
 #include "../../Palettes/PaletteJson.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
-#include <FS.h>
-#ifdef ARDUINO_ARCH_ESP32
-    #include <SPIFFS.h>
-#endif
+#include "../../../Utils/Fs/Fs.hpp"
 #include <string.h>
 #include <stdio.h>
 
@@ -79,7 +76,7 @@ namespace Lightnet {
             if (palettes.resolve(name, stops, count)) writeEntry(name);
         }
 
-        Dir d = SPIFFS.openDir("/palettes/");
+        FsDir d("/palettes/");
 
         while (d.next()) {
             String fn = d.fileName();

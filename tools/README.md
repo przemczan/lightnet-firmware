@@ -53,7 +53,7 @@ Scenes are delimited by `ANIM_CONTROL → ALL  cmd=CLEAR_QUEUE` markers (which `
 ## flash_panels_serial.py
 
 Uploads a compiled panel firmware binary to all discovered panels via the
-controller's serial port. The controller receives the file, stores it to SPIFFS,
+controller's serial port. The controller receives the file, stores it to LittleFS,
 then flashes each panel over I²C using twiboot.
 
 **Requires:** `pip install pyserial`

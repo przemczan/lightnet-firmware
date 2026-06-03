@@ -2,11 +2,6 @@
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
-    #ifdef ARDUINO_ARCH_ESP32
-        #include <SPIFFS.h>
-    #else
-        #include <FS.h>
-    #endif
     #include "../../Utils/Debug.hpp"
 
     // Always-on status log — not gated by DEBUG so the user can see flasher progress
@@ -26,7 +21,7 @@
 
     void PanelFlasher::startFlashing(const char *path)
     {
-        File f = SPIFFS.open(path, "r");
+        File f = Lightnet::Fs::open(path, "r");
 
         if (!f) {
             setError("cannot open firmware file");
@@ -97,10 +92,10 @@
                 if (twiboot->connect(TwibootClient::TWIBOOT_ADDRESS, &info, 1, 0)) {
                     FLOG("twiboot ready @ 0x%02X", TwibootClient::TWIBOOT_ADDRESS);
                     currentPage = 0;
-                    // Open firmware file immediately — before transitioning — so the
-                    // SPIFFS overhead is paid while twiboot is alive (timeout reset
+                    // Open firmware file immediately before transitioning so the
+                    // read latency is paid while twiboot is alive (timeout reset
                     // by connect(); timer won't fire while we're communicating).
-                    flashFile = SPIFFS.open(firmwarePath, "r");
+                    flashFile = Lightnet::Fs::open(firmwarePath, "r");
 
                     if (!flashFile) {
                         setError("firmware file open failed");
@@ -157,7 +152,7 @@
 
             case State::VERIFY:
             {
-                File f = SPIFFS.open(firmwarePath, "r");
+                File f = Lightnet::Fs::open(firmwarePath, "r");
                 bool ok = true;
 
                 if (!f) {

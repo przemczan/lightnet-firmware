@@ -10,7 +10,7 @@ namespace Lightnet {
 
     // Owns `/config/configuration.json` — persistent app-level settings.
     //
-    // SPIFFS layout:
+    // filesystem layout:
     //   /config/configuration.json
     //   { "schemaVersion": 1, "powerStateOnBoot": 0 }
     //

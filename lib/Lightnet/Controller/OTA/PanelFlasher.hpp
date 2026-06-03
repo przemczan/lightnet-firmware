@@ -3,11 +3,7 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
     #include <Arduino.h>
-    #ifdef ARDUINO_ARCH_ESP32
-        #include <SPIFFS.h>
-    #else
-        #include <FS.h>
-    #endif
+    #include "../../Utils/Fs/Fs.hpp"
     #include "../Panels/PanelsController.hpp"
     #include "../Panels/PanelsInitializer.hpp"
     #include "TwibootClient.hpp"
@@ -50,7 +46,7 @@
                 TwibootClient *    twiboot
             );
 
-            // Load firmware from firmwarePath on SPIFFS and begin flashing all panels.
+            // Load firmware from firmwarePath on the filesystem and begin flashing all panels.
             // Safe to call again after DONE/ERROR to retry.
             void startFlashing(const char *firmwarePath);
 
@@ -83,7 +79,7 @@
             Status status;
             uint32_t stateEnteredAt = 0;
 
-            // Firmware image buffered page-by-page from SPIFFS; not held in RAM as a whole.
+            // Firmware image buffered page-by-page from the filesystem; not held in RAM as a whole.
             char firmwarePath[64];
             size_t firmwareSize = 0;
             uint16_t currentPage  = 0;

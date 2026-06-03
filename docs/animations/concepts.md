@@ -27,7 +27,7 @@ graph TD
   L3 --> S4[Step: SOLID]
 ```
 
-Scenes are stored as JSON files on the controller's SPIFFS filesystem at `/scenes/<name>.json`. The HTTP body and the stored file share the same JSON format.
+Scenes are stored as JSON files on the controller's filesystem (LittleFS) at `/scenes/<name>.json`. The HTTP body and the stored file share the same JSON format.
 
 ---
 

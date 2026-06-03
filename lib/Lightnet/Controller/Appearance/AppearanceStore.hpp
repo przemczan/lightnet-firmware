@@ -14,11 +14,11 @@ namespace Lightnet {
     // the values to all panels.
     //
     // Writes are deferred: mutators update in-memory state and broadcast to panels immediately,
-    // but SPIFFS is only written after APPEARANCE_FLUSH_INTERVAL_MS has elapsed since the
+    // but the filesystem is only written after APPEARANCE_FLUSH_INTERVAL_MS has elapsed since the
     // first un-persisted change. Call tick() from the main loop to drive this. Call flush()
     // before any graceful reboot to guarantee the latest state is saved.
     //
-    // SPIFFS layout:
+    // the filesystem layout:
     //   /config/appearance.json
     //   {
     //     "schemaVersion": 1,
@@ -39,11 +39,11 @@ namespace Lightnet {
             // can block.
             void loadAndApply();
 
-            // Re-broadcast current in-memory state to panels without touching SPIFFS.
+            // Re-broadcast current in-memory state to panels without touching the filesystem.
             // Call after restoring global power to resync panel state.
             void reapply();
 
-            // Call from the main loop. Flushes to SPIFFS when the deferred-write interval
+            // Call from the main loop. Flushes to the filesystem when the deferred-write interval
             // has elapsed since the first un-persisted change.
             void tick(uint32_t now);
 
@@ -51,7 +51,7 @@ namespace Lightnet {
             void flush();
 
             // Mutators — each one updates in-memory state and broadcasts to panels.
-            // SPIFFS is written lazily via tick(). Returns false on validation failure (e.g.
+            // the filesystem is written lazily via tick(). Returns false on validation failure (e.g.
             // PATCH /api/appearance with an unknown palette name).
             bool setBrightness(uint8_t value);
             bool setBaseColor(uint8_t slot, Protocol::ColorRGB color);

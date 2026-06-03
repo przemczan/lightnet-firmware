@@ -65,7 +65,7 @@ twibootClient->writePage(addr, data, 128);  // 2 × 64-byte chunks
 twibootClient->startApp();
 ```
 
-`PanelFlasher` reads `/panel_fw.bin` from SPIFFS 128 bytes at a time — the full binary is never buffered in RAM.
+`PanelFlasher` reads `/panel_fw.bin` from LittleFS 128 bytes at a time — the full binary is never buffered in RAM.
 
 ### HTTP upload flow
 
@@ -73,11 +73,11 @@ twibootClient->startApp();
 sequenceDiagram
   participant Client
   participant Controller
-  participant SPIFFS
+  participant LittleFS
   participant Panels
 
   Client->>Controller: POST /api/firmware/panels (raw .bin body)
-  Controller->>SPIFFS: Stream to /panel_fw.bin
+  Controller->>LittleFS: Stream to /panel_fw.bin
   Controller->>Client: 200 {"status":"flashing","panels":N}
   loop per panel (main loop)
     Controller->>Panels: ENTER_BOOTLOADER → flash via twiboot
@@ -108,7 +108,7 @@ sequenceDiagram
 Controller replies:
 
 - `READY\n` — after the header is received
-- `OK\n` — after CRC validates and binary is saved to SPIFFS
+- `OK\n` — after CRC validates and binary is saved to LittleFS
 - `ERR:<message>\n` — on any failure
 
 ### Usage
