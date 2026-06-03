@@ -135,9 +135,9 @@ uint8_t LightnetBus::sendPacketWithResponse(
     memset(respBuf, 0, respSize);
 
     if (type == Protocol::PACKET_FETCH_STATE &&
-        respSize >= sizeof(Protocol::PacketPanelState))
-    {
+        respSize >= sizeof(Protocol::PacketPanelState)) {
         Protocol::PacketPanelState *rsp = (Protocol::PacketPanelState *)respBuf;
+
         Protocol::setPacketMeta(rsp, Protocol::PACKET_FETCH_STATE);
         SimPanels.getState(addr, &rsp->panelState);
     } else {

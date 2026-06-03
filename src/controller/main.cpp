@@ -81,7 +81,9 @@ void setupMDNS()
         // Re-announce every time the station re-acquires an IP. (ESP32's mDNS
         // task handles this itself, so this is not needed there.)
         mdnsGotIPHandler = WiFi.onStationModeGotIP(
-            [](const WiFiEventStationModeGotIP &) { MDNS.notifyAPChange(); });
+            [](const WiFiEventStationModeGotIP &) {
+        MDNS.notifyAPChange();
+    });
     #endif
 }
 

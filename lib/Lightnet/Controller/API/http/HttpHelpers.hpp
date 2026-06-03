@@ -51,7 +51,7 @@ namespace Lightnet {
 
             inline void logBody(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
             {
-                size_t show = len < LOG_TRUNCATE ? len : LOG_TRUNCATE;
+                size_t show = (len < LOG_TRUNCATE) ? len : LOG_TRUNCATE;
 
                 D_PRINTF("[HTTP] %s %s <- %.*s%s\n",
                          req->methodToString(), req->url().c_str(), (int)show, (const char *)body,

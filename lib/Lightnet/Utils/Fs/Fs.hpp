@@ -31,11 +31,12 @@ namespace Lightnet {
             size_t fileSize() const;
 
         private:
-        #ifdef ARDUINO_ARCH_ESP32
-            File         _dir;
-            mutable File _entry;
-        #else
-            mutable Dir _dir;
-        #endif
+            #ifdef ARDUINO_ARCH_ESP32
+                File _dir;
+                mutable File _entry;
+
+            #else
+                mutable Dir _dir;
+            #endif
     };
 }  // namespace Lightnet
