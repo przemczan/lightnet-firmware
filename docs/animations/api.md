@@ -298,6 +298,65 @@ Panels 0–4 cycle through ocean hues. Panels 5–9 breathe lava orange. Spatial
 
 Play once (`loop: false`). The sequence runs wave → ripple → colour transition → infinite breathe in the base colour.
 
+### Example 6 — Full choreography (`startAfter`, gap, async, barrier)
+
+Every timing mechanism in one looping scene — parallel start, `startAfter`
+sequencing, a leading gap, the phase-locked scene-cycle barrier, and an async
+free-runner:
+
+```json
+{
+  "name": "choreo_demo",
+  "loop": true,
+  "layers": [
+    { "group": "intro",  "sequence": [ {"type":"FADE","colorFrom":"#000","colorTo":"#FFF","duration":2000} ] },
+    { "group": "accent", "sequence": [ {"runner":"WAVE","color":{"palette":200},"duration":2000} ] },
+    { "group": "main", "startAfter": "intro", "sequence": [
+        {"duration":500},
+        {"type":"BREATHE","colorTo":"#0040FF","duration":3000}
+    ] },
+    { "group": "bg", "async": true, "sequence": [ {"type":"BLINK","colorTo":"#FF8000","duration":1500,"params":[200]} ] }
+  ]
+}
+```
+
+```mermaid
+%%{init: {'gantt': {'barHeight': 70, 'barGap': 8, 'topPadding': 50, 'leftPadding': 160, 'fontSize': 44}}}%%
+gantt
+  title One scene cycle (loop = true) · ms axis
+  dateFormat x
+  axisFormat %Lms
+
+  section intro · sync
+    FADE 2000ms            :0, 2000
+    hold · waits barrier   :done, 2000, 5500
+
+  section accent · sync
+    WAVE 2000ms            :0, 2000
+    hold · waits barrier   :done, 2000, 5500
+
+  section main · startAfter intro
+    waiting · dark         :done, 0, 2000
+    GAP 500ms              :done, 2000, 2500
+    BREATHE 3000ms         :2500, 5500
+
+  section bg · async
+    BLINK 1500ms           :active, 0, 1500
+    BLINK 1500ms           :active, 1500, 3000
+    BLINK 1500ms           :active, 3000, 4500
+    BLINK · crosses barrier :active, 4500, 6000
+
+  section barrier
+    sync layers restart ↻  :milestone, 5500, 0
+```
+
+| Layer | Mechanism | Behaviour |
+|---|---|---|
+| `intro`, `accent` | **Parallel** (no `startAfter`) | Both start at t=0. `accent` finishes at 2000 but **holds** until the barrier. |
+| `main` | **`startAfter: intro`** + **gap** | Stays dark until `intro` ends (2000), waits a 500ms gap, then breathes. |
+| barrier | **Phase-lock** | Fires at 5500 — the end of the longest dependency chain (`intro → main`), not the longest single layer. All sync layers reset **together**, so nothing drifts. |
+| `bg` | **`async: true`** | Blinks every 1500ms, ignoring the barrier — note the blink crossing 5500 and continuing into the next cycle. |
+
 ---
 
 ## Appendix: Validation Rules
@@ -311,6 +370,7 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 | Steps per layer | 1–12 |
 | `group` | Name (string) or number 1–254; unique within the scene |
 | `startAfter` | Must name an existing group; no self-reference, no dependency cycles |
+| `async` | Bool; loops the layer independently of the barrier. No effect when `startAfter` is set |
 | `type` + `runner` | Mutually exclusive — cannot both be set |
 | Step with neither `type` nor `runner` | Treated as a **gap** (timed no-op); only `duration` is used |
 | `type` value | Must be a known animation type string |

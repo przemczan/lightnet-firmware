@@ -509,6 +509,16 @@ namespace Lightnet {
 
                         layer.groupId = (uint8_t)v;
                     }
+                } else if (strcmp(key, "async") == 0) {
+                    bool b;
+
+                    if (!jsonReadBool(p, end, &b)) {
+                        strncpy(errMsg, "layer.async: not bool", errLen);
+
+                        return false;
+                    }
+
+                    layer.async = b ? 1 : 0;
                 } else if (strcmp(key, "startAfter") == 0) {
                     if (!jsonReadString(p, end, startAfterName, GROUP_NAME_LEN) || startAfterName[0] == '\0') {
                         strncpy(errMsg, "layer.startAfter: not a non-empty group name", errLen);
@@ -860,6 +870,7 @@ namespace Lightnet {
             }
 
             out.layers[i].startAfterGroupId = id;
+            out.layers[i].async = 0; // startAfter takes precedence — async has no effect
         }
 
         // A depended-upon layer must be able to finish, otherwise its dependents never
