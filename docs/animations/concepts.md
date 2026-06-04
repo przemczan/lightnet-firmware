@@ -250,6 +250,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 | `panels` | No | `"all"` | Panel targeting — see below. |
 | `palette` | No | scene default | Per-layer palette override. |
 | `startAfter` | No | — | Group name of the layer this one waits for; unset ⇒ starts at scene start. |
+| `async` | No | `false` | When `true`, the layer loops on its own, independent of the scene-cycle barrier (see below). Ignored if `startAfter` is set. |
 | `sequence` | Yes | — | Ordered array of steps (1–12). |
 
 ### Panel targeting
@@ -339,6 +340,26 @@ duration, then the sequence advances).
     Earlier firmware looped each layer independently, so layers with unequal total
     durations drifted apart. The scene-cycle barrier replaces that: the whole scene
     is the loop unit, keeping multi-group shows synchronised.
+
+### Async layers
+
+A layer marked `"async": true` opts **out** of the barrier and loops on its own
+cadence — restarting its sequence the moment it finishes, regardless of what the
+other groups are doing. Use it for an independent background effect alongside a
+choreographed foreground.
+
+- The barrier is governed only by the **synchronous** (non-async) layers. Async
+  layers neither block it nor get reset by it.
+- A scene that contains an async layer keeps playing until explicitly stopped
+  (the async layer never "finishes"). With `loop:false`, the synchronous layers
+  play once and hold while the async layer keeps looping.
+- A scene where **every** layer is async simply free-runs all of them forever.
+- `async` is ignored on a layer that also sets `startAfter` — a gated layer is
+  part of the dependency graph, not independent.
+
+A worked example combining all of these (parallel, `startAfter`, gap, async, and
+the barrier) with a to-scale timeline is in
+[API & Examples → Example 6](api.md#example-6-full-choreography-startafter-gap-async-barrier).
 
 ### Runners in sequences
 

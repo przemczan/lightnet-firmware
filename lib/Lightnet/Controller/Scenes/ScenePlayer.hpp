@@ -60,6 +60,7 @@ namespace Lightnet {
     struct SceneLayer {
         uint8_t         groupId;
         uint8_t         startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
+        uint8_t         async;                             // 1 = loop independently (ignored when startAfter is set)
         uint8_t         stepCount;
         PanelTargetMode targetMode;
         uint8_t         targetCount;                       // # entries in targetList
@@ -158,11 +159,20 @@ namespace Lightnet {
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
             void resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t& count) const;
             // Initialise per-layer state from startAfter gating and fire the ungated layers.
-            void armLayers(uint32_t nowMs);
+            // includeAsync=false leaves async layers untouched (used on the loop barrier so
+            // they free-run across scene cycles); =true arms everything (initial start).
+            void armLayers(uint32_t nowMs, bool includeAsync);
             // Index of the layer owning groupId, or -1 if none.
             int  layerIndexForGroup(uint8_t groupId) const;
             // Promote WAITING layers whose dependency is DONE to RUNNING and fire them.
             void promoteReadyLayers(uint32_t nowMs);
+            // True when the layer loops on its own, independent of the scene-cycle barrier.
+            // async has no effect while startAfter gates the layer.
+            bool isAsyncLayer(uint8_t i) const
+            {
+                return layers[i].async && (layers[i].startAfterGroupId == 0);
+            }
+
             void sendPalettesToPanels();
             // Resolve a ColorRef to an actual RGB using the layer's palette + scene base colors.
             // Used for runner constructors that need a concrete color.

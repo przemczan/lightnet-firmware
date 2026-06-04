@@ -91,8 +91,8 @@ namespace Lightnet {
         DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] play \"%s\" layers=%u loop=%s speed=%.1f\n",
                                        name, (unsigned)lCount, loop ? "true" : "false", (double)speed));
 
-        // Arm layer gating and fire the layers that start immediately.
-        armLayers(nowMs);
+        // Arm layer gating and fire the layers that start immediately (async included).
+        armLayers(nowMs, true);
     }
 
     void ScenePlayer::stop()
@@ -126,6 +126,11 @@ namespace Lightnet {
                 currentStep[i] = nextStep;
                 stepStartMs[i] = nowMs;
                 fireStep(i, nowMs);
+            } else if (isAsyncLayer(i)) {
+                // Async layer loops on its own, independent of the barrier.
+                currentStep[i] = 0;
+                stepStartMs[i] = nowMs;
+                fireStep(i, nowMs);
             } else {
                 // Sequence finished — hold the last frame until the scene-cycle barrier.
                 layerState[i] = LayerState::DONE;
@@ -135,22 +140,39 @@ namespace Lightnet {
         // Start any gated layers whose startAfter dependency just finished.
         promoteReadyLayers(nowMs);
 
-        // Scene-cycle barrier: once every layer is DONE, restart the whole scene
-        // together (loop) or stop. This keeps multi-group scenes phase-locked.
+        // Scene-cycle barrier: governed by the synchronous (non-async) layers only.
+        // When they're all DONE, restart them together (loop) or stop. Async layers
+        // free-run and keep the scene alive on their own.
+        bool anySync = false;
+        bool anyAsync = false;
+
         for (uint8_t i = 0; i < lCount; i++) {
-            if (layerState[i] != LayerState::DONE) return;
+            if (isAsyncLayer(i)) {
+                anyAsync = true;
+                continue;
+            }
+
+            anySync = true;
+
+            if (layerState[i] != LayerState::DONE) return; // a sync layer is still going
         }
+
+        if (!anySync) return; // async-only scene — runs until explicitly stopped
 
         if (loop) {
-            armLayers(nowMs);
-        } else {
-            playing = false;
+            armLayers(nowMs, false); // restart sync layers together; leave async free-running
+        } else if (!anyAsync) {
+            playing = false;         // pure sync, play-once — stop
         }
+
+        // else: sync layers play once and hold; async layers keep the scene alive.
     }
 
-    void ScenePlayer::armLayers(uint32_t nowMs)
+    void ScenePlayer::armLayers(uint32_t nowMs, bool includeAsync)
     {
         for (uint8_t i = 0; i < lCount; i++) {
+            if (!includeAsync && isAsyncLayer(i)) continue;
+
             currentStep[i] = 0;
             stepStartMs[i] = nowMs;
 
@@ -165,6 +187,8 @@ namespace Lightnet {
 
         // Fire the ungated layers now (gated ones wait for promoteReadyLayers).
         for (uint8_t i = 0; i < lCount; i++) {
+            if (!includeAsync && isAsyncLayer(i)) continue;
+
             if (layerState[i] == LayerState::RUNNING) fireStep(i, nowMs);
         }
     }
