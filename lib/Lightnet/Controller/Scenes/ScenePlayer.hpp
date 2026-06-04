@@ -18,7 +18,17 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_LAYERS           = 8;
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;
-    static const uint8_t SCENE_SCHEMA_VERSION       = 1;
+    static const uint8_t SCENE_SCHEMA_VERSION       = 2;
+
+    // ============================================================================
+    // Per-layer playback state (scene-cycle barrier model)
+    // ============================================================================
+
+    enum class LayerState : uint8_t {
+        WAITING, // gated by startAfter — not yet started, panels held dark
+        RUNNING, // advancing through its steps
+        DONE,    // last step completed; holds until the whole-scene barrier resets
+    };
 
     // ============================================================================
     // Panel targeting mode for a layer
@@ -49,6 +59,7 @@ namespace Lightnet {
 
     struct SceneLayer {
         uint8_t         groupId;
+        uint8_t         startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
         uint8_t         stepCount;
         PanelTargetMode targetMode;
         uint8_t         targetCount;                       // # entries in targetList
@@ -131,7 +142,7 @@ namespace Lightnet {
             SceneLayer layers[SCENE_MAX_LAYERS];
             uint8_t currentStep[SCENE_MAX_LAYERS];
             uint32_t stepStartMs[SCENE_MAX_LAYERS];
-            bool layerActive[SCENE_MAX_LAYERS];
+            LayerState layerState[SCENE_MAX_LAYERS];
             uint8_t lCount;
             bool loop;
             bool playing;
@@ -146,6 +157,12 @@ namespace Lightnet {
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
             void resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t& count) const;
+            // Initialise per-layer state from startAfter gating and fire the ungated layers.
+            void armLayers(uint32_t nowMs);
+            // Index of the layer owning groupId, or -1 if none.
+            int  layerIndexForGroup(uint8_t groupId) const;
+            // Promote WAITING layers whose dependency is DONE to RUNNING and fire them.
+            void promoteReadyLayers(uint32_t nowMs);
             void sendPalettesToPanels();
             // Resolve a ColorRef to an actual RGB using the layer's palette + scene base colors.
             // Used for runner constructors that need a concrete color.

@@ -33,13 +33,33 @@ Scenes are stored as JSON files on the controller's filesystem (LittleFS) at `/s
 
 ## Layer
 
-A **layer** is an independent animation track inside a scene. Each layer:
+A **layer** is an animation track inside a scene. Each layer:
 
 - Targets a set of panels (`"all"`, a list, or an exclude list)
-- Belongs to a **group ID** (1–254) — panels run all groups concurrently without interference
+- Belongs to a **group** — a name (e.g. `"intro"`) or a number (1–254). Panels run all groups concurrently without interference.
 - Runs a sequence of steps back-to-back, advancing automatically when the current step ends
+- Optionally declares **`startAfter`** — the name of another layer's group it waits for. Unset ⇒ the layer starts immediately at scene start (parallel). Set ⇒ the layer stays dark until the referenced layer's sequence finishes (sequential).
 
-Because groups are independent, panels can run several overlapping layers simultaneously. A panel playing group 1 (ambient breathe) and group 2 (notification pulse) at the same time works without any interaction.
+Because groups are independent, panels can run several overlapping layers simultaneously. A panel playing group `ambient` (breathe) and group `notify` (pulse) at the same time works without any interaction.
+
+### Layer ordering (`startAfter`)
+
+`startAfter` turns the flat "everything starts at t=0" model into a dependency
+graph, so you can both **sequence** and **parallelise** groups from one field:
+
+```json
+"layers": [
+  { "group": "intro", "panels": [1,2], "sequence": [ /* … */ ] },
+  { "group": "main",  "startAfter": "intro", "panels": [3], "sequence": [ /* … */ ] }
+]
+```
+
+`main` stays dark until `intro`'s whole sequence completes, then begins. Layers
+that share the same `startAfter` (or none) run in parallel.
+
+Validation rejects: an unknown `startAfter` target, a self-reference, a
+dependency **cycle**, and a `startAfter` target whose last step is infinite
+(`duration:0`) — such a layer never finishes, so its dependents would never start.
 
 ---
 
@@ -49,15 +69,37 @@ A **step** is a single animation segment within a layer's sequence. Steps are ex
 
 - A **panel-local animation** (`"type": "BREATHE"`, etc.) — runs entirely on the ATmega with zero per-frame I²C traffic
 - A **controller runner** (`"runner": "WAVE"`, etc.) — computed on the ESP each frame, sends per-panel color values over I²C
+- A **gap** (no `type` and no `runner`, only `duration`) — a timed no-op used to offset a layer's start or pause between animations
+
+### Gap steps
+
+A step with neither `type` nor `runner` is a **gap**: the controller sends
+nothing and simply waits `duration` before advancing. The layer's panels **hold**
+their current state during the gap (which is black at scene start, since all
+panels are cleared when a scene begins). Use a gap to delay a layer's first
+animation or to insert a pause:
+
+```json
+"sequence": [
+  { "duration": 500 },                                            // dark/hold for 500ms
+  { "type": "BREATHE", "colorTo": "#0040FF", "duration": 4000 }
+]
+```
+
+To force an explicit black instead of holding, use `{"type":"SOLID","color":"#000000","duration":N}`.
 
 ---
 
 ## Group
 
-Groups are the synchronisation unit. When the controller fires a `GENERAL CALL START` on group 3, every panel that has an animation queued for group 3 starts simultaneously (±2.5 µs jitter). Groups 1–254 are valid; 0 is reserved for system use.
+Groups are the synchronisation unit. When the controller fires a `GENERAL CALL START` on a group, every panel that has an animation queued for that group starts simultaneously (±2.5 µs jitter).
 
-!!! note "Group IDs must be unique within a scene"
-    The controller validates this on save. Two layers cannot share the same group ID.
+A `group` may be written as a **name** (`"group": "intro"`) or a **number** (`"group": 3`). Names are the preferred, readable form; the controller maps each distinct name to an auto-assigned numeric ID (1, 2, 3…) in order of first appearance at parse time, so the on-the-wire protocol is unchanged. Numbers (1–254) still work for back-compat; 0 is reserved.
+
+`startAfter` references a layer by its group **name**.
+
+!!! note "Groups must be unique within a scene"
+    The controller validates this on save. Two layers cannot share the same group name/ID. Avoid mixing named and numeric groups in one scene — a name auto-assigned to `1` collides with a literal `"group": 1`.
 
 ---
 
@@ -188,25 +230,37 @@ A layer can specify its own palette, overriding the scene-level default for the 
 
 ### Field reference
 
+**Scene fields**
+
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version. |
+| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 2; named groups / `startAfter` / gaps use v2). |
 | `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. |
-| `loop` | No | `false` | When `true`, all layers restart from step 0 after their last step completes. |
+| `loop` | No | `false` | When `true`, the whole scene restarts (all layers together) once every layer has finished — the scene-cycle barrier. |
 | `speed` | No | `1.0` | Playback speed multiplier [0.1, 10.0]. Scales all step durations. |
 | `colors` | No | white/black/black | Scene's base colours for `userColors` palette and `{"useColor":N}` references. |
 | `palette` | No | `"userColors"` | Active palette for all layers that don't have their own override. |
 | `layers` | Yes | — | Array of 1–8 layer objects. |
 
+**Layer fields**
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `group` | Yes | — | Group name (string) or number (1–254). Unique within the scene. |
+| `panels` | No | `"all"` | Panel targeting — see below. |
+| `palette` | No | scene default | Per-layer palette override. |
+| `startAfter` | No | — | Group name of the layer this one waits for; unset ⇒ starts at scene start. |
+| `sequence` | Yes | — | Ordered array of steps (1–12). |
+
 ### Panel targeting
 
 ```json
 "panels": "all"              // all discovered panels
-"panels": [0, 2, 5]          // specific panel indices (0-based)
-"panels": {"exclude": [3]}   // all panels except listed indices
+"panels": [1, 3, 5]          // specific panel addresses (numbered from 1)
+"panels": {"exclude": [3]}   // all panels except listed addresses
 ```
 
-Panel indices are assigned during discovery in tree-traversal order. Up to 32 panels per layer targeting list.
+Panel addresses are assigned during discovery in tree-traversal order, starting at **1** (address 0 is the I²C general-call broadcast and is rejected). Up to 32 panels per layer targeting list.
 
 ---
 
@@ -260,21 +314,31 @@ gantt
   FADE (1000ms)       :5000, 6000
 ```
 
-Multiple layers within a scene run in parallel from the same start moment. Each layer advances independently.
+Layers without a `startAfter` begin together at scene start; gated layers begin when their dependency finishes (see [Layer ordering](#layer-ordering-startafter)).
 
 ### Infinite steps
 
-`"duration": 0` means the step runs indefinitely. This is only valid as the **last step** of a layer in a **looping scene**. Using duration 0 on a non-last step is a validation error.
+`"duration": 0` means the step runs indefinitely. This is only valid as the **last step** of a layer. Using duration 0 on a non-last step is a validation error. An infinite last step holds forever — so that layer never "finishes", cannot be a `startAfter` target, and (see below) prevents the whole-scene loop from re-triggering.
 
 ### Loop semantics
 
-!!! note "Two independent loop mechanisms"
-    | Setting | Effect |
-    |---|---|
-    | `scene.loop: true` | Layer restarts from step 0 after all steps complete |
-    | `step.loop: true`  | The animation type cycles within this step's `durationMs` window |
+The scene plays its layer dependency graph **once**: each layer runs its sequence
+and then holds its last frame when finished. When **every** layer has finished, a
+**scene-cycle barrier** fires:
 
-    Both can be combined: a BREATHE with `loop: true` and a finite `durationMs` breathes continuously for that duration, then the scene advances to the next step.
+| Setting | Effect at the barrier |
+|---|---|
+| `scene.loop: true`  | The whole scene resets and replays — all layers restart **together**, so groups never drift apart over loops. |
+| `scene.loop: false` | Playback stops, holding the final frame. |
+
+`step.loop: true` is independent: the animation type cycles within that step's
+`durationMs` window (e.g. a BREATHE with `loop:true` breathes continuously for the
+duration, then the sequence advances).
+
+!!! note "Phase-locked looping"
+    Earlier firmware looped each layer independently, so layers with unequal total
+    durations drifted apart. The scene-cycle barrier replaces that: the whole scene
+    is the loop unit, keeping multi-group shows synchronised.
 
 ### Runners in sequences
 

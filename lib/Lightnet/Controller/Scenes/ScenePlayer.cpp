@@ -17,6 +17,7 @@
             case 6:  return "HUE_CYCLE";
             case 7:  return "STROBE";
             case 8:  return "REACTIVE";
+            case 9:  return "GAP";
             case 64: return "WAVE";
             case 65: return "RIPPLE";
             case 66: return "CHASE";
@@ -40,7 +41,7 @@ namespace Lightnet {
         memset(baseColors, 0, sizeof(baseColors));
         memset(currentStep, 0, sizeof(currentStep));
         memset(stepStartMs, 0, sizeof(stepStartMs));
-        memset(layerActive, 0, sizeof(layerActive));
+        memset(layerState, 0, sizeof(layerState));
     }
 
     void ScenePlayer::loadAndPlay(
@@ -55,6 +56,7 @@ namespace Lightnet {
     )
     {
         stop();
+        scheduler.broadcastBlack();
 
         lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
         memcpy(layers, newLayers, lCount * sizeof(SceneLayer));
@@ -84,27 +86,19 @@ namespace Lightnet {
 
         sendPalettesToPanels();
 
-        // Initialise step tracking and fire first step
-        for (uint8_t i = 0; i < lCount; i++) {
-            currentStep[i] = 0;
-            stepStartMs[i] = nowMs;
-            layerActive[i] = (layers[i].stepCount > 0);
-        }
-
         playing = true;
 
         DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] play \"%s\" layers=%u loop=%s speed=%.1f\n",
                                        name, (unsigned)lCount, loop ? "true" : "false", (double)speed));
 
-        for (uint8_t i = 0; i < lCount; i++) {
-            if (layerActive[i]) fireStep(i, nowMs);
-        }
+        // Arm layer gating and fire the layers that start immediately.
+        armLayers(nowMs);
     }
 
     void ScenePlayer::stop()
     {
         playing = false;
-        memset(layerActive, 0, sizeof(layerActive));
+        memset(layerState, 0, sizeof(layerState)); // all → WAITING (re-armed on next play)
         scheduler.broadcastStop();
     }
 
@@ -112,16 +106,13 @@ namespace Lightnet {
     {
         if (!playing) return;
 
-        bool anyActive = false;
-
+        // Advance the layers that are currently running.
         for (uint8_t i = 0; i < lCount; i++) {
-            if (!layerActive[i]) continue;
-
-            anyActive = true;
+            if (layerState[i] != LayerState::RUNNING) continue;
 
             const SceneStep& step = layers[i].steps[currentStep[i]];
 
-            if (step.durationMs == 0) continue; // infinite — never auto-advance
+            if (step.durationMs == 0) continue; // infinite last step — holds, never completes
 
             uint32_t elapsed = (uint32_t)(nowMs - stepStartMs[i]);
             uint32_t threshold = (speed == 1.0f) ? (uint32_t)step.durationMs
@@ -135,16 +126,73 @@ namespace Lightnet {
                 currentStep[i] = nextStep;
                 stepStartMs[i] = nowMs;
                 fireStep(i, nowMs);
-            } else if (loop) {
-                currentStep[i] = 0;
-                stepStartMs[i] = nowMs;
-                fireStep(i, nowMs);
             } else {
-                layerActive[i] = false;
+                // Sequence finished — hold the last frame until the scene-cycle barrier.
+                layerState[i] = LayerState::DONE;
             }
         }
 
-        if (!anyActive) playing = false;
+        // Start any gated layers whose startAfter dependency just finished.
+        promoteReadyLayers(nowMs);
+
+        // Scene-cycle barrier: once every layer is DONE, restart the whole scene
+        // together (loop) or stop. This keeps multi-group scenes phase-locked.
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layerState[i] != LayerState::DONE) return;
+        }
+
+        if (loop) {
+            armLayers(nowMs);
+        } else {
+            playing = false;
+        }
+    }
+
+    void ScenePlayer::armLayers(uint32_t nowMs)
+    {
+        for (uint8_t i = 0; i < lCount; i++) {
+            currentStep[i] = 0;
+            stepStartMs[i] = nowMs;
+
+            if (layers[i].stepCount == 0) {
+                layerState[i] = LayerState::DONE; // nothing to play
+            } else if (layers[i].startAfterGroupId == 0) {
+                layerState[i] = LayerState::RUNNING;
+            } else {
+                layerState[i] = LayerState::WAITING;
+            }
+        }
+
+        // Fire the ungated layers now (gated ones wait for promoteReadyLayers).
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layerState[i] == LayerState::RUNNING) fireStep(i, nowMs);
+        }
+    }
+
+    int ScenePlayer::layerIndexForGroup(uint8_t groupId) const
+    {
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layers[i].groupId == groupId) return (int)i;
+        }
+
+        return -1;
+    }
+
+    void ScenePlayer::promoteReadyLayers(uint32_t nowMs)
+    {
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layerState[i] != LayerState::WAITING) continue;
+
+            int dep = layerIndexForGroup(layers[i].startAfterGroupId);
+
+            // Missing dependency is treated as satisfied (parser validates references).
+            if (dep >= 0 && layerState[dep] != LayerState::DONE) continue;
+
+            layerState[i] = LayerState::RUNNING;
+            currentStep[i] = 0;
+            stepStartMs[i] = nowMs;
+            fireStep(i, nowMs);
+        }
     }
 
     void ScenePlayer::fireStep(uint8_t layerIdx, uint32_t /*nowMs*/)
@@ -159,6 +207,10 @@ namespace Lightnet {
                                        animTypeName(step.animType),
                                        (unsigned)step.durationMs,
                                        (unsigned)layer.groupId));
+
+        // GAP — a timed no-op. Send nothing; the layer's panels hold their current
+        // state and tick() advances past this step when its duration elapses.
+        if (step.animType == ANIM_GAP) return;
 
         uint8_t panels[SCENE_MAX_PANELS_PER_LAYER];
         uint8_t panelCount = 0;

@@ -77,7 +77,8 @@ namespace Lightnet {
             void turnOnPanels(const uint8_t *panelAddresses, uint8_t panelCount);
 
             void stopGroup(uint8_t group_id);
-            void broadcastStop();  // General Call ANIM_CTRL_STOP + delete all runners
+            void broadcastStop();   // General Call ANIM_CTRL_STOP + delete all runners
+            void broadcastBlack();  // General Call SET_COLOR(0,0,0) — dark all panels
             void clearAllPanelQueues(); // General Call CLEAR_QUEUE (keeps current, drops queued)
             void pauseGroup(uint8_t group_id);
             void resumeGroup(uint8_t group_id);
