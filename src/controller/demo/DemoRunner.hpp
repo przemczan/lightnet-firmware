@@ -1,6 +1,6 @@
 #pragma once
 #ifdef LIGHTNET_TARGET_CONTROLLER
-    #if DEMO_ENABLED
+    #if DEMO_MODE
 
         #include "../../../lib/Lightnet/Controller/Scenes/AnimationService.hpp"
         #include "../../../lib/Lightnet/Controller/Scenes/SceneStore.hpp"
@@ -9,8 +9,30 @@
         #include "../../../lib/Lightnet/Controller/Animations/AnimationRunner.hpp"
         #include "../../../lib/Lightnet/Controller/Panels/PanelsController.hpp"
         #include "../../../lib/Lightnet/Controller/Panels/PanelsInitializer.hpp"
+        #include "../MirrorService.hpp"   // serviceMirror() — keeps live preview streaming during demos
 
         namespace Lightnet {
+            // Protocol v5 removed per-panel brightness — animations express brightness through
+            // color. These fold a legacy 0–255 brightness into the color so the ported demos keep
+            // their original bright→dim intent.
+            static inline Protocol::ColorRGB demoDim(Protocol::ColorRGB c, uint8_t brightness)
+            {
+                return Protocol::ColorRGB{
+                    (uint8_t)((uint16_t)c.r * brightness / 255),
+                    (uint8_t)((uint16_t)c.g * brightness / 255),
+                    (uint8_t)((uint16_t)c.b * brightness / 255),
+                };
+            }
+
+            static inline Protocol::Color demoColor(Protocol::ColorRGB rgb)
+            {
+                Protocol::Color c;
+
+                c.rgb = rgb;
+
+                return c;
+            }
+
             // DemoRunner owns the full demo cycle. It holds no global state — all resources
             // are injected. Two modes of demo coexist in the same rotation:
             //
@@ -73,6 +95,10 @@
                     // Spin-wait for `ms` milliseconds, calling scenePlayer.tick() every 16 ms.
                     void spinWait(uint32_t ms);
 
+                    // Blocking wait that keeps the mirror stream alive — pumps serviceMirror()
+                    // every ~8 ms instead of a dead delay(), so demos appear live in the app.
+                    void wait(uint32_t ms);
+
                     // ---- Verification demos (demos_checks.cpp) ----
                     void demoInvertedBreathe();
                     void demoRapidTransitions();
@@ -92,5 +118,5 @@
             };
         } // namespace Lightnet
 
-    #endif  // DEMO_ENABLED
+    #endif  // DEMO_MODE
 #endif  // LIGHTNET_TARGET_CONTROLLER

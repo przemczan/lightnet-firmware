@@ -97,9 +97,14 @@
 
             // ----------------------------------------------------------------
             case State::DATA:
-                outFile.write(b);
+                writeBuf[writeBufLen++] = b;
                 runningCrc = crc16Update(runningCrc, b);
                 bytesWritten++;
+
+                if (writeBufLen == WRITE_CHUNK || bytesWritten == firmwareSize) {
+                    outFile.write(writeBuf, writeBufLen);
+                    writeBufLen = 0;
+                }
 
                 if (bytesWritten == firmwareSize) {
                     outFile.close();
@@ -152,6 +157,7 @@
         headerPos    = 0;
         firmwareSize = 0;
         bytesWritten = 0;
+        writeBufLen  = 0;
         crcPos       = 0;
         runningCrc   = 0xFFFF;
     }

@@ -7,7 +7,8 @@
 // shows up visually before unit tests exist.
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
-#if DEMO_ENABLED
+#include "../config.hpp"   // brings in DEMO_MODE before the guard
+#if DEMO_MODE
 
     #include "DemoRunner.hpp"
     #include "../../../lib/Lightnet/Utils/Debug.hpp"
@@ -27,8 +28,8 @@
 
             setAll(ice, 220);
             scheduler.playOnPanels(1, ANIM_BREATHE, FLAG_LOOP, 2000,
-                                   ice, ice, 220, 15, 0, 0, addrs, n);
-            delay(6200);
+                                   demoDim(ice, 220), demoDim(ice, 15), 0, 0, addrs, n);
+            wait(6200);
             turnOffAll();
         }
 
@@ -54,8 +55,8 @@
 
             for (uint8_t step = 0; step < 10; step++) {
                 scheduler.playOnPanels(10 + step, ANIM_TRANSITION, 0, 280,
-                                       palette[step % N], palette[(step + 1) % N], 200, 200, 0, 0, addrs, n);
-                delay(300);
+                                       demoDim(palette[step % N], 200), demoDim(palette[(step + 1) % N], 200), 0, 0, addrs, n);
+                wait(300);
             }
 
             turnOffAll();
@@ -77,8 +78,8 @@
 
             for (uint8_t rep = 0; rep < 7; rep++) {
                 scheduler.playOnPanels(20 + rep, ANIM_PULSE, 0, 500,
-                                       black, magenta, 0, 255, 170, 110, addrs, n);
-                delay(520);
+                                       black, magenta, 170, 110, addrs, n);
+                wait(520);
             }
 
             turnOffAll();
@@ -101,7 +102,7 @@
             c.rgb = warm;
 
             for (uint8_t i = 0; i < n; i++) {
-                panels.setColorAndBrightness(addrs[i], c, 0);
+                panels.setColor(addrs[i], demoColor(demoDim(c.rgb, 0)));
                 panels.turnOn(addrs[i]);
             }
 
@@ -110,25 +111,27 @@
 
                 while (!wave.isFinished()) {
                     wave.tick(millis());
+                    serviceMirror();
                     delay(8);
                 }
 
-                delay(150);
+                wait(150);
             }
 
             c.rgb = cool;
 
-            for (uint8_t i = 0; i < n; i++) panels.setColorAndBrightness(addrs[i], c, 0);
+            for (uint8_t i = 0; i < n; i++) panels.setColor(addrs[i], demoColor(demoDim(c.rgb, 0)));
 
             for (uint8_t p = 0; p < 3; p++) {
                 RippleRunner ripple(33 + p, addrs, n, p % n, 1400, 2, cool);
 
                 while (!ripple.isFinished()) {
                     ripple.tick(millis());
+                    serviceMirror();
                     delay(8);
                 }
 
-                delay(150);
+                wait(150);
             }
 
             turnOffAll();
@@ -148,15 +151,15 @@
 
             setAll(ember, 25);
             scheduler.playOnPanels(40, ANIM_REACTIVE, 0, 0,
-                                   ember, flash, 25, 255, 210, 0, addrs, n);
-            delay(500);
+                                   demoDim(ember, 25), flash, 210, 0, addrs, n);
+            wait(500);
 
             for (uint8_t beat = 0; beat < 8; beat++) {
                 scheduler.triggerGroup(40, 255);
-                delay(500);
+                wait(500);
             }
 
-            delay(1200);
+            wait(1200);
             turnOffAll();
         }
 
@@ -172,15 +175,14 @@
             for (uint8_t i = 0; i < n; i++) panels.turnOn(addrs[i]);
 
             scheduler.playOnPanels(50, ANIM_HUE_CYCLE, 0, 5000,
-                                   black, black, 0, 210, 10, 0, addrs, n);
-            delay(5000);
+                                   black, black, 10, 0, addrs, n);
+            wait(5000);
 
-            uint8_t fadeFlags = FLAG_CURRENT_COLOR_FROM | FLAG_CURRENT_COLOR_TO
-                                | FLAG_CURRENT_BRIGHTNESS_FROM;
+            uint8_t fadeFlags = FLAG_CURRENT_COLOR_FROM | FLAG_CURRENT_COLOR_TO;
 
             scheduler.playOnPanels(51, ANIM_FADE, fadeFlags, 800,
-                                   black, black, 0, 0, 0, 0, addrs, n);
-            delay(900);
+                                   black, black, 0, 0, addrs, n);
+            wait(900);
         }
 
         // Warm-white wave sweeps across 3 times, followed by a cyan single-panel chase.
@@ -197,7 +199,7 @@
             c.rgb = warm;
 
             for (uint8_t i = 0; i < n; i++) {
-                panels.setColorAndBrightness(addrs[i], c, 0);
+                panels.setColor(addrs[i], demoColor(demoDim(c.rgb, 0)));
                 panels.turnOn(addrs[i]);
             }
 
@@ -206,21 +208,23 @@
 
                 while (!wave.isFinished()) {
                     wave.tick(millis());
+                    serviceMirror();
                     delay(8);
                 }
 
-                delay(120);
+                wait(120);
             }
 
             c.rgb = cyan;
 
-            for (uint8_t i = 0; i < n; i++) panels.setColorAndBrightness(addrs[i], c, 0);
+            for (uint8_t i = 0; i < n; i++) panels.setColor(addrs[i], demoColor(demoDim(c.rgb, 0)));
 
             for (uint8_t p = 0; p < 4; p++) {
                 ChaseRunner chase(63 + p, addrs, n, 1000, cyan);
 
                 while (!chase.isFinished()) {
                     chase.tick(millis());
+                    serviceMirror();
                     delay(8);
                 }
             }
@@ -229,5 +233,5 @@
         }
     } // namespace Lightnet
 
-#endif  // DEMO_ENABLED
+#endif  // DEMO_MODE
 #endif  // LIGHTNET_TARGET_CONTROLLER

@@ -56,6 +56,9 @@
     #ifndef DEBUG_DEMO
         #define DEBUG_DEMO 1
     #endif
+    #ifndef DEBUG_SCENE
+        #define DEBUG_SCENE 1
+    #endif
 
 #else
     #define D_PRINTF(...)
@@ -85,5 +88,7 @@
     #define DEBUG_INIT 0
     #undef  DEBUG_DEMO
     #define DEBUG_DEMO 0
+    #undef  DEBUG_SCENE
+    #define DEBUG_SCENE 0
 
 #endif

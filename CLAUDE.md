@@ -81,6 +81,55 @@ Packet types: `TOGGLE=1`, `SET_BRIGHTNESS=2`, `SET_COLOR=3`, `GET_EDGES_LIST=4`,
 
 Response payload for `EDGES_LIST`: `u16 count` followed by `count × 8 bytes` (`panel u16`, `edge u16`, `connectedPanel u16`, `connectedEdge u16`). `connectedPanel=0` means unconnected.
 
+### mirror-dump.js (`tools/api-shell/mirror-dump.js`)
+
+Diagnostic tool that connects to a live controller and prints a summary of each incoming `MIRROR_BATCH` frame — how many records of each I²C type arrived per batch, plus which panel addresses received `PREPARE` and `START` packets.
+
+```bash
+cd tools/api-shell && node mirror-dump.js <controller-ip> [seconds]
+# default capture window: 15 s
+```
+
+Use this to verify the mirror pipeline is alive, check that general-call START packets are arriving (addr=0), and confirm that panel-local animations (PREPARE+START) and runner animations (SET_COLOR) are both being captured.
+
+---
+
+## Packet mirroring (live preview)
+
+The controller captures every outbound I²C packet and streams them to WebSocket clients as `MIRROR_BATCH` frames so the mobile app can render a real-time preview without polling.
+
+### Firmware side
+
+| File | Role |
+|---|---|
+| `lib/Lightnet/Controller/API/websocket/PacketMirror.cpp/.hpp` | Buffer that accumulates captured records; `capture()` stores them, `flushTo()` builds and broadcasts the WS frame |
+| `src/controller/main.cpp` — `mirrorOutboundPacket()` | Plain function registered via `LNBus.setOnPacketSent()`; forwards every outbound packet to `PacketMirror::capture()` |
+| `src/controller/MirrorService.hpp` / `serviceMirror()` in `main.cpp` | Flush gate (~30 fps); called from main loop `case 1` and from blocking sections (demos) |
+
+**How it works**: `LightnetBus::sendPacket()` calls `onPacketSentCallback` before hitting the wire. The callback fires for every `sendPacketAck` / `sendPacketNack` call — both unicast and general call (addr=0x00). `PacketMirror` filters to animation/color/palette/brightness/on-off types (`isMirrored()`), copies the raw bytes, and `serviceMirror()` flushes them in a coalesced `MIRROR_BATCH` frame each tick.
+
+**Wire format of `MIRROR_BATCH` payload**:
+```
+u32 controllerMillis   (LE)
+u16 count
+count × { u8 address, u8 type, u8 size, u8[size] packet }
+```
+`address=0` means general call (all panels). `type` is `Protocol::packetType_t`. `packet` includes the full `PacketMeta` header (5 bytes: type + protocolVersion + headerCrc).
+
+**Key**: all records in one flush share a single `controllerMillis` timestamp. Runner animations (SET_COLOR per panel at 60fps) and panel-local animations (PREPARE + START once) both go through the same path.
+
+---
+
+## Animation reference-vector generator (`tools/anim-refgen/refgen.cpp`)
+
+Standalone C++ program that re-implements the exact integer expressions from `lib/Lightnet/Panel/AnimationPlayer.cpp` and `lib/Lightnet/Common/Palette.hpp`, then prints `currentColor` values for a fixed set of representative inputs. The Kotlin `PanelAnimationPlayer` test suite (`PanelAnimationPlayerTest`) asserts its output matches these numbers, verifying that Kotlin's integer arithmetic (`ushr`, `Int` division, `0xFF` masking) is bit-for-bit identical to the C++ `uint8`/`uint16` code.
+
+```bash
+g++ -O2 -std=c++17 tools/anim-refgen/refgen.cpp -o refgen && ./refgen
+```
+
+**When to regenerate**: if the firmware animation math changes (new easing formula, changed lerp, updated palette sampling), rerun `refgen`, update the expected values in `PanelAnimationPlayerTest`, and update the Kotlin port in `PanelAnimationPlayer.kt` to match. All three must stay in sync.
+
 ---
 
 ## Key facts for coding

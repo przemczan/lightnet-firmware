@@ -66,8 +66,31 @@ void WebsocketServer::sendMessage(WebsocketApi::Internal::Message *message)
     this->socket->binary(message->clientId, message->payload, message->payloadSize);
 }
 
+void WebsocketServer::broadcastFrame(const void *frame, size_t len)
+{
+    if (!this->socket) {
+        return;
+    }
+
+    // Drop the frame rather than the client when any queue is backed up. For a
+    // preview stream a missed frame self-heals on the next flush.
+    if (!this->socket->availableForWriteAll()) {
+        return;
+    }
+
+    this->socket->binaryAll((const uint8_t *)frame, len);
+}
+
 void WebsocketServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
 {
+    if (type == WS_EVT_CONNECT) {
+        // Keep a client that briefly falls behind a high-rate stream instead of
+        // force-closing it; broadcastFrame() already drops frames when queues fill.
+        client->setCloseClientOnQueueFull(false);
+
+        return;
+    }
+
     if (type == WS_EVT_DATA) {
         AwsFrameInfo *info = (AwsFrameInfo *)arg;
 

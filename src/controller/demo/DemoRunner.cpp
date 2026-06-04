@@ -1,5 +1,6 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
-#if DEMO_ENABLED
+#include "../config.hpp"   // brings in DEMO_MODE before the guard
+#if DEMO_MODE
 
     #include "DemoRunner.hpp"
     #include "../../../lib/Lightnet/Utils/Debug.hpp"
@@ -90,12 +91,10 @@
         {
             uint8_t addrs[LIGHTNET_MAX_PANELS];
             uint8_t count = resolvePanels(addrs, LIGHTNET_MAX_PANELS);
-            Protocol::Color c;
-
-            c.rgb = rgb;
+            Protocol::Color c = demoColor(demoDim(rgb, brightness));
 
             for (uint8_t i = 0; i < count; i++) {
-                panels.setColorAndBrightness(addrs[i], c, brightness);
+                panels.setColor(addrs[i], c);
                 panels.turnOn(addrs[i]);
             }
         }
@@ -109,7 +108,7 @@
                 panels.turnOff(addrs[i]);
             }
 
-            delay(500);
+            wait(500);
         }
 
         void DemoRunner::seedScene(const char *name, const char *json)
@@ -142,11 +141,25 @@
             uint32_t deadline = millis() + ms;
 
             while ((int32_t)(millis() - deadline) < 0) {
+                // Both ticks, mirroring the main loop: scenePlayer advances steps, scheduler
+                // drives the controller-side runners (WAVE/RIPPLE/CHASE) that scene layers add.
+                scheduler.tick(millis());
                 scenePlayer.tick(millis());
+                serviceMirror();
                 delay(16);
+            }
+        }
+
+        void DemoRunner::wait(uint32_t ms)
+        {
+            uint32_t deadline = millis() + ms;
+
+            while ((int32_t)(millis() - deadline) < 0) {
+                serviceMirror();
+                delay(8);
             }
         }
     } // namespace Lightnet
 
-#endif  // DEMO_ENABLED
+#endif  // DEMO_MODE
 #endif  // LIGHTNET_TARGET_CONTROLLER

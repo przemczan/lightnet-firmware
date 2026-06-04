@@ -123,6 +123,13 @@ namespace Lightnet {
             uint8_t idx = (queueHead + i) % 4;
 
             if (queue[idx].group_id == group_id) {
+                // If this is the currently-running slot (i==0) and something is
+                // already playing, let it finish — advanceQueue() will pick up the
+                // next prepared step automatically.
+                if (i == 0 && groupId != 0) {
+                    return;
+                }
+
                 // Move this animation to front and start it
                 if (i > 0) {
                     // Rotate queue: move matching animation to head
@@ -217,8 +224,9 @@ namespace Lightnet {
 
             case ANIM_CTRL_CLEAR_QUEUE:
 
-                if (queueCount > 0) {
-                    queueCount--; // remove next queued animation
+                // Keep the running slot (head), drop everything queued behind it
+                if (queueCount > 1) {
+                    queueCount = 1;
                 }
 
                 break;
@@ -275,11 +283,10 @@ namespace Lightnet {
         lastTickMs = now;
 
         // Handle animation state machine
-        if (animType == ANIM_SOLID && reactiveLevel == 0) {
-            // Idle — wait for START signal. Do NOT auto-drain the queue here: a
-            // PREPARE may have just been received and its START general call is still
-            // in flight. Draining would consume the queued animation before start()
-            // can find it, causing one panel to silently miss the cycle.
+        if (queueCount == 0 && reactiveLevel == 0) {
+            // Idle — nothing queued and no reactive activity. Do NOT auto-drain
+            // the queue here: a PREPARE may have just been received and its START
+            // general call is still in flight.
             return;
         }
 

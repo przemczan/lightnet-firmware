@@ -4,6 +4,28 @@
 #include <string.h>
 #include <Arduino.h>
 
+#if DEBUG_SCENE
+    static const char *animTypeName(uint8_t t)
+    {
+        switch (t) {
+            case 0:  return "SOLID";
+            case 1:  return "FADE";
+            case 2:  return "TRANSITION";
+            case 3:  return "BREATHE";
+            case 4:  return "PULSE";
+            case 5:  return "BLINK";
+            case 6:  return "HUE_CYCLE";
+            case 7:  return "STROBE";
+            case 8:  return "REACTIVE";
+            case 64: return "WAVE";
+            case 65: return "RIPPLE";
+            case 66: return "CHASE";
+            default: return "?";
+        }
+    }
+
+#endif
+
 namespace Lightnet {
     ScenePlayer::ScenePlayer(
         AnimationScheduler& _scheduler,
@@ -60,10 +82,6 @@ namespace Lightnet {
             }
         }
 
-        // Clear any stale queued animations from the previous scene so new PREPAREs
-        // are never dropped due to a full 4-slot queue on the panel side.
-        scheduler.clearAllPanelQueues();
-
         sendPalettesToPanels();
 
         // Initialise step tracking and fire first step
@@ -75,6 +93,9 @@ namespace Lightnet {
 
         playing = true;
 
+        DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] play \"%s\" layers=%u loop=%s speed=%.1f\n",
+                                       name, (unsigned)lCount, loop ? "true" : "false", (double)speed));
+
         for (uint8_t i = 0; i < lCount; i++) {
             if (layerActive[i]) fireStep(i, nowMs);
         }
@@ -84,6 +105,7 @@ namespace Lightnet {
     {
         playing = false;
         memset(layerActive, 0, sizeof(layerActive));
+        scheduler.broadcastStop();
     }
 
     void ScenePlayer::tick(uint32_t nowMs)
@@ -130,6 +152,14 @@ namespace Lightnet {
         const SceneLayer& layer = layers[layerIdx];
         const SceneStep& step  = layer.steps[currentStep[layerIdx]];
 
+        DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] layer=%u step=%u/%u type=%s dur=%ums grp=%u\n",
+                                       (unsigned)layerIdx,
+                                       (unsigned)currentStep[layerIdx] + 1,
+                                       (unsigned)layer.stepCount,
+                                       animTypeName(step.animType),
+                                       (unsigned)step.durationMs,
+                                       (unsigned)layer.groupId));
+
         uint8_t panels[SCENE_MAX_PANELS_PER_LAYER];
         uint8_t panelCount = 0;
 
@@ -142,6 +172,9 @@ namespace Lightnet {
             : (uint16_t)min((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
 
         if (isRunnerType(step.animType)) {
+            // Kill any panel-local animation so the runner has exclusive LED control
+            scheduler.sendControlToPanels(layer.groupId, ANIM_CTRL_STOP, panels, panelCount);
+
             Protocol::ColorRGB color = resolveColorToRgb(step.colorFrom, layerIdx);
             AnimationRunner *runner = nullptr;
 

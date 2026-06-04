@@ -1,5 +1,6 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
-#if DEMO_ENABLED
+#include "../config.hpp"   // brings in DEMO_MODE before the guard
+#if DEMO_MODE
 
     #include "demo.hpp"
 
@@ -24,5 +25,5 @@
         if (demoRunner) demoRunner->run();
     }
 
-#endif  // DEMO_ENABLED
+#endif  // DEMO_MODE
 #endif  // LIGHTNET_TARGET_CONTROLLER

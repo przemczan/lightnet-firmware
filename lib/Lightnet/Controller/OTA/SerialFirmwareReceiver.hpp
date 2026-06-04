@@ -37,8 +37,11 @@
 
             static const uint8_t MAGIC[4];
             static const char *FIRMWARE_PATH;
-            static const uint32_t MAX_FIRMWARE_SIZE  = 28 * 1024;
+            static const uint32_t MAX_FIRMWARE_SIZE   = 28 * 1024;
             static const uint32_t TRANSFER_TIMEOUT_MS = 30000;
+            // Write firmware in chunks to avoid per-byte LittleFS overhead, which
+            // causes flush stalls long enough to overflow the 256-byte UART ring buffer.
+            static const uint16_t WRITE_CHUNK         = 256;
 
             PanelFlasher *flasher;
             State state       = State::IDLE;
@@ -51,6 +54,8 @@
             uint8_t crcBuf[2];
             uint8_t crcPos      = 0;
             File outFile;
+            uint8_t writeBuf[WRITE_CHUNK];
+            uint16_t writeBufLen = 0;
 
             // Blocking loop entered after magic match; returns when state == IDLE.
             void receiveBlocking();
