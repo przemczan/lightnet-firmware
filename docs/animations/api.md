@@ -309,15 +309,17 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 | Scene name | `[a-zA-Z0-9_-]`, 1–18 chars |
 | Layer count | 1–8 |
 | Steps per layer | 1–12 |
-| `group` | 1–254; unique within the scene |
+| `group` | Name (string) or number 1–254; unique within the scene |
+| `startAfter` | Must name an existing group; no self-reference, no dependency cycles |
 | `type` + `runner` | Mutually exclusive — cannot both be set |
+| Step with neither `type` nor `runner` | Treated as a **gap** (timed no-op); only `duration` is used |
 | `type` value | Must be a known animation type string |
 | `runner` value | `WAVE`, `RIPPLE`, or `CHASE` |
-| `duration` | 0–65535 ms; 0 only on the last step of a looping scene |
+| `duration` | 0–65535 ms; 0 only on the last step of a layer |
 | Color values | Valid `#RRGGBB` hex, `{r,g,b}` each 0–255, `{"palette":0-255}`, or `{"useColor":0-2}` |
 | `params[i]` | 0–255 |
 | `params` length | 0–4 |
-| Panel indices | 0–(discovered panel count − 1) |
+| Panel indices | 1–254; unique panel addresses (panels are numbered from 1) |
 | Panel list length | 1–32 per layer |
 | Layer palette override | Layers with different effective palettes should not share any target panel (not validated at save time) |
-| Infinite last step | Only valid when `scene.loop: true` |
+| Infinite last step | Holds forever; layer can't be a `startAfter` target and blocks the whole-scene loop |

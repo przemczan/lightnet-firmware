@@ -14,6 +14,53 @@
 
 namespace Lightnet {
     namespace {
+        static const uint8_t GROUP_NAME_LEN = 16;
+
+        // ---------------------------------------------------------------------------
+        // Group-name → numeric-ID table. String group names are interned in order of
+        // first appearance and assigned auto IDs 1,2,3…; numeric groups use their
+        // literal value and are not interned. startAfter references resolve by name.
+        // ---------------------------------------------------------------------------
+
+        struct NameTable {
+            char    names[SCENE_MAX_LAYERS][GROUP_NAME_LEN];
+            uint8_t ids[SCENE_MAX_LAYERS];
+            uint8_t count;
+            uint8_t nextAuto; // next auto ID to hand out
+
+            void reset()
+            {
+                count = 0;
+                nextAuto = 1;
+            }
+
+            // Return existing ID for `name`, or assign the next auto ID. 0 on overflow.
+            uint8_t intern(const char *name)
+            {
+                for (uint8_t i = 0; i < count; i++) {
+                    if (strcmp(names[i], name) == 0) return ids[i];
+                }
+
+                if (count >= SCENE_MAX_LAYERS) return 0;
+
+                strncpy(names[count], name, GROUP_NAME_LEN - 1);
+                names[count][GROUP_NAME_LEN - 1] = '\0';
+                ids[count] = nextAuto++;
+
+                return ids[count++];
+            }
+
+            // Resolved ID for `name`, or 0 if not interned.
+            uint8_t find(const char *name) const
+            {
+                for (uint8_t i = 0; i < count; i++) {
+                    if (strcmp(names[i], name) == 0) return ids[i];
+                }
+
+                return 0;
+            }
+        };
+
         // ---------------------------------------------------------------------------
         // Domain-specific value parsers
         // ---------------------------------------------------------------------------
@@ -294,6 +341,10 @@ namespace Lightnet {
                 if (!handleStepField(key, p, end, step, hasType, errMsg, errLen)) return false;
             }
 
+            // A step with neither "type" nor "runner" is a GAP: a timed no-op that just
+            // delays the layer for its duration (panels hold their current state).
+            if (!hasType) step.animType = ANIM_GAP;
+
             return true;
         }
 
@@ -333,8 +384,8 @@ namespace Lightnet {
                 while (jsonNextElement(p, end)) {
                     long v;
 
-                    if (!jsonReadUInt(p, end, &v) || v > 255) {
-                        strncpy(errMsg, "panels[]: invalid index", errLen);
+                    if (!jsonReadUInt(p, end, &v) || v == 0 || v > 255) {
+                        strncpy(errMsg, "panels[]: invalid index (panels start at 1)", errLen);
 
                         return false;
                     }
@@ -379,8 +430,8 @@ namespace Lightnet {
                     while (jsonNextElement(p, end)) {
                         long v;
 
-                        if (!jsonReadUInt(p, end, &v) || v > 255) {
-                            strncpy(errMsg, "panels.exclude[]: invalid index", errLen);
+                        if (!jsonReadUInt(p, end, &v) || v == 0 || v > 255) {
+                            strncpy(errMsg, "panels.exclude[]: invalid index (panels start at 1)", errLen);
 
                             return false;
                         }
@@ -407,24 +458,63 @@ namespace Lightnet {
         // Parse one layer object. p points just after the opening '{'.
         // ---------------------------------------------------------------------------
 
-        static bool parseLayer(const char *& p, const char *end, SceneLayer& layer, char *errMsg, size_t errLen)
+        static bool parseLayer(
+            const char *& p,
+            const char *  end,
+            SceneLayer&   layer,
+            NameTable&    names,
+            char (&startAfterName)[GROUP_NAME_LEN],
+            char *        errMsg,
+            size_t        errLen
+        )
         {
             memset(&layer, 0, sizeof(layer));
             layer.targetMode = PanelTargetMode::ALL;
+            startAfterName[0] = '\0';
 
             char key[16];
 
             while (jsonNextKey(p, end, key, sizeof(key))) {
                 if (strcmp(key, "group") == 0) {
-                    long v;
+                    jsonSkipWs(p, end);
 
-                    if (!jsonReadUInt(p, end, &v) || v == 0 || v > 254) {
-                        strncpy(errMsg, "layer.group: must be 1-254", errLen);
+                    if (p < end && *p == '"') {
+                        // Named group — intern to an auto-assigned numeric ID.
+                        char gname[GROUP_NAME_LEN];
+
+                        if (!jsonReadString(p, end, gname, sizeof(gname)) || gname[0] == '\0') {
+                            strncpy(errMsg, "layer.group: empty name", errLen);
+
+                            return false;
+                        }
+
+                        uint8_t id = names.intern(gname);
+
+                        if (id == 0) {
+                            strncpy(errMsg, "layer.group: too many group names", errLen);
+
+                            return false;
+                        }
+
+                        layer.groupId = id;
+                    } else {
+                        // Numeric group (back-compat).
+                        long v;
+
+                        if (!jsonReadUInt(p, end, &v) || v == 0 || v > 254) {
+                            strncpy(errMsg, "layer.group: must be 1-254 or a name", errLen);
+
+                            return false;
+                        }
+
+                        layer.groupId = (uint8_t)v;
+                    }
+                } else if (strcmp(key, "startAfter") == 0) {
+                    if (!jsonReadString(p, end, startAfterName, GROUP_NAME_LEN) || startAfterName[0] == '\0') {
+                        strncpy(errMsg, "layer.startAfter: not a non-empty group name", errLen);
 
                         return false;
                     }
-
-                    layer.groupId = (uint8_t)v;
                 } else if (strcmp(key, "panels") == 0) {
                     if (!parsePanels(p, end, layer, errMsg, errLen)) return false;
                 } else if (strcmp(key, "palette") == 0) {
@@ -594,6 +684,16 @@ namespace Lightnet {
         out.baseColors[1] = { 0x00, 0x00, 0x00 };
         out.baseColors[2] = { 0x00, 0x00, 0x00 };
 
+        // Scratch for group-name interning and per-layer startAfter references; both are
+        // resolved to numeric IDs after all layers are parsed (forward refs allowed).
+        NameTable names;
+
+        names.reset();
+
+        char startAfterNames[SCENE_MAX_LAYERS][GROUP_NAME_LEN];
+
+        for (uint8_t i = 0; i < SCENE_MAX_LAYERS; i++) startAfterNames[i][0] = '\0';
+
         const char *p   = json;
         const char *end = json + len;
 
@@ -666,7 +766,9 @@ namespace Lightnet {
                         return false;
                     }
 
-                    if (!parseLayer(p, end, out.layers[out.layerCount], out.errMsg, sizeof(out.errMsg))) return false;
+                    if (!parseLayer(p, end, out.layers[out.layerCount], names,
+                                    startAfterNames[out.layerCount],
+                                    out.errMsg, sizeof(out.errMsg))) return false;
 
                     out.layerCount++;
                 }
@@ -732,6 +834,78 @@ namespace Lightnet {
             for (uint8_t s = 0; s < layer.stepCount; s++) {
                 if (layer.steps[s].durationMs == 0 && s < (uint8_t)(layer.stepCount - 1)) {
                     strncpy(out.errMsg, "infinite step (duration=0) only allowed as last step", sizeof(out.errMsg));
+
+                    return false;
+                }
+            }
+        }
+
+        // Resolve layer-level startAfter (by group name) to numeric group IDs.
+        for (uint8_t i = 0; i < out.layerCount; i++) {
+            if (startAfterNames[i][0] == '\0') continue;
+
+            uint8_t id = names.find(startAfterNames[i]);
+
+            if (id == 0) {
+                snprintf(out.errMsg, sizeof(out.errMsg),
+                         "startAfter: unknown group \"%s\"", startAfterNames[i]);
+
+                return false;
+            }
+
+            if (id == out.layers[i].groupId) {
+                strncpy(out.errMsg, "startAfter: layer cannot wait for itself", sizeof(out.errMsg));
+
+                return false;
+            }
+
+            out.layers[i].startAfterGroupId = id;
+        }
+
+        // A depended-upon layer must be able to finish, otherwise its dependents never
+        // start — reject an infinite (duration=0) last step on any startAfter target.
+        for (uint8_t i = 0; i < out.layerCount; i++) {
+            uint8_t dep = out.layers[i].startAfterGroupId;
+
+            if (dep == 0) continue;
+
+            for (uint8_t k = 0; k < out.layerCount; k++) {
+                const SceneLayer& t = out.layers[k];
+
+                if (t.groupId != dep) continue;
+
+                if (t.stepCount > 0 && t.steps[t.stepCount - 1].durationMs == 0) {
+                    strncpy(out.errMsg, "startAfter: target layer never ends (infinite last step)", sizeof(out.errMsg));
+
+                    return false;
+                }
+
+                break;
+            }
+        }
+
+        // Reject startAfter dependency cycles: follow each layer's chain; a chain longer
+        // than layerCount hops without terminating means a loop.
+        for (uint8_t i = 0; i < out.layerCount; i++) {
+            uint8_t cur  = i;
+            uint8_t hops = 0;
+
+            while (out.layers[cur].startAfterGroupId != 0) {
+                int next = -1;
+
+                for (uint8_t k = 0; k < out.layerCount; k++) {
+                    if (out.layers[k].groupId == out.layers[cur].startAfterGroupId) {
+                        next = k;
+                        break;
+                    }
+                }
+
+                if (next < 0) break;
+
+                cur = (uint8_t)next;
+
+                if (++hops > out.layerCount) {
+                    strncpy(out.errMsg, "startAfter: dependency cycle", sizeof(out.errMsg));
 
                     return false;
                 }

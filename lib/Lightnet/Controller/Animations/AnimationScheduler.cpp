@@ -101,6 +101,15 @@ namespace Lightnet {
         // TODO: implement group tracking if needed
     }
 
+    void AnimationScheduler::broadcastBlack()
+    {
+        Protocol::PacketSetColor pkt;
+
+        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_COLOR);
+        pkt.color.rgb = { 0, 0, 0 };
+        LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_SET_COLOR);
+    }
+
     void AnimationScheduler::broadcastStop()
     {
         Protocol::PacketAnimationControl pkt;

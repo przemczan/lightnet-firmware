@@ -19,6 +19,8 @@ namespace Lightnet {
         ANIM_HUE_CYCLE   = 6,// rotate through hues
         ANIM_STROBE      = 7,// binary flash at frequency
         ANIM_REACTIVE    = 8,// trigger-based decay (music beats)
+        ANIM_GAP         = 9,// controller-only: timed no-op delay. Never sent to a panel —
+                             // ScenePlayer holds the layer's panels for the step duration.
 
         // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
         // to AnimationScheduler::addRunner(). Not sent to panels directly.
