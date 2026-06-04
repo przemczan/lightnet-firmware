@@ -44,4 +44,8 @@ class WebsocketServer
         CircularQueue *getIncommingMessages();
         ReceivedCounts getAndResetReceivedCount();
         void sendMessage(WebsocketApi::Internal::Message *message);
+        // Broadcasts a fully-framed WS message (PacketMeta + payload) to every client.
+        // Drops the frame if any client's send queue is full, so a backed-up client
+        // never gets force-closed by a high-rate stream (e.g. mirrored animations).
+        void broadcastFrame(const void *frame, size_t len);
 };

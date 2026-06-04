@@ -17,6 +17,9 @@ class LightnetBus
     public:
         typedef void (*onPacketReceived_t)(Protocol::PacketMeta *packet, int size);
         typedef void (*onPacketRequested_t)();
+        // Fired (controller only) after setPacketMeta, before the bytes hit the wire.
+        // Lets the WebSocket layer mirror outbound packets to clients. Null = no-op.
+        typedef void (*onPacketSent_t)(uint8_t address, const void *packet, uint8_t size, uint8_t type);
 
         LightnetBus();
 
@@ -43,6 +46,11 @@ class LightnetBus
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         void setOnPacketReceived(onPacketReceived_t callback);
         void setOnPacketRequested(onPacketRequested_t callback);
+        void setOnPacketSent(onPacketSent_t callback)
+        {
+            onPacketSentCallback = callback;
+        }
+
         void flush();
 
         // Set by onReceive ISR, read from main loop for debug logging.
@@ -52,6 +60,7 @@ class LightnetBus
     private:
         onPacketReceived_t onPacketReceivedCallback;
         onPacketRequested_t onPacketRequestedCallback;
+        onPacketSent_t onPacketSentCallback = nullptr;
 
         void onReceive(int size);
         void onRequest();

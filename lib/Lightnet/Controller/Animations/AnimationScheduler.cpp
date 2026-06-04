@@ -101,10 +101,27 @@ namespace Lightnet {
         // TODO: implement group tracking if needed
     }
 
+    void AnimationScheduler::broadcastStop()
+    {
+        Protocol::PacketAnimationControl pkt;
+
+        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
+        pkt.cmd = Lightnet::ANIM_CTRL_STOP;
+        LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_ANIMATION_CONTROL);
+
+        uint16_t i = activeRunners->getSize();
+
+        while (i--) {
+            delete activeRunners->get(i);
+            activeRunners->removeByIndex(i);
+        }
+    }
+
     void AnimationScheduler::clearAllPanelQueues()
     {
         Protocol::PacketAnimationControl pkt;
 
+        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
         pkt.cmd = Lightnet::ANIM_CTRL_CLEAR_QUEUE;
         LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_ANIMATION_CONTROL);
     }

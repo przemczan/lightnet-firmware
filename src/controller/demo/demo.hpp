@@ -1,8 +1,8 @@
 #pragma once
 #ifdef LIGHTNET_TARGET_CONTROLLER
-    #if DEMO_ENABLED
+    #if DEMO_MODE
 
-        #include "demo/DemoRunner.hpp"
+        #include "DemoRunner.hpp"
 
         // Thin main-facing interface. The DemoRunner instance lives in demo.cpp.
 
@@ -21,5 +21,5 @@
         // Call from the main loop (case 1).
         void runDemos();
 
-    #endif  // DEMO_ENABLED
+    #endif  // DEMO_MODE
 #endif  // LIGHTNET_TARGET_CONTROLLER

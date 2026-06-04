@@ -6,7 +6,8 @@
 // after boot: POST /api/scenes/demo_warm_breathe/play, etc.
 
 #ifdef LIGHTNET_TARGET_CONTROLLER
-#if DEMO_ENABLED
+#include "../config.hpp"   // brings in DEMO_MODE before the guard
+#if DEMO_MODE
 
     #include "DemoRunner.hpp"
     #include "../../../lib/Lightnet/Utils/Debug.hpp"
@@ -159,7 +160,7 @@
                 return;
             }
 
-            delay(500); // let the animation arm before the first beat
+            wait(500); // let the animation arm before the first beat
 
             uint32_t deadline  = millis() + 8000;
             uint32_t nextBeat  = millis() + 600;
@@ -172,12 +173,14 @@
                     nextBeat = now + 600;      // ~100 BPM
                 }
 
+                scheduler.tick(now);
                 scenePlayer.tick(now);
+                serviceMirror();
                 delay(16);
             }
 
             animService.stopScene();
-            delay(500);
+            wait(500);
         }
 
         void DemoRunner::demoAuroraChase()
@@ -193,5 +196,5 @@
         }
     } // namespace Lightnet
 
-#endif  // DEMO_ENABLED
+#endif  // DEMO_MODE
 #endif  // LIGHTNET_TARGET_CONTROLLER

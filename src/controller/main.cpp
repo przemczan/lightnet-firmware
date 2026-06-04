@@ -9,6 +9,35 @@ AsyncWebServer *webServer;
 AsyncWiFiManager *wifiManager;
 WebsocketServer *websocketServer;
 WebsocketHandler *websocketHandler;
+PacketMirror *packetMirror = nullptr;
+
+// LightnetBus::onPacketSent is a plain function pointer, so it can't capture.
+// Forward captured packets to the (global) mirror once it exists.
+static void mirrorOutboundPacket(uint8_t address, const void *packet, uint8_t size, uint8_t type)
+{
+    if (packetMirror) {
+        packetMirror->capture(address, packet, size, type);
+    }
+}
+
+// Flush mirrored packets to WS clients, capped at ~30fps so a full runner frame's per-panel
+// updates coalesce into one frame. Exposed (MirrorService.hpp) so blocking sections such as the
+// demos can keep the preview streaming while the main loop is busy.
+void serviceMirror()
+{
+    if (!packetMirror || !websocketServer) {
+        return;
+    }
+
+    static uint32_t lastMirrorFlushMs = 0;
+    uint32_t now = millis();
+
+    if ((uint32_t)(now - lastMirrorFlushMs) >= 33) {
+        lastMirrorFlushMs = now;
+        packetMirror->flushTo(websocketServer);
+    }
+}
+
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
 Lightnet::PaletteStore *paletteStore     = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
@@ -188,6 +217,10 @@ void setupWiFi()
     websocketServer = new WebsocketServer(webServer);
     websocketHandler = new WebsocketHandler(websocketServer, panelsController, animScheduler);
 
+    // Mirror outbound animation/color packets to WebSocket clients for live preview.
+    packetMirror = new PacketMirror();
+    LNBus.setOnPacketSent(mirrorOutboundPacket);
+
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
     // This will block for 30 seconds if it can't connect.
@@ -211,6 +244,7 @@ void setupWiFi()
 
 void setup()
 {
+    Serial.setRxBufferSize(1024);
     #ifdef SIM_SERIAL_BAUD
         Serial.begin(SIM_SERIAL_BAUD);
     #else
@@ -378,6 +412,8 @@ void loop()
                     if (configStore)   configStore->tick(millis());
 
                     if (appStateStore) appStateStore->tick(millis());
+
+                    serviceMirror();
 
                     #ifdef SIM_MODE
                         {

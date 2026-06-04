@@ -24,6 +24,7 @@ namespace WebsocketApi
         PANELS_STATES = 6,
         EDGES_LIST = 7,
         ANIMATION_TRIGGER = 8,    // low-latency reactive trigger for music sync
+        MIRROR_BATCH = 9,         // controller→client: batch of mirrored outbound I2C packets
     };
 
     typedef struct PACK {

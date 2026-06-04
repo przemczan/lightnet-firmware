@@ -8,6 +8,8 @@
     #include "Panels/PanelsController.hpp"
     #include "API/websocket/WebsocketServer.hpp"
     #include "API/websocket/WebsocketHandler.hpp"
+    #include "API/websocket/PacketMirror.hpp"
+    #include "MirrorService.hpp"
     #include <ESPAsyncWebServer.h>
     #include <ESPAsyncWiFiManager.h>
     #ifdef ARDUINO_ARCH_ESP8266
@@ -40,5 +42,6 @@
     #include "OTA/SerialFirmwareReceiver.hpp"
     #include <ArduinoOTA.h>
     #include "../../lib/Lightnet/Utils/Fs/Fs.hpp"
+    #include "demo/demo.hpp"   // initDemos/runDemos (compiled out unless DEMO_MODE)
 
 #endif

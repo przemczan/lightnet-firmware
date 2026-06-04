@@ -77,10 +77,12 @@ namespace Lightnet {
             void turnOnPanels(const uint8_t *panelAddresses, uint8_t panelCount);
 
             void stopGroup(uint8_t group_id);
-            void clearAllPanelQueues(); // General Call CLEAR_QUEUE — call before loadAndPlay
+            void broadcastStop();  // General Call ANIM_CTRL_STOP + delete all runners
+            void clearAllPanelQueues(); // General Call CLEAR_QUEUE (keeps current, drops queued)
             void pauseGroup(uint8_t group_id);
             void resumeGroup(uint8_t group_id);
             void triggerGroup(uint8_t group_id, uint8_t value);
+            void sendControlToPanels(uint8_t group_id, uint8_t cmd, const uint8_t *panelAddresses, uint8_t panelCount);
 
             // Status queries
             const AnimationRecord * getStatus(uint8_t panelAddress);
@@ -103,6 +105,5 @@ namespace Lightnet {
             // Packet sending helpers
             void sendGeneralCallStart(uint8_t group_id);
             void sendGeneralCallUpdateParams(uint8_t group_id, uint8_t param_type, uint8_t value);
-            void sendControlToPanels(uint8_t group_id, uint8_t cmd, const uint8_t *panelAddresses, uint8_t panelCount);
     };
 }  // namespace Lightnet

@@ -1,0 +1,26 @@
+{
+  "name": "test_all_anims",
+  "loop": true,
+  "speed": 1.0,
+  "colors": { "primary": "#FF8000", "secondary": "#0040FF", "tertiary": "#00FF80" },
+  "layers": [
+    {
+      "group": 1,
+      "panels": "all",
+      "sequence": [
+        { "type": "SOLID",      "color": "#FF0000",                          "duration": 1500 },
+        { "type": "FADE",       "colorFrom": "#FF0000", "colorTo": "#0000FF", "duration": 2500 },
+        { "type": "TRANSITION", "colorFrom": "#0000FF", "colorTo": "#00FF00", "duration": 2500 },
+        { "type": "BREATHE",    "colorFrom": "#000000", "colorTo": "#FF00FF", "duration": 2000 },
+        { "type": "PULSE",      "colorFrom": "#000000", "colorTo": "#FFFFFF", "duration": 2500, "params": [64, 96] },
+        { "type": "BLINK",      "colorFrom": "#000000", "colorTo": "#FFAA00", "duration": 3000, "params": [150] },
+        { "type": "HUE_CYCLE",                                               "duration": 4000, "params": [25] },
+        { "type": "STROBE",     "color": "#FFFFFF",                          "duration": 2500, "params": [8] },
+        { "type": "REACTIVE",   "colorFrom": "#200000", "colorTo": "#FF2020", "duration": 2500, "params": [180] },
+        { "runner": "WAVE",     "colorFrom": "#FFB050",                      "duration": 2500, "waveWidth": 2 },
+        { "runner": "RIPPLE",   "colorFrom": "#00C8FF",                      "duration": 2500, "rippleWidth": 2, "originPanel": 0 },
+        { "runner": "CHASE",    "colorFrom": "#FF40FF",                      "duration": 2500 }
+      ]
+    }
+  ]
+}
