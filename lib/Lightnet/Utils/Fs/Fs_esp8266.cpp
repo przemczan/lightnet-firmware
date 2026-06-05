@@ -28,6 +28,11 @@ namespace Lightnet {
         return LittleFS.rename(from, to);
     }
 
+    bool Fs::mkdir(const char *path)
+    {
+        return LittleFS.mkdir(path);
+    }
+
     fs::FS &Fs::raw()
     {
         return LittleFS;

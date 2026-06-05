@@ -309,7 +309,7 @@ free-runner:
   "name": "choreo_demo",
   "loop": true,
   "layers": [
-    { "group": "intro",  "sequence": [ {"type":"FADE","colorFrom":"#000","colorTo":"#FFF","duration":2000} ] },
+    { "group": "intro",  "sequence": [ {"type":"FADE","colorFrom":"#00000","colorTo":"#FFFFFF","duration":2000} ] },
     { "group": "accent", "sequence": [ {"runner":"WAVE","color":{"palette":200},"duration":2000} ] },
     { "group": "main", "startAfter": "intro", "sequence": [
         {"duration":500},

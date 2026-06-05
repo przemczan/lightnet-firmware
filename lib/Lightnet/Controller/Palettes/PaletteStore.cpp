@@ -163,15 +163,25 @@ namespace Lightnet {
 
     bool PaletteStore::save(const char *name, const GradientStop *stops, uint8_t count) const
     {
-        if (!name || count == 0 || count > PALETTE_STOPS) return false;
+        if (!name || count == 0 || count > PALETTE_STOPS) {
+            D_PRINTLN("Invalid palette name or stop count");
+
+            return false;
+        }
 
         char path[40];
 
         snprintf(path, sizeof(path), "/palettes/%s.json", name);
 
+        Fs::mkdir("/palettes");
+
         File f = Fs::open(path, "w");
 
-        if (!f) return false;
+        if (!f) {
+            D_PRINTLN("Failed to open file for writing");
+
+            return false;
+        }
 
         f.print("{\"schemaVersion\":1,\"name\":\"");
         f.print(name);

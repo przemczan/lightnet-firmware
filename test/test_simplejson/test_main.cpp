@@ -136,7 +136,7 @@ void test_parseHexColor_rejects_wrong_length()
 {
     uint8_t r, g, b;
 
-    TEST_ASSERT_FALSE(jsonParseHexColor("#FFF", 4, &r, &g, &b));
+    TEST_ASSERT_FALSE(jsonParseHexColor("#FFFFFF", 4, &r, &g, &b));
 }
 
 // ---------------------------------------------------------------------------

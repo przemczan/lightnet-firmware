@@ -290,7 +290,10 @@ void loop()
     if (LNPanelsInitializer.isFinished()) {
         // IMPORTANT: WiFiManager needs the DNS server to process requests
         // to trigger the Captive Portal redirect.
-        if (wifiManager != nullptr) {
+        // Only poll when not connected: on ESP32 the socket is never opened if
+        // WiFi connected directly (no portal), so calling parsePacket() on it
+        // returns EBADF (errno 9) every iteration, flooding the log.
+        if (wifiManager != nullptr && WiFi.status() != WL_CONNECTED) {
             dns.processNextRequest();
         }
 
