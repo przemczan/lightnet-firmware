@@ -66,27 +66,114 @@ void WebsocketServer::sendMessage(WebsocketApi::Internal::Message *message)
     this->socket->binary(message->clientId, message->payload, message->payloadSize);
 }
 
-void WebsocketServer::broadcastFrame(const void *frame, size_t len)
+void WebsocketServer::sendToMirroringClients(const void *frame, size_t len)
 {
     if (!this->socket) {
         return;
     }
 
-    // Drop the frame rather than the client when any queue is backed up. For a
-    // preview stream a missed frame self-heals on the next flush.
-    if (!this->socket->availableForWriteAll()) {
+    // Snapshot the target IDs under the lock, then send outside it — socket->binary()
+    // allocates and locks internally and must not run inside a critical section.
+    uint32_t targets[MAX_CLIENTS];
+    uint8_t count = 0;
+
+    this->lockClients();
+
+    for (uint8_t i = 0; i < MAX_CLIENTS; i++) {
+        if (this->clientSettings[i].clientId != 0 && this->clientSettings[i].mirroringEnabled) {
+            targets[count++] = this->clientSettings[i].clientId;
+        }
+    }
+
+    this->unlockClients();
+
+    for (uint8_t i = 0; i < count; i++) {
+        this->socket->binary(targets[i], (const uint8_t *)frame, len);
+    }
+}
+
+void WebsocketServer::sendFrameToClient(uint32_t clientId, const void *frame, size_t len)
+{
+    if (!this->socket || !this->socket->hasClient(clientId)) {
         return;
     }
 
-    this->socket->binaryAll((const uint8_t *)frame, len);
+    this->socket->binary(clientId, (const uint8_t *)frame, len);
+}
+
+void WebsocketServer::setMirroringEnabled(uint32_t clientId, bool enabled)
+{
+    this->lockClients();
+
+    for (uint8_t i = 0; i < MAX_CLIENTS; i++) {
+        if (this->clientSettings[i].clientId != clientId) {
+            continue;
+        }
+
+        this->clientSettings[i].mirroringEnabled = enabled;
+
+        if (enabled) {
+            this->pendingSnapshotClientId = clientId;
+        }
+
+        break;
+    }
+
+    this->unlockClients();
+}
+
+uint32_t WebsocketServer::getAndClearPendingSnapshotClientId()
+{
+    this->lockClients();
+
+    uint32_t id = this->pendingSnapshotClientId;
+
+    this->pendingSnapshotClientId = 0;
+
+    this->unlockClients();
+
+    return id;
 }
 
 void WebsocketServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
 {
     if (type == WS_EVT_CONNECT) {
         // Keep a client that briefly falls behind a high-rate stream instead of
-        // force-closing it; broadcastFrame() already drops frames when queues fill.
+        // force-closing it; sendToMirroringClients() already handles per-client sends.
         client->setCloseClientOnQueueFull(false);
+
+        // Register per-client settings slot (mirroring off by default).
+        this->lockClients();
+
+        for (uint8_t i = 0; i < MAX_CLIENTS; i++) {
+            if (this->clientSettings[i].clientId == 0) {
+                this->clientSettings[i].clientId = client->id();
+                this->clientSettings[i].mirroringEnabled = false;
+                break;
+            }
+        }
+
+        this->unlockClients();
+
+        return;
+    }
+
+    if (type == WS_EVT_DISCONNECT) {
+        this->lockClients();
+
+        for (uint8_t i = 0; i < MAX_CLIENTS; i++) {
+            if (this->clientSettings[i].clientId == client->id()) {
+                this->clientSettings[i] = {};
+                break;
+            }
+        }
+
+        // Drop a queued snapshot for this client so it can't be sent to a reused ID.
+        if (this->pendingSnapshotClientId == client->id()) {
+            this->pendingSnapshotClientId = 0;
+        }
+
+        this->unlockClients();
 
         return;
     }

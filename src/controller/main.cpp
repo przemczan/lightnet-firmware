@@ -29,6 +29,14 @@ void serviceMirror()
         return;
     }
 
+    // Send the animation state snapshot to any client that just enabled mirroring,
+    // outside the 33 ms throttle so it fires on the very next main-loop tick.
+    uint32_t newClient = websocketServer->getAndClearPendingSnapshotClientId();
+
+    if (newClient) {
+        packetMirror->flushSnapshotTo(websocketServer, newClient);
+    }
+
     static uint32_t lastMirrorFlushMs = 0;
     uint32_t now = millis();
 

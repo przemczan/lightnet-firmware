@@ -91,6 +91,10 @@ uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint1
         case WebsocketApi::ANIMATION_TRIGGER:
             error = this->cmdAnimationTrigger((WebsocketApi::Cmd::AnimationTrigger *)command);
             break;
+
+        case WebsocketApi::SET_MIRROR:
+            error = this->cmdSetMirror((WebsocketApi::Cmd::SetMirror *)command, clientId);
+            break;
     }
 
     D_PRINTLN("[CMD HANDLER] done handling", error);
@@ -224,6 +228,13 @@ uint8_t WebsocketHandler::cmdAnimationTrigger(WebsocketApi::Cmd::AnimationTrigge
     if (!animScheduler) return 1;
 
     animScheduler->triggerGroup(command->groupId, command->value);
+
+    return 0;
+}
+
+uint8_t WebsocketHandler::cmdSetMirror(WebsocketApi::Cmd::SetMirror *command, uint32_t clientId)
+{
+    websocketServer->setMirroringEnabled(clientId, command->enabled != 0);
 
     return 0;
 }
