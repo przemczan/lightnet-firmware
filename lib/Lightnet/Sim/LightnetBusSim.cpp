@@ -92,6 +92,10 @@ uint8_t LightnetBus::sendPacket(
 {
     Protocol::setPacketMeta(packet, type);
 
+    if (onPacketSentCallback) {
+        onPacketSentCallback(address, packet, size, type);
+    }
+
     return sendData(address, packet, size, end);
 }
 
