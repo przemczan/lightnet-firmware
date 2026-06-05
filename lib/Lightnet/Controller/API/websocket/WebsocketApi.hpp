@@ -25,6 +25,7 @@ namespace WebsocketApi
         EDGES_LIST = 7,
         ANIMATION_TRIGGER = 8,    // low-latency reactive trigger for music sync
         MIRROR_BATCH = 9,         // controller→client: batch of mirrored outbound I2C packets
+        SET_MIRROR = 10,          // client→controller: enable/disable MIRROR_BATCH streaming
     };
 
     typedef struct PACK {
@@ -72,6 +73,11 @@ namespace WebsocketApi
             uint8_t    groupId;
             uint8_t    value;
         } AnimationTrigger;
+
+        typedef struct PACK {
+            PacketMeta meta;
+            uint8_t    enabled;   // 1 = enable MIRROR_BATCH streaming, 0 = disable
+        } SetMirror;
     }
 
     namespace Rsp {
