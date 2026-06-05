@@ -95,6 +95,19 @@ namespace Lightnet {
             );
 
             void stop();
+
+            // Restart the scene that was most recently loaded, if any. Intended for
+            // power-on after a suspend: stop() keeps all scene data in memory so this
+            // can replay it without reloading from disk.
+            // Does nothing if no scene has been loaded (lCount == 0).
+            void resume(uint32_t nowMs);
+
+            // True when a scene is loaded in memory (may or may not be playing).
+            bool hasScene() const
+            {
+                return lCount > 0;
+            }
+
             void tick(uint32_t nowMs);
 
             // Change playback speed of the current scene. Takes effect on next step.

@@ -96,17 +96,26 @@ Use this to verify the mirror pipeline is alive, check that general-call START p
 
 ## Packet mirroring (live preview)
 
-The controller captures every outbound I²C packet and streams them to WebSocket clients as `MIRROR_BATCH` frames so the mobile app can render a real-time preview without polling.
+The controller captures every outbound I²C packet into `PacketMirror`. Clients that opt in receive `MIRROR_BATCH` WebSocket frames so the mobile app can render a real-time preview without polling.
 
 ### Firmware side
 
 | File | Role |
 |---|---|
-| `lib/Lightnet/Controller/API/websocket/PacketMirror.cpp/.hpp` | Buffer that accumulates captured records; `capture()` stores them, `flushTo()` builds and broadcasts the WS frame |
+| `lib/Lightnet/Controller/API/websocket/PacketMirror.cpp/.hpp` | Captures records into a live-stream ring and a persistent snapshot; `flushTo()` broadcasts the ring, `flushSnapshotTo()` unicasts the snapshot to one client |
 | `src/controller/main.cpp` — `mirrorOutboundPacket()` | Plain function registered via `LNBus.setOnPacketSent()`; forwards every outbound packet to `PacketMirror::capture()` |
-| `src/controller/MirrorService.hpp` / `serviceMirror()` in `main.cpp` | Flush gate (~30 fps); called from main loop `case 1` and from blocking sections (demos) |
+| `src/controller/MirrorService.hpp` / `serviceMirror()` in `main.cpp` | Flush gate (~30 fps); also drains `pendingSnapshotClientId` to unicast the snapshot to newly-enabled clients |
+| `lib/Lightnet/Controller/API/websocket/WebsocketServer` — `ClientSettings` | Per-client `mirroringEnabled` flag; registered on connect, cleared on disconnect |
 
-**How it works**: `LightnetBus::sendPacket()` calls `onPacketSentCallback` before hitting the wire. The callback fires for every `sendPacketAck` / `sendPacketNack` call — both unicast and general call (addr=0x00). `PacketMirror` filters to animation/color/palette/brightness/on-off types (`isMirrored()`), copies the raw bytes, and `serviceMirror()` flushes them in a coalesced `MIRROR_BATCH` frame each tick.
+**Opt-in streaming**: mirroring is disabled by default for each client connection. The client sends `SET_MIRROR(enabled=1)` to start receiving `MIRROR_BATCH` frames, and `SET_MIRROR(enabled=0)` to stop. This keeps bandwidth and CPU usage zero for clients that don't need live preview (e.g. a control-only UI).
+
+**Snapshot on enable**: `PacketMirror` maintains a second buffer alongside the live ring — a snapshot of the last-seen packet for each `(address, type[, group_id])` combination. When a client enables mirroring, a one-shot `MIRROR_BATCH` containing the snapshot is unicast to that client before the live stream begins, so the preview is correct immediately rather than waiting for the next full animation cycle.
+
+Snapshotted types: `PACKET_SET_GLOBAL_BRIGHTNESS`, `PACKET_SET_BASE_COLORS`, `PACKET_SET_PALETTE`, `PACKET_TURN_ON_OFF`, `PACKET_ANIMATION_PREPARE`, `PACKET_ANIMATION_START`. `PACKET_SET_COLOR` is not snapshotted (60 fps stream, self-heals within one live frame).
+
+**Power-off / power-on**: `PacketMirror::clearSnapshot()` is called when the controller turns off, so stale animation state is not replayed to clients that connect while it is off. On power-on, `AnimationService::resumeScene()` restarts the last-loaded scene from the beginning using data preserved in `ScenePlayer` (all scene state survives `stop()` in memory; `lCount > 0` is the resume guard).
+
+**Sim mode**: `LightnetBusSim.cpp::sendPacket()` invokes `onPacketSentCallback` so the mirror pipeline works identically in SIM_MODE — outbound packets reach `PacketMirror::capture()` and the mobile live preview works without real hardware.
 
 **Wire format of `MIRROR_BATCH` payload**:
 ```

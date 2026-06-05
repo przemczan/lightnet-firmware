@@ -98,8 +98,14 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
 
-            // Stop the currently playing scene.
+            // Stop the currently playing scene. Scene data is kept in memory so
+            // resumeScene() can restart it later (e.g. after power-on).
             void stopScene();
+
+            // Restart the last-loaded scene from the beginning, if any.
+            // Intended for power-on: stops are issued first via stopScene(), then
+            // power-on calls this to bring the animation back.
+            void resumeScene(uint32_t nowMs);
 
             // Change the playback speed of the currently playing scene [0.1, 10.0].
             // Takes effect at the start of the next step.

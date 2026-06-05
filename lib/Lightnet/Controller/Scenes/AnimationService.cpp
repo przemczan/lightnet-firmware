@@ -101,6 +101,11 @@ namespace Lightnet {
         player.stop();
     }
 
+    void AnimationService::resumeScene(uint32_t nowMs)
+    {
+        player.resume(nowMs);
+    }
+
     // ---------------------------------------------------------------------------
     // Speed
     // ---------------------------------------------------------------------------

@@ -102,6 +102,13 @@ namespace Lightnet {
         scheduler.broadcastStop();
     }
 
+    void ScenePlayer::resume(uint32_t nowMs)
+    {
+        if (lCount == 0) return;
+
+        loadAndPlay(layers, lCount, loop, name, defaultPalette, baseColors, nowMs, speed);
+    }
+
     void ScenePlayer::tick(uint32_t nowMs)
     {
         if (!playing) return;

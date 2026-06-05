@@ -38,6 +38,15 @@ class PacketMirror
         // Does nothing if the snapshot is empty. Does not reset the snapshot.
         void flushSnapshotTo(WebsocketServer *server, uint32_t clientId);
 
+        // Discard all snapshot entries. Call when the controller turns off so stale
+        // animation state is not replayed to clients that connect while it is off.
+        void clearSnapshot()
+        {
+            snapshotEntryCount  = 0;
+            snapshotRecordsLen  = 0;
+            snapshotDroppedCount = 0;
+        }
+
     private:
         static const uint16_t RECORDS_CAP    = 2048;
         static const uint16_t PAYLOAD_HEADER = 6;  // u32 millis + u16 count

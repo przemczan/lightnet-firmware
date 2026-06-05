@@ -3,6 +3,7 @@
 #include "../../../Utils/SimpleJson.hpp"
 #include "../../Panels/PanelsInitializer.hpp"
 #include "../../Panels/Panel.hpp"
+#include "../websocket/PacketMirror.hpp"
 #include <Arduino.h>
 #include <string.h>
 
@@ -13,10 +14,12 @@ namespace Lightnet {
         PanelsController&   _panelsController,
         AnimationService&   _animService,
         AnimationScheduler& _animScheduler,
-        AppearanceStore&    _appearance
+        AppearanceStore&    _appearance,
+        PacketMirror *      _packetMirror
     )
         : server(_server), appState(_appState), panelsController(_panelsController),
-        animService(_animService), animScheduler(_animScheduler), appearance(_appearance)
+        animService(_animService), animScheduler(_animScheduler), appearance(_appearance),
+        packetMirror(_packetMirror)
     {
     }
 
@@ -92,6 +95,11 @@ namespace Lightnet {
         List<Panel *> *panels = LNPanelsInitializer.getPanels();
 
         if (!newValue) {
+            // Clear the mirror snapshot first so stale animation state is not replayed
+            // to clients that connect while the controller is off. TURN_ON_OFF(off)
+            // packets sent below will re-populate the snapshot with the off state.
+            if (packetMirror) packetMirror->clearSnapshot();
+
             animService.stopScene();
             animScheduler.clearAllPanelQueues();
 
@@ -104,6 +112,7 @@ namespace Lightnet {
             }
 
             appearance.reapply();
+            animService.resumeScene(millis());
         }
     }
 }  // namespace Lightnet

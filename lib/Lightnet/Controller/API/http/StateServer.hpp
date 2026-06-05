@@ -7,6 +7,8 @@
 #include "../../Animations/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 
+class PacketMirror;  // forward declaration — only a pointer is stored
+
 namespace Lightnet {
     class StateServer
     {
@@ -17,7 +19,8 @@ namespace Lightnet {
                 PanelsController&   panelsController,
                 AnimationService&   animService,
                 AnimationScheduler& animScheduler,
-                AppearanceStore&    appearance
+                AppearanceStore&    appearance,
+                PacketMirror *      packetMirror = nullptr
             );
 
             void begin();
@@ -29,6 +32,7 @@ namespace Lightnet {
             AnimationService& animService;
             AnimationScheduler& animScheduler;
             AppearanceStore& appearance;
+            PacketMirror *packetMirror;
 
             void registerRoutes();
 
