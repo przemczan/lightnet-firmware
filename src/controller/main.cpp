@@ -374,7 +374,8 @@ void loop()
                                                         *panelsController,
                                                         *animService,
                                                         *animScheduler,
-                                                        *appearance);
+                                                        *appearance,
+                                                        packetMirror);
                 stateServer->begin();
 
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));

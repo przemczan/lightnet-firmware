@@ -20,8 +20,8 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
 
 1. [WebSocket Binary API](#1-websocket-binary-api)
    - [Packet structure](#11-packet-structure)
-   - [Commands](#12-commands)
-   - [Responses](#13-responses)
+   - [Commands](#12-commands) — TOGGLE (1), SET_COLOR (3), GET_PANELS_STATES (5), GET_EDGES_LIST (4), ANIMATION_TRIGGER (8), SET_MIRROR (10)
+   - [Responses](#13-responses) — PANELS_STATES (6), EDGES_LIST (7), MIRROR_BATCH (9)
    - [Sending a command — worked example](#14-sending-a-command-worked-example)
 2. [HTTP API](#2-http-api)
    - [Appearance](#21-appearance)
@@ -122,6 +122,22 @@ No response is sent. For music sync at 120 BPM, fire this every 500 ms.
 
 ---
 
+#### SET_MIRROR (type 10)
+
+Enable or disable `MIRROR_BATCH` streaming for this client connection. Mirroring is **off by default** — the controller only sends `MIRROR_BATCH` frames to clients that have explicitly opted in.
+
+| Offset | Size | Field | Type | Description |
+|---|---|---|---|---|
+| 0 | 1 B | `enabled` | uint8 | `1` = enable streaming, `0` = disable |
+
+When `enabled=1`, the controller immediately unicasts a **state snapshot** — a single `MIRROR_BATCH` containing the last-seen packet for each panel/type combination — before the live stream begins. This brings the client's visualizer to the correct current state without waiting for the next animation cycle.
+
+When `enabled=0`, the controller stops sending `MIRROR_BATCH` frames to this client, saving network bandwidth and send-queue capacity.
+
+No response is sent.
+
+---
+
 ### 1.3 Responses
 
 Responses are sent **controller → client** in reply to query commands.
@@ -168,6 +184,30 @@ Sent in reply to GET_EDGES_LIST. `payloadSize = 2 + N×8`.
 | 2 | 2 B | `edgeIndex` | uint16 | Edge slot on that panel (0–2) |
 | 4 | 2 B | `connectedPanelIndex` | uint16 | Peer panel index (`0` if unoccupied) |
 | 6 | 2 B | `connectedEdgeIndex` | uint16 | Peer edge slot (`0` if unoccupied) |
+
+---
+
+#### MIRROR_BATCH (type 9)
+
+Streamed **controller → client** at up to ~30 fps once the client has sent `SET_MIRROR(1)`. Each frame is a coalesced batch of all outbound I²C packets captured since the previous flush. The mobile app uses these to drive its per-panel `AnimationPlayer` for real-time preview.
+
+**Payload header (6 bytes):**
+
+| Offset | Size | Field | Type | Description |
+|---|---|---|---|---|
+| 0 | 4 B | `controllerMillis` | uint32 | `millis()` on the controller at flush time (LE) |
+| 4 | 2 B | `count` | uint16 | Number of records that follow (LE) |
+
+**Per record × count:**
+
+| Offset | Size | Field | Type | Description |
+|---|---|---|---|---|
+| 0 | 1 B | `address` | uint8 | I²C target panel index; `0` = General Call (all panels) |
+| 1 | 1 B | `type` | uint8 | `Protocol::packetType_t` value |
+| 2 | 1 B | `size` | uint8 | Byte length of `packet` |
+| 3 | N B | `packet` | bytes | Raw packet including 5-byte `PacketMeta` header |
+
+All records in one frame share the same `controllerMillis` timestamp. The first frame received after enabling mirroring is a **state snapshot** (last-seen value per panel/type) rather than a live-stream flush — process it identically.
 
 ---
 
