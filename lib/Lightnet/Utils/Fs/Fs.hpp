@@ -14,6 +14,7 @@ namespace Lightnet {
         static File   open(const char *path, const char *mode = "r");
         static bool   remove(const char *path);
         static bool   rename(const char *from, const char *to);
+        static bool   mkdir(const char *path);
 
         // Underlying FS, e.g. for AsyncWebServerRequest::send(Fs::raw(), path, type).
         static fs::FS &raw();

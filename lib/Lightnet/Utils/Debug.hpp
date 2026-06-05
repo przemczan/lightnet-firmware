@@ -2,6 +2,7 @@
 
 #if DEBUG
     #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+        #include <Arduino.h>
         #define D_PRINTF Serial.printf
     #else
         // Define a template that will deliberately fail compilation if called
@@ -18,21 +19,47 @@
     #define DEBUG_BLOCK(...) do { __VA_ARGS__; } while (0)
     #define DEBUG_IF(flag, ...) do { if (flag) { __VA_ARGS__; } } while (0)
 
-    // Universal PRINT: Accepts 1 to N arguments, prints them separated by spaces
-    template<typename T, typename ... Args>
-    void D_PRINT(T first, Args... args)
-    {
-        Serial.print(first);
-        ((Serial.print(" "), Serial.print(args)), ...);
-    }
+    #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+        inline void D_PRINT()
+        {
+        }
 
-    // Universal D_PRINTLN: Same as above, but adds a newline at the end
-    template<typename T, typename ... Args>
-    void D_PRINTLN(T first, Args... args)
-    {
-        D_PRINT(first, args ...);
-        Serial.println();
-    }
+        template<typename T>
+        inline void D_PRINT(T first)
+        {
+            Serial.print(first);
+        }
+
+        template<typename T, typename ... Args>
+        inline void D_PRINT(T first, Args... args)
+        {
+            Serial.print(first);
+            Serial.print(' ');
+            D_PRINT(args ...);
+        }
+
+        inline void D_PRINTLN()
+        {
+            Serial.println();
+        }
+
+        template<typename ... Args>
+        inline void D_PRINTLN(Args... args)
+        {
+            D_PRINT(args ...);
+            Serial.println();
+        }
+
+    #else
+        template<typename ... Args> inline void D_PRINT(Args...)
+        {
+        }
+
+        template<typename ... Args> inline void D_PRINTLN(Args...)
+        {
+        }
+
+    #endif
 
     // Sub-switch defaults — each defaults to 1 unless pre-defined (e.g. via build flag or config override)
     #ifndef DEBUG_API

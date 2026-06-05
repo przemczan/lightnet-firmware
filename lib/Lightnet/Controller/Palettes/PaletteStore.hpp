@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "../../Utils/Debug.hpp"
 #include "../../Common/Palette.hpp"
 #include "../../Common/LightnetConfig.hpp"
 #include "../../Common/Protocol.hpp"

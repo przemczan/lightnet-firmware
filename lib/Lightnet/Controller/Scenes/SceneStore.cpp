@@ -18,6 +18,8 @@ namespace Lightnet {
 
         scenePath(name, path, sizeof(path));
 
+        Fs::mkdir("/scenes");
+
         File f = Fs::open(path, "w");
 
         if (!f) return false;
