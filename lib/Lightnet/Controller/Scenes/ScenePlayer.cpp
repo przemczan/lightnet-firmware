@@ -84,6 +84,10 @@ namespace Lightnet {
             }
         }
 
+        // Build the rooted topology this scene's panel selectors resolve against. Rebuilt
+        // here so it reflects the live discovered graph on every play and resume.
+        rebuildTopology();
+
         sendPalettesToPanels();
 
         playing = true;
@@ -243,10 +247,10 @@ namespace Lightnet {
         // state and tick() advances past this step when its duration elapses.
         if (step.animType == ANIM_GAP) return;
 
-        uint8_t panels[SCENE_MAX_PANELS_PER_LAYER];
+        uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
         uint8_t panelCount = 0;
 
-        resolvePanels(layer, panels, panelCount);
+        resolvePanels(layer, panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
 
         if (panelCount == 0) return;
 
@@ -283,35 +287,73 @@ namespace Lightnet {
         }
     }
 
-    void ScenePlayer::resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t& count) const
+    void ScenePlayer::resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t maxLen, uint8_t& count) const
     {
-        List<Panel *> *allPanels = initializer.getPanels();
-        uint16_t total = allPanels->getSize();
-
         count = 0;
 
-        if (layer.targetMode == PanelTargetMode::ALL) {
-            for (uint16_t i = 0; i < total && count < SCENE_MAX_PANELS_PER_LAYER; i++) {
-                out[count++] = (uint8_t)allPanels->get(i)->index;
-            }
-        } else if (layer.targetMode == PanelTargetMode::LIST) {
-            count = layer.targetCount;
-            memcpy(out, layer.targetList, count);
-        } else { // EXCLUDE
-            for (uint16_t i = 0; i < total && count < SCENE_MAX_PANELS_PER_LAYER; i++) {
-                uint8_t addr = (uint8_t)allPanels->get(i)->index;
-                bool excluded = false;
+        PanelSet set;
 
-                for (uint8_t j = 0; j < layer.targetCount; j++) {
-                    if (layer.targetList[j] == addr) {
-                        excluded = true;
+        // A malformed selector resolves to nothing — the layer is simply skipped.
+        if (!resolveSelector(layer.target, topo, set)) return;
+
+        // Emitted in slot (discovery) order, preserving the pre-existing runner sweep order.
+        emitPanelIndices(set, topo, out, maxLen, count);
+    }
+
+    void ScenePlayer::rebuildTopology(uint8_t rootPanelIndex)
+    {
+        List<Panel *> *panels = initializer.getPanels();
+        uint16_t total = panels ? panels->getSize() : 0;
+
+        if (total == 0 || total > LIGHTNET_MAX_PANELS) {
+            topo.build(nullptr, 0, nullptr, 0, rootPanelIndex); // empty / unusable topology
+
+            return;
+        }
+
+        uint8_t indices[LIGHTNET_MAX_PANELS];
+        TopoLink links[LIGHTNET_MAX_PANELS];
+        uint8_t linkCount = 0;
+
+        for (uint16_t i = 0; i < total; i++) {
+            Panel *panel = panels->get(i);
+
+            indices[i]   = (uint8_t)panel->index;
+
+            List<Edge *> *edges = panel->edges;
+            uint16_t ec    = edges ? edges->getSize() : 0;
+
+            for (uint16_t e = 0; e < ec; e++) {
+                Edge *edge = edges->get(e);
+
+                if (!edge || !edge->connectedEdge || !edge->connectedEdge->panel) continue;
+
+                uint8_t a = (uint8_t)panel->index;
+                uint8_t b = (uint8_t)edge->connectedEdge->panel->index;
+
+                // connectedEdge is normally set on the parent side only, so each link is
+                // seen once — but dedupe defensively in case both sides are ever linked.
+                bool seen = false;
+
+                for (uint8_t k = 0; k < linkCount; k++) {
+                    if ((links[k].panelA == a && links[k].panelB == b) ||
+                        (links[k].panelA == b && links[k].panelB == a)) {
+                        seen = true;
                         break;
                     }
                 }
 
-                if (!excluded) out[count++] = addr;
+                if (seen || linkCount >= LIGHTNET_MAX_PANELS) continue;
+
+                links[linkCount].panelA = a;
+                links[linkCount].edgeA  = edge->index;
+                links[linkCount].panelB = b;
+                links[linkCount].edgeB  = edge->connectedEdge->index;
+                linkCount++;
             }
         }
+
+        topo.build(indices, (uint8_t)total, links, linkCount, rootPanelIndex);
     }
 
     void ScenePlayer::sendPalettesToPanels()
@@ -319,10 +361,10 @@ namespace Lightnet {
         scheduler.broadcastBaseColors(baseColors);
 
         for (uint8_t i = 0; i < lCount; i++) {
-            uint8_t panels[SCENE_MAX_PANELS_PER_LAYER];
+            uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
             uint8_t panelCount = 0;
 
-            resolvePanels(layers[i], panels, panelCount);
+            resolvePanels(layers[i], panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
 
             if (panelCount == 0) continue;
 

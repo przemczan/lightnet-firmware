@@ -1,5 +1,6 @@
 #include "SceneParser.hpp"
 #include "../../Utils/SimpleJson.hpp"
+#include "../Topology/PanelSelectorParser.hpp"
 #include <string.h>
 #include <stdlib.h>
 
@@ -349,109 +350,14 @@ namespace Lightnet {
         }
 
         // ---------------------------------------------------------------------------
-        // Parse the "panels" value. Accepts string "all", array [..ids..], or
-        // object {"exclude":[..ids..]}.
+        // Parse the "panels" value into the layer's selector program. The full grammar
+        // (index arrays, graph selectors, tags, and any/all/not/exclude composition)
+        // lives in the pure, natively-tested PanelSelectorParser.
         // ---------------------------------------------------------------------------
 
         static bool parsePanels(const char *& p, const char *end, SceneLayer& layer, char *errMsg, size_t errLen)
         {
-            jsonSkipWs(p, end);
-
-            if (p >= end) return false;
-
-            if (*p == '"') {
-                char s[8];
-
-                if (!jsonReadString(p, end, s, sizeof(s))) return false;
-
-                if (strcmp(s, "all") != 0) {
-                    snprintf(errMsg, errLen, "panels: unknown string \"%s\" (use \"all\")", s);
-
-                    return false;
-                }
-
-                layer.targetMode  = PanelTargetMode::ALL;
-                layer.targetCount = 0;
-
-                return true;
-            }
-
-            if (*p == '[') {
-                jsonEnterArray(p, end);
-                layer.targetMode = PanelTargetMode::LIST;
-                layer.targetCount = 0;
-
-                while (jsonNextElement(p, end)) {
-                    long v;
-
-                    if (!jsonReadUInt(p, end, &v) || v == 0 || v > 255) {
-                        strncpy(errMsg, "panels[]: invalid index (panels start at 1)", errLen);
-
-                        return false;
-                    }
-
-                    if (layer.targetCount >= SCENE_MAX_PANELS_PER_LAYER) {
-                        strncpy(errMsg, "panels[]: too many panels", errLen);
-
-                        return false;
-                    }
-
-                    layer.targetList[layer.targetCount++] = (uint8_t)v;
-                }
-
-                if (layer.targetCount == 0) {
-                    strncpy(errMsg, "panels[]: empty list", errLen);
-
-                    return false;
-                }
-
-                return true;
-            }
-
-            if (*p == '{') {
-                jsonEnterObject(p, end);
-                layer.targetMode  = PanelTargetMode::EXCLUDE;
-                layer.targetCount = 0;
-
-                char key[12];
-
-                while (jsonNextKey(p, end, key, sizeof(key))) {
-                    if (strcmp(key, "exclude") != 0) {
-                        jsonSkipValue(p, end);
-                        continue;
-                    }
-
-                    if (!jsonEnterArray(p, end)) {
-                        strncpy(errMsg, "panels.exclude: expected array", errLen);
-
-                        return false;
-                    }
-
-                    while (jsonNextElement(p, end)) {
-                        long v;
-
-                        if (!jsonReadUInt(p, end, &v) || v == 0 || v > 255) {
-                            strncpy(errMsg, "panels.exclude[]: invalid index (panels start at 1)", errLen);
-
-                            return false;
-                        }
-
-                        if (layer.targetCount >= SCENE_MAX_PANELS_PER_LAYER) {
-                            strncpy(errMsg, "panels.exclude[]: too many", errLen);
-
-                            return false;
-                        }
-
-                        layer.targetList[layer.targetCount++] = (uint8_t)v;
-                    }
-                }
-
-                return true;
-            }
-
-            strncpy(errMsg, "panels: expected string, array, or object", errLen);
-
-            return false;
+            return parsePanelSelector(p, end, layer.target, errMsg, errLen);
         }
 
         // ---------------------------------------------------------------------------
@@ -469,7 +375,8 @@ namespace Lightnet {
         )
         {
             memset(&layer, 0, sizeof(layer));
-            layer.targetMode = PanelTargetMode::ALL;
+            layer.target.clear();
+            layer.target.emit(SEL_ALL); // default targeting when no "panels" key is present
             startAfterName[0] = '\0';
 
             char key[16];
@@ -634,7 +541,8 @@ namespace Lightnet {
     bool parseOneShotBody(const char *json, size_t len, SceneLayer& layer, char *errMsg, size_t errLen)
     {
         memset(&layer, 0, sizeof(layer));
-        layer.targetMode = PanelTargetMode::ALL;
+        layer.target.clear();
+        layer.target.emit(SEL_ALL); // default targeting when no "panels" key is present
 
         SceneStep& step = layer.steps[0];
 
