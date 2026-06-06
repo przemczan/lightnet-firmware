@@ -21,6 +21,7 @@ nav:
   - Animations & Scenes:
     - animations/index.md
     - Concepts: animations/concepts.md
+    - Scene Authoring: animations/scene-authoring.md
     - Animation Types: animations/types.md
     - API & Examples: animations/api.md
   - OTA & Updates: ota.md

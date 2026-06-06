@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include "TopologyIndex.hpp"
+#include "TagResolver.hpp"
 
 namespace Lightnet {
     // Opcodes. Leaf ops push a PanelSet; AND/OR/NOT combine the stack top(s).
@@ -34,7 +35,7 @@ namespace Lightnet {
         SEL_FIRST,      // + k         : first k in canonical order
         SEL_LAST,       // + k         : last  k in canonical order
         SEL_INDICES,    // + len, idx… : explicit 1-based panel indices
-        SEL_TAG,        // + tagId     : per-device tag (Phase 3; resolves empty for now)
+        SEL_TAG,        // + len, name : per-device tag, resolved via ITagResolver
         SEL_AND,        // pop b,a → a ∩ b
         SEL_OR,         // pop b,a → a ∪ b
         SEL_NOT,        // pop a    → complement(a)
@@ -77,6 +78,7 @@ namespace Lightnet {
         const PanelSelector& sel,
         uint8_t&             i,
         const TopologyIndex& topo,
+        const ITagResolver * tags,
         PanelSet&            s
     )
     {
@@ -222,12 +224,30 @@ namespace Lightnet {
             }
 
             case SEL_TAG:
-
+            {
                 if (avail < 1) return false;
 
-                i++;          // tagId — Phase 3; resolves to empty for now
+                uint8_t len = sel.ops[i++];
+
+                if ((uint8_t)(sel.len - i) < len) return false; // operand bytes must be present
+
+                // Copy at most TAG_NAME_MAX bytes (never trust len for the buffer), but
+                // always advance the cursor past all len bytes so the program stays in sync.
+                char name[TAG_NAME_MAX + 1];
+                uint8_t copyLen = (len < TAG_NAME_MAX) ? len : TAG_NAME_MAX;
+
+                for (uint8_t k = 0; k < len; k++) {
+                    if (k < copyLen) name[k] = (char)sel.ops[i];
+
+                    i++;
+                }
+
+                name[copyLen] = '\0';
+
+                if (tags) tags->panelsForTag(name, topo, s); // no resolver → empty set
 
                 return true;
+            }
 
             default:
                 return false; // unknown opcode in a leaf position
@@ -236,7 +256,12 @@ namespace Lightnet {
 
     // Resolve a selector program into `out` (a slot bitset). Returns false on a
     // malformed program (stack under/overflow, bad opcode, truncated operands).
-    inline bool resolveSelector(const PanelSelector& sel, const TopologyIndex& topo, PanelSet& out)
+    inline bool resolveSelector(
+        const PanelSelector& sel,
+        const TopologyIndex& topo,
+        PanelSet&            out,
+        const ITagResolver * tags = nullptr
+    )
     {
         PanelSet stack[SEL_STACK_MAX];
         uint8_t sp = 0;
@@ -261,7 +286,7 @@ namespace Lightnet {
 
                 stack[sp].clearAll();
 
-                if (!selEvalLeaf(op, sel, i, topo, stack[sp])) return false;
+                if (!selEvalLeaf(op, sel, i, topo, tags, stack[sp])) return false;
 
                 sp++;
             }

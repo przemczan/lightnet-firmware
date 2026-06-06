@@ -7,22 +7,25 @@
 
 static void logPacket(uint8_t addr, const void *data, uint8_t size)
 {
-    // Build the whole line in a stack buffer and write it in one Serial call.
-    // Per-byte printf() is ~N× slower due to function-call overhead at 80 MHz.
-    char buf[8 + 12 + Protocol::MAX_PACKET_SIZE * 3 + 2];
-    int n = snprintf(buf, sizeof(buf), "[SIM:SEND] %lu %u", millis(), addr);
+    DEBUG_IF(
+        DEBUG_LIGHTNET_BUS,
+        // Build the whole line in a stack buffer and write it in one Serial call.
+        // Per-byte printf() is ~N× slower due to function-call overhead at 80 MHz.
+        char buf[8 + 12 + Protocol::MAX_PACKET_SIZE * 3 + 2];
+        int n = snprintf(buf, sizeof(buf), "[SIM:SEND] %lu %u", millis(), addr);
 
-    const uint8_t *b = (const uint8_t *)data;
+        const uint8_t *b = (const uint8_t *)data;
 
-    for (uint8_t i = 0; i < size && n + 4 < (int)sizeof(buf); i++) {
+        for (uint8_t i = 0; i < size && n + 4 < (int)sizeof(buf); i++) {
         buf[n++] = ' ';
         buf[n++] = "0123456789ABCDEF"[b[i] >> 4];
         buf[n++] = "0123456789ABCDEF"[b[i] & 0xF];
     }
 
-    buf[n++] = '\n';
-    buf[n]   = '\0';
-    Serial.print(buf);
+        buf[n++] = '\n';
+        buf[n]   = '\0';
+        Serial.print(buf);
+    );
 }
 
 // ============================================================================

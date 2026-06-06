@@ -381,6 +381,85 @@
         }
       }
     },
+    "/api/topology": {
+      "get": {
+        "summary": "Get Topology Config (logical root + tags)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "logicalRoot": 5,
+                    "tags": { "1": ["accent", "left"], "5": ["accent"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/topology/root": {
+      "put": {
+        "summary": "Set Logical Root Panel",
+        "parameters": [],
+        "responses": {
+          "200": { "description": "OK" },
+          "422": { "description": "logicalRoot out of range" }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": { "logicalRoot": 5 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/panel-tags": {
+      "get": {
+        "summary": "Get Panel Tag Map",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": { "1": ["accent", "left"], "5": ["accent"] }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace Panel Tag Map",
+        "parameters": [],
+        "responses": {
+          "200": { "description": "OK" },
+          "422": { "description": "invalid tag map" }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": { "1": ["accent", "left"], "5": ["accent"] }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/panels": {
       "get": {
         "summary": "List Panels",

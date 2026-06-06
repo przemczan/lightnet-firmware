@@ -59,6 +59,17 @@ static void parseExpectError(const char *json)
     TEST_ASSERT_FALSE(parsePanelSelector(p, end, sel, err, sizeof(err)));
 }
 
+static void parseOk(const char *json)
+{
+    const char *p   = json;
+    const char *end = json + strlen(json);
+    char err[64] = { 0 };
+
+    PanelSelector sel;
+
+    TEST_ASSERT_TRUE_MESSAGE(parsePanelSelector(p, end, sel, err, sizeof(err)), err);
+}
+
 // ---------------------------------------------------------------------------
 // Single string tokens
 // ---------------------------------------------------------------------------
@@ -229,9 +240,15 @@ void test_err_depth_empty()
     parseExpectError("\"depth:\"");
 }
 
-void test_err_tag_unsupported()
+void test_tag_parses()
 {
-    parseExpectError("\"tag:accent\"");
+    // tag: now parses (resolution needs a device tag resolver, tested elsewhere).
+    parseOk("\"tag:accent\"");
+}
+
+void test_err_tag_invalid()
+{
+    parseExpectError("\"tag:bad name\""); // space is not allowed in a tag
 }
 
 void test_err_empty_object()
@@ -296,7 +313,8 @@ int main(int /*argc*/, char ** /*argv*/)
 
     RUN_TEST(test_err_unknown_token);
     RUN_TEST(test_err_depth_empty);
-    RUN_TEST(test_err_tag_unsupported);
+    RUN_TEST(test_tag_parses);
+    RUN_TEST(test_err_tag_invalid);
     RUN_TEST(test_err_empty_object);
     RUN_TEST(test_err_empty_array);
     RUN_TEST(test_err_zero_index);
