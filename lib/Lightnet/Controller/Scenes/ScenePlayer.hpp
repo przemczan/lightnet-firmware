@@ -9,6 +9,7 @@
 #include "../Animations/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"
 #include "../Panels/PanelsInitializer.hpp"
+#include "../Topology/PanelSelector.hpp"
 
 namespace Lightnet {
     // ============================================================================
@@ -17,7 +18,8 @@ namespace Lightnet {
 
     static const uint8_t SCENE_MAX_LAYERS           = 8;
     static const uint8_t SCENE_MAX_STEPS            = 12;
-    static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;
+    static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
+    static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
     static const uint8_t SCENE_SCHEMA_VERSION       = 2;
 
     // ============================================================================
@@ -28,16 +30,6 @@ namespace Lightnet {
         WAITING, // gated by startAfter — not yet started, panels held dark
         RUNNING, // advancing through its steps
         DONE,    // last step completed; holds until the whole-scene barrier resets
-    };
-
-    // ============================================================================
-    // Panel targeting mode for a layer
-    // ============================================================================
-
-    enum class PanelTargetMode : uint8_t {
-        ALL, // all discovered panels
-        LIST, // explicit panel-index list
-        EXCLUDE, // all panels except listed
     };
 
     // ============================================================================
@@ -58,15 +50,13 @@ namespace Lightnet {
     // ============================================================================
 
     struct SceneLayer {
-        uint8_t         groupId;
-        uint8_t         startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
-        uint8_t         async;                             // 1 = loop independently (ignored when startAfter is set)
-        uint8_t         stepCount;
-        PanelTargetMode targetMode;
-        uint8_t         targetCount;                       // # entries in targetList
-        char            palette[16];                       // empty = use scene default
-        uint8_t         targetList[SCENE_MAX_PANELS_PER_LAYER];
-        SceneStep       steps[SCENE_MAX_STEPS];
+        uint8_t       groupId;
+        uint8_t       startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
+        uint8_t       async;                             // 1 = loop independently (ignored when startAfter is set)
+        uint8_t       stepCount;
+        char          palette[16];                       // empty = use scene default
+        PanelSelector target;                            // which panels this layer drives (resolved at play time)
+        SceneStep     steps[SCENE_MAX_STEPS];
     };
 
     // ============================================================================
@@ -153,6 +143,11 @@ namespace Lightnet {
             PanelsInitializer& initializer;
             PaletteStore& paletteStore;
 
+            // Rooted view of the discovered panel tree, rebuilt from the live graph on each
+            // play (and resume). Layer selectors resolve against this. See
+            // docs/design/scene-portability.md.
+            TopologyIndex topo;
+
             SceneLayer layers[SCENE_MAX_LAYERS];
             uint8_t currentStep[SCENE_MAX_LAYERS];
             uint32_t stepStartMs[SCENE_MAX_LAYERS];
@@ -170,7 +165,10 @@ namespace Lightnet {
             uint8_t resolvedPaletteCounts[SCENE_MAX_LAYERS];
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
-            void resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t& count) const;
+            // Resolve a layer's selector against `topo` into up to maxLen panel indices.
+            void resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t maxLen, uint8_t& count) const;
+            // Rebuild `topo` from the live discovered graph, rooted at the given panel index.
+            void rebuildTopology(uint8_t rootPanelIndex = 1);
             // Initialise per-layer state from startAfter gating and fire the ungated layers.
             // includeAsync=false leaves async layers untouched (used on the loop barrier so
             // they free-run across scene cycles); =true arms everything (initial start).

@@ -47,7 +47,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
