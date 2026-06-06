@@ -1,8 +1,23 @@
 #include "AnimationRunner.hpp"
+#include "RunnerMath.hpp"
 #include "../Panels/PanelsController.hpp"
 #include "Arduino.h"
 
 namespace Lightnet {
+    // Shared helper: emit a SET_COLOR(color × brightness/255) to one panel.
+    static void sendScaledColor(uint8_t address, const Protocol::ColorRGB& color, uint8_t brightness)
+    {
+        Protocol::PacketSetColor colorPkt;
+
+        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
+        colorPkt.color.rgb = {
+            (uint8_t)((uint16_t)color.r * brightness / 255),
+            (uint8_t)((uint16_t)color.g * brightness / 255),
+            (uint8_t)((uint16_t)color.b * brightness / 255)
+        };
+        LNBus.sendPacketNack(address, &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
+    }
+
     // ============================================================================
     // PanelLocalRunner
     // ============================================================================
@@ -36,6 +51,32 @@ namespace Lightnet {
     // WaveRunner
     // ============================================================================
 
+    void WaveRunner::load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n)
+    {
+        for (uint8_t i = 0; i < n; i++) {
+            panelAddresses[i] = addrs[i];
+            coord[i]          = coordSrc ? coordSrc[i] : i;
+            lastBrightness[i] = 0;
+        }
+    }
+
+    WaveRunner::WaveRunner(
+        uint8_t            groupId,
+        const uint8_t *    _panelAddresses,
+        const uint8_t *    _coord,
+        uint8_t            _panelCount,
+        uint8_t            _maxCoord,
+        uint16_t           _durationMs,
+        uint8_t            _waveWidth,
+        Protocol::ColorRGB _color
+    )
+        : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
+        maxCoord(_maxCoord), durationMs(_durationMs), startMs(0), waveWidth(_waveWidth),
+        color(_color), finished(false)
+    {
+        load(_panelAddresses, _coord, panelCount);
+    }
+
     WaveRunner::WaveRunner(
         uint8_t            groupId,
         const uint8_t *    _panelAddresses,
@@ -45,12 +86,11 @@ namespace Lightnet {
         Protocol::ColorRGB _color
     )
         : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
-        durationMs(_durationMs), startMs(0), waveWidth(_waveWidth), color(_color), finished(false)
+        maxCoord(0), durationMs(_durationMs), startMs(0), waveWidth(_waveWidth),
+        color(_color), finished(false)
     {
-        for (uint8_t i = 0; i < panelCount; i++) {
-            panelAddresses[i] = _panelAddresses[i];
-            lastBrightness[i] = 0;
-        }
+        maxCoord = panelCount ? (uint8_t)(panelCount - 1) : 0;
+        load(_panelAddresses, nullptr, panelCount);
     }
 
     void WaveRunner::tick(uint32_t nowMs)
@@ -62,30 +102,18 @@ namespace Lightnet {
         }
 
         uint32_t elapsed = nowMs - startMs;
-
-        // Wave travels from -1.5 to panelCount+0.5 units over durationMs
-        // So wave center position = -1.5 + (panelCount + 2) * (elapsed / durationMs)
-        float waveCenter = -1.5f + (float)(panelCount + 2) * (float)elapsed / (float)durationMs;
-
-        Protocol::PacketSetColor colorPkt;
-
-        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
+        float t       = durationMs ? (float)elapsed / (float)durationMs : 1.0f;
+        float center  = waveCenterAt(t, maxCoord);
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            uint8_t brightness_val = computeWaveBrightness((float)i, waveCenter);
+            uint8_t brightness_val = waveBrightness((float)coord[i], center, waveWidth);
 
             if (brightness_val != lastBrightness[i]) {
-                colorPkt.color.rgb = {
-                    (uint8_t)((uint16_t)color.r * brightness_val / 255),
-                    (uint8_t)((uint16_t)color.g * brightness_val / 255),
-                    (uint8_t)((uint16_t)color.b * brightness_val / 255)
-                };
-                LNBus.sendPacketNack(panelAddresses[i], &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
+                sendScaledColor(panelAddresses[i], color, brightness_val);
                 lastBrightness[i] = brightness_val;
             }
         }
 
-        // Check if finished
         if (elapsed >= durationMs) {
             finished = true;
         }
@@ -96,26 +124,35 @@ namespace Lightnet {
         return finished;
     }
 
-    uint8_t WaveRunner::computeWaveBrightness(float panelPos, float waveCenter)
-    {
-        // Triangular wave envelope with half-width of waveWidth
-        float distance = fabsf(panelPos - waveCenter);
-        float half_width = (float)waveWidth / 2.0f;
-
-        if (distance >= half_width) {
-            return 0;
-        }
-
-        // Linear falloff: brightness = 255 * (1 - distance / half_width)
-        float brightness_f = 255.0f * (1.0f - distance / half_width);
-        uint8_t brightness_u8 = (uint8_t)brightness_f;
-
-        return brightness_u8;
-    }
-
     // ============================================================================
     // RippleRunner
     // ============================================================================
+
+    void RippleRunner::load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n)
+    {
+        for (uint8_t i = 0; i < n; i++) {
+            panelAddresses[i] = addrs[i];
+            coord[i]          = coordSrc ? coordSrc[i] : i;
+            lastBrightness[i] = 0;
+        }
+    }
+
+    RippleRunner::RippleRunner(
+        uint8_t            groupId,
+        const uint8_t *    _panelAddresses,
+        const uint8_t *    _coord,
+        uint8_t            _panelCount,
+        uint8_t            _maxCoord,
+        uint16_t           _durationMs,
+        uint8_t            _rippleWidth,
+        Protocol::ColorRGB _color
+    )
+        : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
+        maxCoord(_maxCoord), durationMs(_durationMs), startMs(0), rippleWidth(_rippleWidth),
+        color(_color), finished(false)
+    {
+        load(_panelAddresses, _coord, panelCount);
+    }
 
     RippleRunner::RippleRunner(
         uint8_t            groupId,
@@ -127,13 +164,24 @@ namespace Lightnet {
         Protocol::ColorRGB _color
     )
         : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
-        originPanel(_originPanel), durationMs(_durationMs), startMs(0),
-        rippleWidth(_rippleWidth), color(_color), finished(false)
+        maxCoord(0), durationMs(_durationMs), startMs(0), rippleWidth(_rippleWidth),
+        color(_color), finished(false)
     {
+        // Legacy origin in list space: coord[i] = |i - originPanel|.
+        uint8_t mx = 0;
+
         for (uint8_t i = 0; i < panelCount; i++) {
             panelAddresses[i] = _panelAddresses[i];
             lastBrightness[i] = 0;
+
+            uint8_t d = (i >= _originPanel) ? (uint8_t)(i - _originPanel) : (uint8_t)(_originPanel - i);
+
+            coord[i] = d;
+
+            if (d > mx) mx = d;
         }
+
+        maxCoord = mx;
     }
 
     void RippleRunner::tick(uint32_t nowMs)
@@ -145,33 +193,14 @@ namespace Lightnet {
         }
 
         uint32_t elapsed = nowMs - startMs;
-
-        // Ripple expands from originPanel, maxRadius = panelCount + 1
-        float maxRadius = (float)(panelCount + 1);
-        float rippleRadius = maxRadius * (float)elapsed / (float)durationMs;
-
-        Protocol::PacketSetColor colorPkt;
-
-        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
+        float t       = durationMs ? (float)elapsed / (float)durationMs : 1.0f;
+        float radius  = rippleRadiusAt(t, maxCoord);
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            float distance = fabsf((float)i - (float)originPanel);
-            float ringWidth = (float)rippleWidth / 2.0f;
-
-            float dist_from_ring = fabsf(distance - rippleRadius);
-            uint8_t brightness_val = 0;
-
-            if (dist_from_ring < ringWidth) {
-                brightness_val = (uint8_t)(255.0f * (1.0f - dist_from_ring / ringWidth));
-            }
+            uint8_t brightness_val = rippleBrightness((float)coord[i], radius, rippleWidth);
 
             if (brightness_val != lastBrightness[i]) {
-                colorPkt.color.rgb = {
-                    (uint8_t)((uint16_t)color.r * brightness_val / 255),
-                    (uint8_t)((uint16_t)color.g * brightness_val / 255),
-                    (uint8_t)((uint16_t)color.b * brightness_val / 255)
-                };
-                LNBus.sendPacketNack(panelAddresses[i], &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
+                sendScaledColor(panelAddresses[i], color, brightness_val);
                 lastBrightness[i] = brightness_val;
             }
         }
@@ -190,6 +219,30 @@ namespace Lightnet {
     // ChaseRunner
     // ============================================================================
 
+    void ChaseRunner::load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n)
+    {
+        for (uint8_t i = 0; i < n; i++) {
+            panelAddresses[i] = addrs[i];
+            coord[i]          = coordSrc ? coordSrc[i] : i;
+            lastBrightness[i] = 0;
+        }
+    }
+
+    ChaseRunner::ChaseRunner(
+        uint8_t            groupId,
+        const uint8_t *    _panelAddresses,
+        const uint8_t *    _coord,
+        uint8_t            _panelCount,
+        uint8_t            _maxCoord,
+        uint16_t           _durationMs,
+        Protocol::ColorRGB _color
+    )
+        : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
+        maxCoord(_maxCoord), durationMs(_durationMs), startMs(0), color(_color), finished(false)
+    {
+        load(_panelAddresses, _coord, panelCount);
+    }
+
     ChaseRunner::ChaseRunner(
         uint8_t            groupId,
         const uint8_t *    _panelAddresses,
@@ -198,12 +251,10 @@ namespace Lightnet {
         Protocol::ColorRGB _color
     )
         : AnimationRunner(groupId), panelCount(_panelCount < MAX_PANELS ? _panelCount : MAX_PANELS),
-        durationMs(_durationMs), startMs(0), color(_color), finished(false)
+        maxCoord(0), durationMs(_durationMs), startMs(0), color(_color), finished(false)
     {
-        for (uint8_t i = 0; i < panelCount; i++) {
-            panelAddresses[i] = _panelAddresses[i];
-            lastBrightness[i] = 0;
-        }
+        maxCoord = panelCount ? (uint8_t)(panelCount - 1) : 0;
+        load(_panelAddresses, nullptr, panelCount);
     }
 
     void ChaseRunner::tick(uint32_t nowMs)
@@ -215,24 +266,14 @@ namespace Lightnet {
         }
 
         uint32_t elapsed = nowMs - startMs;
-
-        // Position: which panel is lit (0 to panelCount-1)
-        uint8_t litPanel = (uint8_t)((float)elapsed / (float)durationMs * (float)panelCount) % panelCount;
-
-        Protocol::PacketSetColor colorPkt;
-
-        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
+        float t       = durationMs ? (float)elapsed / (float)durationMs : 1.0f;
+        uint8_t lit     = chaseLitCoord(t, maxCoord);
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            uint8_t brightness_val = (i == litPanel) ? 255 : 0;
+            uint8_t brightness_val = chaseBrightness(coord[i], lit);
 
             if (brightness_val != lastBrightness[i]) {
-                colorPkt.color.rgb = {
-                    (uint8_t)((uint16_t)color.r * brightness_val / 255),
-                    (uint8_t)((uint16_t)color.g * brightness_val / 255),
-                    (uint8_t)((uint16_t)color.b * brightness_val / 255)
-                };
-                LNBus.sendPacketNack(panelAddresses[i], &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
+                sendScaledColor(panelAddresses[i], color, brightness_val);
                 lastBrightness[i] = brightness_val;
             }
         }
