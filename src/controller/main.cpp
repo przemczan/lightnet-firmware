@@ -61,6 +61,8 @@ Lightnet::ConfigurationStore *configStore    = nullptr;
 Lightnet::AppStateStore *appStateStore       = nullptr;
 Lightnet::ConfigurationServer *configServer  = nullptr;
 Lightnet::StateServer *stateServer           = nullptr;
+Lightnet::TopologyConfigStore *topologyConfig = nullptr;
+Lightnet::TopologyServer *topologyServer      = nullptr;
 TwibootClient *twibootClient    = nullptr;
 PanelFlasher *panelFlasher     = nullptr;
 FirmwareUpdateServer *fwUpdateServer   = nullptr;
@@ -329,6 +331,12 @@ void loop()
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, LNPanelsInitializer, *paletteStore);
                 animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
 
+                // Per-device topology config: logical root + panel tags (used by scene selectors).
+                topologyConfig = new Lightnet::TopologyConfigStore();
+                topologyConfig->load();
+                scenePlayer->setTagResolver(topologyConfig);
+                scenePlayer->setLogicalRoot(topologyConfig->logicalRoot(), millis());
+
                 configStore = new Lightnet::ConfigurationStore();
                 configStore->load();
 
@@ -377,6 +385,9 @@ void loop()
                                                         *appearance,
                                                         packetMirror);
                 stateServer->begin();
+
+                topologyServer = new Lightnet::TopologyServer(*webServer, *topologyConfig, *scenePlayer);
+                topologyServer->begin();
 
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
                 break;

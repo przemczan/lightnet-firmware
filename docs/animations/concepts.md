@@ -261,7 +261,13 @@ A layer can specify its own palette, overriding the scene-level default for the 
 "panels": {"exclude": [3]}   // all panels except listed addresses
 ```
 
-Panel addresses are assigned during discovery in tree-traversal order, starting at **1** (address 0 is the I²C general-call broadcast and is rejected). Up to 32 panels per layer targeting list.
+Panel addresses are assigned during discovery in tree-traversal order, starting at **1** (address 0 is the I²C general-call broadcast and is rejected). Up to 32 panels per explicit targeting list.
+
+Beyond these explicit forms, `panels` also accepts **graph selectors** (`"root"`, `"leaves"`,
+`"depth:1-2"`, `"subtree:N"`, `"fraction:0-0.5"`, …), per-device **tags** (`"tag:accent"`), and
+**composition** (`{"any":[…]}` / `{"all":[…]}` / `{"not":…}`) — these resolve against the panel
+tree so a scene adapts to different devices. See
+[Scene Authoring → Targeting panels](scene-authoring.md#6-targeting-panels-the-panels-field).
 
 ---
 

@@ -42,12 +42,12 @@ pio test -e native -vvv                  # verbose (compiler output)
 | `test_http_url` | [`test/test_http_url/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_http_url/test_main.cpp) | `Http::isSafeName` (path-traversal, special chars, length cap), `Http::nameFromUrl` (prefix match, overflow, null inputs) |
 | `test_palette_parser` | [`test/test_palette_parser/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_palette_parser/test_main.cpp) | `parsePaletteJson` — happy paths (with/without name, pretty-printed JSON, reverse key order), every documented failure mode, `PALETTE_STOPS` cap |
 | `test_topology` | [`test/test_topology/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_topology/test_main.cpp) | `TopologyIndex` — depth, leaf/branch, canonical order, neighbours, subtree, multi-source distances, re-rooting, fallback root (against the worked topology in `docs/design/scene-portability.md`) |
-| `test_panel_selector` | [`test/test_panel_selector/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_selector/test_main.cpp) | `resolveSelector` — every graph selector, `any`/`all`/`not` composition, v2-form equivalence, malformed-program rejection |
+| `test_panel_selector` | [`test/test_panel_selector/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_selector/test_main.cpp) | `resolveSelector` — every graph selector, `any`/`all`/`not` composition, `tag:` resolution via a mock `ITagResolver` (incl. bounded-read rejection), v2-form equivalence, malformed-program rejection |
 | `test_panel_selector_parser` | [`test/test_panel_selector_parser/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_selector_parser/test_main.cpp) | `parsePanelSelector` — JSON `panels` grammar → RPN → resolved panels, including nested composition and error cases |
 | `test_panel_field` | [`test/test_panel_field/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_field/test_main.cpp) | `computeDistanceField` — hop-distance field from each `source` (root/leaves/panel/all), `reverse`, missing-source fallback, max-coord over the targeted subset |
 | `test_runner_math` | [`test/test_runner_math/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_runner_math/test_main.cpp) | `RunnerMath` wave/ripple/chase envelopes + sweep positions, including zero-width (no divide) |
 
-120 tests total, ~6 s wall time.
+126 tests total, ~6 s wall time.
 
 ---
 

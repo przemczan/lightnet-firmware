@@ -30,8 +30,9 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
    - [Animations](#24-animations)
    - [Firmware updates](#25-firmware-updates)
    - [Panels](#26-panels)
-   - [Configuration](#27-configuration)
-   - [State](#28-state)
+   - [Topology](#27-topology-logical-root-panel-tags)
+   - [Configuration](#28-configuration)
+   - [State](#29-state)
 3. [Error handling](#3-error-handling)
 
 ---
@@ -400,7 +401,23 @@ These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANE
 
 ---
 
-### 2.7 Configuration
+### 2.7 Topology (logical root + panel tags)
+
+Per-device topology configuration that scene **panel selectors** resolve against (see [`docs/design/scene-portability.md`](design/scene-portability.md)). Stored in `/config/topology.json`, written atomically.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/topology` | — | `{"logicalRoot":5,"tags":{"1":["accent"],"5":["accent"]}}` |
+| `PUT` | `/api/topology/root` | `{"logicalRoot":N}` (1–255, or 0 to reset to the physical root) | `{"ok":true,"logicalRoot":N}` |
+| `GET` | `/api/panel-tags` | — | `{"1":["accent","left"],"5":["accent"]}` |
+| `PUT` | `/api/panel-tags` | tag map (whole-map replace) | `{}` |
+
+- **Logical root** re-centres the rooted topology view (`depth`/`subtree`/canonical order and the default runner `source:root`). Setting it persists *and* restarts a playing scene so the new rooting applies immediately. A `logicalRoot` that doesn't exist on this device falls back to the physical root.
+- **Tags** are validated `[a-zA-Z0-9_-]`, 1–15 chars; a scene targets them with `"panels":"tag:<name>"`. `PUT /api/panel-tags` replaces the entire map.
+
+---
+
+### 2.8 Configuration
 
 Persistent app-level settings. Stored in `/config/configuration.json` and written atomically with a 5-second deferred-write window.
 
@@ -421,7 +438,7 @@ Values outside `0–2` return `422`.
 
 ---
 
-### 2.8 State
+### 2.9 State
 
 Runtime power state. Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial value on boot is derived from `powerStateOnBoot` (see §2.7).
 

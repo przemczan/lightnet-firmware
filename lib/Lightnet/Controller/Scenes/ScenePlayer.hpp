@@ -92,6 +92,21 @@ namespace Lightnet {
             // Does nothing if no scene has been loaded (lCount == 0).
             void resume(uint32_t nowMs);
 
+            // Set the device tag map used to resolve `tag:` selectors. Null = tags resolve empty.
+            void setTagResolver(const ITagResolver *resolver)
+            {
+                tagResolver = resolver;
+            }
+
+            // Designate the logical root panel (§4.1): rebuilds the topology view and, if a scene
+            // is playing, restarts it so the new rooting takes effect immediately.
+            void setLogicalRoot(uint8_t panelIndex, uint32_t nowMs);
+
+            uint8_t getLogicalRoot() const
+            {
+                return logicalRoot;
+            }
+
             // True when a scene is loaded in memory (may or may not be playing).
             bool hasScene() const
             {
@@ -147,6 +162,8 @@ namespace Lightnet {
             // play (and resume). Layer selectors resolve against this. See
             // docs/design/scene-portability.md.
             TopologyIndex topo;
+            uint8_t logicalRoot;             // panel index the rooted view is built from (§4.1; default 1)
+            const ITagResolver *tagResolver; // device tag map for `tag:` selectors (null until wired)
 
             SceneLayer layers[SCENE_MAX_LAYERS];
             uint8_t currentStep[SCENE_MAX_LAYERS];
@@ -167,8 +184,8 @@ namespace Lightnet {
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
             // Resolve a layer's selector against `topo` into up to maxLen panel indices.
             void resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t maxLen, uint8_t& count) const;
-            // Rebuild `topo` from the live discovered graph, rooted at the given panel index.
-            void rebuildTopology(uint8_t rootPanelIndex = 1);
+            // Rebuild `topo` from the live discovered graph, rooted at `logicalRoot`.
+            void rebuildTopology();
             // Initialise per-layer state from startAfter gating and fire the ungated layers.
             // includeAsync=false leaves async layers untouched (used on the loop barrier so
             // they free-run across scene cycles); =true arms everything (initial start).

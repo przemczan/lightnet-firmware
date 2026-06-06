@@ -176,59 +176,57 @@ Runners are computed on the controller ESP each frame and send scaled `SET_COLOR
 | `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`) |
 | `color` | color ref | Colour for the runner effect |
 | `duration` | ms | Total duration of the runner effect |
-| `params` | array | Runner-specific parameters |
+| `source` | string | Where the motion emanates from: `root` (default), `leaves`, or `panel:N` |
+| `reverse` | bool | Reverse the travel direction |
+| `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
+
+**Directionality.** Runners move along each panel's **graph hop-distance from the `source`**
+(not discovery-list order), so the effect keeps its shape on any device. `source:root`
+emanates outward from the (logical) root, `source:leaves` converges inward, `source:panel:N`
+radiates from a specific panel, and `reverse` flips it. Full explanation with diagrams:
+[Scene Authoring → Directionality](scene-authoring.md#8-directionality-the-source-field).
 
 ---
 
 ### WAVE
 
-A colour envelope (triangular wave) sweeps from one end of the panel list to the other. The colour is scaled by the wave intensity at each panel position.
+A triangular brightness band sweeps along the distance axis from the `source` — panels at the
+same distance (a "ring") light together. `color` is scaled by the band intensity at each panel.
 
 ```json
-{
-  "runner": "WAVE",
-  "color": {"palette": 128},
-  "duration": 5000,
-  "params": [3]
-}
+{ "runner": "WAVE", "source": "root", "color": {"palette": 128}, "waveWidth": 3, "duration": 5000 }
 ```
 
-| params index | Meaning | Default |
+| Field | Meaning | Default |
 |---|---|---|
-| `params[0]` | Wave width in panels (how many panels are illuminated at peak) | 3 |
+| `waveWidth` (`params[0]`) | Band width in rings (hops illuminated at peak) | 3 |
 
 ---
 
 ### RIPPLE
 
-A colour ring expands outward from an origin panel. Distance is based on index, not physical position.
+A brightness ring expands outward from the `source` panel(s). Distance is **graph hops**, so it
+follows the wiring on any device.
 
 ```json
-{
-  "runner": "RIPPLE",
-  "color": "#FF4400",
-  "duration": 2000,
-  "params": [2, 0]
-}
+{ "runner": "RIPPLE", "source": "panel:3", "color": "#FF4400", "rippleWidth": 2, "duration": 2000 }
 ```
 
-| params index | Meaning | Default |
+| Field | Meaning | Default |
 |---|---|---|
-| `params[0]` | Ring width in panels | 2 |
-| `params[1]` | Origin panel index | 0 |
+| `rippleWidth` (`params[0]`) | Ring width in rings | 2 |
+
+!!! note "Legacy `originPanel`"
+    Older scenes set `"originPanel": N`; it is still accepted and maps to `source: "panel:N"`.
 
 ---
 
 ### CHASE
 
-A single lit panel travels through the panel list over the duration.
+A single lit ring steps outward along the distance axis from the `source` over the duration.
 
 ```json
-{
-  "runner": "CHASE",
-  "color": {"useColor": 0},
-  "duration": 3000
-}
+{ "runner": "CHASE", "source": "root", "color": {"useColor": 0}, "duration": 3000 }
 ```
 
-No parameters.
+No width parameter.

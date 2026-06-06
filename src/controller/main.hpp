@@ -32,6 +32,8 @@
     #include "AppState/AppStateStore.hpp"
     #include "API/http/ConfigurationServer.hpp"
     #include "API/http/StateServer.hpp"
+    #include "Topology/TopologyConfigStore.hpp"
+    #include "API/http/TopologyServer.hpp"
     #include "Scenes/ScenePlayer.hpp"
     #include "Scenes/SceneParser.hpp"
     #include "Scenes/SceneStore.hpp"

@@ -35,6 +35,7 @@ namespace Lightnet {
         PaletteStore&       _paletteStore
     )
         : scheduler(_scheduler), initializer(_initializer), paletteStore(_paletteStore),
+        logicalRoot(1), tagResolver(nullptr),
         lCount(0), loop(false), playing(false), speed(1.0f)
     {
         memset(name, 0, sizeof(name));
@@ -263,7 +264,10 @@ namespace Lightnet {
             // Kill any panel-local animation so the runner has exclusive LED control
             scheduler.sendControlToPanels(layer.groupId, ANIM_CTRL_STOP, panels, panelCount);
 
-            Protocol::ColorRGB color = resolveColorToRgb(step.colorFrom, layerIdx);
+            // Runners are single-colour: the lit colour is `colorTo` (aliased by the JSON
+            // `color` key), consistent with SOLID/STROBE/BLINK. `colorFrom` is the start
+            // colour of two-colour panel effects and is unset for runners.
+            Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
             AnimationRunner *runner = nullptr;
 
             // Directionality field: hop-distance from the step's source (params[1..3]).
@@ -303,19 +307,19 @@ namespace Lightnet {
         PanelSet set;
 
         // A malformed selector resolves to nothing — the layer is simply skipped.
-        if (!resolveSelector(layer.target, topo, set)) return;
+        if (!resolveSelector(layer.target, topo, set, tagResolver)) return;
 
         // Emitted in slot (discovery) order, preserving the pre-existing runner sweep order.
         emitPanelIndices(set, topo, out, maxLen, count);
     }
 
-    void ScenePlayer::rebuildTopology(uint8_t rootPanelIndex)
+    void ScenePlayer::rebuildTopology()
     {
         List<Panel *> *panels = initializer.getPanels();
         uint16_t total = panels ? panels->getSize() : 0;
 
         if (total == 0 || total > LIGHTNET_MAX_PANELS) {
-            topo.build(nullptr, 0, nullptr, 0, rootPanelIndex); // empty / unusable topology
+            topo.build(nullptr, 0, nullptr, 0, logicalRoot); // empty / unusable topology
 
             return;
         }
@@ -362,7 +366,16 @@ namespace Lightnet {
             }
         }
 
-        topo.build(indices, (uint8_t)total, links, linkCount, rootPanelIndex);
+        topo.build(indices, (uint8_t)total, links, linkCount, logicalRoot);
+    }
+
+    void ScenePlayer::setLogicalRoot(uint8_t panelIndex, uint32_t nowMs)
+    {
+        logicalRoot = panelIndex ? panelIndex : 1; // 0 → reset to physical root
+
+        // Replaying rebuilds topo (via loadAndPlay); otherwise refresh it for the next play.
+        if (playing) resume(nowMs);
+        else rebuildTopology();
     }
 
     void ScenePlayer::sendPalettesToPanels()
