@@ -1,6 +1,7 @@
 #include "SceneParser.hpp"
 #include "../../Utils/SimpleJson.hpp"
 #include "../Topology/PanelSelectorParser.hpp"
+#include "../Topology/PanelField.hpp"
 #include <string.h>
 #include <stdlib.h>
 
@@ -300,24 +301,61 @@ namespace Lightnet {
 
                     step.params[pi++] = (uint8_t)v;
                 }
-            } else if (strcmp(key, "waveWidth") == 0) {
+            } else if (strcmp(key, "waveWidth") == 0 || strcmp(key, "rippleWidth") == 0) {
                 long v;
 
                 if (!jsonReadUInt(p, end, &v) || v > 255) return false;
 
-                step.params[0] = (uint8_t)v;
-            } else if (strcmp(key, "rippleWidth") == 0) {
-                long v;
+                step.params[RUNNER_PARAM_WIDTH] = (uint8_t)v;
+            } else if (strcmp(key, "source") == 0) {
+                char s[16];
 
-                if (!jsonReadUInt(p, end, &v) || v > 255) return false;
+                if (!jsonReadString(p, end, s, sizeof(s))) {
+                    strncpy(errMsg, "step.source: not a string", errLen);
 
-                step.params[0] = (uint8_t)v;
+                    return false;
+                }
+
+                if (strcmp(s, "root") == 0) {
+                    step.params[RUNNER_PARAM_SRC_KIND] = SRC_ROOT;
+                } else if (strcmp(s, "leaves") == 0) {
+                    step.params[RUNNER_PARAM_SRC_KIND] = SRC_LEAVES;
+                } else if (strcmp(s, "all") == 0) {
+                    step.params[RUNNER_PARAM_SRC_KIND] = SRC_ALL;
+                } else if (strncmp(s, "panel:", 6) == 0) {
+                    long n = atol(s + 6);
+
+                    if (n < 1 || n > 255) {
+                        strncpy(errMsg, "step.source: bad panel index", errLen);
+
+                        return false;
+                    }
+
+                    step.params[RUNNER_PARAM_SRC_KIND] = SRC_PANEL;
+                    step.params[RUNNER_PARAM_SRC_ARG]  = (uint8_t)n;
+                } else {
+                    snprintf(errMsg, errLen, "step.source: unknown (%s)", s);
+
+                    return false;
+                }
+            } else if (strcmp(key, "reverse") == 0) {
+                bool b;
+
+                if (!jsonReadBool(p, end, &b)) {
+                    strncpy(errMsg, "step.reverse: not bool", errLen);
+
+                    return false;
+                }
+
+                if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REVERSE;
             } else if (strcmp(key, "originPanel") == 0) {
+                // Legacy ripple origin → migrate to source:panel:N.
                 long v;
 
-                if (!jsonReadUInt(p, end, &v) || v > 255) return false;
+                if (!jsonReadUInt(p, end, &v) || v == 0 || v > 255) return false;
 
-                step.params[1] = (uint8_t)v;
+                step.params[RUNNER_PARAM_SRC_KIND] = SRC_PANEL;
+                step.params[RUNNER_PARAM_SRC_ARG]  = (uint8_t)v;
             } else {
                 jsonSkipValue(p, end);
             }

@@ -1,5 +1,6 @@
 #include "ScenePlayer.hpp"
 #include "../Animations/AnimationRunner.hpp"
+#include "../Topology/PanelField.hpp"
 #include "../../Utils/Debug.hpp"
 #include <string.h>
 #include <Arduino.h>
@@ -265,15 +266,23 @@ namespace Lightnet {
             Protocol::ColorRGB color = resolveColorToRgb(step.colorFrom, layerIdx);
             AnimationRunner *runner = nullptr;
 
+            // Directionality field: hop-distance from the step's source (params[1..3]).
+            uint8_t coord[SCENE_MAX_RESOLVED_PANELS];
+            uint8_t maxCoord = computeDistanceField(
+                topo, panels, panelCount,
+                step.params[RUNNER_PARAM_SRC_KIND], step.params[RUNNER_PARAM_SRC_ARG],
+                ((step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0), coord);
+
+            uint8_t width = step.params[RUNNER_PARAM_WIDTH];
+
             if (step.animType == RUN_WAVE) {
-                runner = new WaveRunner(layer.groupId, panels, panelCount,
-                                        effectiveDurationMs, step.params[0], color);
+                runner = new WaveRunner(layer.groupId, panels, coord, panelCount, maxCoord,
+                                        effectiveDurationMs, width, color);
             } else if (step.animType == RUN_RIPPLE) {
-                runner = new RippleRunner(layer.groupId, panels, panelCount,
-                                          step.params[1], effectiveDurationMs,
-                                          step.params[0], color);
+                runner = new RippleRunner(layer.groupId, panels, coord, panelCount, maxCoord,
+                                          effectiveDurationMs, width, color);
             } else if (step.animType == RUN_CHASE) {
-                runner = new ChaseRunner(layer.groupId, panels, panelCount,
+                runner = new ChaseRunner(layer.groupId, panels, coord, panelCount, maxCoord,
                                          effectiveDurationMs, color);
             }
 

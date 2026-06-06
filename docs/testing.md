@@ -44,8 +44,10 @@ pio test -e native -vvv                  # verbose (compiler output)
 | `test_topology` | [`test/test_topology/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_topology/test_main.cpp) | `TopologyIndex` — depth, leaf/branch, canonical order, neighbours, subtree, multi-source distances, re-rooting, fallback root (against the worked topology in `docs/design/scene-portability.md`) |
 | `test_panel_selector` | [`test/test_panel_selector/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_selector/test_main.cpp) | `resolveSelector` — every graph selector, `any`/`all`/`not` composition, v2-form equivalence, malformed-program rejection |
 | `test_panel_selector_parser` | [`test/test_panel_selector_parser/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_selector_parser/test_main.cpp) | `parsePanelSelector` — JSON `panels` grammar → RPN → resolved panels, including nested composition and error cases |
+| `test_panel_field` | [`test/test_panel_field/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_field/test_main.cpp) | `computeDistanceField` — hop-distance field from each `source` (root/leaves/panel/all), `reverse`, missing-source fallback, max-coord over the targeted subset |
+| `test_runner_math` | [`test/test_runner_math/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_runner_math/test_main.cpp) | `RunnerMath` wave/ripple/chase envelopes + sweep positions, including zero-width (no divide) |
 
-105 tests total, ~6 s wall time.
+120 tests total, ~6 s wall time.
 
 ---
 

@@ -50,12 +50,33 @@ namespace Lightnet {
     };
 
     // ============================================================================
-    // Wave Runner — brightness envelope traveling along panel order
+    // Spatial runners
+    //
+    // Each panel carries a `coord` — its graph hop-distance from the animation's
+    // source (the φ-field; see Topology/PanelField.hpp). The runner sweeps that
+    // coordinate over [0, maxCoord] and lights panels by the RunnerMath envelopes.
+    //
+    // Two constructors per runner:
+    //   • field       — explicit per-panel coord + maxCoord (used by ScenePlayer)
+    //   • convenience — legacy list-order coord (coord[i]=i), used by selfTest/demos
     // ============================================================================
 
+    // Wave — triangular brightness band travelling along the coordinate.
     class WaveRunner : public AnimationRunner
     {
         public:
+            WaveRunner(
+                uint8_t            groupId,
+                const uint8_t *    panelAddresses,
+                const uint8_t *    coord,
+                uint8_t            panelCount,
+                uint8_t            maxCoord,
+                uint16_t           durationMs,
+                uint8_t            waveWidth,
+                Protocol::ColorRGB color
+            );
+
+            // Convenience: linear coordinate (coord[i] = i, maxCoord = panelCount-1).
             WaveRunner(
                 uint8_t            groupId,
                 const uint8_t *    panelAddresses,
@@ -71,8 +92,10 @@ namespace Lightnet {
         private:
             static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
             uint8_t panelAddresses[MAX_PANELS];
+            uint8_t coord[MAX_PANELS];
             uint8_t lastBrightness[MAX_PANELS]; // per-instance delta cache (not static!)
             uint8_t panelCount;
+            uint8_t maxCoord;
             uint16_t durationMs;
             uint32_t startMs;
             uint8_t waveWidth;
@@ -80,16 +103,25 @@ namespace Lightnet {
 
             bool finished;
 
-            uint8_t computeWaveBrightness(float panelPos, float waveCenter);
+            void load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n);
     };
 
-    // ============================================================================
-    // Ripple Runner — distance-based brightness from origin
-    // ============================================================================
-
+    // Ripple — expanding ring of brightness; coord is distance from the source/origin.
     class RippleRunner : public AnimationRunner
     {
         public:
+            RippleRunner(
+                uint8_t            groupId,
+                const uint8_t *    panelAddresses,
+                const uint8_t *    coord,
+                uint8_t            panelCount,
+                uint8_t            maxCoord,
+                uint16_t           durationMs,
+                uint8_t            rippleWidth,
+                Protocol::ColorRGB color
+            );
+
+            // Convenience: ring expands from a list-index origin (coord[i] = |i - origin|).
             RippleRunner(
                 uint8_t            groupId,
                 const uint8_t *    panelAddresses,
@@ -106,24 +138,35 @@ namespace Lightnet {
         private:
             static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
             uint8_t panelAddresses[MAX_PANELS];
+            uint8_t coord[MAX_PANELS];
             uint8_t lastBrightness[MAX_PANELS];
             uint8_t panelCount;
-            uint8_t originPanel;
+            uint8_t maxCoord;
             uint16_t durationMs;
             uint32_t startMs;
             uint8_t rippleWidth;
             Protocol::ColorRGB color;
 
             bool finished;
+
+            void load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n);
     };
 
-    // ============================================================================
-    // Chase Runner — single lit panel moving through panel list
-    // ============================================================================
-
+    // Chase — a single lit ring sweeping outward along the coordinate.
     class ChaseRunner : public AnimationRunner
     {
         public:
+            ChaseRunner(
+                uint8_t            groupId,
+                const uint8_t *    panelAddresses,
+                const uint8_t *    coord,
+                uint8_t            panelCount,
+                uint8_t            maxCoord,
+                uint16_t           durationMs,
+                Protocol::ColorRGB color
+            );
+
+            // Convenience: linear coordinate (coord[i] = i, maxCoord = panelCount-1).
             ChaseRunner(
                 uint8_t            groupId,
                 const uint8_t *    panelAddresses,
@@ -138,12 +181,16 @@ namespace Lightnet {
         private:
             static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
             uint8_t panelAddresses[MAX_PANELS];
+            uint8_t coord[MAX_PANELS];
             uint8_t lastBrightness[MAX_PANELS];
             uint8_t panelCount;
+            uint8_t maxCoord;
             uint16_t durationMs;
             uint32_t startMs;
             Protocol::ColorRGB color;
 
             bool finished;
+
+            void load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n);
     };
 }  // namespace Lightnet

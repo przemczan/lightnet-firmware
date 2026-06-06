@@ -349,20 +349,29 @@ axis to produce `φ`.
   `axis`/`angle` step before the embedding is computed) → revert to graph-distance
   `source:root`, so such scenes still run.
 
-### 6.3 Runner math
+### 6.3 Runner math (as built)
 
-Controller-side, float. All three runners reduce to "sweep the coordinate `φ` over time `t`",
-differing only in the envelope:
+Controller-side, float. The runners sweep each panel's **raw hop-distance** `coord` (the
+*un-normalised* φ — see the note below) over time `t ∈ [0,1]`, differing only in the envelope.
+`maxCoord` is the largest coord among the targeted panels; `width` is in **rings (hops)**.
+Implemented in the pure, natively-tested `RunnerMath.hpp`:
 
-| Runner | Brightness |
-|---|---|
-| `RIPPLE` | pulse centred at `c = t`, width `w`: `b = envelope(|φ − c| / w)` — expands from the source |
-| `WAVE` | `b = 0.5 + 0.5 · sin(2π · (cycles·t − φ))` — travels along `φ` |
-| `CHASE` | narrow peak sweeping `φ`: `b = peak(|φ − t|)` |
+| Runner | Sweep | Brightness |
+|---|---|---|
+| `WAVE`   | `center = −1.5 + (maxCoord+3)·t` | triangular band: `255·(1 − \|coord − center\|/(width/2))`, else 0 |
+| `RIPPLE` | `radius = (maxCoord+1)·t` | expanding ring: `255·(1 − \|coord − radius\|/(width/2))`, else 0 |
+| `CHASE`  | `lit = min(maxCoord, ⌊(maxCoord+1)·t⌋)` | single lit ring: `coord == lit ? 255 : 0` |
 
-This **unifies the three runner classes** onto one field abstraction; they store `φ` per
-panel instead of a list position. The per-instance `lastBrightness[MAX_PANELS]` caches
-already exist, so there is no new heap pressure.
+This **unifies the three runner classes** onto one field abstraction; each stores a `coord[]`
+parallel to `panelAddresses[]` (alongside the existing `lastBrightness[]` delta cache).
+
+> **Why raw hops, not normalised φ (deviation from §6.1).** §6.1 defines φ ∈ [0,1] for
+> exposition, but the runners keep the coordinate as the integer **hop-distance** and never
+> divide by `maxCoord`. This (a) keeps `waveWidth`/`rippleWidth` in intuitive **ring units**,
+> (b) makes a chain rooted at one end reproduce the legacy list-order visual exactly, and
+> (c) structurally avoids a divide-by-zero when `maxCoord == 0` (e.g. `source:all`, single
+> panel). `coord` contract: integer hop units, `0 … maxCoord` (Phase 4's geometric field will
+> feed this same axis).
 
 ### 6.4 Migrating existing (v2) runner scenes — behaviour change
 
@@ -373,11 +382,24 @@ intentional: discovery-list order was never a real spatial axis. The migration i
 
 | v2 runner | v2 behaviour | v3 mapping |
 |---|---|---|
-| `RIPPLE` | origin = `params[1]` (`originPanel`, a 1-based index) | `source: "panel:<originPanel>"` |
-| `WAVE` / `CHASE` | swept the panel **list in discovery order** | `source: "root"` (default) — visually different, now topology-based |
+| `RIPPLE` | origin = `originPanel`, but the old `tick` compared it to the **0-based list position** `i` (not the panel index, despite the docs) | `source:"panel:<originPanel>"` — now a graph origin keyed by **panel index** |
+| `WAVE` / `CHASE` | swept the panel **list in discovery order** | `source:"root"` (default) — visually different, now topology-based |
 
-A v3-aware loader should rewrite v2 runner steps with these defaults on import. A v2 ripple
-with no explicit origin, and any v2 wave/chase, fall back to `source:root`.
+The parser performs this mapping itself: a runner step accepts `"source"` (`root` / `leaves` /
+`all` / `panel:N`) and `"reverse": true`, and the legacy `originPanel` key is rewritten to
+`source:panel:N`. A step with no `source` defaults to `root` (zeroed `params`).
+
+**Fidelity of the migration** (deliberate, not bugs): for a chain rooted at one end
+(`coord == index`), **WAVE is preserved exactly**. **CHASE** matches within **~1 ring** (the
+field sweeps `maxCoord+1` vs. the old `panelCount`, and clamps at the end instead of the old
+`% panelCount` wrap). **RIPPLE** shares that sweep-extent drift *and* its origin is
+reinterpreted — old `originPanel` indexed the resolved-list position, v3 keys it by panel
+index — so a ripple's origin can move by more than a ring. If exact origin matters, set
+`source:"panel:N"` explicitly.
+
+> **Reserved params.** On a runner step, `params[1..3]` encode the source (kind / arg /
+> reverse) and `params[0]` the width — set them via `source`/`reverse`/`waveWidth`/
+> `rippleWidth`, not a raw `params:[…]` array, which would collide.
 
 **Resolved-list emission order.** Targeting now resolves through a set (bitset), so panels are
 emitted in **discovery (slot) order**, not the authored order of an explicit `[5,3,1]` list.
