@@ -80,12 +80,22 @@ namespace Lightnet {
             SceneResult saveScene(const char *body, size_t len);
 
             // Load a stored scene by name, parse it, and start playing.
-            // Returns the scene's colors/palette in SceneResult for callers that need
-            // to persist appearance. Does not touch AppearanceStore itself.
-            SceneResult playSceneByName(const char *name);
+            // defaultPalette and defaultColors are used when the scene JSON does not
+            // specify its own palette / colors (pass AppearanceStore values to inherit
+            // the active appearance; pass nullptr/null to fall back to "userColors").
+            SceneResult playSceneByName(
+                const char *             name,
+                const char *             defaultPalette = nullptr,
+                const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT] = nullptr
+            );
 
             // Parse an inline scene body and start playing (not saved to disk).
-            SceneResult playSceneInline(const char *body, size_t len);
+            SceneResult playSceneInline(
+                const char *             body,
+                size_t                   len,
+                const char *             defaultPalette = nullptr,
+                const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT] = nullptr
+            );
 
             // Parse a flat one-shot body {"group":N,"panels":...,...step fields...}
             // and play it via ScenePlayer with loop=false.
@@ -111,12 +121,28 @@ namespace Lightnet {
             // Takes effect at the start of the next step.
             void setSceneSpeed(float speed);
 
+            // Call when the active appearance palette or base colors change. Re-resolves
+            // the playing scene's palettes for layers that use the appearance defaults
+            // (i.e., the scene JSON did not set its own palette / colors).
+            void onAppearanceChanged(
+                const char *             palette,
+                const Protocol::ColorRGB colors[BASE_COLORS_COUNT]
+            );
+
         private:
             SceneStore& scenes;
             ScenePlayer& player;
 
-            // Start playing a validated parse result. Fills result fields in SceneResult.
-            SceneResult startPlay(SceneParseResult& parsed);
+            bool sceneHasOwnPalette = false;
+            bool sceneHasOwnColors  = false;
+
+            // Start playing a validated parse result. defaultPalette/defaultColors are
+            // used when the scene did not explicitly set palette/colors.
+            SceneResult startPlay(
+                SceneParseResult&        parsed,
+                const char *             defaultPalette,
+                const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+            );
 
             static bool isSchemaTooNew(const char *msg)
             {

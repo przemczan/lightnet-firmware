@@ -463,6 +463,30 @@ namespace Lightnet {
         return { 255, 255, 255 };
     }
 
+    void ScenePlayer::reresolvePalettes(const char *newPal, const Protocol::ColorRGB *newColors)
+    {
+        if (!playing || lCount == 0) return;
+
+        if (newPal && newPal[0]) {
+            strncpy(defaultPalette, newPal, sizeof(defaultPalette) - 1);
+            defaultPalette[sizeof(defaultPalette) - 1] = '\0';
+        }
+
+        if (newColors) {
+            memcpy(baseColors, newColors, sizeof(baseColors));
+        }
+
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layers[i].palette[0]) continue; // layer has its own palette — skip
+
+            if (strcmp(defaultPalette, "userColors") == 0) {
+                PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
+            } else if (!paletteStore.resolve(defaultPalette, resolvedPalettes[i], resolvedPaletteCounts[i])) {
+                PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
+            }
+        }
+    }
+
     void ScenePlayer::writeStatusJson(char *buf, size_t bufLen) const
     {
         if (!playing) {

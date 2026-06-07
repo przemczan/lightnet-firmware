@@ -4,6 +4,7 @@
 #include "../../Scenes/ScenePlayer.hpp"
 #include "../../Scenes/AnimationService.hpp"
 #include "../../AppState/AppStateStore.hpp"
+#include "../../Appearance/AppearanceStore.hpp"
 
 namespace Lightnet {
     class SceneServer
@@ -13,7 +14,8 @@ namespace Lightnet {
                 AsyncWebServer&   server,
                 ScenePlayer&      player,
                 AnimationService& animService,
-                AppStateStore&    appState
+                AppStateStore&    appState,
+                AppearanceStore&  appearance
             );
 
             void begin();
@@ -23,6 +25,7 @@ namespace Lightnet {
             ScenePlayer& player;
             AnimationService& animService;
             AppStateStore& appState;
+            AppearanceStore& appearance;
 
             void registerRoutes();
 

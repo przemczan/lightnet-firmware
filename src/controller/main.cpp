@@ -370,11 +370,11 @@ void loop()
 
                 setupWiFi();
 
-                appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore);
+                appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore, *animService);
                 appearanceServer->begin();
                 paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
                 paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore);
+                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore, *appearance);
                 sceneServer->begin();
                 animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance, *appStateStore);
                 animServer->begin();

@@ -11,9 +11,11 @@ namespace Lightnet {
         AsyncWebServer&   _server,
         ScenePlayer&      _player,
         AnimationService& _animService,
-        AppStateStore&    _appState
+        AppStateStore&    _appState,
+        AppearanceStore&  _appearance
     )
-        : server(_server), player(_player), animService(_animService), appState(_appState)
+        : server(_server), player(_player), animService(_animService), appState(_appState),
+        appearance(_appearance)
     {
     }
 
@@ -181,7 +183,8 @@ namespace Lightnet {
             return;
         }
 
-        auto r = animService.playSceneInline((const char *)body, len);
+        auto r = animService.playSceneInline((const char *)body, len,
+                                              appearance.paletteName(), appearance.baseColors());
 
         if (!r.ok()) {
             sendSceneError(req, r);
@@ -216,7 +219,8 @@ namespace Lightnet {
             return;
         }
 
-        auto r = animService.playSceneByName(name);
+        auto r = animService.playSceneByName(name,
+                                              appearance.paletteName(), appearance.baseColors());
 
         if (!r.ok()) {
             sendSceneError(req, r);

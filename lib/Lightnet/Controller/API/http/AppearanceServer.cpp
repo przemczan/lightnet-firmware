@@ -9,9 +9,10 @@ namespace Lightnet {
     AppearanceServer::AppearanceServer(
         AsyncWebServer&  _server,
         AppearanceStore& _appearance,
-        PaletteStore&    _palettes
+        PaletteStore&    _palettes,
+        AnimationService& _animService
     )
-        : server(_server), appearance(_appearance), palettes(_palettes)
+        : server(_server), appearance(_appearance), palettes(_palettes), animService(_animService)
     {
     }
 
@@ -89,6 +90,8 @@ namespace Lightnet {
                 return;
             }
         }
+
+        animService.onAppearanceChanged(appearance.paletteName(), appearance.baseColors());
 
         Http::sendOk(req);
     }
