@@ -271,30 +271,37 @@ namespace Lightnet {
             Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
             AnimationRunner *runner = nullptr;
 
-            // Directionality field: per-panel sweep coordinate (params[1..3]).
+            // Directionality field: per-panel sweep coordinate (params[1..3]). Two orthogonal
+            // choices — mode (graph hop-distance vs planar geometry) and source (root/leaves/
+            // panel:N) — plus a geometric-axis `angle` for wave/chase (ripple has no axis).
             uint8_t coord[SCENE_MAX_RESOLVED_PANELS];
-            uint8_t srcKind = step.params[RUNNER_PARAM_SRC_KIND];
-            bool reverse = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
+            uint8_t srcKind   = step.params[RUNNER_PARAM_SRC_KIND];
+            uint8_t srcArg    = step.params[RUNNER_PARAM_SRC_ARG];
+            bool    reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
+            bool    geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
             uint8_t maxCoord;
 
-            if (srcKind == SRC_GEOMETRIC && geometry.valid()) {
-                // Geometric sweep: project panel centroids onto an axis at the chosen angle.
-                // Resolution tracks the graph field's span so `width` stays comparable.
-                float angleDeg   = (float)step.params[RUNNER_PARAM_SRC_ARG] * 2.0f;
-                uint8_t resolution = topo.maxDepth();
+            // Resolution tracks the graph field's span so `width` stays comparable across modes.
+            uint8_t resolution = topo.maxDepth();
 
-                if (resolution == 0) resolution = (panelCount > 1) ? (uint8_t)(panelCount - 1) : 1;
+            if (resolution == 0) resolution = (panelCount > 1) ? (uint8_t)(panelCount - 1) : 1;
+
+            if (geometric && geometry.valid() && step.animType == RUN_RIPPLE) {
+                // Geometric ripple: Euclidean rings expanding from the source centroid(s).
+                maxCoord = computeGeometricCenterField(geometry, topo, panels, panelCount,
+                                                       srcKind, srcArg, reverse, resolution, coord);
+            } else if (geometric && geometry.valid()) {
+                // Geometric wave/chase: project panel centroids onto an axis at `angle` (srcArg*2°).
+                // `source` is N/A here — an axis sweep has no origin, only a direction.
+                float angleDeg = (float)srcArg * 2.0f;
 
                 maxCoord = computeGeometricField(geometry, panels, panelCount,
                                                  angleDeg, reverse, resolution, coord);
             } else {
-                // Graph hop-distance from the source set (also the fallback when a geometric
-                // step can't embed: SRC_GEOMETRIC degrades to source:root).
-                uint8_t k = (srcKind == SRC_GEOMETRIC) ? SRC_ROOT : srcKind;
-
+                // Graph hop-distance from the source set (also the fallback when a geometric step
+                // can't embed: geometry degrades to the same source over hop-distance).
                 maxCoord = computeDistanceField(topo, panels, panelCount,
-                                                k, step.params[RUNNER_PARAM_SRC_ARG],
-                                                reverse, coord);
+                                                srcKind, srcArg, reverse, coord);
             }
 
             uint8_t width = step.params[RUNNER_PARAM_WIDTH];

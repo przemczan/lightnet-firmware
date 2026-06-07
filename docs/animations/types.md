@@ -176,24 +176,32 @@ Runners are computed on the controller ESP each frame and send scaled `SET_COLOR
 | `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`) |
 | `color` | color ref | Colour for the runner effect |
 | `duration` | ms | Total duration of the runner effect |
-| `source` | string | Where the motion emanates from: `root` (default), `leaves`, `panel:N`, or `geometric` |
-| `angle` | 0–359 | Geometric sweep direction in degrees (only when `source:geometric`; default 0). 2° resolution. |
+| `directionality` | string | Field mode: `topology` (graph hop-distance, default) or `geometric` (planar layout). Orthogonal to `source`. |
+| `source` | string | Where the motion emanates from: `root` (default), `leaves`, `panel:N`, or `all` |
+| `angle` | 0–359 | Geometric **axis sweep** direction in degrees (only `directionality:geometric` WAVE/CHASE; default 0). 2° resolution. Ignored by RIPPLE. |
 | `reverse` | bool | Reverse the travel direction |
 | `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
 
-**Directionality.** Two modes, both controller-side:
+**Directionality.** Two orthogonal choices — the field **mode** (`directionality`) and the
+**`source`** it emanates from — both controller-side:
 
 - **Topology (graph hop-distance from the `source`)** — the default. Runners move along each
   panel's hop-distance (not discovery-list order), so the effect keeps its shape on any device.
   `source:root` emanates outward from the (logical) root, `source:leaves` converges inward,
   `source:panel:N` radiates from a specific panel, and `reverse` flips it.
-- **Geometric (`source:geometric` + `angle`)** — the effect sweeps along a straight axis across
-  the *physical* flat layout. The controller derives each panel's (x,y) position from the
-  regular-polygon geometry of the tree (no setup, no protocol change; same layout as the mobile
-  visualizer), then projects it onto the axis at `angle` degrees. This gives straight-line sweeps
-  across the piece that graph distance can't express. `angle` is a tune-by-eye dial (deterministic
-  per device, not a literal compass bearing); `reverse` flips travel. Falls back to `source:root`
-  if the layout can't be embedded. Requires `schemaVersion: 3`.
+- **Geometric (`directionality:geometric`)** — uses the *physical* flat layout instead of the
+  wiring. The controller derives each panel's (x,y) from the regular-polygon geometry of the tree
+  (no setup, no protocol change; same layout as the mobile visualizer). Two sub-behaviours:
+  - **WAVE / CHASE** sweep along a straight **axis** at `angle` degrees — straight-line motion
+    across the piece that graph distance can't express. `source` is N/A (an axis has no origin);
+    `angle` is a tune-by-eye dial (deterministic per device, not a literal compass bearing).
+  - **RIPPLE** expands as true **Euclidean rings** from the `source` centre(s): `source:root`
+    from the root, `source:panel:N` from panel N, and `source:leaves` runs **one ripple per leaf**
+    (concurrent fronts converging inward). `angle` is ignored.
+
+  `reverse` flips travel in both. Falls back to topology (same `source`) if the layout can't be
+  embedded. Requires `schemaVersion: 3`. The legacy `source:"geometric"` still parses (→
+  `directionality:geometric`, axis sweep from the default root).
 
 Full explanation with diagrams:
 [Scene Authoring → Directionality](scene-authoring.md#8-directionality-the-source-field).

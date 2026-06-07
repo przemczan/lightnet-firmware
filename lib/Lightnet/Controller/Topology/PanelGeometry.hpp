@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "TopologyIndex.hpp" // TopoLink, LIGHTNET_MAX_PANELS
+#include "PanelField.hpp"    // buildSourceSet (shared source-set logic for the radial field)
 
 namespace Lightnet {
     class PanelGeometry
@@ -398,6 +399,112 @@ namespace Lightnet {
             if (c < 0)            c = 0;
 
             if (c > (int)maxC)    c = maxC;
+
+            coordOut[i] = reverse ? (uint8_t)(maxC - c) : (uint8_t)c;
+        }
+
+        return maxC;
+    }
+
+    // Geometric *radial* directionality field — the ripple counterpart to computeGeometricField.
+    // Where the axis sweep above is for wave/chase, a ripple has no axis: it expands from a centre.
+    // Each targeted panel's coordinate is its minimum Euclidean distance (quantised to 0..resolution
+    // rings) to the nearest source-panel centroid, so the source set chooses the centre(s):
+    //   source:root     → one ripple from the root centroid
+    //   source:panel:N  → one ripple from panel N
+    //   source:leaves   → one ripple per leaf, expanding inward simultaneously (min-distance front)
+    // This mirrors the hop-distance field's multi-source behaviour (PanelField.hpp), just in the
+    // plane. With `reverse`, the rings invert (front collapses toward the source). Returns maxCoord
+    // (0 ⇒ uniform: no usable source centroid, or every panel is a source).
+    //
+    // No per-panel scratch array: two passes, each recomputing the (cheap) nearest-source distance,
+    // keeping the ESP8266 stack lean alongside fireStep's own coord[]/panels[] buffers.
+    inline uint8_t computeGeometricCenterField(
+        const PanelGeometry& geo,
+        const TopologyIndex& topo,
+        const uint8_t *      panels,
+        uint8_t              panelCount,
+        uint8_t              srcKind,
+        uint8_t              srcArg,
+        bool                 reverse,
+        uint8_t              resolution,
+        uint8_t *            coordOut
+    )
+    {
+        if (resolution == 0) resolution = 1;
+
+        PanelSet src;
+
+        buildSourceSet(topo, srcKind, srcArg, src);
+
+        const uint8_t n = topo.count();
+
+        // Pass 1: largest min-distance over the targeted panels (the ring span to normalise by).
+        float maxDist = 0.0f;
+        bool  any     = false;
+
+        for (uint8_t i = 0; i < panelCount; i++) {
+            float px, py;
+
+            if (!geo.centroidOf(panels[i], px, py)) continue;
+
+            float best = -1.0f;
+
+            for (uint8_t s = 0; s < n; s++) {
+                float sx, sy;
+
+                if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), sx, sy)) continue;
+
+                float dx = px - sx, dy = py - sy;
+                float d  = sqrtf(dx * dx + dy * dy);
+
+                if (best < 0.0f || d < best) best = d;
+            }
+
+            if (best < 0.0f) continue;
+
+            if (!any || best > maxDist) maxDist = best;
+
+            any = true;
+        }
+
+        if (!any || maxDist <= 1e-4f) {
+            for (uint8_t i = 0; i < panelCount; i++) coordOut[i] = 0;
+
+            return 0;
+        }
+
+        const uint8_t maxC = resolution;
+
+        // Pass 2: quantise each panel's nearest-source distance to 0..resolution.
+        for (uint8_t i = 0; i < panelCount; i++) {
+            float px, py;
+
+            if (!geo.centroidOf(panels[i], px, py)) {
+                coordOut[i] = 0;
+
+                continue;
+            }
+
+            float best = -1.0f;
+
+            for (uint8_t s = 0; s < n; s++) {
+                float sx, sy;
+
+                if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), sx, sy)) continue;
+
+                float dx = px - sx, dy = py - sy;
+                float d  = sqrtf(dx * dx + dy * dy);
+
+                if (best < 0.0f || d < best) best = d;
+            }
+
+            float t = (best < 0.0f ? 0.0f : best) / maxDist; // 0..1
+            int   c = (int)(t * (float)resolution + 0.5f);
+
+            if (c < 0)         c = 0;
+
+            if (c > (int)maxC) c = maxC;
 
             coordOut[i] = reverse ? (uint8_t)(maxC - c) : (uint8_t)c;
         }

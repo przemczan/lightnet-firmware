@@ -17,23 +17,28 @@
 #include "TopologyIndex.hpp"
 
 namespace Lightnet {
-    // How a runner step encodes its directionality source in SceneStep.params[].
+    // How a runner step encodes its directionality in SceneStep.params[].
     // (Runner steps never go through PREPARE, so params[] is controller-side only.)
+    //
+    // Directionality is two orthogonal choices:
+    //   • mode    — graph hop-distance (default) vs planar geometry (RUNNER_FLAG_GEOMETRIC)
+    //   • source  — where the field emanates from (root/leaves/all/panel:N)
+    // plus an `angle` that only steers a *geometric* axis sweep (wave/chase). See fireStep.
     static const uint8_t RUNNER_PARAM_WIDTH    = 0; // wave/ripple band width (rings)
     static const uint8_t RUNNER_PARAM_SRC_KIND = 1; // RunnerSource
-    static const uint8_t RUNNER_PARAM_SRC_ARG  = 2; // panel index for SRC_PANEL
+    static const uint8_t RUNNER_PARAM_SRC_ARG  = 2; // SRC_PANEL: panel index; geometric wave/chase: angle/2°
     static const uint8_t RUNNER_PARAM_FLAGS    = 3;
     static const uint8_t RUNNER_FLAG_REVERSE   = 0x01;
+    static const uint8_t RUNNER_FLAG_GEOMETRIC = 0x02; // planar geometry instead of graph hop-distance
 
     // Source the field emanates from. Default (0) = root, so a zeroed step radiates
-    // outward from the root — matching the v2 wave/chase migration.
+    // outward from the root — matching the v2 wave/chase migration. Orthogonal to the
+    // geometric flag: a geometric ripple still uses these to choose its centre(s).
     enum RunnerSource : uint8_t {
         SRC_ROOT      = 0, // the (logical) root
-        SRC_LEAVES    = 1, // every leaf (field converges inward)
+        SRC_LEAVES    = 1, // every leaf (field converges inward / one ripple per leaf)
         SRC_ALL       = 2, // all panels (degenerate: maxCoord 0, uniform)
         SRC_PANEL     = 3, // a specific panel index (SRC_ARG)
-        SRC_GEOMETRIC = 4, // planar geometric sweep along an angle (SRC_ARG holds angle/2°);
-                           // resolved via PanelGeometry, not the hop-distance field.
     };
 
     // Build the source slot-set for `kind`/`arg`. An empty result (e.g. SRC_PANEL

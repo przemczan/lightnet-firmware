@@ -12,6 +12,7 @@
 #include <unity.h>
 #include <string.h>
 #include "Controller/Topology/PanelGeometry.hpp"
+#include "Controller/Topology/TopologyIndex.hpp"
 
 using namespace Lightnet;
 
@@ -24,6 +25,7 @@ static const TopoLink LINKS[] = {
 };
 
 static PanelGeometry geo;
+static TopologyIndex topo; // chain 1—2—3 rooted at panel 1: leaves are panels 1 and 3
 
 void test_centroids_match_visualizer_frame()
 {
@@ -101,9 +103,57 @@ void test_empty_build_is_invalid()
     TEST_ASSERT_FALSE(g.valid());
 }
 
+// ---- Radial (ripple) field: Euclidean distance to the nearest source centroid. ----
+
+void test_center_field_from_root()
+{
+    // source:root = panel 1 (50,28.87). Distances: P1=0, P2=57.74, P3=100 → /100 ×4.
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricCenterField(geo, topo, PANELS, 3,
+                                               SRC_ROOT, 0, false, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, coord[1]); // round(57.74/100×4)=2
+    TEST_ASSERT_EQUAL_UINT8(4, coord[2]);
+}
+
+void test_center_field_leaves_is_multi_source()
+{
+    // Rooted at the centre (panel 2), the leaves are panels 1 and 3. Each panel takes the MIN
+    // distance to either leaf, so both ends sit at ring 0 and the centre at the far ring — two
+    // ripples converging from the leaves (the multi-source feature). Geometry is root-independent.
+    TopologyIndex centreRooted;
+
+    centreRooted.build(PANELS, 3, LINKS, 2, 2);
+
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricCenterField(geo, centreRooted, PANELS, 3,
+                                               SRC_LEAVES, 0, false, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
+    TEST_ASSERT_EQUAL_UINT8(4, coord[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[2]);
+}
+
+void test_center_field_panel_and_reverse()
+{
+    // source:panel:2 (centre) → P1=P3 at the far ring, P2 at 0. reverse inverts the rings.
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricCenterField(geo, topo, PANELS, 3,
+                                               SRC_PANEL, 2, true, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[0]); // 4 - 4
+    TEST_ASSERT_EQUAL_UINT8(4, coord[1]); // 4 - 0
+    TEST_ASSERT_EQUAL_UINT8(0, coord[2]);
+}
+
 void setUp(void)
 {
     geo.build(PANELS, 3, EDGECOUNTS, LINKS, 2, 0); // anchor 0 → lowest index (panel 1)
+    topo.build(PANELS, 3, LINKS, 2, 0);            // root 0 → lowest index (panel 1)
 }
 
 void tearDown(void)
@@ -120,6 +170,9 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_field_vertical_axis_is_2d);
     RUN_TEST(test_single_panel_is_uniform);
     RUN_TEST(test_empty_build_is_invalid);
+    RUN_TEST(test_center_field_from_root);
+    RUN_TEST(test_center_field_leaves_is_multi_source);
+    RUN_TEST(test_center_field_panel_and_reverse);
 
     return UNITY_END();
 }
