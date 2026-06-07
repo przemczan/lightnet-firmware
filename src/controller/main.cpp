@@ -323,6 +323,11 @@ void loop()
                 // can read /config/ and /palettes/ before the captive portal blocks.
                 Lightnet::Fs::begin();
 
+                // Ensure /config exists before the stores below write into it. ESP32's LittleFS
+                // (unlike ESP8266's) won't create a file whose parent directory is missing, so on
+                // a fresh filesystem every /config/*.json write would fail without this. Idempotent.
+                Lightnet::Fs::mkdir("/config");
+
                 paletteStore = new Lightnet::PaletteStore();
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
                 appearance->loadAndApply();   // broadcasts brightness, base colors, palette to panels

@@ -1,0 +1,125 @@
+// Native unit tests for lib/Lightnet/Controller/Topology/PanelGeometry.hpp
+// Run with: pio test -e native -f test_panel_geometry
+//
+// A chain of three triangles (all N=3), anchored at panel 1:
+//
+//        panel1.edge1 — panel2.edge0 ,  panel2.edge1 — panel3.edge0
+//
+// Hand-computed centroids in the canonical (visualizer) frame, edgeLength 100:
+//   P1 = (50.0, 28.87)   P2 = (100.0, 57.74)   P3 = (150.0, 28.87)
+// (matching the mobile PanelsLayoutService layout the user authors against).
+
+#include <unity.h>
+#include <string.h>
+#include "Controller/Topology/PanelGeometry.hpp"
+
+using namespace Lightnet;
+
+static const uint8_t PANELS[]     = { 1, 2, 3 };
+static const uint8_t EDGECOUNTS[] = { 3, 3, 3 };
+
+static const TopoLink LINKS[] = {
+    { 1, 1, 2, 0 },
+    { 2, 1, 3, 0 },
+};
+
+static PanelGeometry geo;
+
+void test_centroids_match_visualizer_frame()
+{
+    float x, y;
+
+    TEST_ASSERT_TRUE(geo.centroidOf(1, x, y));
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 50.0f, x);
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 28.87f, y);
+
+    TEST_ASSERT_TRUE(geo.centroidOf(2, x, y));
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 100.0f, x);
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 57.74f, y);
+
+    TEST_ASSERT_TRUE(geo.centroidOf(3, x, y));
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 150.0f, x);
+    TEST_ASSERT_FLOAT_WITHIN(0.5f, 28.87f, y);
+}
+
+void test_field_horizontal_axis()
+{
+    // Project onto 0° (x): P1=50, P2=100, P3=150 → evenly spaced over span 100.
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricField(geo, PANELS, 3, 0.0f, false, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, coord[1]);
+    TEST_ASSERT_EQUAL_UINT8(4, coord[2]);
+}
+
+void test_field_reverse_flips()
+{
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricField(geo, PANELS, 3, 0.0f, true, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(4, coord[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, coord[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[2]);
+}
+
+void test_field_vertical_axis_is_2d()
+{
+    // Project onto 90° (y): P1=P3=28.87 (source), P2=57.74 (far) → a genuinely 2-D field,
+    // impossible with graph hop-distance alone.
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricField(geo, PANELS, 3, 90.0f, false, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
+    TEST_ASSERT_EQUAL_UINT8(4, coord[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, coord[2]);
+}
+
+void test_single_panel_is_uniform()
+{
+    static const uint8_t one[]  = { 1 };
+    static const uint8_t oneEc[] = { 3 };
+    PanelGeometry g;
+
+    TEST_ASSERT_TRUE(g.build(one, 1, oneEc, nullptr, 0, 0));
+
+    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricField(g, one, 1, 30.0f, false, 4, coord);
+
+    TEST_ASSERT_EQUAL_UINT8(0, maxC);   // zero span → no gradient
+    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
+}
+
+void test_empty_build_is_invalid()
+{
+    PanelGeometry g;
+
+    TEST_ASSERT_FALSE(g.build(nullptr, 0, nullptr, nullptr, 0, 0));
+    TEST_ASSERT_FALSE(g.valid());
+}
+
+void setUp(void)
+{
+    geo.build(PANELS, 3, EDGECOUNTS, LINKS, 2, 0); // anchor 0 → lowest index (panel 1)
+}
+
+void tearDown(void)
+{
+}
+
+int main(int /*argc*/, char ** /*argv*/)
+{
+    UNITY_BEGIN();
+
+    RUN_TEST(test_centroids_match_visualizer_frame);
+    RUN_TEST(test_field_horizontal_axis);
+    RUN_TEST(test_field_reverse_flips);
+    RUN_TEST(test_field_vertical_axis_is_2d);
+    RUN_TEST(test_single_panel_is_uniform);
+    RUN_TEST(test_empty_build_is_invalid);
+
+    return UNITY_END();
+}

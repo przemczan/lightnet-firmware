@@ -346,15 +346,41 @@ set, and the effect sweeps that coordinate. This is portable — it works on any
 
 `"source"` accepts:
 
-| `source` | The effect… | Coordinate (= hops from) |
+| `source` | The effect… | Coordinate (= distance from) |
 |---|---|---|
-| `"root"` *(default)* | emanates outward from the root/centre | the root |
-| `"leaves"` | converges inward from the tips | the nearest leaf |
-| `"panel:N"` | emanates from panel N | panel N |
+| `"root"` *(default)* | emanates outward from the root/centre | hops from the root |
+| `"leaves"` | converges inward from the tips | hops from the nearest leaf |
+| `"panel:N"` | emanates from panel N | hops from panel N |
+| `"geometric"` | sweeps along a straight axis across the physical layout | distance along `angle` |
 
 `"reverse": true` flips the coordinate, so the effect travels the other way (e.g. a ripple
 that **collapses inward** to the root). A `source` that doesn't exist on a device falls back
 to `root`.
+
+### Geometric directionality (`source:"geometric"`)
+
+The four graph sources above sweep along the **wiring** — great for portability, but they can't
+express a straight diagonal motion across the piece, because graph distance has no notion of 2-D
+direction. `source:"geometric"` adds that: the controller computes each panel's flat **(x,y)
+position** from the regular-polygon geometry of the tree (the *same* layout the mobile app draws
+in its visualizer — no setup, no extra hardware, no protocol change), then sweeps a straight axis
+across it.
+
+| Field | Meaning |
+|---|---|
+| `"angle"` | Sweep **axis** in degrees `[0,360)`, measured in the device's computed layout plane. In the app's default (unrotated) view, `0` sweeps horizontally and `90` vertically; the exact on-screen direction also depends on the visualizer's view rotation, so treat the angle as a dial to tune by eye rather than a fixed compass bearing. `reverse` flips which way the sweep travels along the axis. (2° resolution.) |
+
+```json
+{ "runner": "WAVE", "source": "geometric", "angle": 0, "color": {"palette": 128}, "waveWidth": 3, "duration": 5000 }
+```
+
+Notes:
+- Needs `"schemaVersion": 3`.
+- The layout frame is anchored deterministically (lowest panel index), so a given `angle` always
+  produces the same sweep on a given device — but it is not a literal compass bearing; tune by eye.
+- `reverse` still applies (flips the axis — equivalent to `angle + 180`).
+- Width is on the same scale as the graph field, so `waveWidth`/`rippleWidth` behave comparably.
+- If the layout can't be embedded (e.g. degenerate topology), it falls back to `source:"root"`.
 
 On the §2 tree, a `RIPPLE` with `source:"root"` lights rings outward —
 `{1}` → `{2,3}` → `{4,5}` → `{6}`:

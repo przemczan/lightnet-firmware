@@ -1,6 +1,7 @@
 #include "ScenePlayer.hpp"
 #include "../Animations/AnimationRunner.hpp"
 #include "../Topology/PanelField.hpp"
+#include "../Topology/PanelGeometry.hpp"
 #include "../../Utils/Debug.hpp"
 #include <string.h>
 #include <Arduino.h>
@@ -270,12 +271,31 @@ namespace Lightnet {
             Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
             AnimationRunner *runner = nullptr;
 
-            // Directionality field: hop-distance from the step's source (params[1..3]).
+            // Directionality field: per-panel sweep coordinate (params[1..3]).
             uint8_t coord[SCENE_MAX_RESOLVED_PANELS];
-            uint8_t maxCoord = computeDistanceField(
-                topo, panels, panelCount,
-                step.params[RUNNER_PARAM_SRC_KIND], step.params[RUNNER_PARAM_SRC_ARG],
-                ((step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0), coord);
+            uint8_t srcKind = step.params[RUNNER_PARAM_SRC_KIND];
+            bool reverse = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
+            uint8_t maxCoord;
+
+            if (srcKind == SRC_GEOMETRIC && geometry.valid()) {
+                // Geometric sweep: project panel centroids onto an axis at the chosen angle.
+                // Resolution tracks the graph field's span so `width` stays comparable.
+                float angleDeg   = (float)step.params[RUNNER_PARAM_SRC_ARG] * 2.0f;
+                uint8_t resolution = topo.maxDepth();
+
+                if (resolution == 0) resolution = (panelCount > 1) ? (uint8_t)(panelCount - 1) : 1;
+
+                maxCoord = computeGeometricField(geometry, panels, panelCount,
+                                                 angleDeg, reverse, resolution, coord);
+            } else {
+                // Graph hop-distance from the source set (also the fallback when a geometric
+                // step can't embed: SRC_GEOMETRIC degrades to source:root).
+                uint8_t k = (srcKind == SRC_GEOMETRIC) ? SRC_ROOT : srcKind;
+
+                maxCoord = computeDistanceField(topo, panels, panelCount,
+                                                k, step.params[RUNNER_PARAM_SRC_ARG],
+                                                reverse, coord);
+            }
 
             uint8_t width = step.params[RUNNER_PARAM_WIDTH];
 
@@ -320,11 +340,13 @@ namespace Lightnet {
 
         if (total == 0 || total > LIGHTNET_MAX_PANELS) {
             topo.build(nullptr, 0, nullptr, 0, logicalRoot); // empty / unusable topology
+            geometry.build(nullptr, 0, nullptr, nullptr, 0, 0);
 
             return;
         }
 
         uint8_t indices[LIGHTNET_MAX_PANELS];
+        uint8_t edgeCounts[LIGHTNET_MAX_PANELS]; // polygon side count per panel (for geometry)
         TopoLink links[LIGHTNET_MAX_PANELS];
         uint8_t linkCount = 0;
 
@@ -335,6 +357,8 @@ namespace Lightnet {
 
             List<Edge *> *edges = panel->edges;
             uint16_t ec    = edges ? edges->getSize() : 0;
+
+            edgeCounts[i] = (uint8_t)ec;
 
             for (uint16_t e = 0; e < ec; e++) {
                 Edge *edge = edges->get(e);
@@ -367,6 +391,10 @@ namespace Lightnet {
         }
 
         topo.build(indices, (uint8_t)total, links, linkCount, logicalRoot);
+
+        // Geometric directionality uses the same links but is anchored at the lowest panel
+        // index (0 → lowest), matching the mobile visualizer frame regardless of logicalRoot.
+        geometry.build(indices, (uint8_t)total, edgeCounts, links, linkCount, 0);
     }
 
     void ScenePlayer::setLogicalRoot(uint8_t panelIndex, uint32_t nowMs)
