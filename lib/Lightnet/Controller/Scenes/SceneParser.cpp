@@ -323,8 +323,10 @@ namespace Lightnet {
                 } else if (strcmp(s, "all") == 0) {
                     step.params[RUNNER_PARAM_SRC_KIND] = SRC_ALL;
                 } else if (strcmp(s, "geometric") == 0) {
-                    // Planar geometric sweep; direction set by the sibling `angle` field.
-                    step.params[RUNNER_PARAM_SRC_KIND] = SRC_GEOMETRIC;
+                    // Legacy: `source:"geometric"` predates the directionality/source split.
+                    // Map it onto the geometric flag (axis sweep from a sibling `angle`), leaving
+                    // the source at its default (root). Prefer `directionality:"geometric"`.
+                    step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_GEOMETRIC;
                 } else if (strncmp(s, "panel:", 6) == 0) {
                     long n = atol(s + 6);
 
@@ -338,6 +340,27 @@ namespace Lightnet {
                     step.params[RUNNER_PARAM_SRC_ARG]  = (uint8_t)n;
                 } else {
                     snprintf(errMsg, errLen, "step.source: unknown (%s)", s);
+
+                    return false;
+                }
+            } else if (strcmp(key, "directionality") == 0) {
+                // Field mode, orthogonal to `source`: "topology" (graph hop-distance, default)
+                // or "geometric" (planar layout — axis sweep for wave/chase, Euclidean rings
+                // from `source` for ripple, steered by `angle`).
+                char s[16];
+
+                if (!jsonReadString(p, end, s, sizeof(s))) {
+                    strncpy(errMsg, "step.directionality: not a string", errLen);
+
+                    return false;
+                }
+
+                if (strcmp(s, "geometric") == 0) {
+                    step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_GEOMETRIC;
+                } else if (strcmp(s, "topology") == 0) {
+                    step.params[RUNNER_PARAM_FLAGS] &= (uint8_t)~RUNNER_FLAG_GEOMETRIC;
+                } else {
+                    snprintf(errMsg, errLen, "step.directionality: unknown (%s)", s);
 
                     return false;
                 }

@@ -279,6 +279,12 @@ namespace Lightnet {
         }
 
         if (elapsed >= durationMs) {
+            for (uint8_t i = 0; i < panelCount; i++) {
+                if (lastBrightness[i] != 0) {
+                    sendScaledColor(panelAddresses[i], color, 0);
+                    lastBrightness[i] = 0;
+                }
+            }
             finished = true;
         }
     }

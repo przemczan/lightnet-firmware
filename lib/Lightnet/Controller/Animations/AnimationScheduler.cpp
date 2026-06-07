@@ -118,11 +118,16 @@ namespace Lightnet {
         pkt.cmd = Lightnet::ANIM_CTRL_STOP;
         LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_ANIMATION_CONTROL);
 
+        // Mark runners cancelled rather than deleting them here.  This method may be
+        // called from the HTTP task while tick() is iterating activeRunners on the main
+        // loop task — deleting runners under tick() causes a use-after-free (PC=0x0).
+        // tick() checks isCancelled() and performs the actual deletion safely.
         uint16_t i = activeRunners->getSize();
 
         while (i--) {
-            delete activeRunners->get(i);
-            activeRunners->removeByIndex(i);
+            AnimationRunner *runner = activeRunners->get(i);
+
+            if (runner) runner->cancel();
         }
     }
 
@@ -180,9 +185,9 @@ namespace Lightnet {
 
             if (!runner) continue;
 
-            runner->tick(nowMs);
+            if (!runner->isCancelled()) runner->tick(nowMs);
 
-            if (runner->isFinished()) {
+            if (runner->isFinished() || runner->isCancelled()) {
                 activeRunners->removeByIndex(i);
                 delete runner;
             }

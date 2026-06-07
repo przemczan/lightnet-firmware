@@ -18,17 +18,25 @@ namespace Lightnet {
             // Query if animation is finished
             virtual bool isFinished() const = 0;
 
+            // Cancel this runner without deleting it.  Safe to call from any task context;
+            // tick() detects the flag and deletes the runner from the main loop.
+            void cancel() { cancelled = true; }
+            bool isCancelled() const { return cancelled; }
+
             uint8_t getGroupId() const
             {
                 return groupId;
             }
 
         protected:
-            AnimationRunner(uint8_t _groupId) : groupId(_groupId)
+            AnimationRunner(uint8_t _groupId) : groupId(_groupId), cancelled(false)
             {
             }
 
             uint8_t groupId;
+
+        private:
+            volatile bool cancelled;
     };
 
     // ============================================================================
