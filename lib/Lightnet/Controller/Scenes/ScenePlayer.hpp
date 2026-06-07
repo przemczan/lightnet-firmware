@@ -116,6 +116,11 @@ namespace Lightnet {
 
             void tick(uint32_t nowMs);
 
+            // Re-resolve palettes for layers that use the scene default (no per-layer override),
+            // using the new palette/colors. Pass nullptr for either argument to leave it unchanged.
+            // Called when the active appearance palette or base colors change while a scene is playing.
+            void reresolvePalettes(const char *newPal, const Protocol::ColorRGB *newColors);
+
             // Change playback speed of the current scene. Takes effect on next step.
             void setSpeed(float s)
             {

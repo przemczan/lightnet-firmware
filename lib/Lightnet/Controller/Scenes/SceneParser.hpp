@@ -16,6 +16,8 @@ namespace Lightnet {
         char               name[20];
         bool               loop;
         char               palette[16]; // scene-level default palette name
+        bool               hasPalette;  // true if scene JSON explicitly set "palette"
+        bool               hasColors;   // true if scene JSON explicitly set "colors"
         Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
 
         float              speed; // playback speed multiplier [0.1, 10.0], default 1.0

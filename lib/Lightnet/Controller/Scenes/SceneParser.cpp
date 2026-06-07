@@ -674,6 +674,8 @@ namespace Lightnet {
         out.loop = false;
         out.speed = 1.0f;
         strncpy(out.palette, "userColors", sizeof(out.palette) - 1);
+        out.hasPalette = false;
+        out.hasColors  = false;
         out.baseColors[0] = { 0xFF, 0xFF, 0xFF };
         out.baseColors[1] = { 0x00, 0x00, 0x00 };
         out.baseColors[2] = { 0x00, 0x00, 0x00 };
@@ -738,8 +740,12 @@ namespace Lightnet {
 
                     return false;
                 }
+
+                out.hasPalette = true;
             } else if (strcmp(key, "colors") == 0) {
                 if (!parseColors(p, end, out.baseColors, out.errMsg, sizeof(out.errMsg))) return false;
+
+                out.hasColors = true;
             } else if (strcmp(key, "layers") == 0) {
                 if (!jsonEnterArray(p, end)) {
                     strncpy(out.errMsg, "layers: expected array", sizeof(out.errMsg));

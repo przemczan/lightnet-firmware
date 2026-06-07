@@ -35,7 +35,11 @@ namespace Lightnet {
     // Play
     // ---------------------------------------------------------------------------
 
-    SceneResult AnimationService::playSceneByName(const char *name)
+    SceneResult AnimationService::playSceneByName(
+        const char *             name,
+        const char *             defaultPalette,
+        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+    )
     {
         size_t n = 0;
         char *buf = scenes.load(name, n);
@@ -53,10 +57,15 @@ namespace Lightnet {
             return SceneResult::error(e, parsed.errMsg);
         }
 
-        return startPlay(parsed);
+        return startPlay(parsed, defaultPalette, defaultColors);
     }
 
-    SceneResult AnimationService::playSceneInline(const char *body, size_t len)
+    SceneResult AnimationService::playSceneInline(
+        const char *             body,
+        size_t                   len,
+        const char *             defaultPalette,
+        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+    )
     {
         SceneParseResult parsed;
 
@@ -66,7 +75,7 @@ namespace Lightnet {
             return SceneResult::error(e, parsed.errMsg);
         }
 
-        return startPlay(parsed);
+        return startPlay(parsed, defaultPalette, defaultColors);
     }
 
     // ---------------------------------------------------------------------------
@@ -119,15 +128,46 @@ namespace Lightnet {
     // Internal
     // ---------------------------------------------------------------------------
 
-    SceneResult AnimationService::startPlay(SceneParseResult& parsed)
+    SceneResult AnimationService::startPlay(
+        SceneParseResult&        parsed,
+        const char *             defaultPalette,
+        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+    )
     {
-        const char *palName = parsed.palette[0] ? parsed.palette : "userColors";
+        static const Protocol::ColorRGB kDefaultColors[BASE_COLORS_COUNT] = {
+            { 0xFF, 0xFF, 0xFF }, { 0x00, 0x00, 0x00 }, { 0x00, 0x00, 0x00 }
+        };
+
+        const char *palName = parsed.hasPalette
+            ? parsed.palette
+            : (defaultPalette && defaultPalette[0] ? defaultPalette : "userColors");
+
+        const Protocol::ColorRGB *colors = parsed.hasColors
+            ? parsed.baseColors
+            : (defaultColors ? defaultColors : kDefaultColors);
 
         player.loadAndPlay(parsed.layers, parsed.layerCount,
                            parsed.loop, parsed.name,
-                           palName, parsed.baseColors,
+                           palName, colors,
                            millis(), parsed.speed);
 
+        sceneHasOwnPalette = parsed.hasPalette;
+        sceneHasOwnColors  = parsed.hasColors;
+
         return SceneResult::success();
+    }
+
+    void AnimationService::onAppearanceChanged(
+        const char *             palette,
+        const Protocol::ColorRGB colors[BASE_COLORS_COUNT]
+    )
+    {
+        if (!player.isPlaying()) return;
+        if (sceneHasOwnPalette && sceneHasOwnColors) return;
+
+        const char *newPal             = sceneHasOwnPalette ? nullptr : palette;
+        const Protocol::ColorRGB *newColors = sceneHasOwnColors  ? nullptr : colors;
+
+        player.reresolvePalettes(newPal, newColors);
     }
 }  // namespace Lightnet

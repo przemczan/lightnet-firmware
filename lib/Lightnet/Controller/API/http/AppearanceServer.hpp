@@ -3,6 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../Palettes/PaletteStore.hpp"
+#include "../../Scenes/AnimationService.hpp"
 
 namespace Lightnet {
     class AppearanceServer
@@ -11,7 +12,8 @@ namespace Lightnet {
             AppearanceServer(
                 AsyncWebServer&  server,
                 AppearanceStore& appearance,
-                PaletteStore&    palettes
+                PaletteStore&    palettes,
+                AnimationService& animService
             );
 
             void begin();
@@ -20,6 +22,7 @@ namespace Lightnet {
             AsyncWebServer& server;
             AppearanceStore& appearance;
             PaletteStore& palettes;
+            AnimationService& animService;
 
             void registerRoutes();
 
