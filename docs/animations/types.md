@@ -176,14 +176,26 @@ Runners are computed on the controller ESP each frame and send scaled `SET_COLOR
 | `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`) |
 | `color` | color ref | Colour for the runner effect |
 | `duration` | ms | Total duration of the runner effect |
-| `source` | string | Where the motion emanates from: `root` (default), `leaves`, or `panel:N` |
+| `source` | string | Where the motion emanates from: `root` (default), `leaves`, `panel:N`, or `geometric` |
+| `angle` | 0–359 | Geometric sweep direction in degrees (only when `source:geometric`; default 0). 2° resolution. |
 | `reverse` | bool | Reverse the travel direction |
 | `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
 
-**Directionality.** Runners move along each panel's **graph hop-distance from the `source`**
-(not discovery-list order), so the effect keeps its shape on any device. `source:root`
-emanates outward from the (logical) root, `source:leaves` converges inward, `source:panel:N`
-radiates from a specific panel, and `reverse` flips it. Full explanation with diagrams:
+**Directionality.** Two modes, both controller-side:
+
+- **Topology (graph hop-distance from the `source`)** — the default. Runners move along each
+  panel's hop-distance (not discovery-list order), so the effect keeps its shape on any device.
+  `source:root` emanates outward from the (logical) root, `source:leaves` converges inward,
+  `source:panel:N` radiates from a specific panel, and `reverse` flips it.
+- **Geometric (`source:geometric` + `angle`)** — the effect sweeps along a straight axis across
+  the *physical* flat layout. The controller derives each panel's (x,y) position from the
+  regular-polygon geometry of the tree (no setup, no protocol change; same layout as the mobile
+  visualizer), then projects it onto the axis at `angle` degrees. This gives straight-line sweeps
+  across the piece that graph distance can't express. `angle` is a tune-by-eye dial (deterministic
+  per device, not a literal compass bearing); `reverse` flips travel. Falls back to `source:root`
+  if the layout can't be embedded. Requires `schemaVersion: 3`.
+
+Full explanation with diagrams:
 [Scene Authoring → Directionality](scene-authoring.md#8-directionality-the-source-field).
 
 ---

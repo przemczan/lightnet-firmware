@@ -9,6 +9,7 @@
 #include "../Animations/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"
 #include "../Panels/PanelsInitializer.hpp"
+#include "../Topology/PanelGeometry.hpp"
 #include "../Topology/PanelSelector.hpp"
 
 namespace Lightnet {
@@ -20,7 +21,7 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
     static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
-    static const uint8_t SCENE_SCHEMA_VERSION       = 2;
+    static const uint8_t SCENE_SCHEMA_VERSION       = 3;
 
     // ============================================================================
     // Per-layer playback state (scene-cycle barrier model)
@@ -162,6 +163,10 @@ namespace Lightnet {
             // play (and resume). Layer selectors resolve against this. See
             // docs/design/scene-portability.md.
             TopologyIndex topo;
+            // Planar layout of the same tree, anchored at the lowest panel index (visualizer
+            // frame), used by geometric runner directionality (source:geometric). Independent
+            // of logicalRoot. Rebuilt alongside `topo`.
+            PanelGeometry geometry;
             uint8_t logicalRoot;             // panel index the rooted view is built from (§4.1; default 1)
             const ITagResolver *tagResolver; // device tag map for `tag:` selectors (null until wired)
 

@@ -49,7 +49,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_runner_math`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -157,6 +157,7 @@ at play time**, so one scene adapts to devices with different panel counts/wirin
 | `TopologyIndex.hpp` | Rooted view of the tree (depth, parent, leaf/branch, subtree, neighbours, canonical order, multi-source hop-distance). Built from a generic link list; **parameterised by a start node** → re-rooting is just a rebuild. |
 | `PanelSelector.hpp` + `PanelSelectorParser.hpp` | The `panels` grammar (`all`/indices/`exclude`, graph selectors `root`/`leaves`/`depth:a-b`/`subtree:N`/`fraction`/…, `tag:<name>`, `any`/`all`/`not`) compiled to a compact RPN program; `resolveSelector(sel, topo, out, ITagResolver*)`. |
 | `PanelField.hpp` | Runner directionality: per-panel **hop-distance coord** from a `source` (`root`/`leaves`/`panel:N`, `reverse`). Envelopes are pure in `Animations/RunnerMath.hpp`. |
+| `PanelGeometry.hpp` | **Geometric** runner directionality (`source:geometric` + `angle`): planar (x,y) layout of the tree from regular-polygon geometry (faithful port of mobile `PanelsLayoutService`, anchored at the lowest panel index = visualizer frame), then `computeGeometricField()` projects centroids onto the chosen axis. No protocol change. |
 | `TagResolver.hpp` | `ITagResolver` + the single `isValidTagName`/`TAG_NAME_MAX` shared by parser, store, and endpoint. |
 
 **Device side**: `Topology/TopologyConfigStore` persists `/config/topology.json` (logical root +
@@ -169,9 +170,11 @@ targeting in `resolvePanels()`. Endpoints live in `API/http/TopologyServer`
   float — they are **not** under the `refgen`/Kotlin bit-exact contract (that governs panel-local
   `AnimationPlayer.cpp` only). `N`/edges/adjacency come from existing discovery data.
 - **Backward compatible**: v2 `panels` forms map onto the RPN; legacy `originPanel` → `source:panel:N`;
-  v2 WAVE/CHASE default to `source:root` (slight visual change — design §6.4).
+  v2 WAVE/CHASE default to `source:root` (slight visual change — design §6.4). `source:geometric`
+  requires `schemaVersion: 3` (current `SCENE_SCHEMA_VERSION`); `ScenePlayer` builds the
+  `PanelGeometry` alongside `topo` in `rebuildTopology` and branches in `fireStep`.
 - Native suites: `test_topology`, `test_panel_selector`, `test_panel_selector_parser`,
-  `test_panel_field`, `test_runner_math`.
+  `test_panel_field`, `test_panel_geometry`, `test_runner_math`.
 
 ---
 

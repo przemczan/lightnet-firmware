@@ -322,6 +322,9 @@ namespace Lightnet {
                     step.params[RUNNER_PARAM_SRC_KIND] = SRC_LEAVES;
                 } else if (strcmp(s, "all") == 0) {
                     step.params[RUNNER_PARAM_SRC_KIND] = SRC_ALL;
+                } else if (strcmp(s, "geometric") == 0) {
+                    // Planar geometric sweep; direction set by the sibling `angle` field.
+                    step.params[RUNNER_PARAM_SRC_KIND] = SRC_GEOMETRIC;
                 } else if (strncmp(s, "panel:", 6) == 0) {
                     long n = atol(s + 6);
 
@@ -348,6 +351,18 @@ namespace Lightnet {
                 }
 
                 if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REVERSE;
+            } else if (strcmp(key, "angle") == 0) {
+                // Geometric sweep direction in degrees [0,360). Stored in 2° units (angle/2)
+                // so it fits SRC_ARG; decoded back to degrees in ScenePlayer::fireStep.
+                long v;
+
+                if (!jsonReadUInt(p, end, &v)) {
+                    strncpy(errMsg, "step.angle: not a uint", errLen);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_SRC_ARG] = (uint8_t)((v % 360) / 2);
             } else if (strcmp(key, "originPanel") == 0) {
                 // Legacy ripple origin → migrate to source:panel:N.
                 long v;

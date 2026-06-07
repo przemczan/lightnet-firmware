@@ -28,10 +28,12 @@ namespace Lightnet {
     // Source the field emanates from. Default (0) = root, so a zeroed step radiates
     // outward from the root — matching the v2 wave/chase migration.
     enum RunnerSource : uint8_t {
-        SRC_ROOT   = 0, // the (logical) root
-        SRC_LEAVES = 1, // every leaf (field converges inward)
-        SRC_ALL    = 2, // all panels (degenerate: maxCoord 0, uniform)
-        SRC_PANEL  = 3, // a specific panel index (SRC_ARG)
+        SRC_ROOT      = 0, // the (logical) root
+        SRC_LEAVES    = 1, // every leaf (field converges inward)
+        SRC_ALL       = 2, // all panels (degenerate: maxCoord 0, uniform)
+        SRC_PANEL     = 3, // a specific panel index (SRC_ARG)
+        SRC_GEOMETRIC = 4, // planar geometric sweep along an angle (SRC_ARG holds angle/2°);
+                           // resolved via PanelGeometry, not the hop-distance field.
     };
 
     // Build the source slot-set for `kind`/`arg`. An empty result (e.g. SRC_PANEL
