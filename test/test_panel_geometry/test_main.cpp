@@ -103,51 +103,55 @@ void test_empty_build_is_invalid()
     TEST_ASSERT_FALSE(g.valid());
 }
 
-// ---- Radial (ripple) field: Euclidean distance to the nearest source centroid. ----
+// ---- Radial (ripple) field: each panel spans a [near, far] band = (centroid distance to the
+// nearest source) ∓ the panel's circumradius (N=3 ⇒ R≈57.74), quantised by the largest far edge.
 
 void test_center_field_from_root()
 {
-    // source:root = panel 1 (50,28.87). Distances: P1=0, P2=57.74, P3=100 → /100 ×4.
-    uint8_t coord[LIGHTNET_MAX_PANELS];
+    // source:root = panel 1 (50,28.87). Centroid dists: P1=0, P2=57.74, P3=100; R≈57.74.
+    // bands [near,far]: P1[0,57.7] P2[0,115.5] P3[42.3,157.7]; maxFar=157.7 → /157.7 ×4.
+    uint8_t near[LIGHTNET_MAX_PANELS], far[LIGHTNET_MAX_PANELS];
     uint8_t maxC = computeGeometricCenterField(geo, topo, PANELS, 3,
-                                               SRC_ROOT, 0, false, 4, coord);
+                                               SRC_ROOT, 0, false, 4, near, far);
 
     TEST_ASSERT_EQUAL_UINT8(4, maxC);
-    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
-    TEST_ASSERT_EQUAL_UINT8(2, coord[1]); // round(57.74/100×4)=2
-    TEST_ASSERT_EQUAL_UINT8(4, coord[2]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]); TEST_ASSERT_EQUAL_UINT8(1, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[1]); TEST_ASSERT_EQUAL_UINT8(3, far[1]);
+    TEST_ASSERT_EQUAL_UINT8(1, near[2]); TEST_ASSERT_EQUAL_UINT8(4, far[2]);
 }
 
 void test_center_field_leaves_is_multi_source()
 {
     // Rooted at the centre (panel 2), the leaves are panels 1 and 3. Each panel takes the MIN
-    // distance to either leaf, so both ends sit at ring 0 and the centre at the far ring — two
-    // ripples converging from the leaves (the multi-source feature). Geometry is root-independent.
+    // distance to either leaf, so both ends sit at the near ring and the centre reaches the far
+    // ring — two ripples converging from the leaves (the multi-source feature). Geometry is
+    // root-independent. Bands: P1[0,57.7] P2[0,115.5] P3[0,57.7]; maxFar=115.5 → /115.5 ×4.
     TopologyIndex centreRooted;
 
     centreRooted.build(PANELS, 3, LINKS, 2, 2);
 
-    uint8_t coord[LIGHTNET_MAX_PANELS];
+    uint8_t near[LIGHTNET_MAX_PANELS], far[LIGHTNET_MAX_PANELS];
     uint8_t maxC = computeGeometricCenterField(geo, centreRooted, PANELS, 3,
-                                               SRC_LEAVES, 0, false, 4, coord);
+                                               SRC_LEAVES, 0, false, 4, near, far);
 
     TEST_ASSERT_EQUAL_UINT8(4, maxC);
-    TEST_ASSERT_EQUAL_UINT8(0, coord[0]);
-    TEST_ASSERT_EQUAL_UINT8(4, coord[1]);
-    TEST_ASSERT_EQUAL_UINT8(0, coord[2]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]); TEST_ASSERT_EQUAL_UINT8(2, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[1]); TEST_ASSERT_EQUAL_UINT8(4, far[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[2]); TEST_ASSERT_EQUAL_UINT8(2, far[2]);
 }
 
 void test_center_field_panel_and_reverse()
 {
-    // source:panel:2 (centre) → P1=P3 at the far ring, P2 at 0. reverse inverts the rings.
-    uint8_t coord[LIGHTNET_MAX_PANELS];
+    // source:panel:2 (centre). Bands (unreversed): P1[0,4] P2[0,2] P3[0,4] over maxFar=115.5.
+    // reverse maps [n,f] → [maxC-f, maxC-n], so the rings collapse toward the source.
+    uint8_t near[LIGHTNET_MAX_PANELS], far[LIGHTNET_MAX_PANELS];
     uint8_t maxC = computeGeometricCenterField(geo, topo, PANELS, 3,
-                                               SRC_PANEL, 2, true, 4, coord);
+                                               SRC_PANEL, 2, true, 4, near, far);
 
     TEST_ASSERT_EQUAL_UINT8(4, maxC);
-    TEST_ASSERT_EQUAL_UINT8(0, coord[0]); // 4 - 4
-    TEST_ASSERT_EQUAL_UINT8(4, coord[1]); // 4 - 0
-    TEST_ASSERT_EQUAL_UINT8(0, coord[2]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]); TEST_ASSERT_EQUAL_UINT8(4, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, near[1]); TEST_ASSERT_EQUAL_UINT8(4, far[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[2]); TEST_ASSERT_EQUAL_UINT8(4, far[2]);
 }
 
 void setUp(void)

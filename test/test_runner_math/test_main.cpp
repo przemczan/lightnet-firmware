@@ -50,6 +50,27 @@ void test_ripple_zero_width_is_off()
     TEST_ASSERT_EQUAL_UINT8(0, rippleBrightness(3.0f, 3.0f, 0));
 }
 
+void test_ripple_band_brightness_extent()
+{
+    // Panel spanning the band [2,5], width=2 → soft edge half-width 1.
+    TEST_ASSERT_EQUAL_UINT8(255, rippleBandBrightness(2.0f, 5.0f, 2.0f, 2)); // on near edge
+    TEST_ASSERT_EQUAL_UINT8(255, rippleBandBrightness(2.0f, 5.0f, 3.5f, 2)); // inside the band
+    TEST_ASSERT_EQUAL_UINT8(255, rippleBandBrightness(2.0f, 5.0f, 5.0f, 2)); // on far edge
+    TEST_ASSERT_EQUAL_UINT8(127, rippleBandBrightness(2.0f, 5.0f, 5.5f, 2)); // half past far edge
+    TEST_ASSERT_EQUAL_UINT8(127, rippleBandBrightness(2.0f, 5.0f, 1.5f, 2)); // half before near edge
+    TEST_ASSERT_EQUAL_UINT8(0, rippleBandBrightness(2.0f, 5.0f, 0.5f, 2));   // outside
+}
+
+void test_ripple_band_matches_point_model()
+{
+    // near == far must reproduce rippleBrightness exactly (the topology/point ripple).
+    for (int r = 0; r <= 6; r++) {
+        TEST_ASSERT_EQUAL_UINT8(rippleBrightness(3.0f, (float)r, 2),
+                                rippleBandBrightness(3.0f, 3.0f, (float)r, 2));
+    }
+    TEST_ASSERT_EQUAL_UINT8(0, rippleBandBrightness(3.0f, 3.0f, 3.0f, 0)); // zero width off
+}
+
 // ---- CHASE ----------------------------------------------------------------
 
 void test_chase_lit_coord_sweep()
@@ -85,6 +106,8 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_ripple_radius_sweep);
     RUN_TEST(test_ripple_brightness_ring);
     RUN_TEST(test_ripple_zero_width_is_off);
+    RUN_TEST(test_ripple_band_brightness_extent);
+    RUN_TEST(test_ripple_band_matches_point_model);
 
     RUN_TEST(test_chase_lit_coord_sweep);
     RUN_TEST(test_chase_brightness_single_ring);

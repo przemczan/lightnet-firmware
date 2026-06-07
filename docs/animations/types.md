@@ -195,9 +195,10 @@ Runners are computed on the controller ESP each frame and send scaled `SET_COLOR
   - **WAVE / CHASE** sweep along a straight **axis** at `angle` degrees — straight-line motion
     across the piece that graph distance can't express. `source` is N/A (an axis has no origin);
     `angle` is a tune-by-eye dial (deterministic per device, not a literal compass bearing).
-  - **RIPPLE** expands as true **Euclidean rings** from the `source` centre(s): `source:root`
-    from the root, `source:panel:N` from panel N, and `source:leaves` runs **one ripple per leaf**
-    (concurrent fronts converging inward). `angle` is ignored.
+  - **RIPPLE** grows a **Euclidean ring** from the `source` centre(s) that lights whatever panel
+    surface it intersects (each panel is its circumscribed disc, so overlapping panels light
+    together): `source:root` from the root, `source:panel:N` from panel N, and `source:leaves`
+    runs **one ripple per leaf** (concurrent fronts converging inward). `angle` is ignored.
 
   `reverse` flips travel in both. Falls back to topology (same `source`) if the layout can't be
   embedded. Requires `schemaVersion: 3`. The legacy `source:"geometric"` still parses (→

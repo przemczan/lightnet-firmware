@@ -274,7 +274,9 @@ namespace Lightnet {
             // Directionality field: per-panel sweep coordinate (params[1..3]). Two orthogonal
             // choices — mode (graph hop-distance vs planar geometry) and source (root/leaves/
             // panel:N) — plus a geometric-axis `angle` for wave/chase (ripple has no axis).
-            uint8_t coord[SCENE_MAX_RESOLVED_PANELS];
+            uint8_t coord[SCENE_MAX_RESOLVED_PANELS];     // near edge of each panel's band
+            uint8_t coordFar[SCENE_MAX_RESOLVED_PANELS];  // far edge (geometric ripple only)
+            bool    haveFar   = false;                    // false ⇒ point model (far == near)
             uint8_t srcKind   = step.params[RUNNER_PARAM_SRC_KIND];
             uint8_t srcArg    = step.params[RUNNER_PARAM_SRC_ARG];
             bool    reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
@@ -287,9 +289,12 @@ namespace Lightnet {
             if (resolution == 0) resolution = (panelCount > 1) ? (uint8_t)(panelCount - 1) : 1;
 
             if (geometric && geometry.valid() && step.animType == RUN_RIPPLE) {
-                // Geometric ripple: Euclidean rings expanding from the source centroid(s).
+                // Geometric ripple: Euclidean rings expanding from the source centroid(s); each
+                // panel spans a [near, far] band so the ring lights whatever surface it intersects.
                 maxCoord = computeGeometricCenterField(geometry, topo, panels, panelCount,
-                                                       srcKind, srcArg, reverse, resolution, coord);
+                                                       srcKind, srcArg, reverse, resolution,
+                                                       coord, coordFar);
+                haveFar = true;
             } else if (geometric && geometry.valid()) {
                 // Geometric wave/chase: project panel centroids onto an axis at `angle` (srcArg*2°).
                 // `source` is N/A here — an axis sweep has no origin, only a direction.
@@ -310,8 +315,8 @@ namespace Lightnet {
                 runner = new WaveRunner(layer.groupId, panels, coord, panelCount, maxCoord,
                                         effectiveDurationMs, width, color);
             } else if (step.animType == RUN_RIPPLE) {
-                runner = new RippleRunner(layer.groupId, panels, coord, panelCount, maxCoord,
-                                          effectiveDurationMs, width, color);
+                runner = new RippleRunner(layer.groupId, panels, coord, haveFar ? coordFar : coord,
+                                          panelCount, maxCoord, effectiveDurationMs, width, color);
             } else if (step.animType == RUN_CHASE) {
                 runner = new ChaseRunner(layer.groupId, panels, coord, panelCount, maxCoord,
                                          effectiveDurationMs, color);

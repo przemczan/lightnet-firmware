@@ -56,6 +56,29 @@ namespace Lightnet {
         return (uint8_t)(255.0f * (1.0f - d / ringW));
     }
 
+    // ---- RIPPLE (extent-aware): a panel spans the radial band [near, far] (its closest and
+    // farthest distance from the origin), not a single point. The expanding ring lights it FULLY
+    // while the ring radius is anywhere within that span — so two panels whose spans overlap are
+    // lit together, and the closer one stays lit until the ring passes its far edge. Outside the
+    // span, brightness falls off over width/2 (the same soft edge as rippleBrightness). When
+    // near==far this reduces exactly to rippleBrightness (the point model used by topology ripple).
+    inline uint8_t rippleBandBrightness(float near, float far, float radius, uint8_t width)
+    {
+        float ringW = (float)width / 2.0f;
+
+        if (ringW <= 0.0f) return 0;
+
+        float d;
+
+        if (radius < near)     d = near - radius;
+        else if (radius > far) d = radius - far;
+        else                   return 255; // ring is crossing the panel's surface
+
+        if (d >= ringW) return 0;
+
+        return (uint8_t)(255.0f * (1.0f - d / ringW));
+    }
+
     // ---- CHASE: a single lit ring sweeping outward, one coordinate at a time. ----------
     inline uint8_t chaseLitCoord(float t, uint8_t maxCoord)
     {

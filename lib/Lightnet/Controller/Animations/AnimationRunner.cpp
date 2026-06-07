@@ -128,11 +128,12 @@ namespace Lightnet {
     // RippleRunner
     // ============================================================================
 
-    void RippleRunner::load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n)
+    void RippleRunner::load(const uint8_t *addrs, const uint8_t *coordSrc, const uint8_t *coordFarSrc, uint8_t n)
     {
         for (uint8_t i = 0; i < n; i++) {
             panelAddresses[i] = addrs[i];
             coord[i]          = coordSrc ? coordSrc[i] : i;
+            coordFar[i]       = coordFarSrc ? coordFarSrc[i] : coord[i]; // null → point model
             lastBrightness[i] = 0;
         }
     }
@@ -141,6 +142,7 @@ namespace Lightnet {
         uint8_t            groupId,
         const uint8_t *    _panelAddresses,
         const uint8_t *    _coord,
+        const uint8_t *    _coordFar,
         uint8_t            _panelCount,
         uint8_t            _maxCoord,
         uint16_t           _durationMs,
@@ -151,7 +153,7 @@ namespace Lightnet {
         maxCoord(_maxCoord), durationMs(_durationMs), startMs(0), rippleWidth(_rippleWidth),
         color(_color), finished(false)
     {
-        load(_panelAddresses, _coord, panelCount);
+        load(_panelAddresses, _coord, _coordFar, panelCount);
     }
 
     RippleRunner::RippleRunner(
@@ -176,7 +178,8 @@ namespace Lightnet {
 
             uint8_t d = (i >= _originPanel) ? (uint8_t)(i - _originPanel) : (uint8_t)(_originPanel - i);
 
-            coord[i] = d;
+            coord[i]    = d;
+            coordFar[i] = d; // point model: near == far
 
             if (d > mx) mx = d;
         }
@@ -197,7 +200,7 @@ namespace Lightnet {
         float radius  = rippleRadiusAt(t, maxCoord);
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            uint8_t brightness_val = rippleBrightness((float)coord[i], radius, rippleWidth);
+            uint8_t brightness_val = rippleBandBrightness((float)coord[i], (float)coordFar[i], radius, rippleWidth);
 
             if (brightness_val != lastBrightness[i]) {
                 sendScaledColor(panelAddresses[i], color, brightness_val);
@@ -206,6 +209,13 @@ namespace Lightnet {
         }
 
         if (elapsed >= durationMs) {
+            // Clear any panel still lit by the trailing edge so the ripple leaves nothing behind.
+            for (uint8_t i = 0; i < panelCount; i++) {
+                if (lastBrightness[i] != 0) {
+                    sendScaledColor(panelAddresses[i], color, 0);
+                    lastBrightness[i] = 0;
+                }
+            }
             finished = true;
         }
     }
