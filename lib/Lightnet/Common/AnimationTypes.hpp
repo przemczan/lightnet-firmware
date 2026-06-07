@@ -22,8 +22,15 @@ namespace Lightnet {
         ANIM_GAP         = 9,// controller-only: timed no-op delay. Never sent to a panel —
                              // ScenePlayer holds the layer's panels for the step duration.
 
+        // Modifier animations (10..31): a layer that transforms the colour accumulated
+        // below it instead of producing its own. param1/param2 carry the animated scalar
+        // (from→to, 0-255); colorFrom/colorTo are unused. See ColorCompose.hpp.
+        ANIM_MOD_BRIGHTNESS = 10,// scale brightness (RGB multiply); identity at 255
+        ANIM_MOD_SATURATION = 11,// scale saturation (HSV); identity at 255
+        ANIM_MOD_HUE_SHIFT  = 12,// rotate hue (HSV); identity at 0, sweep 0-255 = full turn
+
         // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
-        // to AnimationScheduler::addRunner(). Not sent to panels directly.
+        // to AnimationScheduler::addRunner(), or compiled to per-panel PREPARE. Not a panel type.
         RUN_WAVE         = 64,
         RUN_RIPPLE       = 65,
         RUN_CHASE        = 66,
@@ -33,6 +40,30 @@ namespace Lightnet {
     {
         return t >= 64;
     }
+
+    // Modifier layers transform the composited accumulator rather than emitting a colour.
+    inline bool isModifierType(uint8_t t)
+    {
+        return (t >= ANIM_MOD_BRIGHTNESS) && (t <= ANIM_MOD_HUE_SHIFT);
+    }
+
+    // ============================================================================
+    // Layer compositing
+    // ============================================================================
+
+    // Max concurrent composited layers (slots) a panel runs at once. The scene
+    // validator rejects scenes where more than this many layers target one panel.
+    static const uint8_t MAX_ANIM_SLOTS = 4;
+
+    // Blend modes for SOURCE layers. Values must match ColorCompose.hpp ComposeOp.
+    enum ComposeMode : uint8_t {
+        COMPOSE_NORMAL   = 0,// opaque top-wins (default — reproduces legacy last-write)
+        COMPOSE_ADD      = 1,
+        COMPOSE_MAX      = 2,
+        COMPOSE_MULTIPLY = 3,
+        COMPOSE_SCREEN   = 4,
+        COMPOSE_REPLACE  = 5,
+    };
 
     // ============================================================================
     // Animation Flags (bitfield)
@@ -85,11 +116,14 @@ namespace Lightnet {
         ColorRef colorTo;    // 4 B
         uint8_t  param1;     // type-specific: blink period, decay rate, hue speed, etc.
         uint8_t  param2;     // type-specific
+        uint8_t  composeMode;  // ComposeMode — how this SOURCE layer blends (unused for modifiers)
+        uint8_t  composeOrder; // layer array index → deterministic stacking order
+        uint16_t startDelayMs; // per-panel onset offset (runner sweep phase / staggering)
     };
 
     // ============================================================================
     // Verification (note: packet structs are defined in Protocol.hpp)
     // ============================================================================
 
-    // static_assert(sizeof(AnimationState) == 22, "AnimationState must be 22 bytes");
+    // static_assert(sizeof(AnimationState) == 26, "AnimationState must be 26 bytes");
 }  // namespace Lightnet

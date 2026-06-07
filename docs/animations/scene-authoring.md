@@ -139,13 +139,14 @@ The top-level object:
 
 | Property | Required | Default | What it is |
 |---|---|---|---|
-| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `2`). |
+| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `4` — blend/modifier layers). |
 | `name` | yes (to save) | — | 1–18 chars, `[a-zA-Z0-9_-]`. The filename when stored. |
 | `loop` | no | `false` | Restart the whole scene when all layers finish. |
 | `speed` | no | `1.0` | Playback multiplier, clamped to `0.1`–`10.0`. Scales all durations. |
 | `colors` | no | white / black / black | The three **base colours** (`primary`, `secondary`, `tertiary`) referenced by `useColor` and the `userColors` palette. |
+| `background` | no | `#000000` | Inline RGB **compositor base** pushed to every panel at scene start. Layers fold over it, and a panel with no active layer shows it. Great for a static ambient colour under animated accents. |
 | `palette` | no | `"userColors"` | Default palette for layers that don't override it. |
-| `layers` | yes | — | 1–8 layer objects, played simultaneously. |
+| `layers` | yes | — | 1–8 layer objects, played simultaneously and **composited** (§5.1). |
 
 ```json
 {
@@ -176,6 +177,7 @@ Each entry in `layers`:
 |---|---|---|---|
 | `group` | yes | — | A name (`"ambient"`) or number (1–254). **Unique** within the scene. |
 | `panels` | no | `"all"` | Which panels this layer drives — see §6. |
+| `blend` | no | `normal` (runners: `max`) | How this layer composites with the layers below it — see §5.1. |
 | `sequence` | yes | — | 1–12 steps, played in order — see §7. |
 | `startAfter` | no | — | Group **name** to wait for; until it finishes this layer is dark. |
 | `async` | no | `false` | Loop this layer independently of the scene barrier (ignored if `startAfter` is set). |
@@ -198,6 +200,40 @@ Each entry in `layers`:
   "sequence": [ { "type": "BREATHE", "colorTo": { "palette": 200 }, "duration": 4000, "loop": true } ]
 }
 ```
+
+### 5.1 Compositing overlapping layers — `blend` & modifiers
+
+Layers that target the same panel run **at the same time** and are composited into the panel's
+single colour, in **array order** (earlier layers are *below* later ones). A panel composites up to
+**4** layers; extra layers (by array order) are dropped.
+
+Each layer is either a **source** (combines its colour with what's below via `blend`) or a
+**modifier** (transforms what's below):
+
+| `blend` | Effect | Notes |
+|---|---|---|
+| `normal` | top wins (opaque) | default for non-runner layers |
+| `add` | additive light | black is transparent |
+| `max` | per-channel lighten | black is transparent; **runner default** |
+| `multiply` | darken / mask | |
+| `screen` | soft lighten | black is transparent |
+
+**Runner layers default to `max`** so a runner's dark phase shows the background/layers below
+(a standalone runner over a black base is unchanged). To layer any source over a background, give
+it `add`/`max`/`screen`.
+
+**Modifier layers** are steps whose `type` is `MOD_BRIGHTNESS` / `MOD_SATURATION` / `MOD_HUE_SHIFT`
+— they animate a scalar `from`→`to` (0–255) and reshape everything composited below. Put the
+modifier layer *after* (above) the layers it should affect:
+
+```json
+"layers": [
+  { "group": "base",  "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
+  { "group": "dim",   "panels": "all", "sequence": [ { "type": "MOD_BRIGHTNESS", "from": 255, "to": 40, "duration": 3000 } ] }
+]
+```
+
+A finished modifier **holds** its final value; ramp it back to identity (255 / 255 / 0) to release.
 
 ---
 

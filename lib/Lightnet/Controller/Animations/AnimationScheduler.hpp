@@ -31,7 +31,9 @@ namespace Lightnet {
             // Setup
             void initialize();
 
-            // High-level animation control (ColorRef form — panels resolve at frame time)
+            // High-level animation control (ColorRef form — panels resolve at frame time).
+            // composeMode/composeOrder give the panel its blend + stacking position; the
+            // same PREPARE is sent to every listed panel, then one general-call START.
             void playOnPanels(
                 uint8_t         group_id,
                 uint8_t         animType,
@@ -42,7 +44,9 @@ namespace Lightnet {
                 uint8_t         param1,
                 uint8_t         param2,
                 const uint8_t * panelAddresses,
-                uint8_t         panelCount
+                uint8_t         panelCount,
+                uint8_t         composeMode  = COMPOSE_NORMAL,
+                uint8_t         composeOrder = 0
             );
 
             // Convenience overload — wraps RGB values in inline ColorRefs
@@ -56,13 +60,38 @@ namespace Lightnet {
                 uint8_t                   param1,
                 uint8_t                   param2,
                 const uint8_t *           panelAddresses,
-                uint8_t                   panelCount
+                uint8_t                   panelCount,
+                uint8_t                   composeMode  = COMPOSE_NORMAL,
+                uint8_t                   composeOrder = 0
             );
+
+            // Runner-compiler primitives: a spatial runner is compiled into one PREPARE per
+            // panel (each with its own startDelayMs / durationMs computed from the sweep),
+            // sent without a START, followed by a single general-call START for the group.
+            void sendPrepareToPanel(
+                uint8_t         panelAddress,
+                uint8_t         group_id,
+                uint8_t         animType,
+                uint8_t         flags,
+                uint16_t        durationMs,
+                const ColorRef& colorFrom,
+                const ColorRef& colorTo,
+                uint8_t         param1,
+                uint8_t         param2,
+                uint8_t         composeMode,
+                uint8_t         composeOrder,
+                uint16_t        startDelayMs
+            );
+
+            // General-call START for a group (2× retry, shared seq_id). Call after a burst
+            // of sendPrepareToPanel so all panels begin together.
+            void sendGroupStart(uint8_t group_id);
 
             // Appearance broadcast helpers — used by AppearanceStore and ScenePlayer
             void broadcastPalette(const GradientStop *stops, uint8_t count);
             void broadcastBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
             void broadcastGlobalBrightness(uint8_t value);
+            void broadcastBackground(const Protocol::ColorRGB& color); // compositor base, sent at scene start
 
             // Unicast variant for per-layer palette overrides
             void unicastPaletteToPanels(

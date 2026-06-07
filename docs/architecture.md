@@ -86,8 +86,9 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `AnimationScheduler` | `playOnPanels()` PREPARE+START sequence; `tick()` drives controller-computed runners at 60 fps |
-| `AnimationRunner` | Base class for controller-computed runners: `WaveRunner`, `RippleRunner`, `ChaseRunner` |
+| `AnimationScheduler` | `playOnPanels()` PREPARE+START sequence; `sendPrepareToPanel()`/`sendGroupStart()` for compiled runners; `tick()` drives any streaming demo runners |
+| `AnimationRunner` | Base class for the streaming runner classes (`WaveRunner`/`RippleRunner`/`ChaseRunner`) — used by demos; scenes compile runners to per-panel pulses instead |
+| `RunnerCompile.hpp` | Inverts the runner envelopes to a per-panel local PULSE (onset + shape) |
 
 **Scenes/**
 
@@ -135,7 +136,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|
 | `LightnetPanel` | Main panel state machine; handles I²C packets, drives edge registration |
 | `RGBController` | FastLED wrapper for the single WS2812 LED on PD5. `globalBrightness` multiplier on all output |
-| `AnimationPlayer` | 4-deep animation queue. Tick every ~16 ms. Resolves `ColorRef` → RGB against panel's current palette + base colors |
+| `AnimationPlayer` | Layer compositor: `slots[4]` composited each ~16 ms tick (blend modes + `MOD_*` modifiers + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
 | `BootloaderBridge` | Writes EEPROM boot-magic `0xB007` then software-jumps to twiboot |
 
 ### Controller/API/websocket/ — WebSocket (controller only)
@@ -163,9 +164,11 @@ Defined in `Common/Protocol.hpp`. All packets use `__attribute__((__packed__))` 
 |---|---|---|
 | **v3** | master | Original animation framework |
 | **v4** | scenes | `PacketAnimationPrepare`: `colorFrom`/`colorTo` changed from `ColorRGB` (3 B) to `ColorRef` (4 B). Three new appearance packets. |
+| **v5** | — | Per-panel brightness removed (animations express brightness through colour). |
+| **v6** | compositing | Layer compositor. `PacketAnimationPrepare` gains `composeMode` + `composeOrder` + `startDelayMs` (25 B); `PacketAnimationControl` gains `group_id` (per-slot, 7 B); new `SET_BACKGROUND` packet. Runners are compiled to per-panel local PULSEs. |
 
 !!! warning "Protocol compatibility"
-    Panel and controller must be flashed together when upgrading across protocol versions. v3 and v4 packets are not interchangeable.
+    Panel and controller must be flashed together when upgrading across protocol versions — versions are not interchangeable.
 
 ### Packet catalogue
 
@@ -176,14 +179,15 @@ Defined in `Common/Protocol.hpp`. All packets use `__attribute__((__packed__))` 
 | 4 | `TURN_ON_OFF` | C→P | 6 B | |
 | 5 | `SET_COLOR` | C→P | 8 B | |
 | 11 | `PANEL_CONFIGURATION` | C→P | — | Gamma correction, color temp/correction |
-| 12 | `ANIMATION_PREPARE` | C→P | 21 B | Unicast; buffers animation, arms for group start |
+| 12 | `ANIMATION_PREPARE` | C→P | 25 B | Unicast; buffers a layer (incl. `composeMode`/`composeOrder`/`startDelayMs`), arms for group start |
 | 13 | `ANIMATION_START` | General Call | 7 B | Fires all panels with matching group_id |
-| 14 | `ANIMATION_CONTROL` | C→P | 6 B | STOP / PAUSE / RESUME / CLEAR_QUEUE |
+| 14 | `ANIMATION_CONTROL` | C→P | 7 B | STOP / PAUSE / RESUME / CLEAR_QUEUE; `group_id`=0 → all slots |
 | 15 | `FETCH_ANIM_STATE` | C→P | 5 B | Panel replies with 11 B status |
 | 16 | `ANIMATION_UPDATE_PARAMS` | General Call | 10 B | Trigger / brightness-mult / speed-scale |
 | 17 | `SET_PALETTE` | C→P or GC | 70 B | 16-stop gradient; GC = broadcast to all |
 | 18 | `SET_BASE_COLORS` | C→P or GC | 14 B | 3 × RGB base colors |
 | 19 | `SET_GLOBAL_BRIGHTNESS` | General Call | 6 B | 0–255 multiplier |
+| 20 | `SET_BACKGROUND` | C→P or GC | 8 B | Scene compositor base colour (sent once at scene start) |
 | 200 | `RESET_DEVICE` | C→P | 5 B | WDT reset |
 | 201 | `ENTER_BOOTLOADER` | C→P | 6 B | Token must be `0xB0` |
 
@@ -202,13 +206,21 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 
 ## 5. Animation Framework Internals
 
-### AnimationPlayer (panel side)
+### AnimationPlayer (panel side) — layer compositor
 
-- `queue[4]` of `AnimationState` structs — 88 bytes SRAM (v3), 96 bytes (v4 with `ColorRef`)
-- `tick()` gated at 16 ms (60 fps); uses integer math only (no FPU on ATmega)
-- Progress interpolation: `progress_q8 = (elapsed * 256) / durationMs` (q8 fixed-point)
-- Reactive decay: `reactiveLevel -= (decayRate * elapsedMs) / 1000` per tick
-- `resolveColorRef()` called at the start of every tick function — palette/color changes take effect on the next frame with no re-prepare
+- `slots[MAX_ANIM_SLOTS]` (4) — each an independent layer keyed by `group_id`, with its running
+  step + a 1-deep pending step (PREPARE buffers `pending`; START activates it).
+- `tick()` gated at 16 ms (60 fps), integer math only. Each tick resolves every started slot to one
+  contribution (source colour or modifier value), honouring `startDelayMs` (transparent before
+  onset) and finish→hold, then `ColorCompose::foldLayers()` sorts by `composeOrder` and folds onto
+  the **background base** — one write to the LED.
+- Source layers blend via `composeMode`; modifier layers (`MOD_*`) transform the accumulator
+  (brightness = RGB multiply; saturation/hue = integer HSV). Finished non-loop slots hold their
+  last value.
+- `PACKET_SET_BACKGROUND` sets the compositor base (default black; idle panels display it).
+- Progress interpolation: `progress_q8 = (elapsed * 256) / durationMs` (q8 fixed-point). The pure
+  compose/HSV/fold math lives in `Common/ColorCompose.hpp` (natively tested, mirrored in mobile).
+- `resolveColorRef()` called every tick — palette/colour changes take effect next frame with no re-prepare.
 
 ### AnimationScheduler (controller side)
 
@@ -216,15 +228,22 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 - `tick()`: 60 fps frame gate; ticks all active runners, deletes finished ones
 - Per-panel `AnimationRecord` in-memory state — avoids polling panels for status queries
 
-### Controller runners
+### Controller runners — compiled to per-panel local pulses (v6)
 
-| Runner | Description | Bandwidth |
-|---|---|---|
-| `WaveRunner` | Triangular envelope sweeps across panel list — sends scaled SET_COLOR per panel | Per-frame SET_COLOR only on changed panels (~3/frame) |
-| `RippleRunner` | Ring expands from origin panel by index-distance | Same |
-| `ChaseRunner` | Single lit panel travels through list | Same |
+As of v6, `ScenePlayer::fireStep` no longer streams a runner: it **compiles** the sweep into one
+local PULSE per panel via `Animations/RunnerCompile.hpp` (a closed-form inversion of the
+`RunnerMath` envelope), each with its own `startDelayMs` (onset) and pulse shape, then fires one
+general-call START. The panels then run the sweep autonomously — **zero per-frame `SET_COLOR`** — and
+a runner composites like any other layer (default `max` blend). This removes the per-frame mirror
+traffic that previously grew with panel count.
 
-Delta optimization: all runners cache the last sent color level per panel and only send I²C when the value changes.
+| Runner | Compiled pulse |
+|---|---|
+| `WAVE` | triangular PULSE, onset `dur·c/(maxCoord+w)`, window `dur·w/(maxCoord+w)` |
+| `RIPPLE` | band PULSE from the panel's `[near,far]` radial extent |
+| `CHASE` | near-square PULSE, onset `dur·c/(maxCoord+1)`, window `dur/(maxCoord+1)` |
+
+The streaming `WaveRunner`/`RippleRunner`/`ChaseRunner` classes remain for the built-in demos.
 
 ### Bandwidth budget
 

@@ -19,6 +19,7 @@ bool PacketMirror::isMirrored(uint8_t type)
         case Protocol::PACKET_SET_PALETTE:
         case Protocol::PACKET_SET_BASE_COLORS:
         case Protocol::PACKET_SET_GLOBAL_BRIGHTNESS:
+        case Protocol::PACKET_SET_BACKGROUND:
             return true;
         default:
             return false;
@@ -31,6 +32,7 @@ bool PacketMirror::isSnapshotted(uint8_t type)
         case Protocol::PACKET_SET_GLOBAL_BRIGHTNESS:
         case Protocol::PACKET_SET_BASE_COLORS:
         case Protocol::PACKET_SET_PALETTE:
+        case Protocol::PACKET_SET_BACKGROUND:
         case Protocol::PACKET_TURN_ON_OFF:
         case Protocol::PACKET_ANIMATION_PREPARE:
         case Protocol::PACKET_ANIMATION_START:
@@ -94,6 +96,26 @@ void PacketMirror::capture(uint8_t address, const void *packet, uint8_t size, ui
     // block recording the latest state a late-joining client needs to replay.
     if (isSnapshotted(type)) {
         updateSnapshot(address, packet, size, type);
+    }
+
+    // Coalesce SET_COLOR: the preview flushes at ~30fps, so only the latest colour per
+    // panel in this window matters. Overwrite an existing record for the same panel rather
+    // than appending — bounds the ring even if a runner streams per-panel colours.
+    if (type == Protocol::PACKET_SET_COLOR) {
+        uint16_t off = 0;
+
+        while (off < recordsLen) {
+            uint8_t *r   = records() + off;
+            uint8_t rsz = r[2];
+
+            if (r[0] == address && r[1] == type && rsz == size) {
+                memcpy(&r[RECORD_HEADER], packet, size);
+
+                return;
+            }
+
+            off = (uint16_t)(off + RECORD_HEADER + rsz);
+        }
     }
 
     if ((uint16_t)(recordsLen + RECORD_HEADER + size) > RECORDS_CAP) {

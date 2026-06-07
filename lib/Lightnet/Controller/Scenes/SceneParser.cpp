@@ -153,6 +153,13 @@ namespace Lightnet {
 
             if (strcmp(s, "REACTIVE") == 0)  return ANIM_REACTIVE;
 
+            // Modifier layers — transform the colour composited below them.
+            if (strcmp(s, "MOD_BRIGHTNESS") == 0) return ANIM_MOD_BRIGHTNESS;
+
+            if (strcmp(s, "MOD_SATURATION") == 0) return ANIM_MOD_SATURATION;
+
+            if (strcmp(s, "MOD_HUE_SHIFT") == 0)  return ANIM_MOD_HUE_SHIFT;
+
             return 0xFF;
         }
 
@@ -301,6 +308,27 @@ namespace Lightnet {
 
                     step.params[pi++] = (uint8_t)v;
                 }
+            } else if (strcmp(key, "from") == 0) {
+                // Modifier scalar (0-255): MOD_* layers animate params[0] → params[1].
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v > 255) {
+                    strncpy(errMsg, "step.from: expected 0-255", errLen);
+
+                    return false;
+                }
+
+                step.params[0] = (uint8_t)v;
+            } else if (strcmp(key, "to") == 0) {
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v > 255) {
+                    strncpy(errMsg, "step.to: expected 0-255", errLen);
+
+                    return false;
+                }
+
+                step.params[1] = (uint8_t)v;
             } else if (strcmp(key, "waveWidth") == 0 || strcmp(key, "rippleWidth") == 0) {
                 long v;
 
@@ -502,6 +530,26 @@ namespace Lightnet {
                     }
 
                     layer.async = b ? 1 : 0;
+                } else if (strcmp(key, "blend") == 0) {
+                    char s[12];
+
+                    if (!jsonReadString(p, end, s, sizeof(s))) {
+                        strncpy(errMsg, "layer.blend: not a string", errLen);
+
+                        return false;
+                    }
+
+                    if (strcmp(s, "normal") == 0)        layer.blend = COMPOSE_NORMAL;
+                    else if (strcmp(s, "add") == 0)      layer.blend = COMPOSE_ADD;
+                    else if (strcmp(s, "max") == 0)      layer.blend = COMPOSE_MAX;
+                    else if (strcmp(s, "multiply") == 0) layer.blend = COMPOSE_MULTIPLY;
+                    else if (strcmp(s, "screen") == 0)   layer.blend = COMPOSE_SCREEN;
+                    else if (strcmp(s, "replace") == 0)  layer.blend = COMPOSE_REPLACE;
+                    else {
+                        snprintf(errMsg, errLen, "layer.blend: unknown (%s)", s);
+
+                        return false;
+                    }
                 } else if (strcmp(key, "startAfter") == 0) {
                     if (!jsonReadString(p, end, startAfterName, GROUP_NAME_LEN) || startAfterName[0] == '\0') {
                         strncpy(errMsg, "layer.startAfter: not a non-empty group name", errLen);
@@ -679,6 +727,7 @@ namespace Lightnet {
         out.baseColors[0] = { 0xFF, 0xFF, 0xFF };
         out.baseColors[1] = { 0x00, 0x00, 0x00 };
         out.baseColors[2] = { 0x00, 0x00, 0x00 };
+        out.background = { 0x00, 0x00, 0x00 }; // default black → pre-v6 compositor behaviour
 
         // Scratch for group-name interning and per-layer startAfter references; both are
         // resolved to numeric IDs after all layers are parsed (forward refs allowed).
@@ -746,6 +795,16 @@ namespace Lightnet {
                 if (!parseColors(p, end, out.baseColors, out.errMsg, sizeof(out.errMsg))) return false;
 
                 out.hasColors = true;
+            } else if (strcmp(key, "background") == 0) {
+                ColorRef bg;
+
+                if (!parseColorRef(p, end, bg) || bg.kind != COLORREF_RGB) {
+                    strncpy(out.errMsg, "background: must be an inline RGB colour", sizeof(out.errMsg));
+
+                    return false;
+                }
+
+                out.background = { bg.rgb.r, bg.rgb.g, bg.rgb.b };
             } else if (strcmp(key, "layers") == 0) {
                 if (!jsonEnterArray(p, end)) {
                     strncpy(out.errMsg, "layers: expected array", sizeof(out.errMsg));

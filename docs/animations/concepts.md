@@ -40,7 +40,13 @@ A **layer** is an animation track inside a scene. Each layer:
 - Runs a sequence of steps back-to-back, advancing automatically when the current step ends
 - Optionally declares **`startAfter`** — the name of another layer's group it waits for. Unset ⇒ the layer starts immediately at scene start (parallel). Set ⇒ the layer stays dark until the referenced layer's sequence finishes (sequential).
 
-Because groups are independent, panels can run several overlapping layers simultaneously. A panel playing group `ambient` (breathe) and group `notify` (pulse) at the same time works without any interaction.
+Because groups are independent, panels can run several overlapping layers simultaneously. A
+panel playing group `ambient` (breathe) and group `notify` (pulse) at the same time runs **both
+at once** and **composites** them into its single colour output each frame — they no longer
+overwrite each other. How they combine is set by each layer's [`blend` mode](#layer-compositing),
+and layers are stacked in **array order** (earlier layers are below later ones). A panel runs up
+to `MAX_ANIM_SLOTS` (4) composited layers; if more layers target one panel the extra ones (by
+array order) are dropped.
 
 ### Layer ordering (`startAfter`)
 
@@ -100,6 +106,59 @@ A `group` may be written as a **name** (`"group": "intro"`) or a **number** (`"g
 
 !!! note "Groups must be unique within a scene"
     The controller validates this on save. Two layers cannot share the same group name/ID. Avoid mixing named and numeric groups in one scene — a name auto-assigned to `1` collides with a literal `"group": 1`.
+
+---
+
+## Layer compositing
+
+When two or more layers target the same panel, the panel runs them concurrently and **composites**
+them — folding each layer's colour onto an accumulator, in **layer array order** (the first layer
+in `layers[]` is the bottom of the stack). Each layer is one of:
+
+- A **source** layer (any normal animation/runner) — produces a colour and combines it with what's
+  below via its `blend` mode.
+- A **modifier** layer (`MOD_*`) — has no colour of its own; it *transforms* the colour accumulated
+  below it (brightness/saturation/hue).
+
+The accumulator starts from the scene [`background`](#scene-background) (black by default).
+
+### Blend modes (`"blend"` on a layer)
+
+| Mode | Effect (`below` ⊕ `layer`) |
+|---|---|
+| `normal` (default) | opaque — the layer's colour replaces what's below |
+| `add` | `below + layer` (clamped) — light accumulates |
+| `max` | per-channel `max` — non-destructive lighten; **black is transparent** |
+| `multiply` | `below × layer / 255` — darken / mask |
+| `screen` | soft lighten |
+| `replace` | same as `normal` |
+
+`max`/`add`/`screen` treat black as transparent, so they layer an accent over a background without
+clobbering it. **Runner layers default to `max`** for exactly this reason (a runner's off-phase is
+black); a standalone runner over a black background looks identical to before.
+
+### Modifier layers
+
+A modifier is a step whose `type` is `MOD_BRIGHTNESS`, `MOD_SATURATION`, or `MOD_HUE_SHIFT`. It
+animates a scalar from `from` → `to` (0–255) over its `duration` and applies it to everything
+composited below it:
+
+| Type | `from`/`to` meaning | Identity |
+|---|---|---|
+| `MOD_BRIGHTNESS` | brightness scale (255 = full) | 255 |
+| `MOD_SATURATION` | saturation scale (255 = unchanged) | 255 |
+| `MOD_HUE_SHIFT` | hue rotation (0…255 = full turn) | 0 |
+
+A finished modifier **holds** its final value (consistent with the "finished layer holds last
+frame" model), so a saturate-down that ends keeps applying. To release it, end the modifier with a
+step ramping back to identity. A modifier placed *above* a source (later in `layers[]`) transforms
+that source; placed below, it has nothing to act on.
+
+### Scene background
+
+A scene may set `"background": "#RRGGBB"` (default black). It is pushed to every panel once at scene
+start as the **compositor base**: layers fold over it, and a panel with no active layer simply
+displays it. This is the clean way to put a static ambient colour under animated accents.
 
 ---
 
@@ -234,11 +293,12 @@ A layer can specify its own palette, overriding the scene-level default for the 
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 2; named groups / `startAfter` / gaps use v2). |
+| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 4; v2 = named groups / `startAfter` / gaps, v3 = geometric directionality, v4 = layer blend / modifiers). |
 | `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. |
 | `loop` | No | `false` | When `true`, the whole scene restarts (all layers together) once every layer has finished — the scene-cycle barrier. |
 | `speed` | No | `1.0` | Playback speed multiplier [0.1, 10.0]. Scales all step durations. |
 | `colors` | No | white/black/black | Scene's base colours for `userColors` palette and `{"useColor":N}` references. |
+| `background` | No | `#000000` | Compositor base colour pushed to all panels at scene start (see [Scene background](#scene-background)). |
 | `palette` | No | `"userColors"` | Active palette for all layers that don't have their own override. |
 | `layers` | Yes | — | Array of 1–8 layer objects. |
 
@@ -248,6 +308,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 |---|---|---|---|
 | `group` | Yes | — | Group name (string) or number (1–254). Unique within the scene. |
 | `panels` | No | `"all"` | Panel targeting — see below. |
+| `blend` | No | `normal` (runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
 | `palette` | No | scene default | Per-layer palette override. |
 | `startAfter` | No | — | Group name of the layer this one waits for; unset ⇒ starts at scene start. |
 | `async` | No | `false` | When `true`, the layer loops on its own, independent of the scene-cycle barrier (see below). Ignored if `startAfter` is set. |

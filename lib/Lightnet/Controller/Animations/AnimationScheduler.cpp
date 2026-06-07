@@ -22,6 +22,74 @@ namespace Lightnet {
         // Nothing special needed on first init
     }
 
+    void AnimationScheduler::sendPrepareToPanel(
+        uint8_t         panelAddress,
+        uint8_t         group_id,
+        uint8_t         animType,
+        uint8_t         flags,
+        uint16_t        durationMs,
+        const ColorRef& colorFrom,
+        const ColorRef& colorTo,
+        uint8_t         param1,
+        uint8_t         param2,
+        uint8_t         composeMode,
+        uint8_t         composeOrder,
+        uint16_t        startDelayMs
+    )
+    {
+        Protocol::PacketAnimationPrepare prepare;
+
+        Protocol::setPacketMeta(&prepare.meta, Protocol::PACKET_ANIMATION_PREPARE);
+        prepare.animType     = animType;
+        prepare.group_id     = group_id;
+        prepare.flags        = flags;
+        prepare.transitionMs = 0; // TODO: make configurable
+        prepare.durationMs   = durationMs;
+        prepare.colorFrom    = colorFrom;
+        prepare.colorTo      = colorTo;
+        prepare.param1       = param1;
+        prepare.param2       = param2;
+        prepare.composeMode  = composeMode;
+        prepare.composeOrder = composeOrder;
+        prepare.startDelayMs = startDelayMs;
+
+        // Retry on failure so a single bus glitch doesn't leave a panel with no animation queued.
+        uint8_t err = 1;
+
+        for (uint8_t attempt = 0; attempt < 3 && err != 0; attempt++) {
+            if (attempt > 0) delayMicroseconds(100);
+
+            err = LNBus.sendPacketAck(panelAddress, &prepare, sizeof(prepare), Protocol::PACKET_ANIMATION_PREPARE);
+        }
+
+        if (panelAddress < maxPanels) {
+            panelStates[panelAddress].animType     = animType;
+            panelStates[panelAddress].groupId      = group_id;
+            panelStates[panelAddress].durationMs   = durationMs;
+            panelStates[panelAddress].startMs      = millis();
+            panelStates[panelAddress].isController  = false;
+        }
+    }
+
+    void AnimationScheduler::sendGroupStart(uint8_t group_id)
+    {
+        // Send General Call START twice for reliability. Both share one seq_id so the
+        // panel's duplicate guard runs exactly one execution and absorbs the redundant copy.
+        Protocol::PacketAnimationStart startPkt;
+
+        Protocol::setPacketMeta(&startPkt.meta, Protocol::PACKET_ANIMATION_START);
+        startPkt.seq_id   = nextSeqId;
+        startPkt.group_id = group_id;
+        nextSeqId++;
+
+        if (nextSeqId == 0) nextSeqId = 1;
+
+        for (uint8_t retry = 0; retry < 2; retry++) {
+            LNBus.sendPacketNack(0x00, &startPkt, sizeof(startPkt), Protocol::PACKET_ANIMATION_START);
+            delayMicroseconds(200);
+        }
+    }
+
     void AnimationScheduler::playOnPanels(
         uint8_t         group_id,
         uint8_t         animType,
@@ -32,67 +100,22 @@ namespace Lightnet {
         uint8_t         param1,
         uint8_t         param2,
         const uint8_t * panelAddresses,
-        uint8_t         panelCount
+        uint8_t         panelCount,
+        uint8_t         composeMode,
+        uint8_t         composeOrder
     )
     {
-        // Build PREPARE packet
-        Protocol::PacketAnimationPrepare prepare;
-
-        Protocol::setPacketMeta(&prepare.meta, Protocol::PACKET_ANIMATION_PREPARE);
-        prepare.animType = animType;
-        prepare.group_id = group_id;
-        prepare.flags = flags;
-        prepare.transitionMs = 0; // TODO: make configurable
-        prepare.durationMs = durationMs;
-        prepare.colorFrom = colorFrom;
-        prepare.colorTo = colorTo;
-        prepare.param1 = param1;
-        prepare.param2 = param2;
-
-        // Send PREPARE to each panel, retrying on failure so a single bus glitch
-        // doesn't silently leave a panel with no animation queued.
+        // Same PREPARE to every panel (uniform startDelay = 0), then one general-call START.
         for (uint8_t i = 0; i < panelCount; i++) {
-            uint8_t addr = panelAddresses[i];
-
-            uint8_t err = 1;
-
-            for (uint8_t attempt = 0; attempt < 3 && err != 0; attempt++) {
-                if (attempt > 0) {
-                    delayMicroseconds(100);
-                    Serial.printf("play failed, retrying... attempt %d", attempt);
-                }
-
-                err = LNBus.sendPacketAck(addr, &prepare, sizeof(prepare), Protocol::PACKET_ANIMATION_PREPARE);
-            }
-
-            if (addr < maxPanels) {
-                panelStates[addr].animType = animType;
-                panelStates[addr].groupId = group_id;
-                panelStates[addr].durationMs = durationMs;
-                panelStates[addr].startMs = millis();
-                panelStates[addr].isController = false;
-            }
+            sendPrepareToPanel(panelAddresses[i], group_id, animType, flags, durationMs,
+                               colorFrom, colorTo, param1, param2,
+                               composeMode, composeOrder, /*startDelayMs=*/ 0);
         }
 
         // Give panels time to process their PREPARE before START arrives.
         delayMicroseconds(300);
 
-        // Send General Call START 3 times for reliability.
-        // All retries share the same seq_id so the panel's duplicate guard lets
-        // through exactly one execution while absorbing the redundant copies.
-        Protocol::PacketAnimationStart startPkt;
-
-        Protocol::setPacketMeta(&startPkt.meta, Protocol::PACKET_ANIMATION_START);
-        startPkt.seq_id  = nextSeqId;
-        startPkt.group_id = group_id;
-        nextSeqId++;
-
-        if (nextSeqId == 0) nextSeqId = 1;
-
-        for (uint8_t retry = 0; retry < 2; retry++) {
-            LNBus.sendPacketNack(0x00, &startPkt, sizeof(startPkt), Protocol::PACKET_ANIMATION_START);
-            delayMicroseconds(200);
-        }
+        sendGroupStart(group_id);
     }
 
     void AnimationScheduler::stopGroup(uint8_t group_id)
@@ -115,7 +138,8 @@ namespace Lightnet {
         Protocol::PacketAnimationControl pkt;
 
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
-        pkt.cmd = Lightnet::ANIM_CTRL_STOP;
+        pkt.cmd      = Lightnet::ANIM_CTRL_STOP;
+        pkt.group_id = 0; // all slots
         LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_ANIMATION_CONTROL);
 
         // Mark runners cancelled rather than deleting them here.  This method may be
@@ -136,7 +160,8 @@ namespace Lightnet {
         Protocol::PacketAnimationControl pkt;
 
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
-        pkt.cmd = Lightnet::ANIM_CTRL_CLEAR_QUEUE;
+        pkt.cmd      = Lightnet::ANIM_CTRL_CLEAR_QUEUE;
+        pkt.group_id = 0; // all slots
         LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_ANIMATION_CONTROL);
     }
 
@@ -252,7 +277,8 @@ namespace Lightnet {
         Protocol::PacketAnimationControl control;
 
         Protocol::setPacketMeta(&control.meta, Protocol::PACKET_ANIMATION_CONTROL);
-        control.cmd = cmd;
+        control.cmd      = cmd;
+        control.group_id = group_id;
 
         for (uint8_t i = 0; i < panelCount; i++) {
             LNBus.sendPacketAck(panelAddresses[i], &control, sizeof(control), Protocol::PACKET_ANIMATION_CONTROL);
@@ -273,14 +299,16 @@ namespace Lightnet {
         uint8_t                   param1,
         uint8_t                   param2,
         const uint8_t *           panelAddresses,
-        uint8_t                   panelCount
+        uint8_t                   panelCount,
+        uint8_t                   composeMode,
+        uint8_t                   composeOrder
     )
     {
         ColorRef from = ColorRef_rgb(colorFrom.r, colorFrom.g, colorFrom.b);
         ColorRef to   = ColorRef_rgb(colorTo.r, colorTo.g, colorTo.b);
 
         playOnPanels(group_id, animType, flags, durationMs, from, to,
-                     param1, param2, panelAddresses, panelCount);
+                     param1, param2, panelAddresses, panelCount, composeMode, composeOrder);
     }
 
     // ============================================================================
@@ -365,5 +393,14 @@ namespace Lightnet {
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
         pkt.value = value;
         LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
+    }
+
+    void AnimationScheduler::broadcastBackground(const Protocol::ColorRGB& color)
+    {
+        Protocol::PacketSetBackground pkt;
+
+        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_BACKGROUND);
+        pkt.color = color;
+        LNBus.sendPacketNack(0x00, &pkt, sizeof(pkt), Protocol::PACKET_SET_BACKGROUND);
     }
 }  // namespace Lightnet

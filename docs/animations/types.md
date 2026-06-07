@@ -165,9 +165,38 @@ Triggers are sent via WebSocket — see [API → WebSocket Triggers](api.md#webs
 
 ---
 
+## Modifier Layers
+
+Modifier steps transform the colour composited **below** them rather than producing their own (see
+[Concepts → Layer compositing](concepts.md#layer-compositing)). They animate a scalar `from` → `to`
+(0–255) over `duration`, and a finished modifier **holds** its final value. Place a modifier layer
+*after* (above) the layers it should affect.
+
+### MOD_BRIGHTNESS / MOD_SATURATION / MOD_HUE_SHIFT
+
+```json
+{ "type": "MOD_BRIGHTNESS", "from": 255, "to": 64, "duration": 2000 }
+```
+
+| Type | `from`/`to` | Identity (no-op) |
+|---|---|---|
+| `MOD_BRIGHTNESS` | brightness scale, 255 = full | 255 |
+| `MOD_SATURATION` | saturation scale, 255 = unchanged | 255 |
+| `MOD_HUE_SHIFT` | hue rotation, 0…255 = a full turn | 0 |
+
+Brightness is exact (RGB multiply); saturation/hue use an integer HSV approximation on the panel
+(small, deterministic colour drift, bypassed at the identity value).
+
+---
+
 ## Controller Runners
 
-Runners are computed on the controller ESP each frame and send scaled `SET_COLOR` packets over I²C. They appear as steps with a `"runner"` field instead of `"type"`.
+Runners appear as steps with a `"runner"` field instead of `"type"`. As of protocol v6 a runner is
+**compiled at step start into one local PULSE per panel** — each panel gets a per-panel `startDelayMs`
+(its onset in the sweep) and a pulse shaped to the envelope, then a single general-call START. The
+sweep then runs **autonomously on the panels** (no per-frame `SET_COLOR` streaming), and a runner
+participates in [layer compositing](concepts.md#layer-compositing) like any other layer — it defaults
+to the `max` blend so its dark phase is transparent over the background/layers below.
 
 ### Common runner step fields
 

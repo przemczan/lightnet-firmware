@@ -20,6 +20,8 @@ namespace Lightnet {
         bool               hasColors;   // true if scene JSON explicitly set "colors"
         Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
 
+        Protocol::ColorRGB background;   // compositor base colour (default black)
+
         float              speed; // playback speed multiplier [0.1, 10.0], default 1.0
         uint8_t            layerCount;
         SceneLayer         layers[SCENE_MAX_LAYERS];

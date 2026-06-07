@@ -329,6 +329,10 @@ void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
             this->handleSetGlobalBrightness((Protocol::PacketSetGlobalBrightness *)packet);
             break;
 
+        case Protocol::PACKET_SET_BACKGROUND:
+            this->animPlayer.setBackground(((Protocol::PacketSetBackground *)packet)->color);
+            break;
+
         case Protocol::PACKET_RESET_DEVICE:
             digitalWrite(6, 1);
             delay(10);
@@ -500,7 +504,7 @@ void LightnetPanel::handleAnimationStart(Protocol::PacketAnimationStart *packet)
 
 void LightnetPanel::handleAnimationControl(Protocol::PacketAnimationControl *packet)
 {
-    this->animPlayer.control(packet->cmd);
+    this->animPlayer.control(packet->cmd, packet->group_id);
 }
 
 void LightnetPanel::handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet)

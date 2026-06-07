@@ -21,7 +21,7 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
     static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
-    static const uint8_t SCENE_SCHEMA_VERSION       = 3;
+    static const uint8_t SCENE_SCHEMA_VERSION       = 4;  // v4: layer blend modes + MOD_* modifier steps
 
     // ============================================================================
     // Per-layer playback state (scene-cycle barrier model)
@@ -55,6 +55,7 @@ namespace Lightnet {
         uint8_t       startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
         uint8_t       async;                             // 1 = loop independently (ignored when startAfter is set)
         uint8_t       stepCount;
+        uint8_t       blend;                             // ComposeMode — how this layer composites on the panel
         char          palette[16];                       // empty = use scene default
         PanelSelector target;                            // which panels this layer drives (resolved at play time)
         SceneStep     steps[SCENE_MAX_STEPS];
@@ -75,14 +76,15 @@ namespace Lightnet {
 
             // Load layers and start playing. Sends palette + base colors to panels.
             void loadAndPlay(
-                const SceneLayer *       layers,
-                uint8_t                  layerCount,
-                bool                     loop,
-                const char *             name,
-                const char *             paletteDefault,
+                const SceneLayer *layers,
+                uint8_t layerCount,
+                bool loop,
+                const char *name,
+                const char *paletteDefault,
                 const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
-                uint32_t                 nowMs,
-                float                    speed = 1.0f
+                uint32_t nowMs,
+                float speed = 1.0f,
+                Protocol::ColorRGB background = Protocol::ColorRGB{ 0, 0, 0 }
             );
 
             void stop();
@@ -186,6 +188,7 @@ namespace Lightnet {
             char name[20];
             char defaultPalette[16];
             Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
+            Protocol::ColorRGB background; // compositor base sent to panels at play start
 
             // Pre-resolved 16-stop palette per layer (resolved at load time).
             GradientStop resolvedPalettes[SCENE_MAX_LAYERS][PALETTE_STOPS];

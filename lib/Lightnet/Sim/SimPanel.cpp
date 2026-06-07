@@ -30,7 +30,7 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
             if (size >= sizeof(Protocol::PacketAnimationControl)) {
                 const Protocol::PacketAnimationControl *pkt = (const Protocol::PacketAnimationControl *)data;
 
-                player.control(pkt->cmd);
+                player.control(pkt->cmd, pkt->group_id);
             }
 
             break;
@@ -67,6 +67,15 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
                 const Protocol::PacketSetGlobalBrightness *pkt = (const Protocol::PacketSetGlobalBrightness *)data;
 
                 rgb.globalBrightness(pkt->value);
+            }
+
+            break;
+        case Protocol::PACKET_SET_BACKGROUND:
+
+            if (size >= sizeof(Protocol::PacketSetBackground)) {
+                const Protocol::PacketSetBackground *pkt = (const Protocol::PacketSetBackground *)data;
+
+                player.setBackground(pkt->color);
             }
 
             break;

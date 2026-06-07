@@ -149,7 +149,7 @@ namespace Lightnet {
         player.loadAndPlay(parsed.layers, parsed.layerCount,
                            parsed.loop, parsed.name,
                            palName, colors,
-                           millis(), parsed.speed);
+                           millis(), parsed.speed, parsed.background);
 
         sceneHasOwnPalette = parsed.hasPalette;
         sceneHasOwnColors  = parsed.hasColors;

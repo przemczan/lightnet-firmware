@@ -1,5 +1,6 @@
 #include "ScenePlayer.hpp"
 #include "../Animations/AnimationRunner.hpp"
+#include "../Animations/RunnerCompile.hpp"
 #include "../Topology/PanelField.hpp"
 #include "../Topology/PanelGeometry.hpp"
 #include "../../Utils/Debug.hpp"
@@ -42,6 +43,7 @@ namespace Lightnet {
         memset(name, 0, sizeof(name));
         memset(defaultPalette, 0, sizeof(defaultPalette));
         memset(baseColors, 0, sizeof(baseColors));
+        background = { 0, 0, 0 };
         memset(currentStep, 0, sizeof(currentStep));
         memset(stepStartMs, 0, sizeof(stepStartMs));
         memset(layerState, 0, sizeof(layerState));
@@ -55,11 +57,17 @@ namespace Lightnet {
         const char *             paletteDefault,
         const Protocol::ColorRGB newBaseColors[BASE_COLORS_COUNT],
         uint32_t                 nowMs,
-        float                    newSpeed
+        float                    newSpeed,
+        Protocol::ColorRGB       newBackground
     )
     {
         stop();
         scheduler.broadcastBlack();
+
+        // Compositor base for this scene; pushed once so panels fold their layers over it
+        // (and idle/untouched panels show it). Default black reproduces pre-v6 behaviour.
+        background = newBackground;
+        scheduler.broadcastBackground(background);
 
         lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
         memcpy(layers, newLayers, lCount * sizeof(SceneLayer));
@@ -113,7 +121,7 @@ namespace Lightnet {
     {
         if (lCount == 0) return;
 
-        loadAndPlay(layers, lCount, loop, name, defaultPalette, baseColors, nowMs, speed);
+        loadAndPlay(layers, lCount, loop, name, defaultPalette, baseColors, nowMs, speed, background);
     }
 
     void ScenePlayer::tick(uint32_t nowMs)
@@ -262,14 +270,16 @@ namespace Lightnet {
             : (uint16_t)min((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
 
         if (isRunnerType(step.animType)) {
-            // Kill any panel-local animation so the runner has exclusive LED control
-            scheduler.sendControlToPanels(layer.groupId, ANIM_CTRL_STOP, panels, panelCount);
+            // A runner is no longer streamed: it is compiled into one local PULSE per panel
+            // (per-panel onset + shape from the sweep envelope), so each panel runs it
+            // autonomously and it composites with other layers like any other slot. No STOP
+            // is sent — that would clobber the layers below this one.
+            if (effectiveDurationMs == 0) return; // an infinite sweep has no meaning
 
             // Runners are single-colour: the lit colour is `colorTo` (aliased by the JSON
             // `color` key), consistent with SOLID/STROBE/BLINK. `colorFrom` is the start
             // colour of two-colour panel effects and is unset for runners.
             Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
-            AnimationRunner *runner = nullptr;
 
             // Directionality field: per-panel sweep coordinate (params[1..3]). Two orthogonal
             // choices — mode (graph hop-distance vs planar geometry) and source (root/leaves/
@@ -311,24 +321,51 @@ namespace Lightnet {
 
             uint8_t width = step.params[RUNNER_PARAM_WIDTH];
 
-            if (step.animType == RUN_WAVE) {
-                runner = new WaveRunner(layer.groupId, panels, coord, panelCount, maxCoord,
-                                        effectiveDurationMs, width, color);
-            } else if (step.animType == RUN_RIPPLE) {
-                runner = new RippleRunner(layer.groupId, panels, coord, haveFar ? coordFar : coord,
-                                          panelCount, maxCoord, effectiveDurationMs, width, color);
-            } else if (step.animType == RUN_CHASE) {
-                runner = new ChaseRunner(layer.groupId, panels, coord, panelCount, maxCoord,
-                                         effectiveDurationMs, color);
+            // Compile the sweep to a per-panel PULSE: black (colorFrom) → lit colour (colorTo).
+            ColorRef black = ColorRef_rgb(0, 0, 0);
+            ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
+
+            // A runner's dark phase should be transparent over whatever is below it, so a
+            // runner layered on a background/other layer reads as an accent rather than
+            // clobbering it with black. Default to MAX (identical to NORMAL over a black
+            // base, i.e. a standalone runner); honour an explicit non-default blend.
+            uint8_t runnerBlend = (layer.blend == COMPOSE_NORMAL) ? COMPOSE_MAX : layer.blend;
+
+            for (uint8_t i = 0; i < panelCount; i++) {
+                CompiledPulse cp;
+
+                if (step.animType == RUN_WAVE) {
+                    cp = compileWave((float)coord[i], maxCoord, width, effectiveDurationMs);
+                } else if (step.animType == RUN_CHASE) {
+                    cp = compileChase(coord[i], maxCoord, effectiveDurationMs);
+                } else { // RUN_RIPPLE
+                    cp = compileRipple((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
+                                       maxCoord, width, effectiveDurationMs);
+                }
+
+                // Unlit panels get no slot for this group → they stay transparent in the fold.
+                // (Edge case: if a prior step lit this panel and this runner leaves it unlit —
+                // width 0 / out of range — the panel holds that prior step, since no PREPARE
+                // arrives and START finds nothing pending. Normal runners light every targeted
+                // panel each cycle, so this only bites pathological width/coord combos.)
+                if (!cp.lit) continue;
+
+                scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, /*flags=*/ 0,
+                                             cp.durationMs, black, lit,
+                                             cp.risePct, cp.fallPct,
+                                             runnerBlend, /*composeOrder=*/ layerIdx,
+                                             cp.startDelayMs);
             }
 
-            if (runner) scheduler.addRunner(runner);
+            delayMicroseconds(300);
+            scheduler.sendGroupStart(layer.groupId);
         } else {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
                                    step.colorFrom, step.colorTo,
                                    step.params[0], step.params[1],
-                                   panels, panelCount);
+                                   panels, panelCount,
+                                   layer.blend, /*composeOrder=*/ layerIdx);
         }
     }
 
@@ -422,6 +459,13 @@ namespace Lightnet {
     {
         scheduler.broadcastBaseColors(baseColors);
 
+        // Count how many layers cover each panel. A panel runs at most MAX_ANIM_SLOTS
+        // composited layers; beyond that the panel drops the later layers' PREPAREs
+        // (deterministically, by layer array order). Warn the author when that happens.
+        uint8_t cover[LIGHTNET_MAX_PANELS + 1];
+
+        memset(cover, 0, sizeof(cover));
+
         for (uint8_t i = 0; i < lCount; i++) {
             uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
             uint8_t panelCount = 0;
@@ -430,12 +474,23 @@ namespace Lightnet {
 
             if (panelCount == 0) continue;
 
+            for (uint8_t j = 0; j < panelCount; j++) {
+                if (panels[j] <= LIGHTNET_MAX_PANELS && cover[panels[j]] < 255) cover[panels[j]]++;
+            }
+
             // Panels may be in an isOn=false state (e.g. after selfTest or an
             // explicit turn-off). Turn them on now so animation output is visible.
             scheduler.turnOnPanels(panels, panelCount);
 
             scheduler.unicastPaletteToPanels(resolvedPalettes[i], resolvedPaletteCounts[i],
                                              panels, panelCount);
+        }
+
+        for (uint8_t a = 1; a <= LIGHTNET_MAX_PANELS; a++) {
+            if (cover[a] > MAX_ANIM_SLOTS) {
+                DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] panel %u covered by %u layers (>%u slots) — extra layers dropped\n",
+                                               (unsigned)a, (unsigned)cover[a], (unsigned)MAX_ANIM_SLOTS));
+            }
         }
     }
 

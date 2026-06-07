@@ -10,11 +10,15 @@
 #define PACK __attribute__((__packed__))
 
 namespace Protocol {
+    // v6: layer compositing. PacketAnimationPrepare gains composeMode (blend mode for
+    // source layers / modifier op selector), composeOrder (deterministic stacking index),
+    // and startDelayMs (per-panel onset offset — runner sweeps compile to local PULSE with
+    // a per-panel delay). PacketAnimationControl gains group_id so a single composited slot
+    // can be stopped/paused. Panels and controller must match versions.
     // v5: per-panel brightness removed. PacketAnimationPrepare no longer carries
     // brightnessFrom/brightnessTo — animations express brightness through color.
     // PanelState no longer includes a brightness field.
-    // Panels and controller must match versions.
-    const uint16_t VERSION = 5;
+    const uint16_t VERSION = 6;
     // Packet size needs to fit the new SET_PALETTE payload (PALETTE_STOPS * 4 = 64 B)
     // plus PacketMeta (5 B header + 2 B header CRC = 7 B). 80 B leaves margin.
     const uint8_t MAX_PACKET_SIZE = 80;
@@ -39,6 +43,7 @@ namespace Protocol {
         PACKET_SET_PALETTE = 17,             // unicast or General Call — 16-stop palette
         PACKET_SET_BASE_COLORS = 18,         // unicast or General Call — 3 RGB triples
         PACKET_SET_GLOBAL_BRIGHTNESS = 19,   // General Call — 1 byte multiplier
+        PACKET_SET_BACKGROUND = 20,          // unicast or General Call — scene compositor base colour
         PACKET_RESET_DEVICE = 200,
         PACKET_ENTER_BOOTLOADER = 201,
     };
@@ -127,7 +132,10 @@ namespace Protocol {
         Lightnet::ColorRef colorTo;         // 4 B
         uint8_t            param1;
         uint8_t            param2;
-    } PacketAnimationPrepare;  // 21 bytes
+        uint8_t            composeMode;      // ComposeMode (blend for source layers)
+        uint8_t            composeOrder;     // layer array index — deterministic stacking
+        uint16_t           startDelayMs;     // per-panel onset offset (runner sweep phase)
+    } PacketAnimationPrepare;  // 25 bytes
 
     typedef struct PACK {
         PacketMeta meta;
@@ -138,7 +146,8 @@ namespace Protocol {
     typedef struct PACK {
         PacketMeta meta;
         uint8_t    cmd;
-    } PacketAnimationControl;  // 6 bytes
+        uint8_t    group_id;  // 0 = all slots; else the composited slot to target
+    } PacketAnimationControl;  // 7 bytes
 
     typedef struct PACK {
         PacketMeta meta;
@@ -179,6 +188,14 @@ namespace Protocol {
         PacketMeta meta;
         uint8_t    value;
     } PacketSetGlobalBrightness;  // 6 bytes
+
+    // Scene compositor base colour: the panel's layer fold starts from this colour
+    // instead of black, and a panel with no active layers displays it. Sent once
+    // (General Call) at scene start. Default black reproduces pre-v6 behaviour.
+    typedef struct PACK {
+        PacketMeta meta;
+        ColorRGB   color;
+    } PacketSetBackground;  // 8 bytes
 
     // END
 
