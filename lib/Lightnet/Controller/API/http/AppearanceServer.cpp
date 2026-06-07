@@ -7,9 +7,9 @@
 
 namespace Lightnet {
     AppearanceServer::AppearanceServer(
-        AsyncWebServer&  _server,
-        AppearanceStore& _appearance,
-        PaletteStore&    _palettes,
+        AsyncWebServer&   _server,
+        AppearanceStore&  _appearance,
+        PaletteStore&     _palettes,
         AnimationService& _animService
     )
         : server(_server), appearance(_appearance), palettes(_palettes), animService(_animService)

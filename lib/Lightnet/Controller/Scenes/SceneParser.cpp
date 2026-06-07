@@ -358,7 +358,7 @@ namespace Lightnet {
                 if (strcmp(s, "geometric") == 0) {
                     step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_GEOMETRIC;
                 } else if (strcmp(s, "topology") == 0) {
-                    step.params[RUNNER_PARAM_FLAGS] &= (uint8_t)~RUNNER_FLAG_GEOMETRIC;
+                    step.params[RUNNER_PARAM_FLAGS] &= (uint8_t) ~RUNNER_FLAG_GEOMETRIC;
                 } else {
                     snprintf(errMsg, errLen, "step.directionality: unknown (%s)", s);
 

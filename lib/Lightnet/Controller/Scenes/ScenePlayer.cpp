@@ -276,11 +276,11 @@ namespace Lightnet {
             // panel:N) — plus a geometric-axis `angle` for wave/chase (ripple has no axis).
             uint8_t coord[SCENE_MAX_RESOLVED_PANELS];     // near edge of each panel's band
             uint8_t coordFar[SCENE_MAX_RESOLVED_PANELS];  // far edge (geometric ripple only)
-            bool    haveFar   = false;                    // false ⇒ point model (far == near)
+            bool haveFar   = false;                       // false ⇒ point model (far == near)
             uint8_t srcKind   = step.params[RUNNER_PARAM_SRC_KIND];
             uint8_t srcArg    = step.params[RUNNER_PARAM_SRC_ARG];
-            bool    reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
-            bool    geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
+            bool reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
+            bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
             uint8_t maxCoord;
 
             // Resolution tracks the graph field's span so `width` stays comparable across modes.

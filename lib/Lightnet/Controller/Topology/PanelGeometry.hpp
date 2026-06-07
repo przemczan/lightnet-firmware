@@ -464,7 +464,7 @@ namespace Lightnet {
 
         // Pass 1: largest far edge over the targeted panels (the span to normalise both edges by).
         float maxFar = 0.0f;
-        bool  any    = false;
+        bool any    = false;
 
         for (uint8_t i = 0; i < panelCount; i++) {
             float px, py;
@@ -494,7 +494,10 @@ namespace Lightnet {
         }
 
         if (!any || maxFar <= 1e-4f) {
-            for (uint8_t i = 0; i < panelCount; i++) { nearOut[i] = 0; farOut[i] = 0; }
+            for (uint8_t i = 0; i < panelCount; i++) {
+                nearOut[i] = 0;
+                farOut[i] = 0;
+            }
 
             return 0;
         }
@@ -525,7 +528,7 @@ namespace Lightnet {
                 if (best < 0.0f || d < best) best = d;
             }
 
-            float c = (best < 0.0f ? 0.0f : best);
+            float c = ((best < 0.0f) ? 0.0f : best);
             float r = geo.circumradiusOf(panels[i]);
             float nd = c - r;
             float fd = c + r;
@@ -536,8 +539,11 @@ namespace Lightnet {
             int fc = (int)(fd / maxFar * (float)resolution + 0.5f);
 
             if (nc < 0)         nc = 0;
+
             if (nc > (int)maxC) nc = maxC;
+
             if (fc < 0)         fc = 0;
+
             if (fc > (int)maxC) fc = maxC;
 
             if (reverse) {

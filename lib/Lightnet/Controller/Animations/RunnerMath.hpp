@@ -17,11 +17,16 @@
 
 namespace Lightnet {
     // ---- WAVE: a triangular band centred at `center`, half-width = width/2. -----------
-    inline float waveCenterAt(float t, uint8_t maxCoord)
+    inline float waveCenterAt(float t, uint8_t maxCoord, uint8_t width)
     {
-        // Sweeps from just before coord 0 to just past maxCoord. For a chain rooted at
-        // one end (coord==index, maxCoord==count-1) this is the legacy wave exactly.
-        return -1.5f + (float)(maxCoord + 3) * t;
+        // Sweeps from -halfW (band's leading edge just before coord 0) to maxCoord+halfW
+        // (trailing edge just past the farthest coord), so coord 0 lights at t=0 and the
+        // farthest panel fully fades exactly at t=1 regardless of width. For width==3 this
+        // is the legacy -1.5 → maxCoord+1.5 sweep; for a chain rooted at one end
+        // (coord==index, maxCoord==count-1) it reproduces the legacy wave.
+        float halfW = (float)width / 2.0f;
+
+        return -halfW + ((float)maxCoord + (float)width) * t;
     }
 
     inline uint8_t waveBrightness(float coord, float center, uint8_t width)
@@ -38,9 +43,15 @@ namespace Lightnet {
     }
 
     // ---- RIPPLE: an expanding ring at radius `radius`, ring half-width = width/2. ------
-    inline float rippleRadiusAt(float t, uint8_t maxCoord)
+    inline float rippleRadiusAt(float t, uint8_t maxCoord, uint8_t width)
     {
-        return (float)(maxCoord + 1) * t;
+        // Expands from 0 to maxCoord + halfW, so the ring's trailing edge clears the
+        // farthest panel's far edge (<= maxCoord) exactly at t=1 — the whole structure has
+        // faded out by the time the step's duration elapses. For width==2 this is the
+        // legacy maxCoord+1 endpoint.
+        float halfW = (float)width / 2.0f;
+
+        return ((float)maxCoord + halfW) * t;
     }
 
     inline uint8_t rippleBrightness(float coord, float radius, uint8_t width)
@@ -72,7 +83,7 @@ namespace Lightnet {
 
         if (radius < near)     d = near - radius;
         else if (radius > far) d = radius - far;
-        else                   return 255; // ring is crossing the panel's surface
+        else return 255;                   // ring is crossing the panel's surface
 
         if (d >= ringW) return 0;
 

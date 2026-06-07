@@ -163,6 +163,7 @@ namespace Lightnet {
     )
     {
         if (!player.isPlaying()) return;
+
         if (sceneHasOwnPalette && sceneHasOwnColors) return;
 
         const char *newPal             = sceneHasOwnPalette ? nullptr : palette;

@@ -184,7 +184,7 @@ namespace Lightnet {
         }
 
         auto r = animService.playSceneInline((const char *)body, len,
-                                              appearance.paletteName(), appearance.baseColors());
+                                             appearance.paletteName(), appearance.baseColors());
 
         if (!r.ok()) {
             sendSceneError(req, r);
@@ -220,7 +220,7 @@ namespace Lightnet {
         }
 
         auto r = animService.playSceneByName(name,
-                                              appearance.paletteName(), appearance.baseColors());
+                                             appearance.paletteName(), appearance.baseColors());
 
         if (!r.ok()) {
             sendSceneError(req, r);

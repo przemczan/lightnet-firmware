@@ -103,7 +103,7 @@ namespace Lightnet {
 
         uint32_t elapsed = nowMs - startMs;
         float t       = durationMs ? (float)elapsed / (float)durationMs : 1.0f;
-        float center  = waveCenterAt(t, maxCoord);
+        float center  = waveCenterAt(t, maxCoord, waveWidth);
 
         for (uint8_t i = 0; i < panelCount; i++) {
             uint8_t brightness_val = waveBrightness((float)coord[i], center, waveWidth);
@@ -115,6 +115,16 @@ namespace Lightnet {
         }
 
         if (elapsed >= durationMs) {
+            // Clear any panel still lit by frame-quantisation at the trailing edge so the
+            // wave leaves nothing behind (the sweep fades all panels to 0 by t=1, but the
+            // last frame can land at t slightly <1, stranding a ~1-brightness residue).
+            for (uint8_t i = 0; i < panelCount; i++) {
+                if (lastBrightness[i] != 0) {
+                    sendScaledColor(panelAddresses[i], color, 0);
+                    lastBrightness[i] = 0;
+                }
+            }
+
             finished = true;
         }
     }
@@ -197,7 +207,7 @@ namespace Lightnet {
 
         uint32_t elapsed = nowMs - startMs;
         float t       = durationMs ? (float)elapsed / (float)durationMs : 1.0f;
-        float radius  = rippleRadiusAt(t, maxCoord);
+        float radius  = rippleRadiusAt(t, maxCoord, rippleWidth);
 
         for (uint8_t i = 0; i < panelCount; i++) {
             uint8_t brightness_val = rippleBandBrightness((float)coord[i], (float)coordFar[i], radius, rippleWidth);
@@ -216,6 +226,7 @@ namespace Lightnet {
                     lastBrightness[i] = 0;
                 }
             }
+
             finished = true;
         }
     }
@@ -295,6 +306,7 @@ namespace Lightnet {
                     lastBrightness[i] = 0;
                 }
             }
+
             finished = true;
         }
     }

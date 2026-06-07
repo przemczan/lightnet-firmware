@@ -20,8 +20,15 @@ namespace Lightnet {
 
             // Cancel this runner without deleting it.  Safe to call from any task context;
             // tick() detects the flag and deletes the runner from the main loop.
-            void cancel() { cancelled = true; }
-            bool isCancelled() const { return cancelled; }
+            void cancel()
+            {
+                cancelled = true;
+            }
+
+            bool isCancelled() const
+            {
+                return cancelled;
+            }
 
             uint8_t getGroupId() const
             {

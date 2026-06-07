@@ -10,9 +10,9 @@ namespace Lightnet {
     {
         public:
             AppearanceServer(
-                AsyncWebServer&  server,
-                AppearanceStore& appearance,
-                PaletteStore&    palettes,
+                AsyncWebServer&   server,
+                AppearanceStore&  appearance,
+                PaletteStore&     palettes,
                 AnimationService& animService
             );
 

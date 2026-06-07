@@ -10,9 +10,17 @@ using namespace Lightnet;
 
 void test_wave_center_sweep()
 {
-    // Sweeps -1.5 → maxCoord+1.5 over t∈[0,1] (legacy chain behaviour: span+3).
-    TEST_ASSERT_FLOAT_WITHIN(0.001f, -1.5f, waveCenterAt(0.0f, 5));
-    TEST_ASSERT_FLOAT_WITHIN(0.001f, 6.5f, waveCenterAt(1.0f, 5));
+    // width==3 reproduces the legacy -1.5 → maxCoord+1.5 sweep exactly.
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -1.5f, waveCenterAt(0.0f, 5, 3));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 6.5f, waveCenterAt(1.0f, 5, 3));
+
+    // Margin scales with width: sweep is -halfW → maxCoord+halfW so the farthest panel
+    // fully fades at t=1 regardless of width.
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -2.5f, waveCenterAt(0.0f, 5, 5));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 7.5f, waveCenterAt(1.0f, 5, 5));
+
+    // At t=1 the farthest panel (coord==maxCoord) sits exactly at the trailing edge → off.
+    TEST_ASSERT_EQUAL_UINT8(0, waveBrightness(5.0f, waveCenterAt(1.0f, 5, 5), 5));
 }
 
 void test_wave_brightness_triangle()
@@ -33,8 +41,16 @@ void test_wave_zero_width_is_off()
 
 void test_ripple_radius_sweep()
 {
-    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, rippleRadiusAt(0.0f, 4));
-    TEST_ASSERT_FLOAT_WITHIN(0.001f, 5.0f, rippleRadiusAt(1.0f, 4));
+    // width==2 reproduces the legacy 0 → maxCoord+1 sweep exactly.
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, rippleRadiusAt(0.0f, 4, 2));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 5.0f, rippleRadiusAt(1.0f, 4, 2));
+
+    // Endpoint extends with width so the ring's trailing edge clears the farthest panel:
+    // radius reaches maxCoord + width/2 at t=1.
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 6.5f, rippleRadiusAt(1.0f, 4, 5));
+
+    // At t=1 the farthest panel (point model, coord==far==maxCoord) has fully faded.
+    TEST_ASSERT_EQUAL_UINT8(0, rippleBandBrightness(4.0f, 4.0f, rippleRadiusAt(1.0f, 4, 5), 5));
 }
 
 void test_ripple_brightness_ring()
@@ -68,6 +84,7 @@ void test_ripple_band_matches_point_model()
         TEST_ASSERT_EQUAL_UINT8(rippleBrightness(3.0f, (float)r, 2),
                                 rippleBandBrightness(3.0f, 3.0f, (float)r, 2));
     }
+
     TEST_ASSERT_EQUAL_UINT8(0, rippleBandBrightness(3.0f, 3.0f, 3.0f, 0)); // zero width off
 }
 
