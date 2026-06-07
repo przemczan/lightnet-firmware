@@ -382,8 +382,12 @@ per runner:
 ```
 
 **RIPPLE — Euclidean rings from the `source`.** A ripple has no axis, so `angle` is ignored;
-instead it expands as true circular rings (physical distance, not hops) from the `source` centre.
-This is where `source` shines in geometric mode:
+instead a circle grows from the `source` centre and lights **whatever panel surface it
+intersects** (physical distance, not hops). Each panel is treated as its circumscribed disc, so it
+occupies a *range* of distances from the centre: as the ring grows it lights the nearest panel
+first, keeps it lit while the ring crosses it, and — because neighbouring panels overlap in
+distance — lights them together during the overlap rather than stepping through one panel at a
+time. This is where `source` shines in geometric mode:
 
 | `source` | Geometric ripple |
 |---|---|

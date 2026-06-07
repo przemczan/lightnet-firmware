@@ -102,6 +102,22 @@ namespace Lightnet {
                 return true;
             }
 
+            // Circumradius (centroid→vertex distance) of a panel's regular polygon, i.e. the radius
+            // of its circumscribed disc — used to give the panel a radial *extent* for the ripple
+            // field. R = edge / (2·sin(π/N)). 0 if the panel isn't present.
+            float circumradiusOf(uint8_t panelIndex) const
+            {
+                uint8_t s = slotByIndex[panelIndex];
+
+                if (s == 0xFF) return 0.0f;
+
+                uint8_t N = ec[s];
+
+                if (N < 2) return 0.0f;
+
+                return EDGE_LEN / (2.0f * sinf(GEO_PI / (float)N));
+            }
+
         private:
             static const uint8_t MAXN  = LIGHTNET_MAX_PANELS;
             static const uint8_t MAXE  = 8;      // max polygon sides we lay out (panels are 3–5)
@@ -408,13 +424,19 @@ namespace Lightnet {
 
     // Geometric *radial* directionality field — the ripple counterpart to computeGeometricField.
     // Where the axis sweep above is for wave/chase, a ripple has no axis: it expands from a centre.
-    // Each targeted panel's coordinate is its minimum Euclidean distance (quantised to 0..resolution
-    // rings) to the nearest source-panel centroid, so the source set chooses the centre(s):
+    //
+    // A panel is not a point: it is its circumscribed disc, so it occupies a radial *band* [near,
+    // far] = (distance from the source to its centroid) ∓ its circumradius. The growing ring lights
+    // a panel while its radius is anywhere in that band, so overlapping panels (overlapping bands)
+    // light together and the closer one stays lit until the ring clears its far edge — the ring
+    // genuinely intersects panel *surfaces* rather than stepping through one centroid distance at a
+    // time. Both `nearOut`/`farOut` are quantised to 0..resolution (parallel to panels[]).
+    //
+    // The source set chooses the centre(s), mirroring the hop-distance field (PanelField.hpp):
     //   source:root     → one ripple from the root centroid
     //   source:panel:N  → one ripple from panel N
-    //   source:leaves   → one ripple per leaf, expanding inward simultaneously (min-distance front)
-    // This mirrors the hop-distance field's multi-source behaviour (PanelField.hpp), just in the
-    // plane. With `reverse`, the rings invert (front collapses toward the source). Returns maxCoord
+    //   source:leaves   → one ripple per leaf, expanding inward simultaneously (nearest-leaf band)
+    // With `reverse`, the bands invert (front collapses toward the source). Returns maxCoord
     // (0 ⇒ uniform: no usable source centroid, or every panel is a source).
     //
     // No per-panel scratch array: two passes, each recomputing the (cheap) nearest-source distance,
@@ -428,7 +450,8 @@ namespace Lightnet {
         uint8_t              srcArg,
         bool                 reverse,
         uint8_t              resolution,
-        uint8_t *            coordOut
+        uint8_t *            nearOut,
+        uint8_t *            farOut
     )
     {
         if (resolution == 0) resolution = 1;
@@ -439,9 +462,9 @@ namespace Lightnet {
 
         const uint8_t n = topo.count();
 
-        // Pass 1: largest min-distance over the targeted panels (the ring span to normalise by).
-        float maxDist = 0.0f;
-        bool  any     = false;
+        // Pass 1: largest far edge over the targeted panels (the span to normalise both edges by).
+        float maxFar = 0.0f;
+        bool  any    = false;
 
         for (uint8_t i = 0; i < panelCount; i++) {
             float px, py;
@@ -463,25 +486,28 @@ namespace Lightnet {
 
             if (best < 0.0f) continue;
 
-            if (!any || best > maxDist) maxDist = best;
+            float far = best + geo.circumradiusOf(panels[i]);
+
+            if (!any || far > maxFar) maxFar = far;
 
             any = true;
         }
 
-        if (!any || maxDist <= 1e-4f) {
-            for (uint8_t i = 0; i < panelCount; i++) coordOut[i] = 0;
+        if (!any || maxFar <= 1e-4f) {
+            for (uint8_t i = 0; i < panelCount; i++) { nearOut[i] = 0; farOut[i] = 0; }
 
             return 0;
         }
 
         const uint8_t maxC = resolution;
 
-        // Pass 2: quantise each panel's nearest-source distance to 0..resolution.
+        // Pass 2: quantise each panel's [near, far] band to 0..resolution.
         for (uint8_t i = 0; i < panelCount; i++) {
             float px, py;
 
             if (!geo.centroidOf(panels[i], px, py)) {
-                coordOut[i] = 0;
+                nearOut[i] = 0;
+                farOut[i]  = 0;
 
                 continue;
             }
@@ -499,14 +525,29 @@ namespace Lightnet {
                 if (best < 0.0f || d < best) best = d;
             }
 
-            float t = (best < 0.0f ? 0.0f : best) / maxDist; // 0..1
-            int   c = (int)(t * (float)resolution + 0.5f);
+            float c = (best < 0.0f ? 0.0f : best);
+            float r = geo.circumradiusOf(panels[i]);
+            float nd = c - r;
+            float fd = c + r;
 
-            if (c < 0)         c = 0;
+            if (nd < 0.0f) nd = 0.0f;
 
-            if (c > (int)maxC) c = maxC;
+            int nc = (int)(nd / maxFar * (float)resolution + 0.5f);
+            int fc = (int)(fd / maxFar * (float)resolution + 0.5f);
 
-            coordOut[i] = reverse ? (uint8_t)(maxC - c) : (uint8_t)c;
+            if (nc < 0)         nc = 0;
+            if (nc > (int)maxC) nc = maxC;
+            if (fc < 0)         fc = 0;
+            if (fc > (int)maxC) fc = maxC;
+
+            if (reverse) {
+                // Invert and swap so near ≤ far still holds after flipping the axis.
+                nearOut[i] = (uint8_t)((int)maxC - fc);
+                farOut[i]  = (uint8_t)((int)maxC - nc);
+            } else {
+                nearOut[i] = (uint8_t)nc;
+                farOut[i]  = (uint8_t)fc;
+            }
         }
 
         return maxC;

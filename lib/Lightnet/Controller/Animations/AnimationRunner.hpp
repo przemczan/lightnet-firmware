@@ -114,7 +114,8 @@ namespace Lightnet {
             void load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n);
     };
 
-    // Ripple — expanding ring of brightness; coord is distance from the source/origin.
+    // Ripple — expanding ring of brightness. Each panel spans a radial band [coord, coordFar] from
+    // the origin (near and far edge). For the point model (topology ripple) pass coordFar == coord.
     class RippleRunner : public AnimationRunner
     {
         public:
@@ -122,6 +123,7 @@ namespace Lightnet {
                 uint8_t            groupId,
                 const uint8_t *    panelAddresses,
                 const uint8_t *    coord,
+                const uint8_t *    coordFar,
                 uint8_t            panelCount,
                 uint8_t            maxCoord,
                 uint16_t           durationMs,
@@ -146,7 +148,8 @@ namespace Lightnet {
         private:
             static const uint8_t MAX_PANELS = LIGHTNET_MAX_PANELS;
             uint8_t panelAddresses[MAX_PANELS];
-            uint8_t coord[MAX_PANELS];
+            uint8_t coord[MAX_PANELS];     // near edge of each panel's radial band
+            uint8_t coordFar[MAX_PANELS];  // far edge (== coord for the point model)
             uint8_t lastBrightness[MAX_PANELS];
             uint8_t panelCount;
             uint8_t maxCoord;
@@ -157,7 +160,7 @@ namespace Lightnet {
 
             bool finished;
 
-            void load(const uint8_t *addrs, const uint8_t *coordSrc, uint8_t n);
+            void load(const uint8_t *addrs, const uint8_t *coordSrc, const uint8_t *coordFarSrc, uint8_t n);
     };
 
     // Chase — a single lit ring sweeping outward along the coordinate.
