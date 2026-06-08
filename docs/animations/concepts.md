@@ -177,12 +177,30 @@ A **palette** is a 16-stop gradient of `(position, R, G, B)` entries. The contro
   "schemaVersion": 1,
   "name": "lava",
   "stops": [
-    [0,   "#000000"],
-    [46,  "#240000"],
-    [96,  "#711100"],
-    [148, "#8E0301"],
-    [204, "#FF4702"],
-    [255, "#FFFFFF"]
+    [
+      0,
+      "#000000"
+    ],
+    [
+      46,
+      "#240000"
+    ],
+    [
+      96,
+      "#711100"
+    ],
+    [
+      148,
+      "#8E0301"
+    ],
+    [
+      204,
+      "#FF4702"
+    ],
+    [
+      255,
+      "#FFFFFF"
+    ]
   ]
 }
 ```
@@ -250,9 +268,9 @@ A layer can specify its own palette, overriding the scene-level default for the 
   "name": "sunset",
   "loop": true,
   "colors": {
-    "primary":   "#FF4400",
+    "primary": "#FF4400",
     "secondary": "#FF8800",
-    "tertiary":  "#000000"
+    "tertiary": "#000000"
   },
   "palette": "lava",
   "layers": [
@@ -263,13 +281,17 @@ A layer can specify its own palette, overriding the scene-level default for the 
         {
           "type": "TRANSITION",
           "colorFrom": "#000000",
-          "colorTo":   {"useColor": 0},
+          "colorTo": {
+            "useColor": 0
+          },
           "duration": 3000
         },
         {
           "type": "BREATHE",
           "colorFrom": "#000000",
-          "colorTo": {"useColor": 0},
+          "colorTo": {
+            "useColor": 0
+          },
           "duration": 4000,
           "loop": true
         }
@@ -281,9 +303,13 @@ A layer can specify its own palette, overriding the scene-level default for the 
       "sequence": [
         {
           "runner": "WAVE",
-          "color": {"palette": 200},
+          "color": {
+            "palette": 200
+          },
           "duration": 8000,
-          "params": [3]
+          "params": [
+            3
+          ]
         }
       ]
     }

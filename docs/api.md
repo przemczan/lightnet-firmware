@@ -270,7 +270,20 @@ Palette JSON format:
 {
   "schemaVersion": 1,
   "name": "my-palette",
-  "stops": [[0,"#000000"],[128,"#FF4400"],[255,"#FFFFFF"]]
+  "stops": [
+    [
+      0,
+      "#000000"
+    ],
+    [
+      128,
+      "#FF4400"
+    ],
+    [
+      255,
+      "#FFFFFF"
+    ]
+  ]
 }
 ```
 
@@ -301,7 +314,13 @@ Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
 
 Status response while playing:
 ```json
-{"playing": true, "scene": "sunset", "loop": true, "layers": 2, "speed": 1.0}
+{
+  "playing": true,
+  "scene": "sunset",
+  "loop": true,
+  "layers": 2,
+  "speed": 1.0
+}
 ```
 
 Status when idle: `{"playing": false}`
@@ -382,7 +401,12 @@ GET /api/firmware/status
 ```
 
 ```json
-{"state": "flashing", "panel": 3, "total": 12, "progress": 45}
+{
+  "state": "flashing",
+  "panel": 3,
+  "total": 12,
+  "progress": 45
+}
 ```
 
 State values:

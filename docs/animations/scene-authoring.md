@@ -197,7 +197,16 @@ Each entry in `layers`:
   "group": "ambient",
   "panels": "all",
   "palette": "ocean",
-  "sequence": [ { "type": "BREATHE", "colorTo": { "palette": 200 }, "duration": 4000, "loop": true } ]
+  "sequence": [
+    {
+      "type": "BREATHE",
+      "colorTo": {
+        "palette": 200
+      },
+      "duration": 4000,
+      "loop": true
+    }
+  ]
 }
 ```
 
@@ -378,7 +387,15 @@ The **direction** of WAVE/RIPPLE/CHASE is set by `source`/`reverse` — see §8.
 spins, needs the geometric layout, and has no topology fallback).
 
 ```json
-{ "runner": "WAVE", "source": "root", "color": { "palette": 200 }, "waveWidth": 2, "duration": 2500 }
+{
+  "runner": "WAVE",
+  "source": "root",
+  "color": {
+    "palette": 200
+  },
+  "waveWidth": 2,
+  "duration": 2500
+}
 ```
 
 **Repeating sweeps — `repeat`.** Set `"repeat": true` on a WAVE/RIPPLE/CHASE step to replay it
@@ -387,7 +404,16 @@ several rings/bands/blips stay in flight at once with true dark gaps between the
 (`animates:color` — the modifier ramp can't loop cleanly). Needs `schemaVersion: 5`.
 
 ```json
-{ "runner": "RIPPLE", "source": "root", "color": { "palette": 96 }, "rippleWidth": 1, "repeat": true, "duration": 1500 }
+{
+  "runner": "RIPPLE",
+  "source": "root",
+  "color": {
+    "palette": 96
+  },
+  "rippleWidth": 1,
+  "repeat": true,
+  "duration": 1500
+}
 ```
 
 **What the sweep animates — `animates` / `amount`.** By default a runner sweeps `color` (a
@@ -397,7 +423,14 @@ snaps to `amount` (peak intensity, 0–255) as the sweep passes and decays back 
 identity, so the wave **modulates** what's already showing rather than replacing it:
 
 ```json
-{ "runner": "RIPPLE", "source": "root", "animates": "hue", "amount": 120, "rippleWidth": 2, "duration": 4000 }
+{
+  "runner": "RIPPLE",
+  "source": "root",
+  "animates": "hue",
+  "amount": 120,
+  "rippleWidth": 2,
+  "duration": 4000
+}
 ```
 
 | `animates` | Modulates | `amount` = peak |
@@ -452,7 +485,16 @@ per runner:
 | `"angle"` | Sweep **axis** in degrees `[0,360)`, measured in the device's computed layout plane. In the app's default (unrotated) view, `0` sweeps horizontally and `90` vertically; the exact on-screen direction also depends on the visualizer's view rotation, so treat the angle as a dial to tune by eye rather than a fixed compass bearing. `reverse` flips which way the sweep travels along the axis. (2° resolution.) |
 
 ```json
-{ "runner": "WAVE", "directionality": "geometric", "angle": 0, "color": {"palette": 128}, "waveWidth": 3, "duration": 5000 }
+{
+  "runner": "WAVE",
+  "directionality": "geometric",
+  "angle": 0,
+  "color": {
+    "palette": 128
+  },
+  "waveWidth": 3,
+  "duration": 5000
+}
 ```
 
 **RIPPLE — Euclidean rings from the `source`.** A ripple has no axis, so `angle` is ignored;
@@ -470,7 +512,14 @@ time. This is where `source` shines in geometric mode:
 | `"leaves"` | **one ripple per leaf**, all expanding inward at once (fronts meet in the middle) |
 
 ```json
-{ "runner": "RIPPLE", "directionality": "geometric", "source": "leaves", "color": "#30C0FF", "rippleWidth": 2, "duration": 2500 }
+{
+  "runner": "RIPPLE",
+  "directionality": "geometric",
+  "source": "leaves",
+  "color": "#30C0FF",
+  "rippleWidth": 2,
+  "duration": 2500
+}
 ```
 
 Notes:
@@ -596,139 +645,430 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
 ### Solid hold
 
 ```json
-{ "name": "solid_warm", "layers": [
-  { "group": "g", "panels": "all",
-    "sequence": [ { "type": "SOLID", "color": "#FF6000", "duration": 0 } ] } ] }
+{
+  "name": "solid_warm",
+  "layers": [
+    {
+      "group": "g",
+      "panels": "all",
+      "sequence": [
+        {
+          "type": "SOLID",
+          "color": "#FF6000",
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Breathing, base-colour driven (re-skins with appearance)
 
 ```json
-{ "name": "breathe", "loop": true,
-  "colors": { "primary": "#0080FF", "secondary": "#000000", "tertiary": "#000000" },
+{
+  "name": "breathe",
+  "loop": true,
+  "colors": {
+    "primary": "#0080FF",
+    "secondary": "#000000",
+    "tertiary": "#000000"
+  },
   "layers": [
-    { "group": "ambient", "panels": "all",
-      "sequence": [ { "type": "BREATHE", "colorFrom": { "useColor": 1 }, "colorTo": { "useColor": 0 },
-                      "duration": 4000, "loop": true } ] } ] }
+    {
+      "group": "ambient",
+      "panels": "all",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": {
+            "useColor": 1
+          },
+          "colorTo": {
+            "useColor": 0
+          },
+          "duration": 4000,
+          "loop": true
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Background + accent (two layers, no overlap)
 
 ```json
-{ "name": "bg_accent", "loop": true, "palette": "ocean",
+{
+  "name": "bg_accent",
+  "loop": true,
+  "palette": "ocean",
   "layers": [
-    { "group": "bg", "panels": { "not": "leaves" },
-      "sequence": [ { "type": "BREATHE", "colorTo": { "palette": 160 }, "duration": 5000, "loop": true } ] },
-    { "group": "accent", "panels": "leaves",
-      "sequence": [ { "type": "PULSE", "colorFrom": "#000000", "colorTo": "#FFFFFF",
-                      "duration": 900, "loop": true, "params": [64, 96] } ] } ] }
+    {
+      "group": "bg",
+      "panels": {
+        "not": "leaves"
+      },
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorTo": {
+            "palette": 160
+          },
+          "duration": 5000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "accent",
+      "panels": "leaves",
+      "sequence": [
+        {
+          "type": "PULSE",
+          "colorFrom": "#000000",
+          "colorTo": "#FFFFFF",
+          "duration": 900,
+          "loop": true,
+          "params": [
+            64,
+            96
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Fade chain that loops
 
 ```json
-{ "name": "fade_chain", "loop": true,
+{
+  "name": "fade_chain",
+  "loop": true,
   "layers": [
-    { "group": "g", "panels": "all", "sequence": [
-      { "type": "FADE", "colorFrom": "#FF0000", "colorTo": "#00FF00", "duration": 1500 },
-      { "type": "FADE", "colorFrom": "#00FF00", "colorTo": "#0000FF", "duration": 1500 },
-      { "type": "FADE", "colorFrom": "#0000FF", "colorTo": "#FF0000", "duration": 1500 } ] } ] }
+    {
+      "group": "g",
+      "panels": "all",
+      "sequence": [
+        {
+          "type": "FADE",
+          "colorFrom": "#FF0000",
+          "colorTo": "#00FF00",
+          "duration": 1500
+        },
+        {
+          "type": "FADE",
+          "colorFrom": "#00FF00",
+          "colorTo": "#0000FF",
+          "duration": 1500
+        },
+        {
+          "type": "FADE",
+          "colorFrom": "#0000FF",
+          "colorTo": "#FF0000",
+          "duration": 1500
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Wave outward from the centre (portable)
 
 ```json
-{ "name": "wave_out", "loop": true, "palette": "lava",
+{
+  "name": "wave_out",
+  "loop": true,
+  "palette": "lava",
   "layers": [
-    { "group": "g", "panels": "all",
-      "sequence": [ { "runner": "WAVE", "source": "root", "color": { "palette": 210 },
-                      "waveWidth": 2, "duration": 2500 } ] } ] }
+    {
+      "group": "g",
+      "panels": "all",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "source": "root",
+          "color": {
+            "palette": 210
+          },
+          "waveWidth": 2,
+          "duration": 2500
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Ripple from a specific panel
 
 ```json
-{ "name": "ripple_p3", "loop": true,
+{
+  "name": "ripple_p3",
+  "loop": true,
   "layers": [
-    { "group": "g", "panels": "all",
-      "sequence": [ { "runner": "RIPPLE", "source": "panel:3", "color": "#30C0FF",
-                      "rippleWidth": 2, "duration": 1800 } ] } ] }
+    {
+      "group": "g",
+      "panels": "all",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "source": "panel:3",
+          "color": "#30C0FF",
+          "rippleWidth": 2,
+          "duration": 1800
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Ripple that collapses inward (reverse)
 
 ```json
-{ "name": "ripple_in", "loop": true,
+{
+  "name": "ripple_in",
+  "loop": true,
   "layers": [
-    { "group": "g", "panels": "all",
-      "sequence": [ { "runner": "RIPPLE", "source": "leaves", "color": "#FFB050",
-                      "rippleWidth": 2, "duration": 2000 } ] } ] }
+    {
+      "group": "g",
+      "panels": "all",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "source": "leaves",
+          "color": "#FFB050",
+          "rippleWidth": 2,
+          "duration": 2000
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Chase around the leaves
 
 ```json
-{ "name": "chase_leaves", "loop": true,
+{
+  "name": "chase_leaves",
+  "loop": true,
   "layers": [
-    { "group": "g", "panels": "leaves",
-      "sequence": [ { "runner": "CHASE", "source": "root", "color": { "useColor": 0 }, "duration": 1200 } ] } ] }
+    {
+      "group": "g",
+      "panels": "leaves",
+      "sequence": [
+        {
+          "runner": "CHASE",
+          "source": "root",
+          "color": {
+            "useColor": 0
+          },
+          "duration": 1200
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Choreography with `startAfter`
 
 ```json
-{ "name": "intro_then_main", "loop": true,
+{
+  "name": "intro_then_main",
+  "loop": true,
   "layers": [
-    { "group": "intro", "panels": "root",
-      "sequence": [ { "type": "PULSE", "colorFrom": "#000000", "colorTo": "#FFFFFF", "duration": 700 } ] },
-    { "group": "main", "startAfter": "intro", "panels": "all",
-      "sequence": [ { "runner": "WAVE", "source": "root", "color": "#00FFAA", "waveWidth": 2, "duration": 2500 } ] } ] }
+    {
+      "group": "intro",
+      "panels": "root",
+      "sequence": [
+        {
+          "type": "PULSE",
+          "colorFrom": "#000000",
+          "colorTo": "#FFFFFF",
+          "duration": 700
+        }
+      ]
+    },
+    {
+      "group": "main",
+      "startAfter": "intro",
+      "panels": "all",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "source": "root",
+          "color": "#00FFAA",
+          "waveWidth": 2,
+          "duration": 2500
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Async background + synced foreground
 
 ```json
-{ "name": "async_bg", "loop": true,
+{
+  "name": "async_bg",
+  "loop": true,
   "layers": [
-    { "group": "bg", "panels": "all", "async": true,
-      "sequence": [ { "type": "BREATHE", "colorTo": "#001830", "duration": 6000, "loop": true } ] },
-    { "group": "fg", "panels": "leaves",
-      "sequence": [ { "runner": "RIPPLE", "source": "root", "color": "#FF4080", "rippleWidth": 1, "duration": 1500 } ] } ] }
+    {
+      "group": "bg",
+      "panels": "all",
+      "async": true,
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorTo": "#001830",
+          "duration": 6000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "fg",
+      "panels": "leaves",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "source": "root",
+          "color": "#FF4080",
+          "rippleWidth": 1,
+          "duration": 1500
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Tag-driven accent (per-device intent)
 
 ```json
-{ "name": "tag_accent", "loop": true, "palette": "party",
+{
+  "name": "tag_accent",
+  "loop": true,
+  "palette": "party",
   "layers": [
-    { "group": "base", "panels": { "not": "tag:accent" },
-      "sequence": [ { "type": "SOLID", "color": { "palette": 30 }, "duration": 0 } ] },
-    { "group": "hi", "panels": "tag:accent", "async": true,
-      "sequence": [ { "type": "STROBE", "color": "#FFFFFF", "duration": 2000, "params": [6] } ] } ] }
+    {
+      "group": "base",
+      "panels": {
+        "not": "tag:accent"
+      },
+      "sequence": [
+        {
+          "type": "SOLID",
+          "color": {
+            "palette": 30
+          },
+          "duration": 0
+        }
+      ]
+    },
+    {
+      "group": "hi",
+      "panels": "tag:accent",
+      "async": true,
+      "sequence": [
+        {
+          "type": "STROBE",
+          "color": "#FFFFFF",
+          "duration": 2000,
+          "params": [
+            6
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Depth rings (one colour per ring)
 
 ```json
-{ "name": "depth_rings",
-  "colors": { "primary": "#FF3000", "secondary": "#FFD000", "tertiary": "#00A0FF" },
+{
+  "name": "depth_rings",
+  "colors": {
+    "primary": "#FF3000",
+    "secondary": "#FFD000",
+    "tertiary": "#00A0FF"
+  },
   "layers": [
-    { "group": "r0", "panels": "depth:0",
-      "sequence": [ { "type": "SOLID", "color": { "useColor": 0 }, "duration": 0 } ] },
-    { "group": "r1", "panels": "depth:1",
-      "sequence": [ { "type": "SOLID", "color": { "useColor": 1 }, "duration": 0 } ] },
-    { "group": "r2", "panels": "depth:2-9",
-      "sequence": [ { "type": "SOLID", "color": { "useColor": 2 }, "duration": 0 } ] } ] }
+    {
+      "group": "r0",
+      "panels": "depth:0",
+      "sequence": [
+        {
+          "type": "SOLID",
+          "color": {
+            "useColor": 0
+          },
+          "duration": 0
+        }
+      ]
+    },
+    {
+      "group": "r1",
+      "panels": "depth:1",
+      "sequence": [
+        {
+          "type": "SOLID",
+          "color": {
+            "useColor": 1
+          },
+          "duration": 0
+        }
+      ]
+    },
+    {
+      "group": "r2",
+      "panels": "depth:2-9",
+      "sequence": [
+        {
+          "type": "SOLID",
+          "color": {
+            "useColor": 2
+          },
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ### Reactive (music) — trigger over WebSocket
 
 ```json
-{ "name": "reactive",
+{
+  "name": "reactive",
   "layers": [
-    { "group": "beat", "panels": "all",
-      "sequence": [ { "type": "REACTIVE", "colorFrom": "#100010", "colorTo": "#FF00C0",
-                      "duration": 0, "params": [200] } ] } ] }
+    {
+      "group": "beat",
+      "panels": "all",
+      "sequence": [
+        {
+          "type": "REACTIVE",
+          "colorFrom": "#100010",
+          "colorTo": "#FF00C0",
+          "duration": 0,
+          "params": [
+            200
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
 
 Send beats with `POST /api/animations/trigger` or the WebSocket `ANIMATION_TRIGGER` command —
@@ -737,17 +1077,69 @@ see [API → Reactive trigger](api.md#reactive-trigger-http-alternative-to-webso
 ### Full showcase (parallel + gated + async + runner)
 
 ```json
-{ "name": "showcase", "loop": true, "palette": "aurora",
-  "colors": { "primary": "#00FFC0", "secondary": "#8000FF", "tertiary": "#000000" },
+{
+  "name": "showcase",
+  "loop": true,
+  "palette": "aurora",
+  "colors": {
+    "primary": "#00FFC0",
+    "secondary": "#8000FF",
+    "tertiary": "#000000"
+  },
   "layers": [
-    { "group": "ambient", "panels": "all", "async": true,
-      "sequence": [ { "type": "BREATHE", "colorFrom": "#000010", "colorTo": { "palette": 90 },
-                      "duration": 7000, "loop": true } ] },
-    { "group": "spine", "panels": { "not": "leaves" },
+    {
+      "group": "ambient",
+      "panels": "all",
+      "async": true,
       "sequence": [
-        { "duration": 500 },
-        { "runner": "WAVE", "source": "root", "color": { "palette": 220 }, "waveWidth": 2, "duration": 2600 } ] },
-    { "group": "tips", "startAfter": "spine", "panels": "leaves",
-      "sequence": [ { "type": "PULSE", "colorFrom": "#000000", "colorTo": "#FFFFFF",
-                      "duration": 600, "params": [40, 120] } ] } ] }
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000010",
+          "colorTo": {
+            "palette": 90
+          },
+          "duration": 7000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "spine",
+      "panels": {
+        "not": "leaves"
+      },
+      "sequence": [
+        {
+          "duration": 500
+        },
+        {
+          "runner": "WAVE",
+          "source": "root",
+          "color": {
+            "palette": 220
+          },
+          "waveWidth": 2,
+          "duration": 2600
+        }
+      ]
+    },
+    {
+      "group": "tips",
+      "startAfter": "spine",
+      "panels": "leaves",
+      "sequence": [
+        {
+          "type": "PULSE",
+          "colorFrom": "#000000",
+          "colorTo": "#FFFFFF",
+          "duration": 600,
+          "params": [
+            40,
+            120
+          ]
+        }
+      ]
+    }
+  ]
+}
 ```
