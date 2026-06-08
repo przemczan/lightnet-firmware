@@ -21,7 +21,7 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
     static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
-    static const uint8_t SCENE_SCHEMA_VERSION       = 4;  // v4: layer blend modes + MOD_* modifier steps
+    static const uint8_t SCENE_SCHEMA_VERSION       = 5;  // v5: WHEEL runner + repeat (multi-ring waves/ripples/chases)
 
     // ============================================================================
     // Per-layer playback state (scene-cycle barrier model)
@@ -34,7 +34,7 @@ namespace Lightnet {
     };
 
     // ============================================================================
-    // SceneStep — 19 bytes, generic params + ColorRef
+    // SceneStep — 20 bytes, generic params + ColorRef
     // ============================================================================
 
     struct __attribute__((__packed__)) SceneStep {
@@ -43,7 +43,7 @@ namespace Lightnet {
         uint16_t durationMs; // 0 = infinite (only valid on last step of looping scene)
         ColorRef colorFrom;  // 4 bytes
         ColorRef colorTo;    // 4 bytes
-        uint8_t  params[5];  // type-specific, params[0..1] sent via PREPARE; params[4] = RUNNER_PARAM_AMOUNT
+        uint8_t  params[6];  // type-specific, params[0..1] sent via PREPARE; params[4] = RUNNER_PARAM_AMOUNT, params[5] = RUNNER_PARAM_LINES
     };
 
     // ============================================================================

@@ -24,6 +24,7 @@
             case 64: return "WAVE";
             case 65: return "RIPPLE";
             case 66: return "CHASE";
+            case 67: return "WHEEL";
             default: return "?";
         }
     }
@@ -296,10 +297,55 @@ namespace Lightnet {
             uint8_t srcArg    = step.params[RUNNER_PARAM_SRC_ARG];
             bool reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
             bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
+            bool repeat    = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REPEAT) != 0;
             uint8_t maxCoord;
 
             const TopologyIndex& topo = sceneTopo.index();
             const PanelGeometry& geometry = sceneTopo.geom();
+
+            // WHEEL: rotating blades radiating from a centre — a polar sweep, not a linear
+            // axis or radial-ring field, so it bypasses the coord/maxCoord machinery below
+            // entirely. Always loops (a wheel never stops spinning) and is colour-only
+            // (ignores `animates`/`amount`/`repeat` — see RunnerCompile.hpp compileWheel);
+            // requires planar geometry (no graph-hop fallback for a polar bearing).
+            if (step.animType == RUN_WHEEL) {
+                if (!geometry.valid()) return;
+
+                float turns[SCENE_MAX_RESOLVED_PANELS];
+
+                if (!computeWheelField(geometry, topo, panels, panelCount, srcKind, srcArg, reverse, turns)) return;
+
+                uint8_t lines = step.params[RUNNER_PARAM_LINES];
+
+                if (lines == 0) lines = 1;
+
+                if (lines > 6)  lines = 6;
+
+                uint8_t thicknessDeg = step.params[RUNNER_PARAM_WIDTH];
+
+                ColorRef black = ColorRef_rgb(0, 0, 0);
+                ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
+                uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+
+                for (uint8_t i = 0; i < panelCount; i++) {
+                    CompiledPulse cp = compileWheel(turns[i], lines, thicknessDeg, effectiveDurationMs);
+
+                    if (!cp.lit) continue;
+
+                    // Swapped-colour trick (compileRepeating): the loop seam coincides with
+                    // this blade's peak, giving a clean departing → dark-gap → approaching cycle.
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
+                                                 cp.durationMs, lit, black,
+                                                 cp.risePct, cp.fallPct,
+                                                 runnerBlend, /*composeOrder=*/ layerIdx,
+                                                 cp.startDelayMs);
+                }
+
+                delayMicroseconds(300);
+                scheduler.sendGroupStart(layer.groupId);
+
+                return;
+            }
 
             // Resolution tracks the graph field's span so `width` stays comparable across modes.
             uint8_t resolution = topo.maxDepth();
@@ -362,16 +408,32 @@ namespace Lightnet {
 
             uint8_t modPeak = step.params[RUNNER_PARAM_AMOUNT];
 
+            // `repeat` only has meaning for a colour sweep — see the swapped-colour note on
+            // compileRepeating (RunnerCompile.hpp): looping a MOD_* sweep would lerp straight
+            // from `amount` back to its identity value with no rest, producing a sawtooth.
+            bool repeating = repeat && (target == RUNNER_TARGET_COLOR);
+
             for (uint8_t i = 0; i < panelCount; i++) {
                 CompiledPulse cp;
 
-                if (step.animType == RUN_WAVE) {
-                    cp = compileWave((float)coord[i], maxCoord, width, effectiveDurationMs);
-                } else if (step.animType == RUN_CHASE) {
-                    cp = compileChase(coord[i], maxCoord, effectiveDurationMs);
-                } else { // RUN_RIPPLE
-                    cp = compileRipple((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
-                                       maxCoord, width, effectiveDurationMs);
+                switch (step.animType) {
+                    case RUN_WAVE:
+                        cp = repeating
+                            ? compileWaveRepeating((float)coord[i], maxCoord, width, effectiveDurationMs)
+                            : compileWave((float)coord[i], maxCoord, width, effectiveDurationMs);
+                        break;
+                    case RUN_CHASE:
+                        cp = repeating
+                            ? compileChaseRepeating(coord[i], maxCoord, effectiveDurationMs)
+                            : compileChase(coord[i], maxCoord, effectiveDurationMs);
+                        break;
+                    default: // RUN_RIPPLE
+                        cp = repeating
+                            ? compileRippleRepeating((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
+                                                     maxCoord, width, effectiveDurationMs)
+                            : compileRipple((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
+                                            maxCoord, width, effectiveDurationMs);
+                        break;
                 }
 
                 // Unlit panels get no slot for this group → they stay transparent in the fold.
@@ -382,8 +444,14 @@ namespace Lightnet {
                 if (!cp.lit) continue;
 
                 if (target == RUNNER_TARGET_COLOR) {
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, /*flags=*/ 0,
-                                                 cp.durationMs, black, lit,
+                    // `repeat`: swapped colour trick (compileRepeating) — the loop seam coincides
+                    // with this panel's peak, giving a clean departing → dark-gap → approaching cycle.
+                    const ColorRef& from = repeating ? lit   : black;
+                    const ColorRef& to   = repeating ? black : lit;
+                    uint8_t flags        = repeating ? FLAG_LOOP : 0;
+
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, flags,
+                                                 cp.durationMs, from, to,
                                                  cp.risePct, cp.fallPct,
                                                  runnerBlend, /*composeOrder=*/ layerIdx,
                                                  cp.startDelayMs);

@@ -242,6 +242,13 @@ traffic that previously grew with panel count.
 | `WAVE` | triangular PULSE, onset `dur·c/(maxCoord+w)`, window `dur·w/(maxCoord+w)` |
 | `RIPPLE` | band PULSE from the panel's `[near,far]` radial extent |
 | `CHASE` | near-square PULSE, onset `dur·c/(maxCoord+1)`, window `dur/(maxCoord+1)` |
+| `WHEEL` | rotating-blade PULSE from the panel's geometric bearing; always `FLAG_LOOP`, `period = duration/lines` |
+
+`"repeat": true` plays WAVE/RIPPLE/CHASE as a continuous train instead of a single pass: the same
+`compile*` geometry feeds `compileRepeating()`, which **swaps `colorFrom`/`colorTo`** (lit↔dark) so
+the rise→hold→fall envelope reads departing→dark-hold→approaching with `FLAG_LOOP` — true dark gaps
+using only the existing PULSE/loop mechanism. WHEEL always uses this engine (`compileWheel`).
+Colour-only (`animates:color`); `SCENE_SCHEMA_VERSION` is 5.
 
 The streaming `WaveRunner`/`RippleRunner`/`ChaseRunner` classes remain for the built-in demos.
 

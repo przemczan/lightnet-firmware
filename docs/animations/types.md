@@ -203,7 +203,7 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 
 | Field | Type | Notes |
 |---|---|---|
-| `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`) |
+| `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`, `WHEEL`) |
 | `color` | color ref | Colour for the runner effect (only used when `animates:color`) |
 | `duration` | ms | Total duration of the runner effect |
 | `directionality` | string | Field mode: `topology` (graph hop-distance, default) or `geometric` (planar layout). Orthogonal to `source`. |
@@ -211,6 +211,7 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | `angle` | 0–359 | Geometric **axis sweep** direction in degrees (only `directionality:geometric` WAVE/CHASE; default 0). 2° resolution. Ignored by RIPPLE. |
 | `reverse` | bool | Reverse the travel direction |
 | `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
+| `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass — colour-only, see below |
 | `animates` | string | What the sweep modulates: `color` (default), `brightness`, `saturation`, `hue`, or `invert` |
 | `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
 
@@ -236,6 +237,17 @@ ambient background, or a hue sweep rotating it, as it passes).
 
 No protocol change: this reuses the existing modifier `PREPARE` with `param1 = amount` (peak) and
 `param2` = the property's identity value, and the panel's existing linear modifier ramp.
+
+**Repeating sweeps (`repeat`).** WAVE, RIPPLE, and CHASE normally play one pass over `duration`
+and stop. Setting `"repeat": true` instead turns `duration` into the time for **one lap** and
+loops the sweep forever — a continuous train of evenly-spaced rings/bands/blips, several in
+flight at once, each with a true dark gap between passes. Colour-only (`animates:color`): the
+linear modifier ramp that drives `brightness`/`saturation`/`hue`/`invert` can't loop without a
+sawtooth jump, so `repeat` is ignored for those targets. Needs `schemaVersion: 5`.
+
+```json
+{ "runner": "RIPPLE", "source": "root", "color": {"palette": 96}, "rippleWidth": 1, "repeat": true, "duration": 1500 }
+```
 
 **Directionality.** Two orthogonal choices — the field **mode** (`directionality`) and the
 **`source`** it emanates from — both controller-side:
@@ -306,3 +318,25 @@ A single lit ring steps outward along the distance axis from the `source` over t
 ```
 
 No width parameter.
+
+---
+
+### WHEEL
+
+`lines` evenly-spaced blades rotate continuously about a centre — a spinning pinwheel/radar
+sweep. Always geometric (it needs each panel's planar bearing from the centre; **no topology
+fallback** — produces no output if the layout can't be embedded) and always loops; `duration`
+is the time for one full rotation. Colour-only (`animates:color`).
+
+```json
+{ "runner": "WHEEL", "source": "root", "color": {"palette": 64}, "lines": 3, "thickness": 24, "duration": 4000 }
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `lines` (`params[5]`) | Number of rotating blades, 1–6 | 1 |
+| `thickness` (`params[0]`) | Blade angular width in **degrees** (shares the slot with `waveWidth`/`rippleWidth`, but in degrees, not rings) | 0 |
+| `source` | Pivot: `root`, `panel:N`, or `leaves`/`all` (averaged to a single centre point) | `root` |
+| `reverse` | Spin the other way | `false` |
+
+`angle` and `waveWidth`/`rippleWidth` are N/A. Needs `schemaVersion: 5`.

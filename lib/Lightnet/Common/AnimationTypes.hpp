@@ -35,6 +35,7 @@ namespace Lightnet {
         RUN_WAVE         = 64,
         RUN_RIPPLE       = 65,
         RUN_CHASE        = 66,
+        RUN_WHEEL        = 67,
     };
 
     inline bool isRunnerType(uint8_t t)

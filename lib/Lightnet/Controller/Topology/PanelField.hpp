@@ -28,13 +28,20 @@ namespace Lightnet {
     // A third, orthogonal choice — `animates` — picks *what* the sweep modulates
     // (RunnerTarget, packed into the high bits of RUNNER_PARAM_FLAGS) and, for
     // non-colour targets, `amount` (RUNNER_PARAM_AMOUNT) sets the peak intensity.
-    static const uint8_t RUNNER_PARAM_WIDTH    = 0; // wave/ripple band width (rings)
+    //
+    // A fourth, independent toggle — `repeat` (RUNNER_FLAG_REPEAT) — turns WAVE/RIPPLE/
+    // CHASE into a continuous train instead of a single sweep (compile*Repeating in
+    // RunnerCompile.hpp); WHEEL (always a continuous rotation) ignores it.
+    // RUNNER_PARAM_LINES is WHEEL-only (number of rotating blades).
+    static const uint8_t RUNNER_PARAM_WIDTH    = 0; // wave/ripple band width (rings); wheel: blade thickness (degrees)
     static const uint8_t RUNNER_PARAM_SRC_KIND = 1; // RunnerSource
     static const uint8_t RUNNER_PARAM_SRC_ARG  = 2; // SRC_PANEL: panel index; geometric wave/chase: angle/2°
     static const uint8_t RUNNER_PARAM_FLAGS    = 3;
     static const uint8_t RUNNER_PARAM_AMOUNT   = 4; // peak scalar (0-255) for non-colour `animates` targets
+    static const uint8_t RUNNER_PARAM_LINES    = 5; // WHEEL: number of rotating blades (1-6)
     static const uint8_t RUNNER_FLAG_REVERSE   = 0x01;
     static const uint8_t RUNNER_FLAG_GEOMETRIC = 0x02; // planar geometry instead of graph hop-distance
+    static const uint8_t RUNNER_FLAG_REPEAT    = 0x20; // WAVE/RIPPLE/CHASE: continuous train instead of one sweep
     static const uint8_t RUNNER_TARGET_SHIFT   = 2;
     static const uint8_t RUNNER_TARGET_MASK    = 0x1C; // bits 2-4 of RUNNER_PARAM_FLAGS (RunnerTarget, 0-7)
 

@@ -173,6 +173,8 @@ namespace Lightnet {
 
             if (strcmp(s, "CHASE") == 0)  return RUN_CHASE;
 
+            if (strcmp(s, "WHEEL") == 0)  return RUN_WHEEL;
+
             return 0xFF;
         }
 
@@ -337,6 +339,29 @@ namespace Lightnet {
                 if (!jsonReadUInt(p, end, &v) || v > 255) return false;
 
                 step.params[RUNNER_PARAM_WIDTH] = (uint8_t)v;
+            } else if (strcmp(key, "thickness") == 0) {
+                // WHEEL blade angular width in degrees (params[RUNNER_PARAM_WIDTH] is shared
+                // with waveWidth/rippleWidth, but wheel measures in degrees, not rings).
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v > 255) {
+                    strncpy(errMsg, "step.thickness: expected 0-255", errLen);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_WIDTH] = (uint8_t)v;
+            } else if (strcmp(key, "lines") == 0) {
+                // WHEEL: number of evenly-spaced rotating blades.
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v < 1 || v > 6) {
+                    strncpy(errMsg, "step.lines: expected 1-6", errLen);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_LINES] = (uint8_t)v;
             } else if (strcmp(key, "source") == 0) {
                 char s[16];
 
@@ -404,6 +429,18 @@ namespace Lightnet {
                 }
 
                 if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REVERSE;
+            } else if (strcmp(key, "repeat") == 0) {
+                // WAVE/RIPPLE/CHASE: continuous train of sweeps instead of a single pass
+                // (compile*Repeating in RunnerCompile.hpp). Colour-only — see `animates`.
+                bool b;
+
+                if (!jsonReadBool(p, end, &b)) {
+                    strncpy(errMsg, "step.repeat: not bool", errLen);
+
+                    return false;
+                }
+
+                if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REPEAT;
             } else if (strcmp(key, "angle") == 0) {
                 // Geometric sweep direction in degrees [0,360). Stored in 2° units (angle/2)
                 // so it fits SRC_ARG; decoded back to degrees in ScenePlayer::fireStep.

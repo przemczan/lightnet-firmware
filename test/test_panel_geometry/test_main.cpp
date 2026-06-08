@@ -169,6 +169,65 @@ void test_center_field_panel_and_reverse()
     TEST_ASSERT_EQUAL_UINT8(4, far[2]);
 }
 
+// ---- Angular (wheel) field: each panel's bearing in turns [0,1), counter-clockwise
+// from +x, from the centre = average centroid of the source set (single-panel here).
+
+void test_wheel_field_from_panel_center()
+{
+    // source:panel:2 (centre = P2 = (100,57.74)). P1 bears 210° (turns≈0.583), P2 — the
+    // centre itself — is pinned to 0 (sits at the hub), P3 bears 330° (turns≈0.917).
+    float turns[LIGHTNET_MAX_PANELS];
+
+    TEST_ASSERT_TRUE(computeWheelField(geo, topo, PANELS, 3, SRC_PANEL, 2, false, turns));
+
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.5833f, turns[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, turns[1]);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.9167f, turns[2]);
+}
+
+void test_wheel_field_reverse_flips_bearing()
+{
+    // reverse maps t → 1-t, preserving the [0,1) invariant (0 stays 0 — the hub doesn't flip).
+    float turns[LIGHTNET_MAX_PANELS];
+
+    TEST_ASSERT_TRUE(computeWheelField(geo, topo, PANELS, 3, SRC_PANEL, 2, true, turns));
+
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.4167f, turns[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, turns[1]);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0833f, turns[2]);
+}
+
+void test_wheel_field_from_root()
+{
+    // source:root (centre = P1 = (50,28.87), the hub — pinned to 0). P2 bears 30°
+    // (turns≈0.083); P3 lies due east of P1 at the same height → bearing 0.
+    float turns[LIGHTNET_MAX_PANELS];
+
+    TEST_ASSERT_TRUE(computeWheelField(geo, topo, PANELS, 3, SRC_ROOT, 0, false, turns));
+
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, turns[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0833f, turns[1]);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, turns[2]);
+}
+
+void test_wheel_field_no_overlap_returns_false()
+{
+    // A valid geometry built over a disjoint panel set (e.g. a different device): none of
+    // the chain's panels — including its root, the only possible source — have a centroid
+    // here, so the centre is undefined and the field can't be computed.
+    static const uint8_t other[]   = { 9 };
+    static const uint8_t otherEc[] = { 3 };
+    PanelGraph g1;
+    PanelGeometry g;
+
+    TEST_ASSERT_TRUE(g1.build(other, 1, nullptr, 0));
+    TEST_ASSERT_TRUE(g.build(g1, otherEc, 0));
+
+    float turns[LIGHTNET_MAX_PANELS];
+
+    TEST_ASSERT_FALSE(computeWheelField(g, topo, PANELS, 3, SRC_ROOT, 0, false, turns));
+}
+
 void setUp(void)
 {
     graph.build(PANELS, 3, LINKS, 2);
@@ -193,6 +252,11 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_center_field_from_root);
     RUN_TEST(test_center_field_leaves_is_multi_source);
     RUN_TEST(test_center_field_panel_and_reverse);
+
+    RUN_TEST(test_wheel_field_from_panel_center);
+    RUN_TEST(test_wheel_field_reverse_flips_bearing);
+    RUN_TEST(test_wheel_field_from_root);
+    RUN_TEST(test_wheel_field_no_overlap_returns_false);
 
     return UNITY_END();
 }

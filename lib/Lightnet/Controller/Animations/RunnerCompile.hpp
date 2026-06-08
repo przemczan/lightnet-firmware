@@ -133,4 +133,107 @@ namespace Lightnet {
 
         return cp;
     }
+
+    // ========================================================================
+    // Repeating sweeps — `repeat` turns WAVE/RIPPLE/CHASE into a continuous train
+    // ("multiple waves passing through") and backs WHEEL's perpetual rotation.
+    //
+    // A one-shot compile above produces black → lit → black once, holding dark at
+    // the end (no FLAG_LOOP). Looping that same shape would re-enter the rise edge
+    // immediately at the wrap with no rest in between — there is no "hold dark"
+    // phase in tickPulse's rise→hold→fall envelope, only "hold lit".
+    //
+    // So instead we *swap* colorFrom/colorTo (lit → dark): the envelope now reads
+    // departing → dark-gap → approaching, peaking exactly at the loop seam
+    // (animElapsed wraps to 0, where progress_q8 == 0 == colorFrom == lit). Position
+    // that seam at each panel's onset moment via startDelayMs, set durationMs to the
+    // shared loop period, and FLAG_LOOP repeats it forever — a steady, evenly-phased
+    // train with a true dark gap between passes, using the existing PULSE shape and
+    // zero protocol changes.
+    //
+    // `phase`   — where in [0,1) of the period this panel's peak falls (its onset).
+    // `halfWidth` — the visible band's half-width, also as a fraction of the period;
+    //               shared symmetrically by the departing/approaching edges.
+    inline CompiledPulse compileRepeating(float phase, float halfWidth, uint16_t period)
+    {
+        CompiledPulse cp = { false, 0, 0, 0, 0 };
+
+        if (period == 0) return cp;
+
+        cp.lit          = true;
+        cp.startDelayMs = rc_ms(phase * (float)period);
+        cp.durationMs   = period;
+        cp.risePct      = rc_pct(halfWidth);
+        cp.fallPct      = rc_pct(halfWidth);
+
+        return cp;
+    }
+
+    // WAVE, repeating: a steady train of triangular bands, one launched every `period`.
+    // Same band geometry as compileWave (peak at the midpoint), reframed as a per-cycle peak.
+    inline CompiledPulse compileWaveRepeating(float coord, uint8_t maxCoord, uint8_t width, uint16_t period)
+    {
+        if (width == 0 || period == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
+
+        float denom = (float)maxCoord + (float)width;
+
+        if (denom <= 0.0f) return CompiledPulse{ false, 0, 0, 0, 0 };
+
+        float halfW = (float)width / 2.0f;
+
+        return compileRepeating((coord + halfW) / denom, halfW / denom, period);
+    }
+
+    // CHASE, repeating: a steady train of single-step blips, one launched every `period`.
+    inline CompiledPulse compileChaseRepeating(uint8_t coord, uint8_t maxCoord, uint16_t period)
+    {
+        if (period == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
+
+        float denom = (float)maxCoord + 1.0f;
+
+        return compileRepeating(((float)coord + 0.5f) / denom, 0.5f / denom, period);
+    }
+
+    // RIPPLE, repeating: a steady train of rings, one launched every `period` —
+    // "multiple waves go through the panels" (scene-authoring `repeat`). Same band
+    // geometry as compileRipple (centred on the panel's [near,far] band, softened
+    // by the ring's half-width); near==far reduces to the point model.
+    inline CompiledPulse compileRippleRepeating(float nearC, float farC, uint8_t maxCoord, uint8_t width, uint16_t period)
+    {
+        if (width == 0 || period == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
+
+        float ringW = (float)width / 2.0f;
+        float denom = (float)maxCoord + ringW;
+
+        if (denom <= 0.0f) return CompiledPulse{ false, 0, 0, 0, 0 };
+
+        float center   = (nearC + farC) / 2.0f;
+        float halfSpan = (farC - nearC) / 2.0f + ringW;
+
+        return compileRepeating(center / denom, halfSpan / denom, period);
+    }
+
+    // WHEEL: `lines` evenly-spaced blades rotate together with period `rotationMs`,
+    // so any one panel is struck once every `rotationMs / lines` — that's the loop
+    // period. `turns` is the panel's bearing from the centre (0..1, one full turn);
+    // folding it into one blade's angular slot (frac(turns*lines)) gives its phase
+    // within that period, and `thicknessDeg` (the blade's angular width) becomes a
+    // half-width fraction of the same slot (thicknessDeg*lines/720, halved already
+    // by the /2 of "half"). Always loops — a wheel never stops spinning — via the
+    // same swapped-colour compileRepeating engine as a repeating ripple/wave/chase.
+    inline CompiledPulse compileWheel(float turns, uint8_t lines, uint8_t thicknessDeg, uint16_t rotationMs)
+    {
+        if (lines == 0 || rotationMs == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
+
+        uint16_t period = (uint16_t)(rotationMs / lines);
+
+        if (period == 0) period = 1;
+
+        float slot  = turns * (float)lines;
+        float phase = slot - floorf(slot); // frac(turns * lines) ∈ [0,1)
+
+        float halfWidth = ((float)thicknessDeg * (float)lines) / 720.0f;
+
+        return compileRepeating(phase, halfWidth, period);
+    }
 }  // namespace Lightnet

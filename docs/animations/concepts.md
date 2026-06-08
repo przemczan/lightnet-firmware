@@ -297,7 +297,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 4; v2 = named groups / `startAfter` / gaps, v3 = geometric directionality, v4 = layer blend / modifiers). |
+| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 5; v2 = named groups / `startAfter` / gaps, v3 = geometric directionality, v4 = layer blend / modifiers, v5 = WHEEL runner / `repeat`). |
 | `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. |
 | `loop` | No | `false` | When `true`, the whole scene restarts (all layers together) once every layer has finished — the scene-cycle barrier. |
 | `speed` | No | `1.0` | Playback speed multiplier [0.1, 10.0]. Scales all step durations. |

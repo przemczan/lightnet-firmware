@@ -139,7 +139,7 @@ The top-level object:
 
 | Property | Required | Default | What it is |
 |---|---|---|---|
-| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `4` — blend/modifier layers). |
+| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `5` — WHEEL runner / `repeat`). |
 | `name` | yes (to save) | — | 1–18 chars, `[a-zA-Z0-9_-]`. The filename when stored. |
 | `loop` | no | `false` | Restart the whole scene when all layers finish. |
 | `speed` | no | `1.0` | Playback multiplier, clamped to `0.1`–`10.0`. Scales all durations. |
@@ -371,11 +371,23 @@ panels over `duration`:
 | `WAVE` | A bright band travels along the panels | `waveWidth` (rings) |
 | `RIPPLE` | A ring expands outward from the source | `rippleWidth` (rings) |
 | `CHASE` | A single lit ring steps outward | — |
+| `WHEEL` | Blades rotate continuously about a centre | `thickness` (degrees), `lines` (1–6) |
 
-The **direction** of all three is set by `source`/`reverse` — see §8.
+The **direction** of WAVE/RIPPLE/CHASE is set by `source`/`reverse` — see §8. WHEEL pivots about
+`source` the same way (see [Animation Types → WHEEL](types.md#wheel) for its specifics — it always
+spins, needs the geometric layout, and has no topology fallback).
 
 ```json
 { "runner": "WAVE", "source": "root", "color": { "palette": 200 }, "waveWidth": 2, "duration": 2500 }
+```
+
+**Repeating sweeps — `repeat`.** Set `"repeat": true` on a WAVE/RIPPLE/CHASE step to replay it
+as a continuous train instead of a single pass: `duration` becomes the time for **one lap**, and
+several rings/bands/blips stay in flight at once with true dark gaps between them. Colour-only
+(`animates:color` — the modifier ramp can't loop cleanly). Needs `schemaVersion: 5`.
+
+```json
+{ "runner": "RIPPLE", "source": "root", "color": { "palette": 96 }, "rippleWidth": 1, "repeat": true, "duration": 1500 }
 ```
 
 **What the sweep animates — `animates` / `amount`.** By default a runner sweeps `color` (a
@@ -561,7 +573,7 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 | Rule | Limit |
 |---|---|
 | Scene `name` | `[a-zA-Z0-9_-]`, 1–18 chars; required to save |
-| `schemaVersion` | ≤ firmware version (2) — else `409 schema_too_new` |
+| `schemaVersion` | ≤ firmware version (currently `5`) — else `409 schema_too_new` |
 | `speed` | clamped to 0.1–10.0 |
 | Layers per scene | 1–8 |
 | `group` | unique across layers; name or 1–254 (don't mix) |

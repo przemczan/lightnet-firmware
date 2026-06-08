@@ -496,4 +496,86 @@ namespace Lightnet {
 
         return maxC;
     }
+
+    // Geometric *angular* directionality for the WHEEL runner: each panel's bearing
+    // from the chosen centre, in turns [0,1) measured counter-clockwise from the +x
+    // axis of the layout frame — the polar counterpart to the linear axis sweep
+    // (computeGeometricField) and the radial rings (computeGeometricCenterField).
+    //
+    // The centre is the average centroid of the source set — root/panel:N degrade to
+    // a single centroid (the common cases, "centre can be root or a selected panel");
+    // leaves/all average across multiple sources, giving a sensible single pivot for
+    // an otherwise-undefined multi-centre wheel. `reverse` flips the bearing so the
+    // wheel appears to spin the other way. A panel that coincides with the centre has
+    // an undefined bearing and is pinned to turn 0 (it sits at the hub either way).
+    //
+    // Returns false if no centroid is usable (degenerate/empty layout).
+    inline bool computeWheelField(
+        const PanelGeometry& geo,
+        const TopologyIndex& topo,
+        const uint8_t *      panels,
+        uint8_t              panelCount,
+        uint8_t              srcKind,
+        uint8_t              srcArg,
+        bool                 reverse,
+        float *              turnsOut // bearing in turns [0,1), parallel to panels[]
+    )
+    {
+        PanelSet src;
+
+        buildSourceSet(topo, srcKind, srcArg, src);
+
+        const uint8_t n = topo.count();
+
+        float cx = 0.0f, cy = 0.0f;
+        uint8_t srcN = 0;
+
+        for (uint8_t s = 0; s < n; s++) {
+            float x, y;
+
+            if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), x, y)) continue;
+
+            cx += x;
+            cy += y;
+            srcN++;
+        }
+
+        if (srcN == 0) return false;
+
+        cx /= (float)srcN;
+        cy /= (float)srcN;
+
+        // Named to avoid colliding with Arduino.h's TWO_PI macro.
+        const float FULL_TURN_RAD = 2.0f * 3.14159265358979323846f;
+        bool any = false;
+
+        for (uint8_t i = 0; i < panelCount; i++) {
+            float x, y;
+
+            if (!geo.centroidOf(panels[i], x, y)) {
+                turnsOut[i] = 0.0f;
+
+                continue;
+            }
+
+            float dx = x - cx, dy = y - cy;
+
+            if (fabsf(dx) <= 1e-4f && fabsf(dy) <= 1e-4f) {
+                turnsOut[i] = 0.0f; // sits at the hub — bearing is undefined
+
+                continue;
+            }
+
+            float ang = atan2f(dy, dx); // (-π, π]
+
+            if (ang < 0.0f) ang += FULL_TURN_RAD; // [0, 2π)
+
+            float t = ang / FULL_TURN_RAD; // [0,1)
+
+            turnsOut[i] = reverse ? ((t == 0.0f) ? 0.0f : (1.0f - t)) : t;
+            any = true;
+        }
+
+        return any;
+    }
 }  // namespace Lightnet
