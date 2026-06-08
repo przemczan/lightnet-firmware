@@ -28,7 +28,7 @@
 namespace Lightnet {
     namespace Http {
         constexpr size_t MAX_BODY_SMALL = 512;
-        constexpr size_t MAX_BODY_LARGE = 4096;
+        constexpr size_t MAX_BODY_LARGE = 1024 * 6;
 
         // ============================================================================
         // Body buffering (chunked request body → single null-terminated buffer)

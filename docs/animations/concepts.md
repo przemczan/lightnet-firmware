@@ -142,15 +142,16 @@ black); a standalone runner over a black background looks identical to before.
 
 ### Modifier layers
 
-A modifier is a step whose `type` is `MOD_BRIGHTNESS`, `MOD_SATURATION`, or `MOD_HUE_SHIFT`. It
-animates a scalar from `from` → `to` (0–255) over its `duration` and applies it to everything
-composited below it:
+A modifier is a step whose `type` is `MOD_BRIGHTNESS`, `MOD_SATURATION`, `MOD_HUE_SHIFT`, or
+`MOD_INVERT`. It animates a scalar from `from` → `to` (0–255) over its `duration` and applies it
+to everything composited below it:
 
 | Type | `from`/`to` meaning | Identity |
 |---|---|---|
 | `MOD_BRIGHTNESS` | brightness scale (255 = full) | 255 |
 | `MOD_SATURATION` | saturation scale (255 = unchanged) | 255 |
 | `MOD_HUE_SHIFT` | hue rotation (0…255 = full turn) | 0 |
+| `MOD_INVERT` | cross-fade toward RGB-inverted colour (255 = fully inverted) | 0 |
 
 A finished modifier **holds** its final value (consistent with the "finished layer holds last
 frame" model), so a saturate-down that ends keeps applying. To release it, end the modifier with a

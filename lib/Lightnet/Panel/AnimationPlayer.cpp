@@ -364,6 +364,7 @@ namespace Lightnet {
                 c.value      = modifierValue(s, animElapsed);
                 c.op         = (s.cur.animType == ANIM_MOD_SATURATION) ? MO_SATURATION
                              : (s.cur.animType == ANIM_MOD_HUE_SHIFT)  ? MO_HUE
+                             : (s.cur.animType == ANIM_MOD_INVERT)     ? MO_INVERT
                              : MO_BRIGHTNESS;
             } else {
                 computeSlotColor(s, animElapsed);

@@ -172,7 +172,7 @@ Modifier steps transform the colour composited **below** them rather than produc
 (0–255) over `duration`, and a finished modifier **holds** its final value. Place a modifier layer
 *after* (above) the layers it should affect.
 
-### MOD_BRIGHTNESS / MOD_SATURATION / MOD_HUE_SHIFT
+### MOD_BRIGHTNESS / MOD_SATURATION / MOD_HUE_SHIFT / MOD_INVERT
 
 ```json
 { "type": "MOD_BRIGHTNESS", "from": 255, "to": 64, "duration": 2000 }
@@ -183,9 +183,10 @@ Modifier steps transform the colour composited **below** them rather than produc
 | `MOD_BRIGHTNESS` | brightness scale, 255 = full | 255 |
 | `MOD_SATURATION` | saturation scale, 255 = unchanged | 255 |
 | `MOD_HUE_SHIFT` | hue rotation, 0…255 = a full turn | 0 |
+| `MOD_INVERT` | cross-fade toward RGB-inverted (`255-r,255-g,255-b`); 255 = fully inverted | 0 |
 
-Brightness is exact (RGB multiply); saturation/hue use an integer HSV approximation on the panel
-(small, deterministic colour drift, bypassed at the identity value).
+Brightness and invert are exact (RGB multiply / lerp); saturation/hue use an integer HSV
+approximation on the panel (small, deterministic colour drift, bypassed at the identity value).
 
 ---
 
@@ -203,13 +204,38 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | Field | Type | Notes |
 |---|---|---|
 | `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`) |
-| `color` | color ref | Colour for the runner effect |
+| `color` | color ref | Colour for the runner effect (only used when `animates:color`) |
 | `duration` | ms | Total duration of the runner effect |
 | `directionality` | string | Field mode: `topology` (graph hop-distance, default) or `geometric` (planar layout). Orthogonal to `source`. |
 | `source` | string | Where the motion emanates from: `root` (default), `leaves`, `panel:N`, or `all` |
 | `angle` | 0–359 | Geometric **axis sweep** direction in degrees (only `directionality:geometric` WAVE/CHASE; default 0). 2° resolution. Ignored by RIPPLE. |
 | `reverse` | bool | Reverse the travel direction |
 | `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
+| `animates` | string | What the sweep modulates: `color` (default), `brightness`, `saturation`, `hue`, or `invert` |
+| `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
+
+**What the sweep animates.** By default a runner sweeps `color` — each panel snaps a `PULSE`
+between `color` and the layer's background. Setting `animates` to `brightness`, `saturation`,
+`hue`, or `invert` instead drives the matching `MOD_*` modifier on each panel as the sweep passes
+through it: the panel snaps to `amount` at onset and **decays back to that property's identity**
+(255 for brightness/saturation, 0 for hue/invert) over the lit window, so the effect modulates —
+rather than replaces — whatever colour is composited below it (e.g. a brightness wave dimming an
+ambient background, or a hue sweep rotating it, as it passes).
+
+```json
+{ "runner": "WAVE", "source": "root", "animates": "brightness", "amount": 80, "waveWidth": 3, "duration": 5000 }
+```
+
+| `animates` | Drives | `amount` meaning |
+|---|---|---|
+| `color` (default) | per-panel colour `PULSE` between `color` and background | n/a — `color` is used instead |
+| `brightness` | `MOD_BRIGHTNESS` sweep | peak dimming: `0` = blackout, `255` = no change |
+| `saturation` | `MOD_SATURATION` sweep | peak desaturation: `0` = full grey, `255` = no change |
+| `hue` | `MOD_HUE_SHIFT` sweep | peak hue rotation: `0…255` = a full turn |
+| `invert` | `MOD_INVERT` sweep | peak invert blend: `0` = no change, `255` = fully inverted |
+
+No protocol change: this reuses the existing modifier `PREPARE` with `param1 = amount` (peak) and
+`param2` = the property's identity value, and the panel's existing linear modifier ramp.
 
 **Directionality.** Two orthogonal choices — the field **mode** (`directionality`) and the
 **`source`** it emanates from — both controller-side:

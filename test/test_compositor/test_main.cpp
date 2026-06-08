@@ -173,6 +173,15 @@ void test_hue_shift_identity_and_rotate()
     TEST_ASSERT_TRUE(rot.g > rot.r);
 }
 
+void test_invert_identity_full_and_blend()
+{
+    RGB8 c = { 200, 100, 0 };
+
+    assertRGB(modInvert(c, 0), 200, 100, 0);     // identity — unchanged
+    assertRGB(modInvert(c, 255), 55, 155, 255);  // full invert — 255-r,255-g,255-b
+    assertRGB(modInvert(c, 128), 128, 127, 128); // halfway cross-fade toward inverted
+}
+
 // ---- Layer fold (the compositor's per-tick contract) ----------------------
 
 static CompositeLayer srcLayer(uint8_t order, RGB8 color, uint8_t op)
@@ -307,6 +316,7 @@ int main(int, char **)
     RUN_TEST(test_brightness_identity_and_scale);
     RUN_TEST(test_saturation_identity_and_desaturate);
     RUN_TEST(test_hue_shift_identity_and_rotate);
+    RUN_TEST(test_invert_identity_full_and_blend);
 
     RUN_TEST(test_fold_empty_is_base);
     RUN_TEST(test_fold_two_normal_sources_top_wins_by_order);

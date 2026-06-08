@@ -24,12 +24,42 @@ namespace Lightnet {
     //   • mode    — graph hop-distance (default) vs planar geometry (RUNNER_FLAG_GEOMETRIC)
     //   • source  — where the field emanates from (root/leaves/all/panel:N)
     // plus an `angle` that only steers a *geometric* axis sweep (wave/chase). See fireStep.
+    //
+    // A third, orthogonal choice — `animates` — picks *what* the sweep modulates
+    // (RunnerTarget, packed into the high bits of RUNNER_PARAM_FLAGS) and, for
+    // non-colour targets, `amount` (RUNNER_PARAM_AMOUNT) sets the peak intensity.
     static const uint8_t RUNNER_PARAM_WIDTH    = 0; // wave/ripple band width (rings)
     static const uint8_t RUNNER_PARAM_SRC_KIND = 1; // RunnerSource
     static const uint8_t RUNNER_PARAM_SRC_ARG  = 2; // SRC_PANEL: panel index; geometric wave/chase: angle/2°
     static const uint8_t RUNNER_PARAM_FLAGS    = 3;
+    static const uint8_t RUNNER_PARAM_AMOUNT   = 4; // peak scalar (0-255) for non-colour `animates` targets
     static const uint8_t RUNNER_FLAG_REVERSE   = 0x01;
     static const uint8_t RUNNER_FLAG_GEOMETRIC = 0x02; // planar geometry instead of graph hop-distance
+    static const uint8_t RUNNER_TARGET_SHIFT   = 2;
+    static const uint8_t RUNNER_TARGET_MASK    = 0x1C; // bits 2-4 of RUNNER_PARAM_FLAGS (RunnerTarget, 0-7)
+
+    // What a runner's sweep modulates. COLOR (default) compiles to a per-panel colour
+    // PULSE exactly as before; the others compile to a MOD_* modifier sweep instead —
+    // each panel snaps to `amount` at the sweep's onset and decays to the property's
+    // identity value over the lit window, so the effect passes through and releases
+    // whatever is layered below rather than replacing it. See fireStep.
+    enum RunnerTarget : uint8_t {
+        RUNNER_TARGET_COLOR      = 0,
+        RUNNER_TARGET_BRIGHTNESS = 1,
+        RUNNER_TARGET_SATURATION = 2,
+        RUNNER_TARGET_HUE        = 3,
+        RUNNER_TARGET_INVERT     = 4,
+    };
+
+    static inline uint8_t runnerTargetOf(uint8_t flags)
+    {
+        return (uint8_t)((flags & RUNNER_TARGET_MASK) >> RUNNER_TARGET_SHIFT);
+    }
+
+    static inline uint8_t packRunnerTarget(uint8_t flags, uint8_t target)
+    {
+        return (uint8_t)((flags & (uint8_t) ~RUNNER_TARGET_MASK) | (uint8_t)((target << RUNNER_TARGET_SHIFT) & RUNNER_TARGET_MASK));
+    }
 
     // Source the field emanates from. Default (0) = root, so a zeroed step radiates
     // outward from the root — matching the v2 wave/chase migration. Orthogonal to the

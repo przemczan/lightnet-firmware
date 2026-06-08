@@ -160,6 +160,8 @@ namespace Lightnet {
 
             if (strcmp(s, "MOD_HUE_SHIFT") == 0)  return ANIM_MOD_HUE_SHIFT;
 
+            if (strcmp(s, "MOD_INVERT") == 0)     return ANIM_MOD_INVERT;
+
             return 0xFF;
         }
 
@@ -300,8 +302,8 @@ namespace Lightnet {
                         return false;
                     }
 
-                    if (pi >= 4) {
-                        strncpy(errMsg, "step.params too long (max 4)", errLen);
+                    if (pi >= 5) {
+                        strncpy(errMsg, "step.params too long (max 5)", errLen);
 
                         return false;
                     }
@@ -422,6 +424,44 @@ namespace Lightnet {
 
                 step.params[RUNNER_PARAM_SRC_KIND] = SRC_PANEL;
                 step.params[RUNNER_PARAM_SRC_ARG]  = (uint8_t)v;
+            } else if (strcmp(key, "animates") == 0) {
+                // What the sweep modulates: "color" (default — a colour PULSE, as before)
+                // or a property to modulate via a MOD_* sweep instead (see `amount`).
+                char s[16];
+
+                if (!jsonReadString(p, end, s, sizeof(s))) {
+                    strncpy(errMsg, "step.animates: not a string", errLen);
+
+                    return false;
+                }
+
+                uint8_t target;
+
+                if (strcmp(s, "color") == 0)           target = RUNNER_TARGET_COLOR;
+                else if (strcmp(s, "brightness") == 0) target = RUNNER_TARGET_BRIGHTNESS;
+                else if (strcmp(s, "saturation") == 0) target = RUNNER_TARGET_SATURATION;
+                else if (strcmp(s, "hue") == 0)        target = RUNNER_TARGET_HUE;
+                else if (strcmp(s, "invert") == 0)     target = RUNNER_TARGET_INVERT;
+                else {
+                    snprintf(errMsg, errLen, "step.animates: unknown (%s)", s);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_FLAGS] = packRunnerTarget(step.params[RUNNER_PARAM_FLAGS], target);
+            } else if (strcmp(key, "amount") == 0) {
+                // Peak intensity (0-255) for a non-colour `animates` target — e.g. how
+                // far brightness/saturation dips, how far hue rotates, how strongly the
+                // colour inverts at the centre of the sweep. Ignored for `animates:"color"`.
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v > 255) {
+                    strncpy(errMsg, "step.amount: expected 0-255", errLen);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_AMOUNT] = (uint8_t)v;
             } else {
                 jsonSkipValue(p, end);
             }

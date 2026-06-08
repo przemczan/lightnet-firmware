@@ -28,6 +28,7 @@ namespace Lightnet {
         ANIM_MOD_BRIGHTNESS = 10,// scale brightness (RGB multiply); identity at 255
         ANIM_MOD_SATURATION = 11,// scale saturation (HSV); identity at 255
         ANIM_MOD_HUE_SHIFT  = 12,// rotate hue (HSV); identity at 0, sweep 0-255 = full turn
+        ANIM_MOD_INVERT     = 13,// blend toward RGB-inverted (255-r,255-g,255-b); identity at 0, full invert at 255
 
         // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
         // to AnimationScheduler::addRunner(), or compiled to per-panel PREPARE. Not a panel type.
@@ -44,7 +45,7 @@ namespace Lightnet {
     // Modifier layers transform the composited accumulator rather than emitting a colour.
     inline bool isModifierType(uint8_t t)
     {
-        return (t >= ANIM_MOD_BRIGHTNESS) && (t <= ANIM_MOD_HUE_SHIFT);
+        return (t >= ANIM_MOD_BRIGHTNESS) && (t <= ANIM_MOD_INVERT);
     }
 
     // ============================================================================

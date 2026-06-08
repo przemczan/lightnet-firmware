@@ -227,8 +227,8 @@ Each layer is either a **source** (combines its colour with what's below via `bl
 it `add`/`max`/`screen`.
 
 **Modifier layers** are steps whose `type` is `MOD_BRIGHTNESS` / `MOD_SATURATION` / `MOD_HUE_SHIFT`
-— they animate a scalar `from`→`to` (0–255) and reshape everything composited below. Put the
-modifier layer *after* (above) the layers it should affect:
+/ `MOD_INVERT` — they animate a scalar `from`→`to` (0–255) and reshape everything composited below.
+Put the modifier layer *after* (above) the layers it should affect:
 
 ```json
 "layers": [
@@ -237,7 +237,8 @@ modifier layer *after* (above) the layers it should affect:
 ]
 ```
 
-A finished modifier **holds** its final value; ramp it back to identity (255 / 255 / 0) to release.
+A finished modifier **holds** its final value; ramp it back to identity (255 / 255 / 0 / 0 for
+brightness/saturation/hue/invert) to release.
 
 ---
 
@@ -336,9 +337,10 @@ controller runner (`runner`) — never both — **or** a gap (neither).
 | `duration` | all | Milliseconds, 0–65535. `0` = infinite, **only** on the last step. |
 | `loop` | panel-local | Repeat this step's animation for its `duration`. |
 | `pingpong` | panel-local | Reverse at the end instead of restarting. |
-| `params` | both | Up to 4 bytes (0–255), type-specific. Prefer the named keys below. |
+| `params` | both | Up to 5 bytes (0–255), type-specific. Prefer the named keys below. |
 | `source` | runner | Where a moving effect emanates from (§8). |
 | `reverse` | runner | Flip the direction (§8). |
+| `animates` / `amount` | runner | What the sweep modulates, and its peak intensity (§7.3). |
 
 ### 7.2 Panel-local animation types
 
@@ -375,6 +377,26 @@ The **direction** of all three is set by `source`/`reverse` — see §8.
 ```json
 { "runner": "WAVE", "source": "root", "color": { "palette": 200 }, "waveWidth": 2, "duration": 2500 }
 ```
+
+**What the sweep animates — `animates` / `amount`.** By default a runner sweeps `color` (a
+per-panel `PULSE` between `color` and the background). Set `animates` to `brightness` /
+`saturation` / `hue` / `invert` to sweep one of the modifier properties instead — each panel
+snaps to `amount` (peak intensity, 0–255) as the sweep passes and decays back to that property's
+identity, so the wave **modulates** what's already showing rather than replacing it:
+
+```json
+{ "runner": "RIPPLE", "source": "root", "animates": "hue", "amount": 120, "rippleWidth": 2, "duration": 4000 }
+```
+
+| `animates` | Modulates | `amount` = peak |
+|---|---|---|
+| `color` (default) | colour (`color` field) | — |
+| `brightness` | dimming | `0` blackout … `255` no change |
+| `saturation` | desaturation | `0` greyscale … `255` no change |
+| `hue` | hue rotation | `0…255` = a full turn |
+| `invert` | colour inversion | `0` no change … `255` fully inverted |
+
+See [Animation Types → Controller Runners](types.md#controller-runners) for the full mechanics.
 
 ---
 

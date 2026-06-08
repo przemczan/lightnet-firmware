@@ -276,6 +276,11 @@ namespace Lightnet {
             // is sent — that would clobber the layers below this one.
             if (effectiveDurationMs == 0) return; // an infinite sweep has no meaning
 
+            // What the sweep modulates — `animates` (default "color"), packed into
+            // RUNNER_PARAM_FLAGS. COLOR compiles to a per-panel colour PULSE exactly as
+            // before; the others compile to a MOD_* sweep instead (see below the field).
+            uint8_t target = runnerTargetOf(step.params[RUNNER_PARAM_FLAGS]);
+
             // Runners are single-colour: the lit colour is `colorTo` (aliased by the JSON
             // `color` key), consistent with SOLID/STROBE/BLINK. `colorFrom` is the start
             // colour of two-colour panel effects and is unset for runners.
@@ -334,6 +339,29 @@ namespace Lightnet {
             // base, i.e. a standalone runner); honour an explicit non-default blend.
             uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
 
+            // Non-colour targets compile to a MOD_* sweep instead of a colour PULSE: each
+            // lit panel snaps to `amount` (peak) at the sweep's onset and decays to the
+            // property's identity value over its lit window — passing through and releasing
+            // whatever is layered below, the modifier analogue of black→lit→black. `amount`
+            // is the peak set by `amount` (default 0 = no visible effect).
+            uint8_t modType     = ANIM_MOD_BRIGHTNESS; // also RUNNER_TARGET_BRIGHTNESS's values;
+            uint8_t modIdentity = 255;                 // RUNNER_TARGET_COLOR never reads these.
+
+            switch (target) {
+                case RUNNER_TARGET_SATURATION: modType = ANIM_MOD_SATURATION;
+                    modIdentity = 255;
+                    break;
+                case RUNNER_TARGET_HUE:        modType = ANIM_MOD_HUE_SHIFT;
+                    modIdentity = 0;
+                    break;
+                case RUNNER_TARGET_INVERT:     modType = ANIM_MOD_INVERT;
+                    modIdentity = 0;
+                    break;
+                default: break;
+            }
+
+            uint8_t modPeak = step.params[RUNNER_PARAM_AMOUNT];
+
             for (uint8_t i = 0; i < panelCount; i++) {
                 CompiledPulse cp;
 
@@ -353,11 +381,19 @@ namespace Lightnet {
                 // panel each cycle, so this only bites pathological width/coord combos.)
                 if (!cp.lit) continue;
 
-                scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, /*flags=*/ 0,
-                                             cp.durationMs, black, lit,
-                                             cp.risePct, cp.fallPct,
-                                             runnerBlend, /*composeOrder=*/ layerIdx,
-                                             cp.startDelayMs);
+                if (target == RUNNER_TARGET_COLOR) {
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, /*flags=*/ 0,
+                                                 cp.durationMs, black, lit,
+                                                 cp.risePct, cp.fallPct,
+                                                 runnerBlend, /*composeOrder=*/ layerIdx,
+                                                 cp.startDelayMs);
+                } else {
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType, /*flags=*/ 0,
+                                                 cp.durationMs, black, black,
+                                                 modPeak, modIdentity,
+                                                 layer.blend, /*composeOrder=*/ layerIdx,
+                                                 cp.startDelayMs);
+                }
             }
 
             delayMicroseconds(300);

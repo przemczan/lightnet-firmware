@@ -209,9 +209,26 @@ namespace Lightnet {
         return hsv2rgb(h);
     }
 
+    // Invert: cross-fade toward the RGB-inverted colour by `value`. Identity at 0
+    // (unchanged); fully inverted at 255. Pure RGB (lossless, no HSV round-trip).
+    static inline RGB8 modInvert(RGB8 acc, uint8_t value)
+    {
+        if (value == 0) return acc;
+
+        RGB8 inv = { (uint8_t)(255 - acc.r), (uint8_t)(255 - acc.g), (uint8_t)(255 - acc.b) };
+
+        if (value == 255) return inv;
+
+        return {
+            (uint8_t)(acc.r + (((int16_t)inv.r - acc.r) * value) / 255),
+            (uint8_t)(acc.g + (((int16_t)inv.g - acc.g) * value) / 255),
+            (uint8_t)(acc.b + (((int16_t)inv.b - acc.b) * value) / 255),
+        };
+    }
+
     // ---- Layer fold (the panel compositor's per-tick contract, made pure) ----
     enum ModOp : uint8_t {
-        MO_BRIGHTNESS = 0, MO_SATURATION = 1, MO_HUE = 2
+        MO_BRIGHTNESS = 0, MO_SATURATION = 1, MO_HUE = 2, MO_INVERT = 3
     };
 
     struct CompositeLayer {
@@ -255,6 +272,8 @@ namespace Lightnet {
                     case MO_SATURATION: acc = modSaturation(acc, L.value);
                         break;
                     case MO_HUE:        acc = modHueShift(acc, L.value);
+                        break;
+                    case MO_INVERT:     acc = modInvert(acc, L.value);
                         break;
                     default: break;
                 }

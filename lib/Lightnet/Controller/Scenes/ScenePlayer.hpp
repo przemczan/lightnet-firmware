@@ -34,7 +34,7 @@ namespace Lightnet {
     };
 
     // ============================================================================
-    // SceneStep — 18 bytes, generic params + ColorRef
+    // SceneStep — 19 bytes, generic params + ColorRef
     // ============================================================================
 
     struct __attribute__((__packed__)) SceneStep {
@@ -43,11 +43,11 @@ namespace Lightnet {
         uint16_t durationMs; // 0 = infinite (only valid on last step of looping scene)
         ColorRef colorFrom;  // 4 bytes
         ColorRef colorTo;    // 4 bytes
-        uint8_t  params[4];  // type-specific, params[0..1] sent via PREPARE
+        uint8_t  params[5];  // type-specific, params[0..1] sent via PREPARE; params[4] = RUNNER_PARAM_AMOUNT
     };
 
     // ============================================================================
-    // SceneLayer — ~268 bytes
+    // SceneLayer — ~280 bytes
     // ============================================================================
 
     struct SceneLayer {
