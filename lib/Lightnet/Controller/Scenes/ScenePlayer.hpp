@@ -9,8 +9,8 @@
 #include "../Animations/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"
 #include "../Panels/PanelsInitializer.hpp"
-#include "../Topology/PanelGeometry.hpp"
 #include "../Topology/PanelSelector.hpp"
+#include "SceneTopology.hpp"
 
 namespace Lightnet {
     // ============================================================================
@@ -98,7 +98,7 @@ namespace Lightnet {
             // Set the device tag map used to resolve `tag:` selectors. Null = tags resolve empty.
             void setTagResolver(const ITagResolver *resolver)
             {
-                tagResolver = resolver;
+                sceneTopo.setTagResolver(resolver);
             }
 
             // Designate the logical root panel (§4.1): rebuilds the topology view and, if a scene
@@ -107,7 +107,7 @@ namespace Lightnet {
 
             uint8_t getLogicalRoot() const
             {
-                return logicalRoot;
+                return sceneTopo.logicalRoot();
             }
 
             // True when a scene is loaded in memory (may or may not be playing).
@@ -163,19 +163,12 @@ namespace Lightnet {
 
         private:
             AnimationScheduler& scheduler;
-            PanelsInitializer& initializer;
             PaletteStore& paletteStore;
 
-            // Rooted view of the discovered panel tree, rebuilt from the live graph on each
-            // play (and resume). Layer selectors resolve against this. See
-            // docs/design/scene-portability.md.
-            TopologyIndex topo;
-            // Planar layout of the same tree, anchored at the lowest panel index (visualizer
-            // frame), used by geometric runner directionality (source:geometric). Independent
-            // of logicalRoot. Rebuilt alongside `topo`.
-            PanelGeometry geometry;
-            uint8_t logicalRoot;             // panel index the rooted view is built from (§4.1; default 1)
-            const ITagResolver *tagResolver; // device tag map for `tag:` selectors (null until wired)
+            // Topology/targeting: owns the panel-tree views (graph/rooted index/geometry),
+            // the logical root, the tag resolver, and selector resolution. Rebuilt from the
+            // live discovered tree on each play/resume. See SceneTopology.hpp.
+            SceneTopology sceneTopo;
 
             SceneLayer layers[SCENE_MAX_LAYERS];
             uint8_t currentStep[SCENE_MAX_LAYERS];
@@ -195,10 +188,6 @@ namespace Lightnet {
             uint8_t resolvedPaletteCounts[SCENE_MAX_LAYERS];
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
-            // Resolve a layer's selector against `topo` into up to maxLen panel indices.
-            void resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t maxLen, uint8_t& count) const;
-            // Rebuild `topo` from the live discovered graph, rooted at `logicalRoot`.
-            void rebuildTopology();
             // Initialise per-layer state from startAfter gating and fire the ungated layers.
             // includeAsync=false leaves async layers untouched (used on the loop barrier so
             // they free-run across scene cycles); =true arms everything (initial start).

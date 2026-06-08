@@ -28,5 +28,16 @@ namespace Lightnet {
 
             // Maximum body size accepted for scene files.
             static constexpr size_t MAX_SCENE_BYTES = 4096;
+
+            // Reserved name for the scene most recently played via
+            // POST /api/scenes/play (inline body): it is stored under this name
+            // and then played by name, so there is a single play-by-name path.
+            // User-named scenes may not use this name (see isReservedName).
+            static const char * reservedName()
+            {
+                return "Current";
+            }
+
+            static bool isReservedName(const char *name);
     };
 }  // namespace Lightnet

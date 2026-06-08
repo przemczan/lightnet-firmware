@@ -20,58 +20,55 @@
 // what the user sees while authoring. The logical root used for selectors and the
 // hop-distance field does NOT affect geometry.
 //
-// Pure C++ (TopoLink only) → natively unit-testable. Controller-side float; this
-// is outside the refgen/Kotlin bit-exact contract (that governs panel-local
-// AnimationPlayer.cpp only).
+// Built on top of a PanelGraph (the root-independent raw adjacency, shared with
+// TopologyIndex — see PanelGraph.hpp): this view adds only its own root-dependent
+// BFS/layout state on top of the borrowed graph.
+//
+// Pure C++ → natively unit-testable. Controller-side float; this is outside the
+// refgen/Kotlin bit-exact contract (that governs panel-local AnimationPlayer.cpp only).
 // ============================================================================
 
 #include <stdint.h>
 #include <math.h>
-#include "TopologyIndex.hpp" // TopoLink, LIGHTNET_MAX_PANELS
+#include "PanelGraph.hpp"    // PanelGraph
+#include "TopologyIndex.hpp" // TopologyIndex, PanelSet (computeGeometricCenterField)
 #include "PanelField.hpp"    // buildSourceSet (shared source-set logic for the radial field)
 
 namespace Lightnet {
     class PanelGeometry
     {
         public:
-            PanelGeometry() : n(0)
+            PanelGeometry() : graph(nullptr), n(0)
             {
             }
 
-            // Build the planar layout.
-            //   panelIndices[s] : 1-based panel index for slot s
-            //   edgeCounts[s]   : polygon side count N for that panel (≥3 in practice)
-            //   links           : the tree links, each provided once (shared with TopologyIndex)
-            //   anchorPanelIdx  : panel placed at the canonical frame; invalid (e.g. 0) → the
-            //                     lowest panel index, matching the visualizer.
-            // Returns false on malformed input (empty / over capacity).
+            // Build the planar layout on top of a pre-built raw graph.
+            //   graph          : the root-independent adjacency, built once and shared
+            //                    with other rooted views (e.g. TopologyIndex). Borrowed —
+            //                    must outlive this object and stay unchanged while it's
+            //                    in use (rebuild both together via SceneTopology::rebuild).
+            //   edgeCounts[s]  : polygon side count N for the panel at slot s (≥3 in practice)
+            //   anchorPanelIdx : panel placed at the canonical frame; invalid (e.g. 0) → the
+            //                    lowest panel index, matching the visualizer.
+            // Returns false on malformed input (empty graph).
             bool build(
-            const uint8_t * panelIndices,
-            uint8_t         panelCount,
-            const uint8_t * edgeCounts,
-            const TopoLink *links,
-            uint8_t         linkCount,
-            uint8_t         anchorPanelIdx
+            const PanelGraph &g,
+            const uint8_t *   edgeCounts,
+            uint8_t           anchorPanelIdx
             )
             {
-                n = 0;
+                graph = &g;
+                n     = g.count();
 
-                if (panelCount == 0 || panelCount > MAXN) return false;
-
-                n = panelCount;
-                memset(slotByIndex, 0xFF, sizeof(slotByIndex));
+                if (n == 0) return false;
 
                 for (uint8_t s = 0; s < n; s++) {
-                    idx[s]                       = panelIndices[s];
-                    ec[s]                        = edgeCounts[s] ? edgeCounts[s] : 1; // guard /0
-                    slotByIndex[panelIndices[s]] = s;
+                    ec[s] = edgeCounts[s] ? edgeCounts[s] : 1; // guard /0
                 }
 
-                buildAdjacency(links, linkCount);
+                uint8_t rootSlot;
 
-                uint8_t rootSlot = (slotByIndex[anchorPanelIdx] != 0xFF)
-                    ? slotByIndex[anchorPanelIdx]
-                    : lowestSlot();
+                if (!graph->slotOf(anchorPanelIdx, rootSlot)) rootSlot = graph->lowestSlot();
 
                 bfsParents(rootSlot);
                 layout();
@@ -92,9 +89,9 @@ namespace Lightnet {
             // Centroid (x,y) of a panel by 1-based index. False if the panel isn't present.
             bool centroidOf(uint8_t panelIndex, float& x, float& y) const
             {
-                uint8_t s = slotByIndex[panelIndex];
+                uint8_t s;
 
-                if (s == 0xFF) return false;
+                if (!graph->slotOf(panelIndex, s)) return false;
 
                 x = cxArr[s];
                 y = cyArr[s];
@@ -107,9 +104,9 @@ namespace Lightnet {
             // field. R = edge / (2·sin(π/N)). 0 if the panel isn't present.
             float circumradiusOf(uint8_t panelIndex) const
             {
-                uint8_t s = slotByIndex[panelIndex];
+                uint8_t s;
 
-                if (s == 0xFF) return 0.0f;
+                if (!graph->slotOf(panelIndex, s)) return 0.0f;
 
                 uint8_t N = ec[s];
 
@@ -124,17 +121,10 @@ namespace Lightnet {
             static constexpr float EDGE_LEN = 100.0f;
             static constexpr float GEO_PI   = 3.14159265358979323846f;
 
-            uint8_t n;
-            uint8_t idx[MAXN];        // slot → 1-based panel index
-            uint8_t ec[MAXN];         // slot → polygon side count
-            uint8_t slotByIndex[256]; // 1-based panel index → slot (0xFF = none)
+            const PanelGraph *graph; // borrowed root-independent adjacency (see build())
 
-            // Adjacency in CSR form, carrying the connector index on *both* sides.
-            uint8_t deg[MAXN];
-            uint8_t adjStart[MAXN];
-            uint8_t adjSlot[2 * MAXN];
-            uint8_t adjMyEdge[2 * MAXN];   // connector index on the owning slot
-            uint8_t adjPeerEdge[2 * MAXN]; // connector index on the neighbour
+            uint8_t n;
+            uint8_t ec[MAXN];         // slot → polygon side count
 
             uint8_t parent[MAXN];          // slot → parent slot (0xFF = root)
             uint8_t parentMyEdge[MAXN];    // this panel's edge facing the parent (its "root edge")
@@ -149,58 +139,6 @@ namespace Lightnet {
             float refWorldX[MAXN], refWorldY[MAXN];
 
             float cxArr[MAXN], cyArr[MAXN];   // panel centroids in world space
-
-            uint8_t lowestSlot() const
-            {
-                uint8_t best = 0;
-
-                for (uint8_t s = 1; s < n; s++) if (idx[s] < idx[best]) best = s;
-
-                return best;
-            }
-
-            void buildAdjacency(const TopoLink *links, uint8_t linkCount)
-            {
-                memset(deg, 0, n);
-
-                for (uint8_t l = 0; l < linkCount; l++) {
-                    uint8_t a = slotByIndex[links[l].panelA];
-                    uint8_t b = slotByIndex[links[l].panelB];
-
-                    if (a == 0xFF || b == 0xFF) continue;
-
-                    deg[a]++;
-                    deg[b]++;
-                }
-
-                uint16_t acc = 0;
-
-                for (uint8_t s = 0; s < n; s++) {
-                    adjStart[s] = (uint8_t)acc;
-                    acc        += deg[s];
-                }
-
-                uint8_t cursor[MAXN];
-
-                for (uint8_t s = 0; s < n; s++) cursor[s] = adjStart[s];
-
-                for (uint8_t l = 0; l < linkCount; l++) {
-                    uint8_t a = slotByIndex[links[l].panelA];
-                    uint8_t b = slotByIndex[links[l].panelB];
-
-                    if (a == 0xFF || b == 0xFF) continue;
-
-                    adjSlot[cursor[a]]     = b;
-                    adjMyEdge[cursor[a]]   = links[l].edgeA;
-                    adjPeerEdge[cursor[a]] = links[l].edgeB;
-                    cursor[a]++;
-
-                    adjSlot[cursor[b]]     = a;
-                    adjMyEdge[cursor[b]]   = links[l].edgeB;
-                    adjPeerEdge[cursor[b]] = links[l].edgeA;
-                    cursor[b]++;
-                }
-            }
 
             void bfsParents(uint8_t rootSlot)
             {
@@ -224,15 +162,15 @@ namespace Lightnet {
                 while (qh < qt) {
                     uint8_t u = queue[qh++];
 
-                    for (uint8_t e = adjStart[u]; e < adjStart[u] + deg[u]; e++) {
-                        uint8_t v = adjSlot[e];
+                    for (uint8_t i = 0; i < graph->degree(u); i++) {
+                        uint8_t v = graph->neighborSlot(u, i);
 
                         if (visited[v]) continue;
 
                         visited[v]        = true;
                         parent[v]         = u;
-                        parentMyEdge[v]   = adjPeerEdge[e]; // v's connector toward u
-                        parentPeerEdge[v] = adjMyEdge[e];   // u's connector toward v
+                        parentMyEdge[v]   = graph->neighborPeerEdge(u, i); // v's connector toward u
+                        parentPeerEdge[v] = graph->neighborMyEdge(u, i);   // u's connector toward v
                         queue[qt++]       = v;
                         bfsOrder[bfsCount++] = v;
                     }

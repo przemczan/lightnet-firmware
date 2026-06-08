@@ -126,12 +126,15 @@ The accumulator starts from the scene [`background`](#scene-background) (black b
 
 | Mode | Effect (`below` ⊕ `layer`) |
 |---|---|
-| `normal` (default) | opaque — the layer's colour replaces what's below |
+| `opaque` (default) | the layer's colour replaces what's below |
 | `add` | `below + layer` (clamped) — light accumulates |
 | `max` | per-channel `max` — non-destructive lighten; **black is transparent** |
 | `multiply` | `below × layer / 255` — darken / mask |
 | `screen` | soft lighten |
-| `replace` | same as `normal` |
+| `darken` | per-channel `min` — non-destructive darken; **white is transparent** |
+| `overlay` | multiply shadows, screen highlights — boosts contrast |
+| `difference` | per-channel `\|below − layer\|` — inverts toward the layer's colour |
+| `subtract` | `below − layer`, clamped to `0` — punches the layer's colour out of what's below |
 
 `max`/`add`/`screen` treat black as transparent, so they layer an accent over a background without
 clobbering it. **Runner layers default to `max`** for exactly this reason (a runner's off-phase is
@@ -308,7 +311,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 |---|---|---|---|
 | `group` | Yes | — | Group name (string) or number (1–254). Unique within the scene. |
 | `panels` | No | `"all"` | Panel targeting — see below. |
-| `blend` | No | `normal` (runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
+| `blend` | No | `opaque` (runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
 | `palette` | No | scene default | Per-layer palette override. |
 | `startAfter` | No | — | Group name of the layer this one waits for; unset ⇒ starts at scene start. |
 | `async` | No | `false` | When `true`, the layer loops on its own, independent of the scene-cycle barrier (see below). Ignored if `startAfter` is set. |

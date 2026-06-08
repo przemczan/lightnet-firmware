@@ -84,7 +84,7 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/scenes/play` | Full scene JSON body — plays inline, not saved to disk |
+| `POST` | `/api/scenes/play` | Full scene JSON body — stored under the reserved name `Current`, then played by name (so it survives resume / power-cycle like a named scene; `Current` is hidden from `GET /api/scenes` and cannot be used as a saved-scene name) |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) |
 | `POST` | `/api/scenes/stop` | — |
 | `POST` | `/api/scenes/speed` | `{"speed":<float>}` — change playback speed [0.1, 10.0] while playing |
@@ -365,7 +365,7 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 
 | Field | Rule |
 |---|---|
-| Scene name | `[a-zA-Z0-9_-]`, 1–18 chars |
+| Scene name | `[a-zA-Z0-9_-]`, 1–18 chars; `Current` is reserved (used internally for `POST /api/scenes/play`) and rejected on `POST /api/scenes` |
 | Layer count | 1–8 |
 | Steps per layer | 1–12 |
 | `group` | Name (string) or number 1–254; unique within the scene |

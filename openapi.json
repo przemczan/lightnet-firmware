@@ -216,7 +216,7 @@
     },
     "/api/scenes/play": {
       "post": {
-        "summary": "Play Inline Scene",
+        "summary": "Play Inline Scene (stored as 'Current', then played by name)",
         "parameters": [],
         "responses": {
           "200": {
@@ -604,9 +604,9 @@
         }
       }
     },
-    "/api/state/power": {
+    "/api/state": {
       "get": {
-        "summary": "Get Power State",
+        "summary": "Get App State",
         "parameters": [],
         "responses": {
           "200": {
@@ -614,13 +614,16 @@
             "content": {
               "application/json": {
                 "example": {
-                  "isOn": true
+                  "isOn": true,
+                  "lastPlayedScene": "sunset"
                 }
               }
             }
           }
         }
-      },
+      }
+    },
+    "/api/state/power": {
       "post": {
         "summary": "Set Power State",
         "parameters": [],

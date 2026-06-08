@@ -7,6 +7,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include "Controller/Topology/PanelGraph.hpp"
 #include "Controller/Topology/PanelSelectorParser.hpp"
 
 using namespace Lightnet;
@@ -21,6 +22,7 @@ static const TopoLink LINKS[] = {
     { 5, 1, 6, 0 },
 };
 
+static PanelGraph graph;
 static TopologyIndex topo;
 
 static void parseResolve(const char *json, const uint8_t *expect, uint8_t en)
@@ -277,7 +279,8 @@ void test_err_two_keys()
 
 void setUp(void)
 {
-    topo.build(PANELS, 6, LINKS, 5, 1);
+    graph.build(PANELS, 6, LINKS, 5);
+    topo.build(graph, 1);
 }
 
 void tearDown(void)

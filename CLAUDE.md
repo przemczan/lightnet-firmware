@@ -49,7 +49,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -161,19 +161,22 @@ at play time**, so one scene adapts to devices with different panel counts/wirin
 | `TagResolver.hpp` | `ITagResolver` + the single `isValidTagName`/`TAG_NAME_MAX` shared by parser, store, and endpoint. |
 
 **Device side**: `Topology/TopologyConfigStore` persists `/config/topology.json` (logical root +
-panel tags) and is the `ITagResolver`. `ScenePlayer` owns the `TopologyIndex` (rebuilt in
-`loadAndPlay`/`resume`), exposes `setLogicalRoot()` / `setTagResolver()`, and resolves layer
-targeting in `resolvePanels()`. Endpoints live in `API/http/TopologyServer`
-(`GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags`), wired in `main.cpp` case 0.
+panel tags) and is the `ITagResolver`. `Scenes/SceneTopology` owns the panel-tree views
+(`PanelGraph` + `TopologyIndex` + `PanelGeometry`), the logical root, the tag resolver, and
+selector resolution (`rebuild()` + `resolvePanels()`). `ScenePlayer` holds one `SceneTopology`
+(rebuilt in `loadAndPlay`/`resume`),
+delegates `setLogicalRoot()` / `setTagResolver()` to it, and reads its views in `fireStep`. Endpoints
+live in `API/http/TopologyServer` (`GET /api/topology`, `PUT /api/topology/root`,
+`GET/PUT /api/panel-tags`), wired in `main.cpp` case 0.
 
 - **Controller-side, no protocol change**: runners (incl. directionality math) run on the ESP in
   float — they are **not** under the `refgen`/Kotlin bit-exact contract (that governs panel-local
   `AnimationPlayer.cpp` only). `N`/edges/adjacency come from existing discovery data.
 - **Backward compatible**: v2 `panels` forms map onto the RPN; legacy `originPanel` → `source:panel:N`;
   v2 WAVE/CHASE default to `source:root` (slight visual change — design §6.4). `source:geometric`
-  requires `schemaVersion: 3` (current `SCENE_SCHEMA_VERSION`); `ScenePlayer` builds the
-  `PanelGeometry` alongside `topo` in `rebuildTopology` and branches in `fireStep`.
-- Native suites: `test_topology`, `test_panel_selector`, `test_panel_selector_parser`,
+  requires `schemaVersion: 3` (current `SCENE_SCHEMA_VERSION`); `SceneTopology::rebuild()` builds the
+  `PanelGeometry` alongside `topo`, and `ScenePlayer::fireStep` branches on it.
+- Native suites: `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`,
   `test_panel_field`, `test_panel_geometry`, `test_runner_math`.
 
 ---

@@ -7,6 +7,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include "Controller/Topology/PanelGraph.hpp"
 #include "Controller/Topology/PanelSelector.hpp"
 
 using namespace Lightnet;
@@ -21,6 +22,7 @@ static const TopoLink LINKS[] = {
     { 5, 1, 6, 0 },
 };
 
+static PanelGraph graph;
 static TopologyIndex topo;
 
 // Mock tag resolver: "accent" → panels 1 and 5.
@@ -392,7 +394,8 @@ void test_rejects_empty_program()
 
 void setUp(void)
 {
-    topo.build(PANELS, 6, LINKS, 5, 1);
+    graph.build(PANELS, 6, LINKS, 5);
+    topo.build(graph, 1);
 }
 
 void tearDown(void)

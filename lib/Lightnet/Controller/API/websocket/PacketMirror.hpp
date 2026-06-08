@@ -66,7 +66,13 @@ class PacketMirror
         // for all other types, key = 0 (address alone is sufficient).
         // Snapshot is never reset — it represents current controller state and
         // persists so any newly-subscribing client gets a meaningful replay.
-        static const uint16_t SNAPSHOT_RECORDS_CAP = 6144;
+        #ifdef ARDUINO_ARCH_ESP32
+            static const uint16_t SNAPSHOT_RECORDS_CAP = 1024 * 6; // ample heap headroom
+
+        #else
+            static const uint16_t SNAPSHOT_RECORDS_CAP = 1024 * 2; // ESP8266 heap is critically scarce (~5KB free)
+
+        #endif
         static const uint16_t SNAPSHOT_MAX_ENTRIES = 256;
 
         struct SnapshotEntry {

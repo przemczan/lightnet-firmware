@@ -96,6 +96,9 @@ namespace Lightnet {
             if (nlen >= sizeof(name)) continue;
 
             memcpy(name, base, nlen);
+
+            if (SceneStore::isReservedName(name)) continue;
+
             n += snprintf(buf + n, sizeof(buf) - n, "%s{\"name\":\"%s\",\"size\":%u}",
                           first ? "" : ",", name, (unsigned)d.fileSize());
             first = false;
@@ -192,6 +195,7 @@ namespace Lightnet {
             return;
         }
 
+        appState.setLastPlayedScene(SceneStore::reservedName());
         Http::sendOk(req);
     }
 
@@ -228,6 +232,7 @@ namespace Lightnet {
             return;
         }
 
+        appState.setLastPlayedScene(name);
         Http::sendOk(req);
     }
 

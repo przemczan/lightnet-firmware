@@ -20,8 +20,8 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
 
 1. [WebSocket Binary API](#1-websocket-binary-api)
    - [Packet structure](#11-packet-structure)
-   - [Commands](#12-commands) — TOGGLE (1), SET_COLOR (3), GET_PANELS_STATES (5), GET_EDGES_LIST (4), ANIMATION_TRIGGER (8), SET_MIRROR (10)
-   - [Responses](#13-responses) — PANELS_STATES (6), EDGES_LIST (7), MIRROR_BATCH (9)
+   - [Commands](#12-commands) — TOGGLE (1), SET_COLOR (3), GET_PANELS_STATES (5), GET_EDGES_LIST (4), ANIMATION_TRIGGER (8), SET_MIRROR (10), PING (11)
+   - [Responses](#13-responses) — PANELS_STATES (6), EDGES_LIST (7), MIRROR_BATCH (9), PONG (12)
    - [Sending a command — worked example](#14-sending-a-command-worked-example)
 2. [HTTP API](#2-http-api)
    - [Appearance](#21-appearance)
@@ -139,6 +139,14 @@ No response is sent.
 
 ---
 
+#### PING (type 11)
+
+Liveness check. The controller replies immediately with a `PONG` on the same connection. Clients use this to confirm a WebSocket connection that reports as open is actually being served by a live controller — useful for periodic "is this device online" checks, since a TCP connection can remain in a connected state after the remote end has gone silent.
+
+No payload.
+
+---
+
 ### 1.3 Responses
 
 Responses are sent **controller → client** in reply to query commands.
@@ -212,6 +220,14 @@ All records in one frame share the same `controllerMillis` timestamp. The first 
 
 ---
 
+#### PONG (type 12)
+
+Sent immediately in reply to `PING`, on the same connection.
+
+No payload.
+
+---
+
 ### 1.4 Sending a command — worked example
 
 To turn panel 3 on:
@@ -277,7 +293,7 @@ Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes/play` | Full scene JSON body (inline play, not saved) | `{}` |
+| `POST` | `/api/scenes/play` | Full scene JSON body — stored under the reserved name `Current`, then played by name | `{}` |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `{}` |
 | `POST` | `/api/scenes/stop` | — | `{}` |
 | `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `{"ok":true,"speed":2.0}` |
@@ -440,11 +456,15 @@ Values outside `0–2` return `422`.
 
 ### 2.9 State
 
-Runtime power state. Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial value on boot is derived from `powerStateOnBoot` (see §2.7).
+Runtime app state — power state and the most recently played scene's name. Persisted in
+`/config/app_state.json` with a 5-second deferred-write window. The initial `isOn` value on boot
+is derived from `powerStateOnBoot` (see §2.7); `lastPlayedScene` is set whenever a scene is played
+via `POST /api/scenes/play` or `POST /api/scenes/:name/play` (inline plays are recorded under the
+reserved name `Current`, see §2.3 Scenes).
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/state/power` | — | `{"isOn":true}` |
+| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedScene":"sunset"}` |
 | `POST` | `/api/state/power` | `{"isOn":bool}` | `{"isOn":bool}` |
 
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.

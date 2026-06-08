@@ -36,8 +36,8 @@ namespace Lightnet {
         PanelsInitializer&  _initializer,
         PaletteStore&       _paletteStore
     )
-        : scheduler(_scheduler), initializer(_initializer), paletteStore(_paletteStore),
-        logicalRoot(1), tagResolver(nullptr),
+        : scheduler(_scheduler), paletteStore(_paletteStore),
+        sceneTopo(_initializer),
         lCount(0), loop(false), playing(false), speed(1.0f)
     {
         memset(name, 0, sizeof(name));
@@ -97,7 +97,7 @@ namespace Lightnet {
 
         // Build the rooted topology this scene's panel selectors resolve against. Rebuilt
         // here so it reflects the live discovered graph on every play and resume.
-        rebuildTopology();
+        sceneTopo.rebuild();
 
         sendPalettesToPanels();
 
@@ -261,7 +261,7 @@ namespace Lightnet {
         uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
         uint8_t panelCount = 0;
 
-        resolvePanels(layer, panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
+        sceneTopo.resolvePanels(layer.target, panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
 
         if (panelCount == 0) return;
 
@@ -292,6 +292,9 @@ namespace Lightnet {
             bool reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
             bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
             uint8_t maxCoord;
+
+            const TopologyIndex& topo = sceneTopo.index();
+            const PanelGeometry& geometry = sceneTopo.geom();
 
             // Resolution tracks the graph field's span so `width` stays comparable across modes.
             uint8_t resolution = topo.maxDepth();
@@ -329,7 +332,7 @@ namespace Lightnet {
             // runner layered on a background/other layer reads as an accent rather than
             // clobbering it with black. Default to MAX (identical to NORMAL over a black
             // base, i.e. a standalone runner); honour an explicit non-default blend.
-            uint8_t runnerBlend = (layer.blend == COMPOSE_NORMAL) ? COMPOSE_MAX : layer.blend;
+            uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
 
             for (uint8_t i = 0; i < panelCount; i++) {
                 CompiledPulse cp;
@@ -369,90 +372,13 @@ namespace Lightnet {
         }
     }
 
-    void ScenePlayer::resolvePanels(const SceneLayer& layer, uint8_t *out, uint8_t maxLen, uint8_t& count) const
-    {
-        count = 0;
-
-        PanelSet set;
-
-        // A malformed selector resolves to nothing — the layer is simply skipped.
-        if (!resolveSelector(layer.target, topo, set, tagResolver)) return;
-
-        // Emitted in slot (discovery) order, preserving the pre-existing runner sweep order.
-        emitPanelIndices(set, topo, out, maxLen, count);
-    }
-
-    void ScenePlayer::rebuildTopology()
-    {
-        List<Panel *> *panels = initializer.getPanels();
-        uint16_t total = panels ? panels->getSize() : 0;
-
-        if (total == 0 || total > LIGHTNET_MAX_PANELS) {
-            topo.build(nullptr, 0, nullptr, 0, logicalRoot); // empty / unusable topology
-            geometry.build(nullptr, 0, nullptr, nullptr, 0, 0);
-
-            return;
-        }
-
-        uint8_t indices[LIGHTNET_MAX_PANELS];
-        uint8_t edgeCounts[LIGHTNET_MAX_PANELS]; // polygon side count per panel (for geometry)
-        TopoLink links[LIGHTNET_MAX_PANELS];
-        uint8_t linkCount = 0;
-
-        for (uint16_t i = 0; i < total; i++) {
-            Panel *panel = panels->get(i);
-
-            indices[i]   = (uint8_t)panel->index;
-
-            List<Edge *> *edges = panel->edges;
-            uint16_t ec    = edges ? edges->getSize() : 0;
-
-            edgeCounts[i] = (uint8_t)ec;
-
-            for (uint16_t e = 0; e < ec; e++) {
-                Edge *edge = edges->get(e);
-
-                if (!edge || !edge->connectedEdge || !edge->connectedEdge->panel) continue;
-
-                uint8_t a = (uint8_t)panel->index;
-                uint8_t b = (uint8_t)edge->connectedEdge->panel->index;
-
-                // connectedEdge is normally set on the parent side only, so each link is
-                // seen once — but dedupe defensively in case both sides are ever linked.
-                bool seen = false;
-
-                for (uint8_t k = 0; k < linkCount; k++) {
-                    if ((links[k].panelA == a && links[k].panelB == b) ||
-                        (links[k].panelA == b && links[k].panelB == a)) {
-                        seen = true;
-                        break;
-                    }
-                }
-
-                if (seen || linkCount >= LIGHTNET_MAX_PANELS) continue;
-
-                links[linkCount].panelA = a;
-                links[linkCount].edgeA  = edge->index;
-                links[linkCount].panelB = b;
-                links[linkCount].edgeB  = edge->connectedEdge->index;
-                linkCount++;
-            }
-        }
-
-        topo.build(indices, (uint8_t)total, links, linkCount, logicalRoot);
-
-        // Geometric directionality uses the same links but is anchored at the lowest panel
-        // index (0 → lowest), matching the mobile visualizer frame regardless of logicalRoot.
-        geometry.build(indices, (uint8_t)total, edgeCounts, links, linkCount, 0);
-    }
-
     void ScenePlayer::setLogicalRoot(uint8_t panelIndex, uint32_t nowMs)
     {
-        logicalRoot = panelIndex ? panelIndex : 1; // 0 → reset to physical root
+        sceneTopo.setLogicalRoot(panelIndex); // 0 → reset to physical root
 
-        // Replaying rebuilds topo (via loadAndPlay); otherwise refresh it for the next play.
+        // Replaying rebuilds the topology (via loadAndPlay); otherwise refresh it for the next play.
         if (playing) resume(nowMs);
-        else rebuildTopology();
+        else sceneTopo.rebuild();
     }
 
     void ScenePlayer::sendPalettesToPanels()
@@ -470,7 +396,7 @@ namespace Lightnet {
             uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
             uint8_t panelCount = 0;
 
-            resolvePanels(layers[i], panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
+            sceneTopo.resolvePanels(layers[i].target, panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
 
             if (panelCount == 0) continue;
 

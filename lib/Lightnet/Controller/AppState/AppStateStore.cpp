@@ -35,6 +35,19 @@ namespace Lightnet {
         return true;
     }
 
+    bool AppStateStore::setLastPlayedScene(const char *name)
+    {
+        if (!name) name = "";
+
+        if (strncmp(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1) == 0) return false;
+
+        strncpy(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1);
+        _lastPlayedScene[sizeof(_lastPlayedScene) - 1] = '\0';
+        writer.markDirty(millis());
+
+        return true;
+    }
+
     void AppStateStore::tick(uint32_t now)
     {
         if (writer.shouldFlush(now)) {
@@ -87,6 +100,8 @@ namespace Lightnet {
             }
         }
 
+        j.getString("lastPlayedScene", _lastPlayedScene, sizeof(_lastPlayedScene));
+
         return true;
     }
 
@@ -100,11 +115,12 @@ namespace Lightnet {
             return;
         }
 
-        char buf[64];
+        char buf[96];
         int len = snprintf(buf, sizeof(buf),
-                           "{\"schemaVersion\":%u,\"isOn\":%s}\n",
+                           "{\"schemaVersion\":%u,\"isOn\":%s,\"lastPlayedScene\":\"%s\"}\n",
                            (unsigned)APP_STATE_SCHEMA,
-                           _isOn ? "true" : "false");
+                           _isOn ? "true" : "false",
+                           _lastPlayedScene);
 
         if (len > 0) f.write((const uint8_t *)buf, (size_t)len);
 

@@ -11,6 +11,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include "Controller/Topology/PanelGraph.hpp"
 #include "Controller/Topology/PanelGeometry.hpp"
 #include "Controller/Topology/TopologyIndex.hpp"
 
@@ -24,6 +25,7 @@ static const TopoLink LINKS[] = {
     { 2, 1, 3, 0 },
 };
 
+static PanelGraph graph;
 static PanelGeometry geo;
 static TopologyIndex topo; // chain 1—2—3 rooted at panel 1: leaves are panels 1 and 3
 
@@ -84,9 +86,11 @@ void test_single_panel_is_uniform()
 {
     static const uint8_t one[]  = { 1 };
     static const uint8_t oneEc[] = { 3 };
+    PanelGraph g1;
     PanelGeometry g;
 
-    TEST_ASSERT_TRUE(g.build(one, 1, oneEc, nullptr, 0, 0));
+    TEST_ASSERT_TRUE(g1.build(one, 1, nullptr, 0));
+    TEST_ASSERT_TRUE(g.build(g1, oneEc, 0));
 
     uint8_t coord[LIGHTNET_MAX_PANELS];
     uint8_t maxC = computeGeometricField(g, one, 1, 30.0f, false, 4, coord);
@@ -97,9 +101,11 @@ void test_single_panel_is_uniform()
 
 void test_empty_build_is_invalid()
 {
+    PanelGraph g1;
     PanelGeometry g;
 
-    TEST_ASSERT_FALSE(g.build(nullptr, 0, nullptr, nullptr, 0, 0));
+    g1.build(nullptr, 0, nullptr, 0);
+    TEST_ASSERT_FALSE(g.build(g1, nullptr, 0));
     TEST_ASSERT_FALSE(g.valid());
 }
 
@@ -115,9 +121,12 @@ void test_center_field_from_root()
                                                SRC_ROOT, 0, false, 4, near, far);
 
     TEST_ASSERT_EQUAL_UINT8(4, maxC);
-    TEST_ASSERT_EQUAL_UINT8(0, near[0]); TEST_ASSERT_EQUAL_UINT8(1, far[0]);
-    TEST_ASSERT_EQUAL_UINT8(0, near[1]); TEST_ASSERT_EQUAL_UINT8(3, far[1]);
-    TEST_ASSERT_EQUAL_UINT8(1, near[2]); TEST_ASSERT_EQUAL_UINT8(4, far[2]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]);
+    TEST_ASSERT_EQUAL_UINT8(1, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[1]);
+    TEST_ASSERT_EQUAL_UINT8(3, far[1]);
+    TEST_ASSERT_EQUAL_UINT8(1, near[2]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[2]);
 }
 
 void test_center_field_leaves_is_multi_source()
@@ -128,16 +137,19 @@ void test_center_field_leaves_is_multi_source()
     // root-independent. Bands: P1[0,57.7] P2[0,115.5] P3[0,57.7]; maxFar=115.5 → /115.5 ×4.
     TopologyIndex centreRooted;
 
-    centreRooted.build(PANELS, 3, LINKS, 2, 2);
+    centreRooted.build(graph, 2);
 
     uint8_t near[LIGHTNET_MAX_PANELS], far[LIGHTNET_MAX_PANELS];
     uint8_t maxC = computeGeometricCenterField(geo, centreRooted, PANELS, 3,
                                                SRC_LEAVES, 0, false, 4, near, far);
 
     TEST_ASSERT_EQUAL_UINT8(4, maxC);
-    TEST_ASSERT_EQUAL_UINT8(0, near[0]); TEST_ASSERT_EQUAL_UINT8(2, far[0]);
-    TEST_ASSERT_EQUAL_UINT8(0, near[1]); TEST_ASSERT_EQUAL_UINT8(4, far[1]);
-    TEST_ASSERT_EQUAL_UINT8(0, near[2]); TEST_ASSERT_EQUAL_UINT8(2, far[2]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[1]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[2]);
+    TEST_ASSERT_EQUAL_UINT8(2, far[2]);
 }
 
 void test_center_field_panel_and_reverse()
@@ -149,15 +161,19 @@ void test_center_field_panel_and_reverse()
                                                SRC_PANEL, 2, true, 4, near, far);
 
     TEST_ASSERT_EQUAL_UINT8(4, maxC);
-    TEST_ASSERT_EQUAL_UINT8(0, near[0]); TEST_ASSERT_EQUAL_UINT8(4, far[0]);
-    TEST_ASSERT_EQUAL_UINT8(2, near[1]); TEST_ASSERT_EQUAL_UINT8(4, far[1]);
-    TEST_ASSERT_EQUAL_UINT8(0, near[2]); TEST_ASSERT_EQUAL_UINT8(4, far[2]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(2, near[1]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[1]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[2]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[2]);
 }
 
 void setUp(void)
 {
-    geo.build(PANELS, 3, EDGECOUNTS, LINKS, 2, 0); // anchor 0 → lowest index (panel 1)
-    topo.build(PANELS, 3, LINKS, 2, 0);            // root 0 → lowest index (panel 1)
+    graph.build(PANELS, 3, LINKS, 2);
+    geo.build(graph, EDGECOUNTS, 0); // anchor 0 → lowest index (panel 1)
+    topo.build(graph, 0);            // root 0 → lowest index (panel 1)
 }
 
 void tearDown(void)

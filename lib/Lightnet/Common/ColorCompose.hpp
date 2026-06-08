@@ -26,12 +26,15 @@ namespace Lightnet {
 
     // ---- Blend modes for SOURCE layers (matches ComposeMode in AnimationTypes.hpp) ----
     enum ComposeOp : uint8_t {
-        CO_NORMAL   = 0,  // opaque: top wins (default — reproduces legacy last-write)
+        CO_OPAQUE   = 0,  // opaque: top wins (default — reproduces legacy last-write)
         CO_ADD      = 1,  // additive, clamped
         CO_MAX      = 2,  // per-channel lighten
         CO_MULTIPLY = 3,  // darken / mask
         CO_SCREEN   = 4,  // soft lighten
-        CO_REPLACE  = 5,  // explicit overwrite (same as NORMAL for an opaque source)
+        CO_DARKEN     = 6,  // per-channel darken (min)
+        CO_OVERLAY    = 7,  // multiply shadows, screen highlights (contrast boost)
+        CO_DIFFERENCE = 8,  // per-channel absolute difference
+        CO_SUBTRACT   = 9,  // acc - src, clamped to 0
     };
 
     static inline uint8_t cc_clampAdd(uint8_t a, uint8_t b)
@@ -56,6 +59,28 @@ namespace Lightnet {
         return (a > b) ? a : b;
     }
 
+    static inline uint8_t cc_min(uint8_t a, uint8_t b)
+    {
+        return (a < b) ? a : b;
+    }
+
+    static inline uint8_t cc_overlay(uint8_t a, uint8_t b)
+    {
+        return (a < 128)
+            ? (uint8_t)((2 * (uint16_t)a * b) / 255)
+            : (uint8_t)(255 - (2 * (uint16_t)(255 - a) * (255 - b)) / 255);
+    }
+
+    static inline uint8_t cc_diff(uint8_t a, uint8_t b)
+    {
+        return (a > b) ? (uint8_t)(a - b) : (uint8_t)(b - a);
+    }
+
+    static inline uint8_t cc_sub(uint8_t a, uint8_t b)
+    {
+        return (a > b) ? (uint8_t)(a - b) : 0;
+    }
+
     // Fold a source colour onto the accumulator using the given blend op.
     static inline RGB8 composeColor(RGB8 acc, RGB8 src, uint8_t op)
     {
@@ -68,8 +93,15 @@ namespace Lightnet {
                 return { cc_mul(acc.r, src.r), cc_mul(acc.g, src.g), cc_mul(acc.b, src.b) };
             case CO_SCREEN:
                 return { cc_screen(acc.r, src.r), cc_screen(acc.g, src.g), cc_screen(acc.b, src.b) };
-            case CO_NORMAL:
-            case CO_REPLACE:
+            case CO_DARKEN:
+                return { cc_min(acc.r, src.r), cc_min(acc.g, src.g), cc_min(acc.b, src.b) };
+            case CO_OVERLAY:
+                return { cc_overlay(acc.r, src.r), cc_overlay(acc.g, src.g), cc_overlay(acc.b, src.b) };
+            case CO_DIFFERENCE:
+                return { cc_diff(acc.r, src.r), cc_diff(acc.g, src.g), cc_diff(acc.b, src.b) };
+            case CO_SUBTRACT:
+                return { cc_sub(acc.r, src.r), cc_sub(acc.g, src.g), cc_sub(acc.b, src.b) };
+            case CO_OPAQUE:
             default:
                 return src;
         }

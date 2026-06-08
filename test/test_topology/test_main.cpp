@@ -16,6 +16,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include "Controller/Topology/PanelGraph.hpp"
 #include "Controller/Topology/TopologyIndex.hpp"
 
 using namespace Lightnet;
@@ -30,6 +31,7 @@ static const TopoLink LINKS[] = {
     { 5, 1, 6, 0 },
 };
 
+static PanelGraph graph;
 static TopologyIndex topo;
 
 static uint8_t slot(uint8_t panelIndex)
@@ -43,7 +45,8 @@ static uint8_t slot(uint8_t panelIndex)
 
 static void buildWorked(uint8_t root)
 {
-    TEST_ASSERT_TRUE(topo.build(PANELS, 6, LINKS, 5, root));
+    TEST_ASSERT_TRUE(graph.build(PANELS, 6, LINKS, 5));
+    TEST_ASSERT_TRUE(topo.build(graph, root));
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +234,8 @@ void test_single_panel()
 {
     static const uint8_t one[] = { 7 };
 
-    TEST_ASSERT_TRUE(topo.build(one, 1, nullptr, 0, 7));
+    TEST_ASSERT_TRUE(graph.build(one, 1, nullptr, 0));
+    TEST_ASSERT_TRUE(topo.build(graph, 7));
     TEST_ASSERT_EQUAL_UINT8(1, topo.count());
     TEST_ASSERT_EQUAL_UINT8(slot(7), topo.root());
     TEST_ASSERT_EQUAL_UINT8(0, topo.depthOf(slot(7)));
@@ -242,7 +246,8 @@ void test_single_panel()
 
 void test_rejects_empty()
 {
-    TEST_ASSERT_FALSE(topo.build(PANELS, 0, LINKS, 0, 1));
+    graph.build(PANELS, 0, LINKS, 0);
+    TEST_ASSERT_FALSE(topo.build(graph, 1));
 }
 
 // ---------------------------------------------------------------------------

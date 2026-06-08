@@ -36,7 +36,7 @@ namespace Lightnet {
 
             void registerRoutes();
 
-            void handleGetPower(AsyncWebServerRequest *req);
+            void handleGetState(AsyncWebServerRequest *req);
             void handlePostPower(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
 
             void applyIsOn(bool newValue);

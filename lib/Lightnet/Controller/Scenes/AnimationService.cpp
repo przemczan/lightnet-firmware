@@ -24,6 +24,10 @@ namespace Lightnet {
             return SceneResult::error(e, parsed.errMsg);
         }
 
+        if (SceneStore::isReservedName(parsed.name)) {
+            return SceneResult::error(SceneError::Invalid, "name: reserved");
+        }
+
         if (!scenes.save(parsed.name, body, len)) {
             return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
         }
@@ -75,6 +79,16 @@ namespace Lightnet {
             return SceneResult::error(e, parsed.errMsg);
         }
 
+        // Persist under the reserved "Current" name so the inline scene survives a
+        // cold boot the same way a named scene would (reloaded as the last-played
+        // scene; resumeScene() itself replays from in-memory state, not from this).
+        if (!scenes.save(SceneStore::reservedName(), body, len)) {
+            return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
+        }
+
+        // Already parsed and validated above — play it directly rather than reloading
+        // and re-parsing through playSceneByName, which would stack a second ~2.5 KB
+        // SceneParseResult underneath this one on the async HTTP handler's frame.
         return startPlay(parsed, defaultPalette, defaultColors);
     }
 

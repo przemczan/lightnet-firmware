@@ -33,6 +33,7 @@ class WebsocketHandler
         uint8_t cmdGetEdgesList(uint32_t clientId);
         uint8_t cmdAnimationTrigger(WebsocketApi::Cmd::AnimationTrigger *command);
         uint8_t cmdSetMirror(WebsocketApi::Cmd::SetMirror *command, uint32_t clientId);
+        uint8_t cmdPing(uint32_t clientId);
         uint8_t validateCommand(void *data, uint16_t size);
 
     public:

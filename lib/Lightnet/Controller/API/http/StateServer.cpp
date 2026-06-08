@@ -30,18 +30,19 @@ namespace Lightnet {
 
     void StateServer::registerRoutes()
     {
-        server.on("/api/state/power", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetPower(r);
+        server.on("/api/state", HTTP_GET, [this](AsyncWebServerRequest *r) {
+            handleGetState(r);
         });
         Http::onBody(server, "/api/state/power", HTTP_POST, Http::MAX_BODY_SMALL,
                      this, &StateServer::handlePostPower);
     }
 
-    void StateServer::handleGetPower(AsyncWebServerRequest *req)
+    void StateServer::handleGetState(AsyncWebServerRequest *req)
     {
-        char buf[16];
+        char buf[64];
 
-        snprintf(buf, sizeof(buf), "{\"isOn\":%s}", appState.isOn() ? "true" : "false");
+        snprintf(buf, sizeof(buf), "{\"isOn\":%s,\"lastPlayedScene\":\"%s\"}",
+                 appState.isOn() ? "true" : "false", appState.lastPlayedScene());
         Http::sendOkJson(req, buf);
     }
 

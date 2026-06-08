@@ -57,12 +57,15 @@ namespace Lightnet {
 
     // Blend modes for SOURCE layers. Values must match ColorCompose.hpp ComposeOp.
     enum ComposeMode : uint8_t {
-        COMPOSE_NORMAL   = 0,// opaque top-wins (default — reproduces legacy last-write)
+        COMPOSE_OPAQUE   = 0,// opaque top-wins (default — reproduces legacy last-write)
         COMPOSE_ADD      = 1,
         COMPOSE_MAX      = 2,
         COMPOSE_MULTIPLY = 3,
         COMPOSE_SCREEN   = 4,
-        COMPOSE_REPLACE  = 5,
+        COMPOSE_DARKEN     = 6,
+        COMPOSE_OVERLAY    = 7,
+        COMPOSE_DIFFERENCE = 8,
+        COMPOSE_SUBTRACT   = 9,
     };
 
     // ============================================================================

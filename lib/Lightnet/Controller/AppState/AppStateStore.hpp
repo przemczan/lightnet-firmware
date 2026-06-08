@@ -9,7 +9,7 @@ namespace Lightnet {
     //
     // filesystem layout:
     //   /config/app_state.json
-    //   { "schemaVersion": 1, "isOn": true }
+    //   { "schemaVersion": 1, "isOn": true, "lastPlayedScene": "sunset" }
     //
     // Written atomically via tmp+rename with a 5-second deferred-write window.
     class AppStateStore
@@ -36,8 +36,19 @@ namespace Lightnet {
             // those are handled by StateServer). Returns false if value unchanged.
             bool setIsOn(bool value);
 
+            // Name of the most recently played scene (empty if none yet).
+            const char * lastPlayedScene() const
+            {
+                return _lastPlayedScene;
+            }
+
+            // Record the most recently played scene's name and mark dirty.
+            // Returns false if the name is unchanged.
+            bool setLastPlayedScene(const char *name);
+
         private:
             bool _isOn = true;
+            char _lastPlayedScene[20] = { 0 };
             DeferredWriter writer{ 5000 };
 
             bool readFile();

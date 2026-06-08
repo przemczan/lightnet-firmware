@@ -12,6 +12,11 @@ namespace Lightnet {
         }
     } // anonymous namespace
 
+    bool SceneStore::isReservedName(const char *name)
+    {
+        return strcmp(name, reservedName()) == 0;
+    }
+
     bool SceneStore::save(const char *name, const char *json, size_t len) const
     {
         char path[40];
@@ -118,6 +123,9 @@ namespace Lightnet {
             if (nlen >= sizeof(name)) continue;
 
             memcpy(name, base, nlen);
+
+            if (isReservedName(name)) continue;
+
             n += snprintf(buf + n, bufLen - n, "%s{\"name\":\"%s\",\"size\":%u}",
                           first ? "" : ",", name, (unsigned)d.fileSize());
             first = false;

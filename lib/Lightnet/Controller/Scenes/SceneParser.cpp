@@ -539,12 +539,15 @@ namespace Lightnet {
                         return false;
                     }
 
-                    if (strcmp(s, "normal") == 0)        layer.blend = COMPOSE_NORMAL;
-                    else if (strcmp(s, "add") == 0)      layer.blend = COMPOSE_ADD;
-                    else if (strcmp(s, "max") == 0)      layer.blend = COMPOSE_MAX;
-                    else if (strcmp(s, "multiply") == 0) layer.blend = COMPOSE_MULTIPLY;
-                    else if (strcmp(s, "screen") == 0)   layer.blend = COMPOSE_SCREEN;
-                    else if (strcmp(s, "replace") == 0)  layer.blend = COMPOSE_REPLACE;
+                    if (strcmp(s, "opaque") == 0)          layer.blend = COMPOSE_OPAQUE;
+                    else if (strcmp(s, "add") == 0)        layer.blend = COMPOSE_ADD;
+                    else if (strcmp(s, "max") == 0)        layer.blend = COMPOSE_MAX;
+                    else if (strcmp(s, "multiply") == 0)   layer.blend = COMPOSE_MULTIPLY;
+                    else if (strcmp(s, "screen") == 0)     layer.blend = COMPOSE_SCREEN;
+                    else if (strcmp(s, "darken") == 0)     layer.blend = COMPOSE_DARKEN;
+                    else if (strcmp(s, "overlay") == 0)    layer.blend = COMPOSE_OVERLAY;
+                    else if (strcmp(s, "difference") == 0) layer.blend = COMPOSE_DIFFERENCE;
+                    else if (strcmp(s, "subtract") == 0)   layer.blend = COMPOSE_SUBTRACT;
                     else {
                         snprintf(errMsg, errLen, "layer.blend: unknown (%s)", s);
 

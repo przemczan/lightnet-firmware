@@ -45,7 +45,7 @@ namespace Lightnet {
                 uint8_t         param2,
                 const uint8_t * panelAddresses,
                 uint8_t         panelCount,
-                uint8_t         composeMode  = COMPOSE_NORMAL,
+                uint8_t         composeMode  = COMPOSE_OPAQUE,
                 uint8_t         composeOrder = 0
             );
 
@@ -61,7 +61,7 @@ namespace Lightnet {
                 uint8_t                   param2,
                 const uint8_t *           panelAddresses,
                 uint8_t                   panelCount,
-                uint8_t                   composeMode  = COMPOSE_NORMAL,
+                uint8_t                   composeMode  = COMPOSE_OPAQUE,
                 uint8_t                   composeOrder = 0
             );
 

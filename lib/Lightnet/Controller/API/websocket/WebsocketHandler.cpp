@@ -95,6 +95,10 @@ uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint1
         case WebsocketApi::SET_MIRROR:
             error = this->cmdSetMirror((WebsocketApi::Cmd::SetMirror *)command, clientId);
             break;
+
+        case WebsocketApi::PING:
+            error = this->cmdPing(clientId);
+            break;
     }
 
     D_PRINTLN("[CMD HANDLER] done handling", error);
@@ -235,6 +239,20 @@ uint8_t WebsocketHandler::cmdAnimationTrigger(WebsocketApi::Cmd::AnimationTrigge
 uint8_t WebsocketHandler::cmdSetMirror(WebsocketApi::Cmd::SetMirror *command, uint32_t clientId)
 {
     websocketServer->setMirroringEnabled(clientId, command->enabled != 0);
+
+    return 0;
+}
+
+uint8_t WebsocketHandler::cmdPing(uint32_t clientId)
+{
+    WebsocketApi::Internal::Pong message;
+
+    message.meta.clientId = clientId;
+    message.meta.payloadSize = sizeof(message.pong);
+
+    WebsocketApi::updatePacketMeta(&message.pong, WebsocketApi::PONG, 0);
+
+    this->websocketServer->sendMessage(&message.meta);
 
     return 0;
 }

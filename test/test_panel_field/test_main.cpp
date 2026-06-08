@@ -5,6 +5,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include "Controller/Topology/PanelGraph.hpp"
 #include "Controller/Topology/PanelField.hpp"
 
 using namespace Lightnet;
@@ -19,6 +20,7 @@ static const TopoLink LINKS[] = {
     { 5, 1, 6, 0 },
 };
 
+static PanelGraph graph;
 static TopologyIndex topo;
 
 // Resolve the field over all 6 panels and compare coord[] + maxCoord.
@@ -96,7 +98,8 @@ void test_maxcoord_is_over_targeted_subset()
 
 void setUp(void)
 {
-    topo.build(PANELS, 6, LINKS, 5, 1);
+    graph.build(PANELS, 6, LINKS, 5);
+    topo.build(graph, 1);
 }
 
 void tearDown(void)

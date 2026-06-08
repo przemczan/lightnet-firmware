@@ -177,7 +177,7 @@ Each entry in `layers`:
 |---|---|---|---|
 | `group` | yes | — | A name (`"ambient"`) or number (1–254). **Unique** within the scene. |
 | `panels` | no | `"all"` | Which panels this layer drives — see §6. |
-| `blend` | no | `normal` (runners: `max`) | How this layer composites with the layers below it — see §5.1. |
+| `blend` | no | `opaque` (runners: `max`) | How this layer composites with the layers below it — see §5.1. |
 | `sequence` | yes | — | 1–12 steps, played in order — see §7. |
 | `startAfter` | no | — | Group **name** to wait for; until it finishes this layer is dark. |
 | `async` | no | `false` | Loop this layer independently of the scene barrier (ignored if `startAfter` is set). |
@@ -212,11 +212,15 @@ Each layer is either a **source** (combines its colour with what's below via `bl
 
 | `blend` | Effect | Notes |
 |---|---|---|
-| `normal` | top wins (opaque) | default for non-runner layers |
+| `opaque` | top wins | default for non-runner layers |
 | `add` | additive light | black is transparent |
 | `max` | per-channel lighten | black is transparent; **runner default** |
 | `multiply` | darken / mask | |
 | `screen` | soft lighten | black is transparent |
+| `darken` | per-channel `min` | non-destructive darken; white is transparent |
+| `overlay` | multiply shadows, screen highlights | contrast boost |
+| `difference` | per-channel `\|below − layer\|` | inverts toward the layer's colour |
+| `subtract` | `below − layer`, clamped to `0` | punches the layer's colour out of what's below |
 
 **Runner layers default to `max`** so a runner's dark phase shows the background/layers below
 (a standalone runner over a black base is unchanged). To layer any source over a background, give

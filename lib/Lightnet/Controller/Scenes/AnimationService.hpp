@@ -4,7 +4,7 @@
 //
 //   saveScene       — parse/validate → write to SceneStore
 //   playSceneByName — load from SceneStore → parse → play
-//   playSceneInline — parse inline body → play
+//   playSceneInline — validate inline body → store as "Current" → playSceneByName
 //   playOneShot     — parse flat one-shot body → play
 //   stopScene       — stop the running scene
 //
@@ -89,7 +89,9 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT] = nullptr
             );
 
-            // Parse an inline scene body and start playing (not saved to disk).
+            // Parse and validate an inline scene body, persist it under the
+            // reserved SceneStore::reservedName() ("Current"), then play it by
+            // name — there is no separate inline-play code path.
             SceneResult playSceneInline(
                 const char *             body,
                 size_t                   len,

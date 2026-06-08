@@ -15,13 +15,12 @@ static void assertRGB(RGB8 c, uint8_t r, uint8_t g, uint8_t b)
 
 // ---- Blend modes ----------------------------------------------------------
 
-void test_compose_normal_is_top_wins()
+void test_compose_opaque_is_top_wins()
 {
     RGB8 below = { 10, 20, 30 };
     RGB8 top   = { 200, 100, 50 };
 
-    assertRGB(composeColor(below, top, CO_NORMAL), 200, 100, 50);
-    assertRGB(composeColor(below, top, CO_REPLACE), 200, 100, 50);
+    assertRGB(composeColor(below, top, CO_OPAQUE), 200, 100, 50);
 }
 
 void test_compose_add_clamps()
@@ -64,6 +63,39 @@ void test_compose_screen_lightens()
 
     // screen(128,128)=255-(127*127/255)=255-63=192 ; screen(0,0)=0 ; screen(255,0)=255
     assertRGB(composeColor(a, b, CO_SCREEN), 192, 0, 255);
+}
+
+void test_compose_darken()
+{
+    RGB8 a = { 200, 10, 50 };
+    RGB8 b = { 100, 100, 50 };
+
+    assertRGB(composeColor(a, b, CO_DARKEN), 100, 10, 50);
+}
+
+void test_compose_overlay()
+{
+    RGB8 a = { 100, 200, 128 };
+    RGB8 b = { 50, 50, 50 };
+
+    // overlay(100,50)=2*100*50/255=39 ; overlay(200,50)=255-2*55*205/255=167 ; overlay(128,50)=255-2*127*205/255=51
+    assertRGB(composeColor(a, b, CO_OVERLAY), 39, 167, 51);
+}
+
+void test_compose_difference()
+{
+    RGB8 a = { 200, 10, 50 };
+    RGB8 b = { 100, 100, 50 };
+
+    assertRGB(composeColor(a, b, CO_DIFFERENCE), 100, 90, 0);
+}
+
+void test_compose_subtract_clamps_to_zero()
+{
+    RGB8 a = { 200, 10, 50 };
+    RGB8 b = { 100, 100, 50 };
+
+    assertRGB(composeColor(a, b, CO_SUBTRACT), 100, 0, 0);
 }
 
 // ---- HSV round-trip -------------------------------------------------------
@@ -181,8 +213,8 @@ void test_fold_two_normal_sources_top_wins_by_order()
 {
     // Higher composeOrder is on top for an opaque NORMAL source — regardless of array order.
     CompositeLayer ls[] = {
-        srcLayer(2, { 10, 20, 30 }, CO_NORMAL),  // top
-        srcLayer(1, { 200, 100, 50 }, CO_NORMAL) // bottom
+        srcLayer(2, { 10, 20, 30 }, CO_OPAQUE),  // top
+        srcLayer(1, { 200, 100, 50 }, CO_OPAQUE) // bottom
     };
 
     assertRGB(foldLayers(ls, 2, BLACK), 10, 20, 30);
@@ -191,7 +223,7 @@ void test_fold_two_normal_sources_top_wins_by_order()
 void test_fold_add_over_base()
 {
     CompositeLayer ls[] = {
-        srcLayer(0, { 50, 50, 50 }, CO_NORMAL), // base
+        srcLayer(0, { 50, 50, 50 }, CO_OPAQUE), // base
         srcLayer(1, { 60, 0, 250 }, CO_ADD)     // accent, additive
     };
 
@@ -202,7 +234,7 @@ void test_fold_max_treats_black_as_transparent()
 {
     // A runner accent (black off-phase) over a background must NOT clobber it under MAX.
     CompositeLayer ls[] = {
-        srcLayer(0, { 40, 80, 120 }, CO_NORMAL), // background
+        srcLayer(0, { 40, 80, 120 }, CO_OPAQUE), // background
         srcLayer(1, { 0, 0, 0 }, CO_MAX)         // accent currently dark
     };
 
@@ -226,7 +258,7 @@ void test_fold_modifier_dims_layers_below()
 {
     // Source then a brightness modifier at a higher order halves it.
     CompositeLayer ls[] = {
-        srcLayer(0, { 200, 100, 50 }, CO_NORMAL),
+        srcLayer(0, { 200, 100, 50 }, CO_OPAQUE),
         modLayer(1, MO_BRIGHTNESS, 128)
     };
 
@@ -240,7 +272,7 @@ void test_fold_order_matters_for_modifier()
     // opaque source then overwrites → unmodified.
     CompositeLayer ls[] = {
         modLayer(0, MO_BRIGHTNESS, 0),           // dims black → still black
-        srcLayer(1, { 200, 100, 50 }, CO_NORMAL) // opaque on top → wins
+        srcLayer(1, { 200, 100, 50 }, CO_OPAQUE) // opaque on top → wins
     };
 
     assertRGB(foldLayers(ls, 2, BLACK), 200, 100, 50);
@@ -258,12 +290,16 @@ int main(int, char **)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_compose_normal_is_top_wins);
+    RUN_TEST(test_compose_opaque_is_top_wins);
     RUN_TEST(test_compose_add_clamps);
     RUN_TEST(test_compose_max);
     RUN_TEST(test_compose_multiply);
     RUN_TEST(test_compose_multiply_by_white_is_identity);
     RUN_TEST(test_compose_screen_lightens);
+    RUN_TEST(test_compose_darken);
+    RUN_TEST(test_compose_overlay);
+    RUN_TEST(test_compose_difference);
+    RUN_TEST(test_compose_subtract_clamps_to_zero);
 
     RUN_TEST(test_hsv_primaries_roundtrip);
     RUN_TEST(test_grey_has_zero_saturation);
