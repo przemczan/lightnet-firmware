@@ -221,6 +221,9 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "409": {
+            "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
           }
         },
         "requestBody": {
@@ -256,6 +259,9 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "409": {
+            "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
           }
         }
       }
@@ -312,6 +318,9 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "409": {
+            "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
           }
         },
         "requestBody": {
@@ -342,6 +351,9 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "409": {
+            "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
           }
         },
         "requestBody": {

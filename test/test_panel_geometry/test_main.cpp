@@ -228,6 +228,86 @@ void test_wheel_field_no_overlap_returns_false()
     TEST_ASSERT_FALSE(computeWheelField(g, topo, PANELS, 3, SRC_ROOT, 0, false, turns));
 }
 
+void test_world_verts_match_centroid()
+{
+    float vx[8], vy[8];
+    uint8_t n;
+
+    TEST_ASSERT_TRUE(geo.worldVertsOf(1, vx, vy, n));
+    TEST_ASSERT_EQUAL_UINT8(3, n);
+
+    float cx = (vx[0] + vx[1] + vx[2]) / 3.0f;
+    float cy = (vy[0] + vy[1] + vy[2]) / 3.0f;
+
+    float ex, ey;
+
+    TEST_ASSERT_TRUE(geo.centroidOf(1, ex, ey));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, ex, cx);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, ey, cy);
+}
+
+void test_world_verts_missing_panel()
+{
+    float vx[8], vy[8];
+    uint8_t n;
+
+    TEST_ASSERT_FALSE(geo.worldVertsOf(9, vx, vy, n));
+}
+
+void test_adjacent_panels_touch_not_overlap()
+{
+    // Panels 1 and 2 share a seam — layout() places them flush, not overlapping.
+    float v1x[8], v1y[8], v2x[8], v2y[8];
+    uint8_t n1, n2;
+
+    TEST_ASSERT_TRUE(geo.worldVertsOf(1, v1x, v1y, n1));
+    TEST_ASSERT_TRUE(geo.worldVertsOf(2, v2x, v2y, n2));
+
+    TEST_ASSERT_FALSE(convexPolygonsOverlap(v1x, v1y, n1, v2x, v2y, n2));
+}
+
+void test_chain_ends_dont_overlap()
+{
+    // Panels 1 and 3 sit two hops apart in the zig-zag chain — their circumcircles are
+    // close enough to intersect, but the actual triangles don't (real layouts shouldn't
+    // false-positive on a simple chain).
+    float v1x[8], v1y[8], v3x[8], v3y[8];
+    uint8_t n1, n3;
+
+    TEST_ASSERT_TRUE(geo.worldVertsOf(1, v1x, v1y, n1));
+    TEST_ASSERT_TRUE(geo.worldVertsOf(3, v3x, v3y, n3));
+
+    TEST_ASSERT_FALSE(convexPolygonsOverlap(v1x, v1y, n1, v3x, v3y, n3));
+}
+
+void test_coincident_polygons_overlap()
+{
+    float vx[8], vy[8];
+    uint8_t n;
+
+    TEST_ASSERT_TRUE(geo.worldVertsOf(1, vx, vy, n));
+    TEST_ASSERT_TRUE(convexPolygonsOverlap(vx, vy, n, vx, vy, n));
+}
+
+void test_shifted_polygon_overlap_detected()
+{
+    // Nudge panel 1's triangle by an amount well inside its ~58-unit circumradius —
+    // a genuine interior overlap, not merely a shared seam.
+    float vx[8], vy[8];
+    uint8_t n;
+
+    TEST_ASSERT_TRUE(geo.worldVertsOf(1, vx, vy, n));
+
+    float sx[8], sy[8];
+
+    for (uint8_t i = 0; i < n; i++) {
+        sx[i] = vx[i] + 10.0f;
+        sy[i] = vy[i] + 10.0f;
+    }
+
+    TEST_ASSERT_TRUE(convexPolygonsOverlap(vx, vy, n, sx, sy, n));
+}
+
 void setUp(void)
 {
     graph.build(PANELS, 3, LINKS, 2);
@@ -257,6 +337,13 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_wheel_field_reverse_flips_bearing);
     RUN_TEST(test_wheel_field_from_root);
     RUN_TEST(test_wheel_field_no_overlap_returns_false);
+
+    RUN_TEST(test_world_verts_match_centroid);
+    RUN_TEST(test_world_verts_missing_panel);
+    RUN_TEST(test_adjacent_panels_touch_not_overlap);
+    RUN_TEST(test_chain_ends_dont_overlap);
+    RUN_TEST(test_coincident_polygons_overlap);
+    RUN_TEST(test_shifted_polygon_overlap_detected);
 
     return UNITY_END();
 }

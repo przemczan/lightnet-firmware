@@ -32,13 +32,14 @@ namespace Lightnet {
     // A fourth, independent toggle — `repeat` (RUNNER_FLAG_REPEAT) — turns WAVE/RIPPLE/
     // CHASE into a continuous train instead of a single sweep (compile*Repeating in
     // RunnerCompile.hpp); WHEEL (always a continuous rotation) ignores it.
-    // RUNNER_PARAM_LINES is WHEEL-only (number of rotating blades).
-    static const uint8_t RUNNER_PARAM_WIDTH    = 0; // wave/ripple band width (rings); wheel: blade thickness (degrees)
-    static const uint8_t RUNNER_PARAM_SRC_KIND = 1; // RunnerSource
-    static const uint8_t RUNNER_PARAM_SRC_ARG  = 2; // SRC_PANEL: panel index; geometric wave/chase: angle/2°
-    static const uint8_t RUNNER_PARAM_FLAGS    = 3;
-    static const uint8_t RUNNER_PARAM_AMOUNT   = 4; // peak scalar (0-255) for non-colour `animates` targets
-    static const uint8_t RUNNER_PARAM_LINES    = 5; // WHEEL: number of rotating blades (1-6)
+    // RUNNER_PARAM_LINES (WHEEL) and RUNNER_PARAM_REPEAT_COUNT (WAVE/RIPPLE/CHASE) share slot 5 — mutually exclusive.
+    static const uint8_t RUNNER_PARAM_WIDTH        = 0; // wave/ripple band width (rings); wheel: blade thickness (degrees)
+    static const uint8_t RUNNER_PARAM_SRC_KIND     = 1; // RunnerSource
+    static const uint8_t RUNNER_PARAM_SRC_ARG      = 2; // SRC_PANEL: panel index; geometric wave/chase: angle/2°
+    static const uint8_t RUNNER_PARAM_FLAGS        = 3;
+    static const uint8_t RUNNER_PARAM_AMOUNT       = 4; // peak scalar (0-255) for non-colour `animates` targets
+    static const uint8_t RUNNER_PARAM_LINES        = 5; // WHEEL: number of rotating blades (1-6)
+    static const uint8_t RUNNER_PARAM_REPEAT_COUNT = 5; // WAVE/RIPPLE/CHASE with `repeat`: waves per duration (0 or 1 = one wave)
     static const uint8_t RUNNER_FLAG_REVERSE   = 0x01;
     static const uint8_t RUNNER_FLAG_GEOMETRIC = 0x02; // planar geometry instead of graph hop-distance
     static const uint8_t RUNNER_FLAG_REPEAT    = 0x20; // WAVE/RIPPLE/CHASE: continuous train instead of one sweep

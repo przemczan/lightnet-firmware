@@ -115,6 +115,30 @@ namespace Lightnet {
                 return EDGE_LEN / (2.0f * sinf(GEO_PI / (float)N));
             }
 
+            // World-space polygon vertices for a panel (N = its polygon side count, ≤ MAXE).
+            // Reuses the exact local-vertex + transform math layout() uses, so overlap checks
+            // built on this (e.g. Sim panel generation) agree with what's actually rendered.
+            // False if the panel isn't present; vx/vy must hold at least MAXE entries.
+            bool worldVertsOf(uint8_t panelIndex, float *vx, float *vy, uint8_t &outN) const
+            {
+                uint8_t s;
+
+                if (!graph->slotOf(panelIndex, s)) return false;
+
+                uint8_t N = (ec[s] <= MAXE) ? ec[s] : MAXE;
+                float lx[MAXE + 1], ly[MAXE + 1];
+
+                localVerts(N, lx, ly);
+
+                for (uint8_t k = 0; k < N; k++) {
+                    applyT(s, lx[k], ly[k], vx[k], vy[k]);
+                }
+
+                outN = N;
+
+                return true;
+            }
+
         private:
             static const uint8_t MAXN  = LIGHTNET_MAX_PANELS;
             static const uint8_t MAXE  = 8;      // max polygon sides we lay out (panels are 3–5)
@@ -285,6 +309,69 @@ namespace Lightnet {
                 }
             }
     };
+
+    // Separating-Axis Test for two convex polygons — used to check that generated panel layouts
+    // (e.g. Sim mode) don't overlap. Regular polygons are always convex, so testing each
+    // polygon's edge normals as candidate axes is exact (no false negatives). `eps` lets
+    // edge-sharing panels (seams placed flush by layout()) count as touching rather than
+    // overlapping; it must stay well below EDGE_LEN so genuine overlaps are still caught.
+    inline void projectPolygon(
+        const float *px,
+        const float *py,
+        uint8_t      n,
+        float        ax,
+        float        ay,
+        float &      outMin,
+        float &      outMax
+    )
+    {
+        outMin = outMax = px[0] * ax + py[0] * ay;
+
+        for (uint8_t i = 1; i < n; i++) {
+            float p = px[i] * ax + py[i] * ay;
+
+            if (p < outMin) outMin = p;
+
+            if (p > outMax) outMax = p;
+        }
+    }
+
+    inline bool convexPolygonsOverlap(
+        const float *ax,
+        const float *ay,
+        uint8_t      an,
+        const float *bx,
+        const float *by,
+        uint8_t      bn,
+        float        eps = 0.5f
+    )
+    {
+        const float *xs[2] = { ax, bx };
+        const float *ys[2] = { ay, by };
+        const uint8_t ns[2] = { an, bn };
+
+        for (uint8_t poly = 0; poly < 2; poly++) {
+            const float *px = xs[poly];
+            const float *py = ys[poly];
+            uint8_t pn = ns[poly];
+
+            for (uint8_t i = 0; i < pn; i++) {
+                uint8_t j = (uint8_t)((i + 1) % pn);
+
+                float nx = -(py[j] - py[i]);
+                float ny =   px[j] - px[i];
+
+                float aMin, aMax, bMin, bMax;
+
+                projectPolygon(ax, ay, an, nx, ny, aMin, aMax);
+                projectPolygon(bx, by, bn, nx, ny, bMin, bMax);
+
+                if (aMax <= bMin + eps || bMax <= aMin + eps) return false; // separating axis found
+            }
+        }
+
+        return true; // no separating axis on either polygon's edge normals → they overlap
+    }
 
     // Geometric directionality field: project each targeted panel's centroid onto the axis at
     // `angleDeg`, then quantise to integer ring coords 0..maxCoord (parallel to panels[]), so

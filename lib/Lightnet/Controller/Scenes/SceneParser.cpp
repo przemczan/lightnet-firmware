@@ -441,6 +441,19 @@ namespace Lightnet {
                 }
 
                 if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REPEAT;
+            } else if (strcmp(key, "repeatCount") == 0) {
+                // Number of wave/ring/chase passes visible simultaneously (waves per duration).
+                // 0 or 1 = one wave (default). Values > 1 divide effectiveDurationMs into that
+                // many sub-periods so N evenly-spaced rings sweep through at once.
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v > 255) {
+                    strncpy(errMsg, "step.repeatCount: out of range", errLen);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_REPEAT_COUNT] = (uint8_t)v;
             } else if (strcmp(key, "angle") == 0) {
                 // Geometric sweep direction in degrees [0,360). Stored in 2° units (angle/2)
                 // so it fits SRC_ARG; decoded back to degrees in ScenePlayer::fireStep.

@@ -413,24 +413,35 @@ namespace Lightnet {
             // from `amount` back to its identity value with no rest, producing a sawtooth.
             bool repeating = repeat && (target == RUNNER_TARGET_COLOR);
 
+            // `repeatCount` > 1 places that many evenly-spaced waves in flight at once by
+            // shortening the loop period. Count 0 or 1 both mean one wave per duration.
+            uint8_t repeatCount = step.params[RUNNER_PARAM_REPEAT_COUNT];
+            uint16_t repeatPeriod = effectiveDurationMs;
+
+            if (repeating && repeatCount > 1) {
+                repeatPeriod = (uint16_t)((uint32_t)effectiveDurationMs / repeatCount);
+
+                if (repeatPeriod == 0) repeatPeriod = 1;
+            }
+
             for (uint8_t i = 0; i < panelCount; i++) {
                 CompiledPulse cp;
 
                 switch (step.animType) {
                     case RUN_WAVE:
                         cp = repeating
-                            ? compileWaveRepeating((float)coord[i], maxCoord, width, effectiveDurationMs)
+                            ? compileWaveRepeating((float)coord[i], maxCoord, width, repeatPeriod)
                             : compileWave((float)coord[i], maxCoord, width, effectiveDurationMs);
                         break;
                     case RUN_CHASE:
                         cp = repeating
-                            ? compileChaseRepeating(coord[i], maxCoord, effectiveDurationMs)
+                            ? compileChaseRepeating(coord[i], maxCoord, repeatPeriod)
                             : compileChase(coord[i], maxCoord, effectiveDurationMs);
                         break;
                     default: // RUN_RIPPLE
                         cp = repeating
                             ? compileRippleRepeating((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
-                                                     maxCoord, width, effectiveDurationMs)
+                                                     maxCoord, width, repeatPeriod)
                             : compileRipple((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
                                             maxCoord, width, effectiveDurationMs);
                         break;
