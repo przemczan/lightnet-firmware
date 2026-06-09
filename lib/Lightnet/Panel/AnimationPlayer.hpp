@@ -62,24 +62,26 @@ namespace Lightnet {
 
         private:
             // ---- One composited layer ----
-            struct Slot {
-                bool                 occupied; // slot in use by a group
-                bool                 started; // START received → `cur` is live
-                bool                 holding; // finished non-loop → holds last value
-                bool                 paused;
-                uint16_t             pausedElapsedMs;
-                uint8_t              groupId; // group this slot serves
+            struct PACK Slot {
+                static constexpr uint8_t OCCUPIED    = 1 << 0;
+                static constexpr uint8_t STARTED     = 1 << 1;
+                static constexpr uint8_t HOLDING     = 1 << 2;
+                static constexpr uint8_t PAUSED      = 1 << 3;
+                static constexpr uint8_t HAS_PENDING = 1 << 4;
 
-                AnimationState       cur; // running step
-                bool                 hasPending;
-                AnimationState       pending; // next step (PREPARE awaiting its START)
+                uint8_t                  flags;
+                uint16_t                 pausedElapsedMs;
+                uint8_t                  groupId; // group this slot serves
+
+                AnimationState           cur; // running step
+                AnimationState           pending; // next step (PREPARE awaiting its START)
 
                 // REACTIVE state (per slot)
-                uint8_t              reactiveLevel;
-                uint8_t              reactiveDecayRate;
-                uint16_t             reactiveTriggerMs;
+                uint8_t                  reactiveLevel;
+                uint8_t                  reactiveDecayRate;
+                uint16_t                 reactiveTriggerMs;
 
-                ::Protocol::ColorRGB outColor; // last computed source colour (held while paused)
+                ::Protocol::ColorRGB     outColor; // last computed source colour (held while paused)
             };
 
             Slot slots[MAX_ANIM_SLOTS];

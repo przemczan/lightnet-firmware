@@ -55,7 +55,7 @@ namespace Lightnet {
 
     // Max concurrent composited layers (slots) a panel runs at once. The scene
     // validator rejects scenes where more than this many layers target one panel.
-    static const uint8_t MAX_ANIM_SLOTS = 4;
+    static const uint8_t MAX_ANIM_SLOTS = 8;
 
     // Blend modes for SOURCE layers. Values must match ColorCompose.hpp ComposeOp.
     enum ComposeMode : uint8_t {

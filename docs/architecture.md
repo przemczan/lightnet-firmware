@@ -208,7 +208,7 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 
 ### AnimationPlayer (panel side) — layer compositor
 
-- `slots[MAX_ANIM_SLOTS]` (4) — each an independent layer keyed by `group_id`, with its running
+- `slots[MAX_ANIM_SLOTS]` (8) — each an independent layer keyed by `group_id`, with its running
   step + a 1-deep pending step (PREPARE buffers `pending`; START activates it).
 - `tick()` gated at 16 ms (60 fps), integer math only. Each tick resolves every started slot to one
   contribution (source colour or modifier value), honouring `startDelayMs` (transparent before

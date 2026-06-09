@@ -14,7 +14,7 @@
 
 class LightnetPanel
 {
-    const uint16_t INCOMING_BUFFER_SIZE = 100;
+    const uint16_t INCOMING_BUFFER_SIZE = 64; // 2x max i2c packet size
 
     typedef struct {
         uint8_t sdaPinNo;

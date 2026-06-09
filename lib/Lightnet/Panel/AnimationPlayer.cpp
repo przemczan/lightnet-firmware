@@ -56,7 +56,7 @@ namespace Lightnet {
         // Display it immediately on an idle panel so untouched panels show the background
         // at scene start. Active panels fold from it on their next composite tick.
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
-            if (slots[i].occupied) return;
+            if (slots[i].flags & Slot::OCCUPIED) return;
         }
 
         applyToLED(backgroundColor);
@@ -103,13 +103,9 @@ namespace Lightnet {
 
     void AnimationPlayer::clearSlot(Slot& s)
     {
-        s.occupied          = false;
-        s.started           = false;
-        s.holding           = false;
-        s.paused            = false;
+        s.flags             = 0;
         s.pausedElapsedMs   = 0;
         s.groupId           = 0;
-        s.hasPending        = false;
         s.reactiveLevel     = 0;
         s.reactiveDecayRate = 0;
         s.reactiveTriggerMs = 0;
@@ -119,7 +115,7 @@ namespace Lightnet {
     AnimationPlayer::Slot *AnimationPlayer::findSlot(uint8_t group_id)
     {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
-            if (slots[i].occupied && slots[i].groupId == group_id) {
+            if ((slots[i].flags & Slot::OCCUPIED) && slots[i].groupId == group_id) {
                 return &slots[i];
             }
         }
@@ -134,9 +130,9 @@ namespace Lightnet {
         if (existing) return existing;
 
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
-            if (!slots[i].occupied) {
+            if (!(slots[i].flags & Slot::OCCUPIED)) {
                 clearSlot(slots[i]);
-                slots[i].occupied = true;
+                slots[i].flags |= Slot::OCCUPIED;
                 slots[i].groupId  = group_id;
 
                 return &slots[i];
@@ -149,10 +145,10 @@ namespace Lightnet {
     void AnimationPlayer::activatePending(Slot& s)
     {
         s.cur        = s.pending;
-        s.hasPending = false;
-        s.started    = true;
-        s.holding    = false;
-        s.paused     = false;
+        s.flags &= ~Slot::HAS_PENDING;
+        s.flags |= Slot::STARTED;
+        s.flags &= ~Slot::HOLDING;
+        s.flags &= ~Slot::PAUSED;
         s.pausedElapsedMs = 0;
         s.cur.startMs = (uint16_t)millis();
 
@@ -208,7 +204,7 @@ namespace Lightnet {
         a.composeOrder = pkt->composeOrder;
         a.startDelayMs = pkt->startDelayMs;
 
-        s->hasPending = true;
+        s->flags |= Slot::HAS_PENDING;
     }
 
     void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id)
@@ -221,7 +217,7 @@ namespace Lightnet {
 
         Slot *s = findSlot(group_id);
 
-        if (!s || !s->hasPending) {
+        if (!s || !(s->flags & Slot::HAS_PENDING)) {
             return;
         }
 
@@ -235,7 +231,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             Slot& s = slots[i];
 
-            if (!s.occupied) continue;
+            if (!(s.flags & Slot::OCCUPIED)) continue;
 
             if (group_id != 0 && s.groupId != group_id) continue;
 
@@ -246,8 +242,8 @@ namespace Lightnet {
 
                 case ANIM_CTRL_PAUSE:
 
-                    if (s.started && !s.paused) {
-                        s.paused          = true;
+                    if ((s.flags & Slot::STARTED) && !(s.flags & Slot::PAUSED)) {
+                        s.flags |= Slot::PAUSED;
                         s.pausedElapsedMs = (uint16_t)(now - s.cur.startMs);
                     }
 
@@ -255,15 +251,15 @@ namespace Lightnet {
 
                 case ANIM_CTRL_RESUME:
 
-                    if (s.paused) {
-                        s.paused      = false;
+                    if (s.flags & Slot::PAUSED) {
+                        s.flags &= ~Slot::PAUSED;
                         s.cur.startMs = (uint16_t)(now - s.pausedElapsedMs);
                     }
 
                     break;
 
                 case ANIM_CTRL_CLEAR_QUEUE:
-                    s.hasPending = false;
+                    s.flags &= ~Slot::HAS_PENDING;
                     break;
             }
         }
@@ -286,7 +282,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             Slot& s = slots[i];
 
-            if (!s.occupied || !s.started) continue;
+            if (!(s.flags & Slot::OCCUPIED) || !(s.flags & Slot::STARTED)) continue;
 
             if (group_id != 0 && s.groupId != group_id) continue;
 
@@ -327,14 +323,14 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             Slot& s = slots[i];
 
-            if (!s.occupied || !s.started) continue;
+            if (!(s.flags & Slot::OCCUPIED) || !(s.flags & Slot::STARTED)) continue;
 
-            uint16_t elapsed = s.paused
+            uint16_t elapsed = (s.flags & Slot::PAUSED)
                 ? s.pausedElapsedMs
                 : (uint16_t)(now - s.cur.startMs);
 
             // Before its onset, a slot is transparent (layers below show through).
-            if (!s.holding && elapsed < s.cur.startDelayMs) {
+            if (!(s.flags & Slot::HOLDING) && elapsed < s.cur.startDelayMs) {
                 continue;
             }
 
@@ -343,13 +339,13 @@ namespace Lightnet {
                 : 0;
 
             // Finish detection (skip while paused — frozen in place).
-            if (!s.paused && !s.holding && s.cur.durationMs > 0 &&
+            if (!(s.flags & Slot::PAUSED) && !(s.flags & Slot::HOLDING) && s.cur.durationMs > 0 &&
                 animElapsed >= s.cur.durationMs &&
                 !(s.cur.flags & FLAG_LOOP) && s.cur.animType != ANIM_REACTIVE) {
-                s.holding = true;
+                s.flags |= Slot::HOLDING;
             }
 
-            if (s.holding && s.cur.durationMs > 0) {
+            if ((s.flags & Slot::HOLDING) && s.cur.durationMs > 0) {
                 animElapsed = s.cur.durationMs; // snap to the natural end state
             } else if ((s.cur.flags & FLAG_LOOP) && s.cur.durationMs > 0) {
                 animElapsed = (uint16_t)(animElapsed % s.cur.durationMs); // repeat envelope
@@ -637,7 +633,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             const Slot& s = slots[i];
 
-            if (!s.occupied || !s.started) continue;
+            if (!(s.flags & Slot::OCCUPIED) || !(s.flags & Slot::STARTED)) continue;
 
             if (s.cur.animType != ANIM_SOLID || s.reactiveLevel > 0) return true;
         }
@@ -653,7 +649,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             const Slot& s = slots[i];
 
-            if (!s.occupied || !s.started) continue;
+            if (!(s.flags & Slot::OCCUPIED) || !(s.flags & Slot::STARTED)) continue;
 
             if ((int16_t)s.cur.composeOrder > bestOrder) {
                 bestOrder = s.cur.composeOrder;
@@ -672,7 +668,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             const Slot& s = slots[i];
 
-            if (!s.occupied || !s.started) continue;
+            if (!(s.flags & Slot::OCCUPIED) || !(s.flags & Slot::STARTED)) continue;
 
             if ((int16_t)s.cur.composeOrder > bestOrder) {
                 bestOrder = s.cur.composeOrder;
@@ -692,7 +688,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             const Slot& s = slots[i];
 
-            if (!s.occupied || !s.started) continue;
+            if (!(s.flags & Slot::OCCUPIED) || !(s.flags & Slot::STARTED)) continue;
 
             occupiedCount++;
 
@@ -705,7 +701,7 @@ namespace Lightnet {
         if (top) {
             out->animType   = top->cur.animType;
             out->group_id   = top->groupId;
-            out->elapsedMs  = top->paused ? top->pausedElapsedMs : (uint16_t)((uint16_t)millis() - top->cur.startMs);
+            out->elapsedMs  = (top->flags & Slot::PAUSED) ? top->pausedElapsedMs : (uint16_t)((uint16_t)millis() - top->cur.startMs);
             out->durationMs = top->cur.durationMs;
             out->queueLen   = (occupiedCount > 0) ? (uint8_t)(occupiedCount - 1) : 0;
         } else {
