@@ -229,11 +229,11 @@ namespace Lightnet {
     // by the /2 of "half"). Always loops — a wheel never stops spinning — via the
     // same swapped-colour compileRepeating engine as a repeating ripple/wave/chase.
     //
-    // NB: panels near the bearing wrap point (turns ≈ 1.0, which wraps to ≈ 0.0 due
-    // to floating-point precision) would get phase ≈ 1.0, causing startDelayMs to be
-    // nearly equal to period, leaving no time for the fade envelope to complete before
-    // the loop restarts. To avoid this, clamp phase to a safe maximum (e.g., 0.95) so
-    // there's always time for the full animation cycle.
+    // NB: phase needs no upper clamp. Panels near the bearing wrap point (turns ≈ 1.0)
+    // get phase ≈ 1.0 and thus startDelayMs ≈ period, but because the panel treats a
+    // looping layer's startDelayMs as a phase offset (not a one-shot delay), the
+    // swapped-colour envelope wraps seamlessly across the loop seam — there is no
+    // "no time left for the fade" failure to guard against.
     inline CompiledPulse compileWheel(float turns, uint8_t lines, uint8_t thicknessDeg, uint16_t rotationMs)
     {
         if (lines == 0 || rotationMs == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
@@ -245,12 +245,8 @@ namespace Lightnet {
         float slot  = turns * (float)lines;
         float phase = slot - floorf(slot); // frac(turns * lines) ∈ [0,1)
 
-        // Clamp phase to (0, 0.80] to ensure startDelayMs leaves sufficient room for the
-        // full animation envelope (rise + hold + fall) to complete before the period loops.
-        // This prevents panels near the bearing wrap point (high phase values) from staying
-        // partially lit due to insufficient time for the fade envelope to complete.
-        if (phase > 0.80f) phase = 0.80f;
-
+        // Clamp phase to [0, 1.0) via fmodf in compileRepeating; no arbitrary 0.80
+        // ceiling needed here as WHEEL always loops, so the envelope wraps seamlessly.
         float halfWidth = ((float)thicknessDeg * (float)lines) / 720.0f;
 
         return compileRepeating(phase, halfWidth, period);

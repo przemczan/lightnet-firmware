@@ -329,26 +329,31 @@ namespace Lightnet {
                 ? s.pausedElapsedMs
                 : (uint16_t)(now - s.cur.startMs);
 
-            // Before its onset, a slot is transparent (layers below show through).
-            if (!(s.flags & Slot::HOLDING) && elapsed < s.cur.startDelayMs) {
-                continue;
-            }
+            uint16_t animElapsed = 0;
 
-            uint16_t animElapsed = (elapsed >= s.cur.startDelayMs)
-                ? (uint16_t)(elapsed - s.cur.startDelayMs)
-                : 0;
+            if ((s.cur.flags & FLAG_LOOP) && s.cur.durationMs > 0) {
+                // When looping, startDelayMs acts as a phase offset rather than a one-shot delay.
+                // This ensures re-firing/syncing is seamless and eliminates the initial gap.
+                uint32_t offset = (uint32_t)s.cur.durationMs - (s.cur.startDelayMs % s.cur.durationMs);
 
-            // Finish detection (skip while paused — frozen in place).
-            if (!(s.flags & Slot::PAUSED) && !(s.flags & Slot::HOLDING) && s.cur.durationMs > 0 &&
-                animElapsed >= s.cur.durationMs &&
-                !(s.cur.flags & FLAG_LOOP) && s.cur.animType != ANIM_REACTIVE) {
-                s.flags |= Slot::HOLDING;
-            }
+                animElapsed = (uint16_t)(((uint32_t)elapsed + offset) % s.cur.durationMs);
+            } else {
+                // Before its onset, a non-looping slot is transparent (layers below show through).
+                if (!(s.flags & Slot::HOLDING) && elapsed < s.cur.startDelayMs) {
+                    continue;
+                }
 
-            if ((s.flags & Slot::HOLDING) && s.cur.durationMs > 0) {
-                animElapsed = s.cur.durationMs; // snap to the natural end state
-            } else if ((s.cur.flags & FLAG_LOOP) && s.cur.durationMs > 0) {
-                animElapsed = (uint16_t)(animElapsed % s.cur.durationMs); // repeat envelope
+                animElapsed = (uint16_t)(elapsed - s.cur.startDelayMs);
+
+                // Finish detection (skip while paused — frozen in place).
+                if (!(s.flags & Slot::PAUSED) && !(s.flags & Slot::HOLDING) && s.cur.durationMs > 0 &&
+                    animElapsed >= s.cur.durationMs && s.cur.animType != ANIM_REACTIVE) {
+                    s.flags |= Slot::HOLDING;
+                }
+
+                if ((s.flags & Slot::HOLDING) && s.cur.durationMs > 0) {
+                    animElapsed = s.cur.durationMs; // snap to the natural end state
+                }
             }
 
             CompositeLayer& c = contrib[n];

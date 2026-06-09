@@ -250,6 +250,15 @@ void test_wheel_period_floors_at_one_ms()
     TEST_ASSERT_EQUAL_UINT16(1, cp.durationMs);
 }
 
+void test_wheel_high_phase_no_clamp()
+{
+    // 1 blade over 1000ms rotation. turns=0.85 -> slot=0.85 -> phase=0.85.
+    // Previously this was clamped to 0.80 -> 800ms.
+    CompiledPulse cp = compileWheel(0.85f, 1, 18, 1000);
+
+    TEST_ASSERT_EQUAL_UINT16(850, cp.startDelayMs);
+}
+
 void setUp(void)
 {
 }
@@ -287,6 +296,7 @@ int main(int, char **)
     RUN_TEST(test_wheel_zero_lines_unlit);
     RUN_TEST(test_wheel_zero_rotation_unlit);
     RUN_TEST(test_wheel_period_floors_at_one_ms);
+    RUN_TEST(test_wheel_high_phase_no_clamp);
 
     return UNITY_END();
 }

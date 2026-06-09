@@ -211,9 +211,11 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 - `slots[MAX_ANIM_SLOTS]` (8) — each an independent layer keyed by `group_id`, with its running
   step + a 1-deep pending step (PREPARE buffers `pending`; START activates it).
 - `tick()` gated at 16 ms (60 fps), integer math only. Each tick resolves every started slot to one
-  contribution (source colour or modifier value), honouring `startDelayMs` (transparent before
-  onset) and finish→hold, then `ColorCompose::foldLayers()` sorts by `composeOrder` and folds onto
-  the **background base** — one write to the LED.
+  contribution (source colour or modifier value). **Non-looping** layers honour `startDelayMs`
+  (transparent before onset); **looping** layers (`FLAG_LOOP`) treat `startDelayMs` as an initial
+  phase offset so they start immediately and re-fire/sync seamlessly. After onset, the layer
+  composites until finish→hold (or repeats if looping), then `ColorCompose::foldLayers()` sorts by
+  `composeOrder` and folds onto the **background base** — one write to the LED.
 - Source layers blend via `composeMode`; modifier layers (`MOD_*`) transform the accumulator
   (brightness = RGB multiply; saturation/hue = integer HSV). Finished non-loop slots hold their
   last value.
