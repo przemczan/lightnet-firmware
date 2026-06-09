@@ -48,7 +48,13 @@ class PacketMirror
         }
 
     private:
-        static const uint16_t RECORDS_CAP    = 2048;
+        #ifdef ARDUINO_ARCH_ESP32
+            static const uint16_t RECORDS_CAP    = 3072;
+
+        #else
+            static const uint16_t RECORDS_CAP    = 2048;
+
+        #endif
         static const uint16_t PAYLOAD_HEADER = 6;  // u32 millis + u16 count
         static const uint8_t RECORD_HEADER  = 3;   // u8 address + u8 type + u8 size
 
@@ -67,7 +73,7 @@ class PacketMirror
         // Snapshot is never reset — it represents current controller state and
         // persists so any newly-subscribing client gets a meaningful replay.
         #ifdef ARDUINO_ARCH_ESP32
-            static const uint16_t SNAPSHOT_RECORDS_CAP = 1024 * 6; // ample heap headroom
+            static const uint16_t SNAPSHOT_RECORDS_CAP = 1024 * 10; // ESP32 has much more RAM headroom for a richer snapshot, which improves the experience of joining mid-animation and also provides a fuller picture of the controller state when debugging.
 
         #else
             static const uint16_t SNAPSHOT_RECORDS_CAP = 1024 * 2; // ESP8266 heap is critically scarce (~5KB free)

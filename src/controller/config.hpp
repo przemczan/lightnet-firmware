@@ -50,6 +50,25 @@
     #ifndef PANELS_POWER_PIN
         #define PANELS_POWER_PIN 21
     #endif
+#elif defined(ARDUINO_LOLIN_S2_MINI)
+    #ifndef INITIALIZER_EDGE_PIN_NO
+        #define INITIALIZER_EDGE_PIN_NO 11
+    #endif
+    #ifndef INITIALIZER_EDGE_INTERRUPT_PIN_NO
+        #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 9
+    #endif
+    #ifndef LED_PIN
+        #define LED_PIN 15
+    #endif
+    #ifndef IIC_SDA_PIN
+        #define IIC_SDA_PIN 33
+    #endif
+    #ifndef IIC_SCL_PIN
+        #define IIC_SCL_PIN 35
+    #endif
+    #ifndef PANELS_POWER_PIN
+        #define PANELS_POWER_PIN 7
+    #endif
 #else
     #ifndef INITIALIZER_EDGE_PIN_NO
         #define INITIALIZER_EDGE_PIN_NO 8
