@@ -53,7 +53,7 @@ namespace Lightnet {
     struct SceneLayer {
         uint8_t       groupId;
         uint8_t       startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
-        uint8_t       async;                             // 1 = loop independently (ignored when startAfter is set)
+        uint8_t       async;                             // bitmask: 0x01 = loop independently, 0x02 = non-blocking free-running (scene ignores this layer)
         uint8_t       stepCount;
         uint8_t       blend;                             // ComposeMode — how this layer composites on the panel
         char          groupName[16];                     // original string name, empty for numeric-only groups
@@ -69,6 +69,10 @@ namespace Lightnet {
     class ScenePlayer
     {
         public:
+            // Bitmask constants for SceneLayer::async.
+            static const uint8_t LAYER_ASYNC_LOOP         = 0x01; // loops independently
+            static const uint8_t LAYER_ASYNC_NON_BLOCKING = 0x02; // free-running: scene ignores this layer
+
             ScenePlayer(
                 AnimationScheduler& scheduler,
                 PanelsInitializer&  initializer,
@@ -204,7 +208,7 @@ namespace Lightnet {
             // async has no effect while startAfter gates the layer.
             bool isAsyncLayer(uint8_t i) const
             {
-                return layers[i].async && (layers[i].startAfterGroupId == 0);
+                return (layers[i].async & LAYER_ASYNC_LOOP) && (layers[i].startAfterGroupId == 0);
             }
 
             void sendPalettesToPanels();

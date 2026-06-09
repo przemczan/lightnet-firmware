@@ -633,15 +633,37 @@ namespace Lightnet {
                         layer.groupId = (uint8_t)v;
                     }
                 } else if (strcmp(key, "async") == 0) {
-                    bool b;
+                    jsonSkipWs(p, end);
 
-                    if (!jsonReadBool(p, end, &b)) {
-                        strncpy(errMsg, "layer.async: not bool", errLen);
+                    if (p < end && *p == '"') {
+                        char s[8];
 
-                        return false;
+                        if (!jsonReadString(p, end, s, sizeof(s))) {
+                            strncpy(errMsg, "layer.async: invalid string", errLen);
+
+                            return false;
+                        }
+
+                        if (strcmp(s, "free") == 0) {
+                            layer.async = ScenePlayer::LAYER_ASYNC_LOOP | ScenePlayer::LAYER_ASYNC_NON_BLOCKING;
+                        } else if (strcmp(s, "loop") == 0) {
+                            layer.async = ScenePlayer::LAYER_ASYNC_LOOP;
+                        } else {
+                            strncpy(errMsg, "layer.async: expected true/false, \"loop\", or \"free\"", errLen);
+
+                            return false;
+                        }
+                    } else {
+                        bool b;
+
+                        if (!jsonReadBool(p, end, &b)) {
+                            strncpy(errMsg, "layer.async: expected bool or \"loop\"/\"free\"", errLen);
+
+                            return false;
+                        }
+
+                        layer.async = b ? ScenePlayer::LAYER_ASYNC_LOOP : 0;
                     }
-
-                    layer.async = b ? 1 : 0;
                 } else if (strcmp(key, "blend") == 0) {
                     char s[12];
 

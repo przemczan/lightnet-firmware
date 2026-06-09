@@ -125,9 +125,19 @@ When **every** non-async layer has finished, the **scene-cycle barrier** fires:
 - `loop: true` → the whole scene restarts, all layers together (they never drift apart).
 - `loop: false` → playback stops on the last frame.
 
-`speed` scales every step's duration (e.g. `2.0` = twice as fast). An **async** layer opts
-out of the barrier and loops on its own; a **gap** step (no `type`/`runner`) just waits.
-The deep timing rules — async, the barrier, infinite steps — are covered in
+`speed` scales every step's duration (e.g. `2.0` = twice as fast). A **gap** step (no `type`/`runner`) just waits.
+
+**Async modes.** The `async` property on a layer controls how it interacts with the barrier:
+
+| `async` value | Loops independently | Scene lifecycle |
+|---|---|---|
+| `false` / absent (default) | no — held by barrier | participates normally |
+| `true` / `"loop"` | yes | holds the scene open after sync layers finish |
+| `"free"` | yes | scene ignores this layer entirely — neither waits for it, nor restarts it |
+
+Use `"loop"` for a background effect that should keep cycling while the foreground scene plays out. Use `"free"` for a completely independent ambient layer — it runs forever regardless of what the rest of the scene does, and the scene can stop/loop without it. `async` has no effect when `startAfter` is set.
+
+The deep timing rules — the barrier, infinite steps — are covered in
 [Concepts → Sequencing & Timing](concepts.md#sequencing-timing); the property summaries are
 in §5 below.
 
@@ -180,7 +190,7 @@ Each entry in `layers`:
 | `blend` | no | `opaque` (runners: `max`) | How this layer composites with the layers below it — see §5.1. |
 | `sequence` | yes | — | 1–12 steps, played in order — see §7. |
 | `startAfter` | no | — | Group **name** to wait for; until it finishes this layer is dark. |
-| `async` | no | `false` | Loop this layer independently of the scene barrier (ignored if `startAfter` is set). |
+| `async` | no | `false` | Layer looping mode: `false`/absent = sync, `true`/`"loop"` = loop independently (blocks scene), `"free"` = loop independently (scene ignores it). Ignored if `startAfter` is set. |
 | `palette` | no | scene default | Palette override for this layer's panels (see the overlap caveat in §9). |
 
 - **`group`** is the synchronisation unit — all panels in a group start a step together.
@@ -189,8 +199,7 @@ Each entry in `layers`:
 - **`startAfter`** turns the flat "all start at t=0" model into a dependency graph for
   choreography. The target must exist, can't be the layer itself, can't form a cycle, and
   can't have an infinite last step (it would never finish).
-- **`async`** is for a background effect that should keep looping regardless of the
-  foreground. A scene with an async layer runs until explicitly stopped.
+- **`async`** controls independence from the scene barrier — see the async modes table above.
 
 ```json
 {
