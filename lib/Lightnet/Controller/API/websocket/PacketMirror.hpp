@@ -49,7 +49,7 @@ class PacketMirror
 
     private:
         #ifdef ARDUINO_ARCH_ESP32
-            static const uint16_t RECORDS_CAP    = 3072;
+            static const uint16_t RECORDS_CAP    = 1024 * 6;
 
         #else
             static const uint16_t RECORDS_CAP    = 2048;
@@ -65,6 +65,7 @@ class PacketMirror
         uint16_t recordsLen   = 0;  // bytes of records currently buffered
         uint16_t recordCount  = 0;  // number of records buffered
         uint16_t droppedCount = 0;  // records dropped since last flush (buffer full)
+        uint32_t firstRecordMs = 0; // millis() of the earliest record in the current buffer (0 = unset)
 
         // ---- snapshot buffer ----
         // Holds the last-seen packet for each (address, type[, key]) combination.

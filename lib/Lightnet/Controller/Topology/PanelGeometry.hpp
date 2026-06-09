@@ -659,6 +659,10 @@ namespace Lightnet {
 
             float t = ang / FULL_TURN_RAD; // [0,1)
 
+            // Wrap to [0, 1) in case floating-point rounding produces t >= 1.0.
+            // Use fmodf to handle any overshoot properly, ensuring t stays in range.
+            if (t >= 1.0f) t -= 1.0f;
+
             turnsOut[i] = reverse ? ((t == 0.0f) ? 0.0f : (1.0f - t)) : t;
             any = true;
         }

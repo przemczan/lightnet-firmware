@@ -124,6 +124,15 @@ void PacketMirror::capture(uint8_t address, const void *packet, uint8_t size, ui
         return;
     }
 
+    // Record the capture time. Use the earliest capture time for the whole batch
+    // so the MIRROR_BATCH 'controllerMillis' reflects when the first packet was
+    // sent, reducing skew between PREPARE and START when the mirror coalesces
+    // multiple packets into one flush.
+    uint32_t now = millis();
+
+    if (firstRecordMs == 0) firstRecordMs = now;
+    else if (now < firstRecordMs) firstRecordMs = now;
+
     uint8_t *rec = records() + recordsLen;
 
     rec[0] = address;
@@ -141,7 +150,10 @@ bool PacketMirror::flushTo(WebsocketServer *server)
         return false;
     }
 
-    uint32_t now = millis();
+    // Use the earliest captured record timestamp if available; otherwise use
+    // current millis(). This keeps the preview timing closer to the controller's
+    // actual send times when multiple packets are coalesced.
+    uint32_t now = (firstRecordMs != 0) ? firstRecordMs : millis();
     uint8_t *p = payload();
 
     // memcpy: payload lands at an odd offset (sizeof(PacketMeta)==13), so direct
@@ -160,6 +172,8 @@ bool PacketMirror::flushTo(WebsocketServer *server)
     server->sendToMirroringClients(frame, sizeof(WebsocketApi::PacketMeta) + payloadSize);
 
     DEBUG_IF(DEBUG_API, {
+        D_PRINTLN("[MIRROR] records sent", recordCount);
+
         if (droppedCount) {
             D_PRINTLN("[MIRROR] dropped records (buffer full)", droppedCount);
         }
@@ -168,6 +182,7 @@ bool PacketMirror::flushTo(WebsocketServer *server)
     recordsLen   = 0;
     recordCount  = 0;
     droppedCount = 0;
+    firstRecordMs = 0;
 
     return true;
 }
