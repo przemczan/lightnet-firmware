@@ -225,6 +225,18 @@ namespace Lightnet {
         return -1;
     }
 
+    uint8_t ScenePlayer::groupIdForName(const char *name) const
+    {
+        if (!name || !name[0]) return 0;
+
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layers[i].groupName[0] && strcmp(layers[i].groupName, name) == 0)
+                return layers[i].groupId;
+        }
+
+        return 0;
+    }
+
     void ScenePlayer::promoteReadyLayers(uint32_t nowMs)
     {
         for (uint8_t i = 0; i < lCount; i++) {
@@ -303,11 +315,37 @@ namespace Lightnet {
             const TopologyIndex& topo = sceneTopo.index();
             const PanelGeometry& geometry = sceneTopo.geom();
 
+            // Non-colour targets compile to a MOD_* sweep: peak effect at onset, decaying to
+            // the property's identity value. Set up type/identity/peak and the protocol flags
+            // for the envelope shape before the WHEEL block so both paths can use them.
+            uint8_t modType     = ANIM_MOD_BRIGHTNESS;
+            uint8_t modIdentity = 255;
+            uint8_t modPeak     = step.params[RUNNER_PARAM_AMOUNT];
+
+            switch (target) {
+                case RUNNER_TARGET_SATURATION: modType = ANIM_MOD_SATURATION;
+                    modIdentity = 255;
+                    break;
+                case RUNNER_TARGET_HUE:        modType = ANIM_MOD_HUE_SHIFT;
+                    modIdentity = 0;
+                    break;
+                case RUNNER_TARGET_INVERT:     modType = ANIM_MOD_INVERT;
+                    modIdentity = 0;
+                    break;
+                default: break;
+            }
+
+            // Translate the two modifier-shape runner flags to their protocol equivalents.
+            uint8_t modFlags = 0;
+
+            if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_RISE) modFlags |= FLAG_MOD_RISE;
+
+            if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_BELL) modFlags |= FLAG_MOD_BELL;
+
             // WHEEL: rotating blades radiating from a centre — a polar sweep, not a linear
             // axis or radial-ring field, so it bypasses the coord/maxCoord machinery below
-            // entirely. Always loops (a wheel never stops spinning) and is colour-only
-            // (ignores `animates`/`amount`/`repeat` — see RunnerCompile.hpp compileWheel);
-            // requires planar geometry (no graph-hop fallback for a polar bearing).
+            // entirely. Always loops (a wheel never stops spinning); requires planar geometry
+            // (no graph-hop fallback for a polar bearing).
             if (step.animType == RUN_WHEEL) {
                 if (!geometry.valid()) return;
 
@@ -332,13 +370,23 @@ namespace Lightnet {
 
                     if (!cp.lit) continue;
 
-                    // Swapped-colour trick (compileRepeating): the loop seam coincides with
-                    // this blade's peak, giving a clean departing → dark-gap → approaching cycle.
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
-                                                 cp.durationMs, lit, black,
-                                                 cp.risePct, cp.fallPct,
-                                                 runnerBlend, /*composeOrder=*/ layerIdx,
-                                                 cp.startDelayMs);
+                    if (target == RUNNER_TARGET_COLOR) {
+                        // Swapped-colour trick (compileRepeating): the loop seam coincides with
+                        // this blade's peak, giving a clean departing → dark-gap → approaching cycle.
+                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
+                                                     cp.durationMs, lit, black,
+                                                     cp.risePct, cp.fallPct,
+                                                     runnerBlend, /*composeOrder=*/ layerIdx,
+                                                     cp.startDelayMs);
+                    } else {
+                        // Modifier WHEEL: bell shape forced (smooth repeating pulse per blade pass).
+                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType,
+                                                     FLAG_LOOP | FLAG_MOD_BELL,
+                                                     cp.durationMs, black, black,
+                                                     modPeak, modIdentity,
+                                                     layer.blend, /*composeOrder=*/ layerIdx,
+                                                     cp.startDelayMs);
+                    }
                 }
 
                 delayMicroseconds(300);
@@ -384,29 +432,6 @@ namespace Lightnet {
             // clobbering it with black. Default to MAX (identical to NORMAL over a black
             // base, i.e. a standalone runner); honour an explicit non-default blend.
             uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
-
-            // Non-colour targets compile to a MOD_* sweep instead of a colour PULSE: each
-            // lit panel snaps to `amount` (peak) at the sweep's onset and decays to the
-            // property's identity value over its lit window — passing through and releasing
-            // whatever is layered below, the modifier analogue of black→lit→black. `amount`
-            // is the peak set by `amount` (default 0 = no visible effect).
-            uint8_t modType     = ANIM_MOD_BRIGHTNESS; // also RUNNER_TARGET_BRIGHTNESS's values;
-            uint8_t modIdentity = 255;                 // RUNNER_TARGET_COLOR never reads these.
-
-            switch (target) {
-                case RUNNER_TARGET_SATURATION: modType = ANIM_MOD_SATURATION;
-                    modIdentity = 255;
-                    break;
-                case RUNNER_TARGET_HUE:        modType = ANIM_MOD_HUE_SHIFT;
-                    modIdentity = 0;
-                    break;
-                case RUNNER_TARGET_INVERT:     modType = ANIM_MOD_INVERT;
-                    modIdentity = 0;
-                    break;
-                default: break;
-            }
-
-            uint8_t modPeak = step.params[RUNNER_PARAM_AMOUNT];
 
             // `repeat` only has meaning for a colour sweep — see the swapped-colour note on
             // compileRepeating (RunnerCompile.hpp): looping a MOD_* sweep would lerp straight
@@ -467,7 +492,7 @@ namespace Lightnet {
                                                  runnerBlend, /*composeOrder=*/ layerIdx,
                                                  cp.startDelayMs);
                 } else {
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType, /*flags=*/ 0,
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType, modFlags,
                                                  cp.durationMs, black, black,
                                                  modPeak, modIdentity,
                                                  layer.blend, /*composeOrder=*/ layerIdx,

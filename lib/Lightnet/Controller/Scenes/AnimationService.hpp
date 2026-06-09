@@ -123,6 +123,10 @@ namespace Lightnet {
             // Takes effect at the start of the next step.
             void setSceneSpeed(float speed);
 
+            // Resolve a layer's string name to its numeric groupId in the playing scene.
+            // Returns 0 if no scene is playing or the name is not found.
+            uint8_t groupIdForName(const char *name) const;
+
             // Call when the active appearance palette or base colors change. Re-resolves
             // the playing scene's palettes for layers that use the appearance defaults
             // (i.e., the scene JSON did not set its own palette / colors).

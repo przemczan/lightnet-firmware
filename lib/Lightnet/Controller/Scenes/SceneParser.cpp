@@ -512,6 +512,26 @@ namespace Lightnet {
                 }
 
                 step.params[RUNNER_PARAM_AMOUNT] = (uint8_t)v;
+            } else if (strcmp(key, "shape") == 0) {
+                // Modifier envelope shape for non-colour `animates` runners.
+                // "fall" (default): peak → identity. "rise": identity → peak.
+                // "bell": identity → peak → identity (symmetric triangle).
+                char s[8];
+
+                if (!jsonReadString(p, end, s, sizeof(s))) {
+                    strncpy(errMsg, "step.shape: not a string", errLen);
+
+                    return false;
+                }
+
+                step.params[RUNNER_PARAM_FLAGS] &= (uint8_t) ~(RUNNER_FLAG_MOD_RISE | RUNNER_FLAG_MOD_BELL);
+
+                if (strcmp(s, "rise") == 0)
+                    step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_MOD_RISE;
+                else if (strcmp(s, "bell") == 0)
+                    step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_MOD_BELL;
+
+                // "fall" or unknown → no bits set (default)
             } else {
                 jsonSkipValue(p, end);
             }
@@ -598,6 +618,8 @@ namespace Lightnet {
                         }
 
                         layer.groupId = id;
+                        strncpy(layer.groupName, gname, sizeof(layer.groupName) - 1);
+                        layer.groupName[sizeof(layer.groupName) - 1] = '\0';
                     } else {
                         // Numeric group (back-compat).
                         long v;

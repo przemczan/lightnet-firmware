@@ -350,6 +350,7 @@ controller runner (`runner`) — never both — **or** a gap (neither).
 | `source` | runner | Where a moving effect emanates from (§8). |
 | `reverse` | runner | Flip the direction (§8). |
 | `animates` / `amount` | runner | What the sweep modulates, and its peak intensity (§7.3). |
+| `shape` | runner | Envelope shape for non-`color` sweeps: `fall` (default) / `rise` / `bell` (§7.3). |
 
 ### 7.2 Panel-local animation types
 
@@ -440,6 +441,18 @@ identity, so the wave **modulates** what's already showing rather than replacing
 | `saturation` | desaturation | `0` greyscale … `255` no change |
 | `hue` | hue rotation | `0…255` = a full turn |
 | `invert` | colour inversion | `0` no change … `255` fully inverted |
+
+**Envelope shape — `shape`.** For non-`color` targets you can also control the *shape* of
+the modifier within each panel's lit window:
+
+| `shape` | Envelope | Use case |
+|---|---|---|
+| `fall` *(default)* | peak → identity | burst that decays |
+| `rise` | identity → peak | swell that builds |
+| `bell` | identity → peak → identity | soft symmetric pulse |
+
+`shape` is ignored when `animates: "color"`. WHEEL forces `bell` (it always loops; `shape` has
+no effect on WHEEL).
 
 See [Animation Types → Controller Runners](types.md#controller-runners) for the full mechanics.
 

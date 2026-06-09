@@ -83,6 +83,14 @@ namespace Lightnet {
         // Resolved on the panel at START time — no extra I2C round-trip needed.
         FLAG_CURRENT_COLOR_FROM = 0x08,// override colorFrom with current LED color
         FLAG_CURRENT_COLOR_TO   = 0x10,// override colorTo with current LED color
+
+        // ANIM_MOD_* only: controls the modifier envelope shape.
+        // Default (no flags): fall  — peak → identity over the lit window.
+        // RISE:               rise  — identity → peak over the lit window.
+        // BELL:               bell  — identity → peak → identity (symmetric triangle).
+        // BELL + FLAG_LOOP produces a smooth repeating pulse (e.g. WHEEL modifier blade).
+        FLAG_MOD_RISE = 0x20,
+        FLAG_MOD_BELL = 0x40,
     };
 
     // ============================================================================

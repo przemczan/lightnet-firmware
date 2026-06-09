@@ -267,6 +267,7 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass — colour-only, see below |
 | `animates` | string | What the sweep modulates: `color` (default), `brightness`, `saturation`, `hue`, or `invert` |
 | `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
+| `shape` | string | Envelope shape for non-`color` sweeps: `fall` (peak→identity, default), `rise` (identity→peak), or `bell` (identity→peak→identity). Ignored when `animates:color`. |
 
 **What the sweep animates.** By default a runner sweeps `color` — each panel snaps a `PULSE`
 between `color` and the layer's background. Setting `animates` to `brightness`, `saturation`,
@@ -294,6 +295,15 @@ ambient background, or a hue sweep rotating it, as it passes).
 | `saturation` | `MOD_SATURATION` sweep | peak desaturation: `0` = full grey, `255` = no change |
 | `hue` | `MOD_HUE_SHIFT` sweep | peak hue rotation: `0…255` = a full turn |
 | `invert` | `MOD_INVERT` sweep | peak invert blend: `0` = no change, `255` = fully inverted |
+
+**Envelope shape (`shape`).** For non-`color` sweeps the shape of the modifier envelope within
+each panel's lit window is configurable:
+
+| `shape` | Envelope | Effect |
+|---|---|---|
+| `fall` *(default)* | peak → identity | burst that decays (e.g. brightness flare that fades) |
+| `rise` | identity → peak | swell that builds (e.g. brightness that brightens as the wave passes) |
+| `bell` | identity → peak → identity | symmetric pulse — bright in the middle, soft on both edges |
 
 No protocol change: this reuses the existing modifier `PREPARE` with `param1 = amount` (peak) and
 `param2` = the property's identity value, and the panel's existing linear modifier ramp.
@@ -386,6 +396,7 @@ follows the wiring on any device.
 | Field | Meaning | Default |
 |---|---|---|
 | `rippleWidth` (`params[0]`) | Ring width in rings | 2 |
+| `source` | `root`, `panel:N`, `leaves`, or `all` (all panels pulse as one, no directionality) | `root` |
 
 !!! note "Legacy `originPanel`"
     Older scenes set `"originPanel": N`; it is still accepted and maps to `source: "panel:N"`.
@@ -416,7 +427,7 @@ No width parameter.
 `lines` evenly-spaced blades rotate continuously about a centre — a spinning pinwheel/radar
 sweep. Always geometric (it needs each panel's planar bearing from the centre; **no topology
 fallback** — produces no output if the layout can't be embedded) and always loops; `duration`
-is the time for one full rotation. Colour-only (`animates:color`).
+is the time for one full rotation.
 
 ```json
 {
@@ -437,5 +448,9 @@ is the time for one full rotation. Colour-only (`animates:color`).
 | `thickness` (`params[0]`) | Blade angular width in **degrees** (shares the slot with `waveWidth`/`rippleWidth`, but in degrees, not rings) | 0 |
 | `source` | Pivot: `root`, `panel:N`, or `leaves`/`all` (averaged to a single centre point) | `root` |
 | `reverse` | Spin the other way | `false` |
+| `animates` | What each blade modulates (same options as other runners; default `color`) | `color` |
+| `amount` | Peak intensity for non-`color` targets (0–255) | — |
 
-`angle` and `waveWidth`/`rippleWidth` are N/A. Needs `schemaVersion: 5`.
+`angle` and `waveWidth`/`rippleWidth` are N/A. When `animates` is not `color`, the blade automatically
+uses a `bell` envelope (soft on both edges) since WHEEL always loops — `shape` has no effect on WHEEL.
+Needs `schemaVersion: 5`.

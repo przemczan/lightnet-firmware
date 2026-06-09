@@ -43,6 +43,10 @@ namespace Lightnet {
     static const uint8_t RUNNER_FLAG_REVERSE   = 0x01;
     static const uint8_t RUNNER_FLAG_GEOMETRIC = 0x02; // planar geometry instead of graph hop-distance
     static const uint8_t RUNNER_FLAG_REPEAT    = 0x20; // WAVE/RIPPLE/CHASE: continuous train instead of one sweep
+    // Modifier envelope shape (bits 6-7 of RUNNER_PARAM_FLAGS); mapped to FLAG_MOD_* in the PREPARE packet.
+    // Only meaningful when animates != color. WHEEL modifier always forces BELL regardless.
+    static const uint8_t RUNNER_FLAG_MOD_RISE  = 0x40; // identity → peak (rise shape)
+    static const uint8_t RUNNER_FLAG_MOD_BELL  = 0x80; // identity → peak → identity (bell shape)
     static const uint8_t RUNNER_TARGET_SHIFT   = 2;
     static const uint8_t RUNNER_TARGET_MASK    = 0x1C; // bits 2-4 of RUNNER_PARAM_FLAGS (RunnerTarget, 0-7)
 

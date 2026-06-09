@@ -56,6 +56,7 @@ namespace Lightnet {
         uint8_t       async;                             // 1 = loop independently (ignored when startAfter is set)
         uint8_t       stepCount;
         uint8_t       blend;                             // ComposeMode — how this layer composites on the panel
+        char          groupName[16];                     // original string name, empty for numeric-only groups
         char          palette[16];                       // empty = use scene default
         PanelSelector target;                            // which panels this layer drives (resolved at play time)
         SceneStep     steps[SCENE_MAX_STEPS];
@@ -137,6 +138,9 @@ namespace Lightnet {
             {
                 return speed;
             }
+
+            // Numeric groupId for the layer with the given string name, or 0 if not found.
+            uint8_t groupIdForName(const char *name) const;
 
             bool        isPlaying()   const
             {

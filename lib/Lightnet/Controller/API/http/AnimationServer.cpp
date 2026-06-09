@@ -74,14 +74,46 @@ namespace Lightnet {
         }
 
         SimpleJson j(body, len);
-        long grp = j.getInt("group");
-        long val = j.getInt("value");
 
-        if (grp <= 0 || grp > 254) {
-            Http::sendError(req, 422, "group_out_of_range");
+        // "group" accepts a numeric ID or a string layer name.
+        uint8_t grp = 0;
+        const char *rawGrp = j.rawValue("group");
+
+        if (!rawGrp) {
+            Http::sendError(req, 422, "group_missing");
 
             return;
         }
+
+        if (*rawGrp == '"') {
+            char groupStr[17];
+
+            if (!j.getString("group", groupStr, sizeof(groupStr)) || !groupStr[0]) {
+                Http::sendError(req, 422, "group_invalid");
+
+                return;
+            }
+
+            grp = animService.groupIdForName(groupStr);
+
+            if (grp == 0) {
+                Http::sendError(req, 422, "group_not_found");
+
+                return;
+            }
+        } else {
+            long v = j.getInt("group");
+
+            if (v <= 0 || v > 254) {
+                Http::sendError(req, 422, "group_out_of_range");
+
+                return;
+            }
+
+            grp = (uint8_t)v;
+        }
+
+        long val = j.getInt("value");
 
         if (val < 0) val = 200;
 
@@ -91,7 +123,7 @@ namespace Lightnet {
             return;
         }
 
-        scheduler.triggerGroup((uint8_t)grp, (uint8_t)val);
+        scheduler.triggerGroup(grp, (uint8_t)val);
         Http::sendOk(req);
     }
 }  // namespace Lightnet

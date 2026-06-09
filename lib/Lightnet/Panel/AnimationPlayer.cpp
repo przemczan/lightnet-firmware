@@ -441,12 +441,26 @@ namespace Lightnet {
         const AnimationState& a = s.cur;
 
         if (a.durationMs == 0) {
-            return a.param2; // infinite modifier holds its target
+            return a.param2; // infinite modifier holds its target (identity)
         }
 
         uint32_t prog = (uint32_t)elapsed * 256 / a.durationMs;
         uint8_t q8   = (prog > 255) ? 255 : (uint8_t)prog;
 
+        if (a.flags & FLAG_MOD_BELL) {
+            // Symmetric triangle: identity → peak → identity
+            uint16_t bprog = (q8 < 128) ? (uint16_t)q8 * 2 : (uint16_t)(255 - q8) * 2;
+            uint8_t q8b   = (bprog > 255) ? 255 : (uint8_t)bprog;
+
+            return lerp8(a.param2, a.param1, q8b);
+        }
+
+        if (a.flags & FLAG_MOD_RISE) {
+            // identity → peak
+            return lerp8(a.param2, a.param1, q8);
+        }
+
+        // Default: fall — peak → identity
         return lerp8(a.param1, a.param2, q8);
     }
 

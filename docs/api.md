@@ -363,6 +363,8 @@ Content-Type: application/json
 {"group": 1, "value": 200}
 ```
 
+`group` accepts a numeric ID **or** the string name used in the scene JSON (e.g. `"group": "layer5"`). The name is resolved against the currently playing scene; `group_not_found` is returned if no loaded layer has that name.
+
 Response: `200 {}`
 
 !!! tip
