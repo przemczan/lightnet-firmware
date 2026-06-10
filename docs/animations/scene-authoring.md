@@ -209,9 +209,7 @@ Each entry in `layers`:
   "sequence": [
     {
       "type": "BREATHE",
-      "colorTo": {
-        "palette": 200
-      },
+      "colorTo": { "palette": 200 },
       "duration": 4000,
       "loop": true
     }
@@ -250,8 +248,8 @@ Put the modifier layer *after* (above) the layers it should affect:
 
 ```json
 "layers": [
-  { "group": "base",  "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
-  { "group": "dim",   "panels": "all", "sequence": [ { "type": "MOD_BRIGHTNESS", "from": 255, "to": 40, "duration": 3000 } ] }
+  { "group": "base", "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
+  { "group": "dim", "panels": "all", "sequence": [ { "type": "MOD_BRIGHTNESS", "from": 255, "to": 40, "duration": 3000 } ] }
 ]
 ```
 
@@ -268,9 +266,9 @@ combined. All resolve **at play time against this device's topology** (§2).
 ### 6.1 Explicit (device-specific, exact)
 
 ```json
-"panels": "all"            // every discovered panel
-"panels": [1, 3, 5]        // exactly these 1-based indices (≤ 32, missing ones skipped)
-"panels": { "exclude": [2] } // everything except these
+"panels": "all"              // every discovered panel
+"panels": [1, 3, 5]          // exactly these 1-based indices (≤ 32, missing ones skipped)
+"panels": {"exclude": [2]}   // everything except these
 ```
 
 Best when you're authoring for *your own* fixed setup and want precise control.
@@ -313,9 +311,9 @@ Combine any of the above with set algebra:
 
 ```json
 "panels": { "any": ["root", "leaves"] }            // union  → {1,4,6}
-"panels": { "all": ["subtree:3", "leaves"] }        // intersect → {6}
-"panels": { "not": "subtree:3" }                    // complement → {1,2,4}
-"panels": { "any": ["tag:accent", "leaves"] }       // tags compose too
+"panels": { "all": ["subtree:3", "leaves"] }       // intersect → {6}
+"panels": { "not": "subtree:3" }                   // complement → {1,2,4}
+"panels": { "any": ["tag:accent", "leaves"] }      // tags compose too
 ```
 
 ### 6.5 What happens when nothing matches
@@ -400,9 +398,7 @@ spins, needs the geometric layout, and has no topology fallback).
 {
   "runner": "WAVE",
   "source": "root",
-  "color": {
-    "palette": 200
-  },
+  "color": { "palette": 200 },
   "waveWidth": 2,
   "duration": 2500
 }
@@ -417,9 +413,7 @@ several rings/bands/blips stay in flight at once with true dark gaps between the
 {
   "runner": "RIPPLE",
   "source": "root",
-  "color": {
-    "palette": 96
-  },
+  "color": { "palette": 96 },
   "rippleWidth": 1,
   "repeat": true,
   "duration": 1500
@@ -511,9 +505,7 @@ per runner:
   "runner": "WAVE",
   "directionality": "geometric",
   "angle": 0,
-  "color": {
-    "palette": 128
-  },
+  "color": { "palette": 128 },
   "waveWidth": 3,
   "duration": 5000
 }
@@ -703,12 +695,8 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
       "sequence": [
         {
           "type": "BREATHE",
-          "colorFrom": {
-            "useColor": 1
-          },
-          "colorTo": {
-            "useColor": 0
-          },
+          "colorFrom": { "useColor": 1 },
+          "colorTo": { "useColor": 0 },
           "duration": 4000,
           "loop": true
         }
@@ -728,15 +716,11 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
   "layers": [
     {
       "group": "bg",
-      "panels": {
-        "not": "leaves"
-      },
+      "panels": { "not": "leaves" },
       "sequence": [
         {
           "type": "BREATHE",
-          "colorTo": {
-            "palette": 160
-          },
+          "colorTo": { "palette": 160 },
           "duration": 5000,
           "loop": true
         }
@@ -752,10 +736,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
           "colorTo": "#FFFFFF",
           "duration": 900,
           "loop": true,
-          "params": [
-            64,
-            96
-          ]
+          "params": [64, 96]
         }
       ]
     }
@@ -813,9 +794,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
         {
           "runner": "WAVE",
           "source": "root",
-          "color": {
-            "palette": 210
-          },
+          "color": { "palette": 210 },
           "waveWidth": 2,
           "duration": 2500
         }
@@ -887,9 +866,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
         {
           "runner": "CHASE",
           "source": "root",
-          "color": {
-            "useColor": 0
-          },
+          "color": { "useColor": 0 },
           "duration": 1200
         }
       ]
@@ -982,15 +959,11 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
   "layers": [
     {
       "group": "base",
-      "panels": {
-        "not": "tag:accent"
-      },
+      "panels": { "not": "tag:accent" },
       "sequence": [
         {
           "type": "SOLID",
-          "color": {
-            "palette": 30
-          },
+          "color": { "palette": 30 },
           "duration": 0
         }
       ]
@@ -1004,9 +977,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
           "type": "STROBE",
           "color": "#FFFFFF",
           "duration": 2000,
-          "params": [
-            6
-          ]
+          "params": [6]
         }
       ]
     }
@@ -1031,9 +1002,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
       "sequence": [
         {
           "type": "SOLID",
-          "color": {
-            "useColor": 0
-          },
+          "color": { "useColor": 0 },
           "duration": 0
         }
       ]
@@ -1044,9 +1013,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
       "sequence": [
         {
           "type": "SOLID",
-          "color": {
-            "useColor": 1
-          },
+          "color": { "useColor": 1 },
           "duration": 0
         }
       ]
@@ -1057,9 +1024,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
       "sequence": [
         {
           "type": "SOLID",
-          "color": {
-            "useColor": 2
-          },
+          "color": { "useColor": 2 },
           "duration": 0
         }
       ]
@@ -1083,9 +1048,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
           "colorFrom": "#100010",
           "colorTo": "#FF00C0",
           "duration": 0,
-          "params": [
-            200
-          ]
+          "params": [200]
         }
       ]
     }
@@ -1117,9 +1080,7 @@ see [API → Reactive trigger](api.md#reactive-trigger-http-alternative-to-webso
         {
           "type": "BREATHE",
           "colorFrom": "#000010",
-          "colorTo": {
-            "palette": 90
-          },
+          "colorTo": { "palette": 90 },
           "duration": 7000,
           "loop": true
         }
@@ -1127,9 +1088,7 @@ see [API → Reactive trigger](api.md#reactive-trigger-http-alternative-to-webso
     },
     {
       "group": "spine",
-      "panels": {
-        "not": "leaves"
-      },
+      "panels": { "not": "leaves" },
       "sequence": [
         {
           "duration": 500
@@ -1137,9 +1096,7 @@ see [API → Reactive trigger](api.md#reactive-trigger-http-alternative-to-webso
         {
           "runner": "WAVE",
           "source": "root",
-          "color": {
-            "palette": 220
-          },
+          "color": { "palette": 220 },
           "waveWidth": 2,
           "duration": 2600
         }
@@ -1155,10 +1112,7 @@ see [API → Reactive trigger](api.md#reactive-trigger-http-alternative-to-webso
           "colorFrom": "#000000",
           "colorTo": "#FFFFFF",
           "duration": 600,
-          "params": [
-            40,
-            120
-          ]
+          "params": [40, 120]
         }
       ]
     }

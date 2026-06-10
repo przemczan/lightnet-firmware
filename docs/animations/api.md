@@ -26,11 +26,7 @@ These are persisted in `/config/appearance.json` and restored on every boot. The
 {
   "schemaVersion": 1,
   "brightness": 192,
-  "baseColors": [
-    "#FF4400",
-    "#FF8800",
-    "#000000"
-  ],
+  "baseColors": ["#FF4400", "#FF8800", "#000000"],
   "palette": "lava"
 }
 ```
@@ -177,9 +173,7 @@ For chained steps on a notification (e.g. pulse → fade), use a short scene via
         {
           "type": "BREATHE",
           "colorFrom": "#000000",
-          "colorTo": {
-            "useColor": 0
-          },
+          "colorTo": { "useColor": 0 },
           "duration": 4000,
           "loop": true
         }
@@ -207,9 +201,7 @@ Change colour mid-flight: `PUT /api/appearance/colors {"primary":"#0044FF"}` —
       "sequence": [
         {
           "type": "SOLID",
-          "color": {
-            "palette": 128
-          }
+          "color": { "palette": 128 }
         }
       ]
     },
@@ -219,19 +211,13 @@ Change colour mid-flight: `PUT /api/appearance/colors {"primary":"#0044FF"}` —
       "sequence": [
         {
           "runner": "WAVE",
-          "color": {
-            "palette": 220
-          },
+          "color": { "palette": 220 },
           "duration": 4000,
-          "params": [
-            4
-          ]
+          "params": [4]
         },
         {
           "type": "SOLID",
-          "color": {
-            "palette": 128
-          },
+          "color": { "palette": 128 },
           "duration": 1000
         }
       ]
@@ -258,16 +244,10 @@ Group 1 holds a static dim background. Group 2 cycles: bright wave sweeps across
       "sequence": [
         {
           "type": "REACTIVE",
-          "colorFrom": {
-            "palette": 50
-          },
-          "colorTo": {
-            "palette": 220
-          },
+          "colorFrom": { "palette": 50 },
+          "colorTo": { "palette": 220 },
           "duration": 0,
-          "params": [
-            210
-          ]
+          "params": [210]
         }
       ]
     }
@@ -288,42 +268,26 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
   "layers": [
     {
       "group": 1,
-      "panels": [
-        0,
-        1,
-        2,
-        3,
-        4
-      ],
+      "panels": [0, 1, 2, 3, 4],
       "palette": "ocean",
       "sequence": [
         {
           "type": "HUE_CYCLE",
           "duration": 0,
           "loop": true,
-          "params": [
-            8
-          ]
+          "params": [8]
         }
       ]
     },
     {
       "group": 2,
-      "panels": [
-        5,
-        6,
-        7,
-        8,
-        9
-      ],
+      "panels": [5, 6, 7, 8, 9],
       "palette": "lava",
       "sequence": [
         {
           "type": "BREATHE",
           "colorFrom": "#000000",
-          "colorTo": {
-            "palette": 200
-          },
+          "colorTo": { "palette": 200 },
           "duration": 3000,
           "loop": true
         }
@@ -351,41 +315,26 @@ Panels 0–4 cycle through ocean hues. Panels 5–9 breathe lava orange. Spatial
       "sequence": [
         {
           "runner": "WAVE",
-          "color": {
-            "palette": 0
-          },
+          "color": { "palette": 0 },
           "duration": 1500,
-          "params": [
-            5
-          ]
+          "params": [5]
         },
         {
           "runner": "RIPPLE",
-          "color": {
-            "palette": 128
-          },
+          "color": { "palette": 128 },
           "duration": 1200,
-          "params": [
-            3,
-            0
-          ]
+          "params": [3, 0]
         },
         {
           "type": "TRANSITION",
-          "colorFrom": {
-            "palette": 200
-          },
-          "colorTo": {
-            "useColor": 0
-          },
+          "colorFrom": { "palette": 200 },
+          "colorTo": { "useColor": 0 },
           "duration": 2000
         },
         {
           "type": "BREATHE",
           "colorFrom": "#000000",
-          "colorTo": {
-            "useColor": 0
-          },
+          "colorTo": { "useColor": 0 },
           "duration": 0
         }
       ]
@@ -423,9 +372,7 @@ free-runner:
       "sequence": [
         {
           "runner": "WAVE",
-          "color": {
-            "palette": 200
-          },
+          "color": { "palette": 200 },
           "duration": 2000
         }
       ]
@@ -434,14 +381,8 @@ free-runner:
       "group": "main",
       "startAfter": "intro",
       "sequence": [
-        {
-          "duration": 500
-        },
-        {
-          "type": "BREATHE",
-          "colorTo": "#0040FF",
-          "duration": 3000
-        }
+        { "duration": 500 },
+        { "type": "BREATHE", "colorTo": "#0040FF", "duration": 3000 }
       ]
     },
     {
@@ -452,9 +393,7 @@ free-runner:
           "type": "BLINK",
           "colorTo": "#FF8000",
           "duration": 1500,
-          "params": [
-            200
-          ]
+          "params": [200]
         }
       ]
     }

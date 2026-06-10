@@ -105,10 +105,7 @@ Sinusoidal (parabolic-approximation) colour envelope: oscillates between `colorF
   "colorFrom": "#000000",
   "colorTo": "#FFFFFF",
   "duration": 600,
-  "params": [
-    64,
-    64
-  ]
+"params": [64, 64]
 }
 ```
 
@@ -132,9 +129,7 @@ Binary toggle between `colorTo` (on) and `colorFrom` (off) at a fixed period.
   "colorTo": "#FF0000",
   "duration": 0,
   "loop": true,
-  "params": [
-    50
-  ]
+  "params": [50]
 }
 ```
 
@@ -153,9 +148,7 @@ Binary toggle between `colorTo` (on) and `colorFrom` (off) at a fixed period.
   "type": "HUE_CYCLE",
   "duration": 0,
   "loop": true,
-  "params": [
-    10
-  ]
+  "params": [10]
 }
 ```
 
@@ -174,9 +167,7 @@ Binary flash at a frequency in Hz. On = `colorTo`, off = black.
   "type": "STROBE",
   "color": "#FFFFFF",
   "duration": 2000,
-  "params": [
-    20
-  ]
+  "params": [20]
 }
 ```
 
@@ -196,9 +187,7 @@ Decay-model animation triggered by WebSocket beats. Rests at `colorFrom`; on tri
   "colorFrom": "#110000",
   "colorTo": "#FF8800",
   "duration": 0,
-  "params": [
-    180
-  ]
+  "params": [180]
 }
 ```
 

@@ -271,18 +271,9 @@ Palette JSON format:
   "schemaVersion": 1,
   "name": "my-palette",
   "stops": [
-    [
-      0,
-      "#000000"
-    ],
-    [
-      128,
-      "#FF4400"
-    ],
-    [
-      255,
-      "#FFFFFF"
-    ]
+    [0, "#000000"],
+    [128, "#FF4400"],
+    [255, "#FFFFFF"]
   ]
 }
 ```

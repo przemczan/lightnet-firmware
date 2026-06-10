@@ -55,8 +55,8 @@ graph, so you can both **sequence** and **parallelise** groups from one field:
 
 ```json
 "layers": [
-  { "group": "intro", "panels": [1,2], "sequence": [ /* … */ ] },
-  { "group": "main",  "startAfter": "intro", "panels": [3], "sequence": [ /* … */ ] }
+  { "group": "intro", "panels": [1, 2], "sequence": [ /* … */ ] },
+  { "group": "main", "startAfter": "intro", "panels": [3], "sequence": [ /* … */ ] }
 ]
 ```
 
@@ -87,7 +87,7 @@ animation or to insert a pause:
 
 ```json
 "sequence": [
-  { "duration": 500 },                                            // dark/hold for 500ms
+  { "duration": 500 },  // dark/hold for 500ms
   { "type": "BREATHE", "colorTo": "#0040FF", "duration": 4000 }
 ]
 ```
@@ -177,30 +177,12 @@ A **palette** is a 16-stop gradient of `(position, R, G, B)` entries. The contro
   "schemaVersion": 1,
   "name": "lava",
   "stops": [
-    [
-      0,
-      "#000000"
-    ],
-    [
-      46,
-      "#240000"
-    ],
-    [
-      96,
-      "#711100"
-    ],
-    [
-      148,
-      "#8E0301"
-    ],
-    [
-      204,
-      "#FF4702"
-    ],
-    [
-      255,
-      "#FFFFFF"
-    ]
+    [0, "#000000"],
+    [46, "#240000"],
+    [96, "#711100"],
+    [148, "#8E0301"],
+    [204, "#FF4702"],
+    [255, "#FFFFFF"]
   ]
 }
 ```
@@ -281,17 +263,13 @@ A layer can specify its own palette, overriding the scene-level default for the 
         {
           "type": "TRANSITION",
           "colorFrom": "#000000",
-          "colorTo": {
-            "useColor": 0
-          },
+          "colorTo": { "useColor": 0 },
           "duration": 3000
         },
         {
           "type": "BREATHE",
           "colorFrom": "#000000",
-          "colorTo": {
-            "useColor": 0
-          },
+          "colorTo": { "useColor": 0 },
           "duration": 4000,
           "loop": true
         }
@@ -303,13 +281,9 @@ A layer can specify its own palette, overriding the scene-level default for the 
       "sequence": [
         {
           "runner": "WAVE",
-          "color": {
-            "palette": 200
-          },
+          "color": { "palette": 200 },
           "duration": 8000,
-          "params": [
-            3
-          ]
+          "params": [3]
         }
       ]
     }
