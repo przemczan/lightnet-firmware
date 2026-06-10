@@ -216,6 +216,11 @@ namespace Lightnet {
 
         HSV8 h = rgb2hsv(acc);
 
+        // A perfectly grey/white/black input has no defined hue — rgb2hsv defaults h=0
+        // (red), so boosting s would hallucinate a strong red instead of leaving the
+        // colour alone. Treat "no saturation to begin with" as nothing to boost.
+        if (h.s == 0) return acc;
+
         h.s = (uint8_t)(h.s + (((int16_t)255 - h.s) * value) / 255);
 
         return hsv2rgb(h);

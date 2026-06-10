@@ -439,10 +439,15 @@ namespace Lightnet {
             // base, i.e. a standalone runner); honour an explicit non-default blend.
             uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
 
-            // `repeat` only has meaning for a colour sweep — see the swapped-colour note on
-            // compileRepeating (RunnerCompile.hpp): looping a MOD_* sweep would lerp straight
-            // from `amount` back to its identity value with no rest, producing a sawtooth.
-            bool repeating = repeat && (target == RUNNER_TARGET_COLOR);
+            // `repeat` works for both COLOR and MOD_* targets, but via different envelopes:
+            // COLOR uses the swapped-colour trick (compileRepeating, RunnerCompile.hpp) for a
+            // departing -> dark-gap -> approaching cycle. MOD_* targets instead force a bell
+            // envelope (identity -> peak -> identity, FLAG_MOD_BELL) which already starts and
+            // ends at identity, so FLAG_LOOP repeats it with no discontinuity — the same trick
+            // already used for the WHEEL modifier blade above. A rise/fall MOD_* shape can't
+            // loop this way (it would jump from peak straight back to identity), so repeating
+            // modifiers always use bell regardless of the step's modRise/modBell setting.
+            bool repeating = repeat;
 
             // `repeatCount` > 1 places that many evenly-spaced waves in flight at once: the
             // loop period is shortened to T/N and each panel's phase within it is multiplied
@@ -501,7 +506,11 @@ namespace Lightnet {
                                                  runnerBlend, /*composeOrder=*/ layerIdx,
                                                  cp.startDelayMs);
                 } else {
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType, modFlags,
+                    // Repeating modifier: bell shape forced (smooth repeating pulse per pass),
+                    // same as the WHEEL modifier blade above.
+                    uint8_t flags = repeating ? (FLAG_LOOP | FLAG_MOD_BELL) : modFlags;
+
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType, flags,
                                                  cp.durationMs, black, black,
                                                  modPeak, modIdentity,
                                                  layer.blend, /*composeOrder=*/ layerIdx,

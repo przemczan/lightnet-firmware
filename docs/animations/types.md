@@ -258,11 +258,11 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | `angle` | 0–359 | Geometric **axis sweep** direction in degrees (only `directionality:geometric` WAVE/CHASE; default 0). 2° resolution. Ignored by RIPPLE. |
 | `reverse` | bool | Reverse the travel direction |
 | `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
-| `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass — colour-only, see below |
+| `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass, see below |
 | `repeatCount` | 1–255 | With `repeat:true`: number of sweeps in flight simultaneously, evenly spaced (also settable as `params[5]`). Default 1 (single train). |
 | `animates` | string | What the sweep modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate` |
 | `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
-| `shape` | string | Envelope shape for non-`color` sweeps: `fall` (peak→identity, default), `rise` (identity→peak), or `bell` (identity→peak→identity). Ignored when `animates:color`. |
+| `shape` | string | Envelope shape for non-`color` sweeps: `fall` (peak→identity, default), `rise` (identity→peak), or `bell` (identity→peak→identity). Ignored when `animates:color`, and when `repeat:true` (repeating modifier sweeps always use `bell`, see below). |
 
 **What the sweep animates.** By default a runner sweeps `color` — each panel snaps a `PULSE`
 between `color` and the layer's background. Setting `animates` to `dim`, `desaturate`, `hue`,
@@ -310,9 +310,18 @@ No protocol change: this reuses the existing modifier `PREPARE` with `param1 = a
 **Repeating sweeps (`repeat`).** WAVE, RIPPLE, and CHASE normally play one pass over `duration`
 and stop. Setting `"repeat": true` instead turns `duration` into the time for **one lap** and
 loops the sweep forever — a continuous train of evenly-spaced rings/bands/blips, several in
-flight at once, each with a true dark gap between passes. Colour-only (`animates:color`): the
-linear modifier ramp that drives `brightness`/`saturation`/`hue`/`invert` can't loop without a
-sawtooth jump, so `repeat` is ignored for those targets. Needs `schemaVersion: 5`.
+flight at once.
+
+- `animates:color` (default): each pass is a true dark gap between passes (the swapped-colour
+  trick — departing → dark → approaching).
+- Any other `animates` (`dim`/`desaturate`/`hue`/`invert`/`brighten`/`saturate`): each pass is a
+  `bell` envelope (identity → `amount` → identity), regardless of the step's `shape`. A
+  rise/fall envelope can't loop without a discontinuity (it would jump from `amount` straight
+  back to identity at the seam), so repeating modifier sweeps always use `bell`, which already
+  starts and ends at identity and therefore loops cleanly — the same trick used for the WHEEL
+  modifier blade.
+
+Needs `schemaVersion: 5`.
 
 ```json
 {
@@ -331,8 +340,8 @@ sawtooth jump, so `repeat` is ignored for those targets. Needs `schemaVersion: 5
 band/ring/blip in flight at a time, sweeping the whole field every `duration`. Setting
 `"repeatCount": N` (N > 1) instead places **N evenly-spaced sweeps in flight at once**, each
 travelling at the same speed and width as `repeatCount: 1` (i.e. `duration` stays the time for
-one sweep to cross the field; the train just gets denser). Also colour-only and requires
-`schemaVersion: 5`.
+one sweep to cross the field; the train just gets denser). Works for any `animates` target.
+Requires `schemaVersion: 5`.
 
 ```json
 {

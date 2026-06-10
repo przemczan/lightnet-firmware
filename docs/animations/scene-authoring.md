@@ -421,8 +421,10 @@ spins, needs the geometric layout, and has no topology fallback).
 
 **Repeating sweeps — `repeat`.** Set `"repeat": true` on a WAVE/RIPPLE/CHASE step to replay it
 as a continuous train instead of a single pass: `duration` becomes the time for **one lap**, and
-the ring/band/blip loops forever with a true dark gap between passes. Colour-only
-(`animates:color` — the modifier ramp can't loop cleanly). Needs `schemaVersion: 5`.
+the ring/band/blip loops forever. For `animates:color` (default), each pass is a true dark gap
+between passes. For other `animates` targets, each pass is a `bell` envelope (identity → `amount`
+→ identity) — `shape` is ignored while repeating, since only `bell` loops without a jump. Needs
+`schemaVersion: 5`.
 
 ```json
 {
@@ -475,8 +477,9 @@ the modifier within each panel's lit window:
 | `rise` | identity → peak | swell that builds |
 | `bell` | identity → peak → identity | soft symmetric pulse |
 
-`shape` is ignored when `animates: "color"`. WHEEL forces `bell` (it always loops; `shape` has
-no effect on WHEEL).
+`shape` is ignored when `animates: "color"`, and when `repeat: true` (a repeating modifier sweep
+always uses `bell` — see above). WHEEL forces `bell` (it always loops; `shape` has no effect on
+WHEEL).
 
 See [Animation Types → Controller Runners](types.md#controller-runners) for the full mechanics.
 

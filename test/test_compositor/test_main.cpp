@@ -189,6 +189,15 @@ void test_saturate_identity_and_boost()
     TEST_ASSERT_INT_WITHIN(2, 255, h.s);
 }
 
+void test_saturate_grey_is_identity()
+{
+    // White (e.g. the output of a full-amount MOD_BRIGHTEN) has no defined hue —
+    // rgb2hsv defaults h=0 (red). Boosting saturation must not turn it red.
+    assertRGB(modSaturate({ 255, 255, 255 }, 255), 255, 255, 255);
+    assertRGB(modSaturate({ 0, 0, 0 }, 255), 0, 0, 0);
+    assertRGB(modSaturate({ 100, 100, 100 }, 255), 100, 100, 100);
+}
+
 void test_hue_shift_identity_and_rotate()
 {
     RGB8 red = { 255, 0, 0 };
@@ -359,6 +368,7 @@ int main(int, char **)
     RUN_TEST(test_desaturate_identity_and_grey);
     RUN_TEST(test_brighten_identity_and_boost);
     RUN_TEST(test_saturate_identity_and_boost);
+    RUN_TEST(test_saturate_grey_is_identity);
     RUN_TEST(test_hue_shift_identity_and_rotate);
     RUN_TEST(test_invert_identity_full_and_blend);
 
