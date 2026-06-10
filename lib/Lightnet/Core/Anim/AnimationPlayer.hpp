@@ -1,17 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include "../Common/AnimationTypes.hpp"
-#include "../Common/Protocol.hpp"
-#include "../Common/Palette.hpp"
-#include "../Common/ColorRef.hpp"
-#include "../Common/ColorCompose.hpp"
-#include "../Common/LightnetConfig.hpp"
-#ifdef SIM_MODE
-    #include "../Sim/SimRGBController.hpp"
-#else
-    #include "RGBController.hpp"
-#endif
+#include "AnimationTypes.hpp"
+#include "ProtocolTypes.hpp"
+#include "Palette.hpp"
+#include "ColorRef.hpp"
+#include "ColorCompose.hpp"
+#include "LightnetConfig.hpp"
 
 namespace Lightnet {
     // AnimationPlayer — panel-side layer compositor.
@@ -25,21 +20,24 @@ namespace Lightnet {
     // A finished non-loop slot HOLDS its last value (consistent with the scene "finished
     // layer holds last frame" model). The controller drives step sequencing — each step is
     // one PREPARE followed by one general-call START.
+    //
+    // Portable: no Arduino/FastLED, no millis(), no LED driver. Time is passed in as a
+    // 16-bit ms counter (`now`, wraps ~65.5 s). The player owns the current colour; the
+    // platform reads currentColor() (when takeDirty() returns true) and drives the LED.
     class AnimationPlayer
     {
         public:
             AnimationPlayer();
 
-            void setRGBController(RGBController *rgb)
-            {
-                rgbController = rgb;
-            }
-
-            // Packet handlers (use Protocol:: packet types)
+            // Packet handlers (use Protocol:: packet types). `now` is a 16-bit ms counter.
             void prepare(const ::Protocol::PacketAnimationPrepare *pkt);
-            void start(uint8_t seq_id, uint8_t group_id);
-            void control(uint8_t cmd, uint8_t group_id);
-            void updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t transitionMs);
+            void start(uint8_t seq_id, uint8_t group_id, uint16_t now);
+            void control(uint8_t cmd, uint8_t group_id, uint16_t now);
+            void updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t transitionMs, uint16_t now);
+
+            // Direct colour (PACKET_SET_COLOR). Bypasses the compositor and becomes the current
+            // colour immediately — also the source for FLAG_CURRENT_COLOR_* substitution.
+            void setColorDirect(const ::Protocol::ColorRGB& c);
 
             // Palette + base colors — replaced via PACKET_SET_PALETTE / PACKET_SET_BASE_COLORS.
             // ColorRef resolution happens at frame time, so these take effect immediately.
@@ -50,11 +48,16 @@ namespace Lightnet {
             // from this instead of black; an idle panel (no active layers) displays it.
             void setBackground(const ::Protocol::ColorRGB& c);
 
-            // Called every main loop iteration (internally gated at ~16ms)
-            void tick();
+            // Called every main loop iteration (internally gated at ~16ms). `now` = 16-bit ms.
+            void tick(uint16_t now);
+
+            // Current composited colour + change flag. The platform mirrors this to the LED:
+            //   player.tick(now); if (player.takeDirty()) led->write(player.currentColor());
+            ::Protocol::ColorRGB currentColor() const { return lastOutput; }
+            bool takeDirty() { bool d = outputDirty; outputDirty = false; return d; }
 
             // Status reporting
-            void fillStatus(::Protocol::PacketAnimationStatus *out);
+            void fillStatus(::Protocol::PacketAnimationStatus *out, uint16_t now);
 
             bool isAnimating() const;
             uint8_t getAnimType() const;
@@ -89,9 +92,10 @@ namespace Lightnet {
             uint8_t lastStartSeqId;   // dedup guard for ANIMATION_START general calls
             uint8_t lastParamsSeqId;  // dedup guard for ANIMATION_UPDATE_PARAMS general calls
 
-            RGBController *rgbController;
+            uint16_t nowMs;        // current time (ms, 16-bit), set by each public entry point
             uint16_t lastTickMs;
-            ::Protocol::ColorRGB lastOutput;       // last colour written to the LED
+            bool outputDirty;      // lastOutput changed since the last takeDirty()
+            ::Protocol::ColorRGB lastOutput;       // current colour (what the platform drives to the LED)
             ::Protocol::ColorRGB backgroundColor;  // compositor base (scene background; default black)
 
             // Palette + base colors (shared across slots; resolved at frame time).
@@ -107,7 +111,7 @@ namespace Lightnet {
 
             // ---- Frame evaluation ----
             void composite();
-            void applyToLED(const ::Protocol::ColorRGB& c);
+            void setOutput(const ::Protocol::ColorRGB& c);  // gated: updates lastOutput + dirty only on change
             void computeSlotColor(Slot& s, uint16_t elapsed);  // → s.outColor (source layers)
             uint8_t modifierValue(const Slot& s, uint16_t elapsed) const;
 

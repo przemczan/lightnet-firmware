@@ -1,11 +1,11 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Common/AnimationTypes.hpp"
+#include "../../Core/Anim/AnimationTypes.hpp"
 #include "../../Common/LightnetBus.hpp"
-#include "../../Common/LightnetConfig.hpp"
-#include "../../Common/ColorRef.hpp"
-#include "../../Common/Palette.hpp"
+#include "../../Core/Anim/LightnetConfig.hpp"
+#include "../../Core/Anim/ColorRef.hpp"
+#include "../../Core/Anim/Palette.hpp"
 #include "../../Utils/List.hpp"
 
 namespace Lightnet {

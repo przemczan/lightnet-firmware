@@ -20,7 +20,7 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
             if (size >= sizeof(Protocol::PacketAnimationStart)) {
                 const Protocol::PacketAnimationStart *pkt = (const Protocol::PacketAnimationStart *)data;
 
-                player.start(pkt->seq_id, pkt->group_id);
+                player.start(pkt->seq_id, pkt->group_id, (uint16_t)millis());
             }
 
             break;
@@ -30,7 +30,7 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
             if (size >= sizeof(Protocol::PacketAnimationControl)) {
                 const Protocol::PacketAnimationControl *pkt = (const Protocol::PacketAnimationControl *)data;
 
-                player.control(pkt->cmd, pkt->group_id);
+                player.control(pkt->cmd, pkt->group_id, (uint16_t)millis());
             }
 
             break;
@@ -39,7 +39,7 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
             if (size >= sizeof(Protocol::PacketAnimationUpdateParams)) {
                 const Protocol::PacketAnimationUpdateParams *pkt = (const Protocol::PacketAnimationUpdateParams *)data;
 
-                player.updateParams(pkt->seq_id, pkt->group_id, pkt->param_type, pkt->value, pkt->transitionMs);
+                player.updateParams(pkt->seq_id, pkt->group_id, pkt->param_type, pkt->value, pkt->transitionMs, (uint16_t)millis());
             }
 
             break;
@@ -93,7 +93,8 @@ void SimPanel::handlePacket(const void *data, uint8_t size)
             if (size >= sizeof(Protocol::PacketSetColor)) {
                 const Protocol::PacketSetColor *pkt = (const Protocol::PacketSetColor *)data;
 
-                rgb.color(pkt->color.rgb.r, pkt->color.rgb.g, pkt->color.rgb.b);
+                // Route through the player (single colour authority); tick() mirrors to rgb.
+                player.setColorDirect(pkt->color.rgb);
             }
 
             break;
@@ -111,7 +112,14 @@ void SimPanel::getState(Protocol::PanelState *state) const
 
 void SimPanel::tick()
 {
-    player.tick();
+    player.tick((uint16_t)millis());
+
+    // Mirror the player's current colour to the virtual LED (single colour authority).
+    if (player.takeDirty()) {
+        Protocol::ColorRGB c = player.currentColor();
+
+        rgb.color(c.r, c.g, c.b);
+    }
 }
 
 #endif  // SIM_MODE

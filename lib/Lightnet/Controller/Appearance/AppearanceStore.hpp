@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Common/Palette.hpp"
-#include "../../Common/LightnetConfig.hpp"
+#include "../../Core/Anim/Palette.hpp"
+#include "../../Core/Anim/LightnetConfig.hpp"
 #include "../../Common/Protocol.hpp"
 #include "../Animations/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"

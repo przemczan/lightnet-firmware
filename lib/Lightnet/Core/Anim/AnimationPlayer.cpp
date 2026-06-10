@@ -1,11 +1,14 @@
 #include "AnimationPlayer.hpp"
-#include "../Utils/Debug.hpp"
-#include "Arduino.h"
+
+// Portable core: no Arduino/Debug. Logging is a no-op hook the platform may override.
+#ifndef LN_ANIM_LOG
+    #define LN_ANIM_LOG(msg) ((void)0)
+#endif
 
 namespace Lightnet {
     AnimationPlayer::AnimationPlayer()
         : lastStartSeqId(0xFF), lastParamsSeqId(0xFF),
-        rgbController(nullptr), lastTickMs(0), paletteCount(2)
+        nowMs(0), lastTickMs(0), outputDirty(false), paletteCount(2)
     {
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             clearSlot(slots[i]);
@@ -59,7 +62,16 @@ namespace Lightnet {
             if (slots[i].flags & Slot::OCCUPIED) return;
         }
 
-        applyToLED(backgroundColor);
+        setOutput(backgroundColor);
+    }
+
+    // Direct SET_COLOR: becomes the current colour unconditionally (event-driven, ungated —
+    // reproduces the panel's pre-refactor immediate LED write). Also keeps lastOutput in sync
+    // so FLAG_CURRENT_COLOR_* substitution reads the true current colour.
+    void AnimationPlayer::setColorDirect(const ::Protocol::ColorRGB& c)
+    {
+        lastOutput  = c;
+        outputDirty = true;
     }
 
     ::Protocol::ColorRGB AnimationPlayer::resolveColorRef(const ColorRef& ref) const
@@ -150,21 +162,15 @@ namespace Lightnet {
         s.flags &= ~Slot::HOLDING;
         s.flags &= ~Slot::PAUSED;
         s.pausedElapsedMs = 0;
-        s.cur.startMs = (uint16_t)millis();
+        s.cur.startMs = nowMs;
 
-        // Resolve FLAG_CURRENT_* — substitute the live composited LED state.
-        if (rgbController) {
-            if (s.cur.flags & FLAG_CURRENT_COLOR_FROM) {
-                ::Protocol::ColorRGB c = rgbController->color();
+        // Resolve FLAG_CURRENT_* — substitute the current composited/direct colour.
+        if (s.cur.flags & FLAG_CURRENT_COLOR_FROM) {
+            s.cur.colorFrom = ColorRef_rgb(lastOutput.r, lastOutput.g, lastOutput.b);
+        }
 
-                s.cur.colorFrom = ColorRef_rgb(c.r, c.g, c.b);
-            }
-
-            if (s.cur.flags & FLAG_CURRENT_COLOR_TO) {
-                ::Protocol::ColorRGB c = rgbController->color();
-
-                s.cur.colorTo = ColorRef_rgb(c.r, c.g, c.b);
-            }
+        if (s.cur.flags & FLAG_CURRENT_COLOR_TO) {
+            s.cur.colorTo = ColorRef_rgb(lastOutput.r, lastOutput.g, lastOutput.b);
         }
 
         if (s.cur.animType == ANIM_REACTIVE) {
@@ -183,7 +189,7 @@ namespace Lightnet {
         Slot *s = allocSlot(pkt->group_id);
 
         if (!s) {
-            D_PRINTLN("[ANIM] no free slot, PREPARE dropped");
+            LN_ANIM_LOG("[ANIM] no free slot, PREPARE dropped");
 
             return;
         }
@@ -207,8 +213,10 @@ namespace Lightnet {
         s->flags |= Slot::HAS_PENDING;
     }
 
-    void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id)
+    void AnimationPlayer::start(uint8_t seq_id, uint8_t group_id, uint16_t now)
     {
+        nowMs = now;
+
         if (seq_id == lastStartSeqId) {
             return;
         }
@@ -224,9 +232,9 @@ namespace Lightnet {
         activatePending(*s);
     }
 
-    void AnimationPlayer::control(uint8_t cmd, uint8_t group_id)
+    void AnimationPlayer::control(uint8_t cmd, uint8_t group_id, uint16_t now)
     {
-        uint16_t now = (uint16_t)millis();
+        nowMs = now;
 
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             Slot& s = slots[i];
@@ -265,8 +273,10 @@ namespace Lightnet {
         }
     }
 
-    void AnimationPlayer::updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t /*transitionMs*/)
+    void AnimationPlayer::updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t /*transitionMs*/, uint16_t now)
     {
+        nowMs = now;
+
         if (seq_id == lastParamsSeqId) {
             return;
         }
@@ -276,8 +286,6 @@ namespace Lightnet {
         if (param_type != PARAM_TRIGGER) {
             return; // BRIGHTNESS_MULT / SPEED_SCALE reserved for future
         }
-
-        uint16_t now = (uint16_t)millis();
 
         for (uint8_t i = 0; i < MAX_ANIM_SLOTS; i++) {
             Slot& s = slots[i];
@@ -297,9 +305,9 @@ namespace Lightnet {
     // Main tick + compositor
     // ============================================================================
 
-    void AnimationPlayer::tick()
+    void AnimationPlayer::tick(uint16_t now)
     {
-        uint16_t now = (uint16_t)millis();
+        nowMs = now;
 
         // Frame gate: ~60fps
         if ((uint16_t)(now - lastTickMs) < 16) {
@@ -313,7 +321,7 @@ namespace Lightnet {
 
     void AnimationPlayer::composite()
     {
-        uint16_t now = (uint16_t)millis();
+        uint16_t now = nowMs;
 
         // Resolve each started, non-transparent slot into one contribution; the shared
         // foldLayers() then sorts by composeOrder and blends/modifies onto black.
@@ -384,26 +392,20 @@ namespace Lightnet {
         RGB8 acc  = foldLayers(contrib, n, base);
         ::Protocol::ColorRGB out = { acc.r, acc.g, acc.b };
 
-        applyToLED(out);
+        setOutput(out);
     }
 
-    void AnimationPlayer::applyToLED(const ::Protocol::ColorRGB& c)
+    void AnimationPlayer::setOutput(const ::Protocol::ColorRGB& c)
     {
-        // Skip redundant writes: a held/idle layer otherwise re-drives FastLED.showColor()
-        // every 16ms forever, which briefly disables interrupts and can perturb the I²C/pinger
-        // timing. Only write when the composited colour actually changes.
+        // Skip redundant updates: a held/idle layer otherwise re-drives the LED every 16ms
+        // forever, which briefly disables interrupts and can perturb the I²C/pinger timing.
+        // Only mark dirty when the composited colour actually changes.
         if (c.r == lastOutput.r && c.g == lastOutput.g && c.b == lastOutput.b) {
             return;
         }
 
-        lastOutput = c;
-
-        if (!rgbController) {
-            return;
-        }
-
-        // RGBController::updateOutputs() is a no-op when off, so TURN_OFF is respected.
-        rgbController->color(c.r, c.g, c.b);
+        lastOutput  = c;
+        outputDirty = true;
     }
 
     // ============================================================================
@@ -618,7 +620,7 @@ namespace Lightnet {
     void AnimationPlayer::tickReactive(Slot& s, ::Protocol::ColorRGB& out) const
     {
         if (s.reactiveLevel > 0) {
-            uint16_t since_trigger = (uint16_t)((uint16_t)millis() - s.reactiveTriggerMs);
+            uint16_t since_trigger = (uint16_t)(nowMs - s.reactiveTriggerMs);
             uint32_t decay_amount  = (uint32_t)s.reactiveDecayRate * since_trigger / 1000;
 
             s.reactiveLevel = (decay_amount >= s.reactiveLevel) ? 0 : (uint8_t)(s.reactiveLevel - decay_amount);
@@ -684,8 +686,10 @@ namespace Lightnet {
         return best;
     }
 
-    void AnimationPlayer::fillStatus(::Protocol::PacketAnimationStatus *out)
+    void AnimationPlayer::fillStatus(::Protocol::PacketAnimationStatus *out, uint16_t now)
     {
+        nowMs = now;
+
         const Slot *top = nullptr;
         int16_t bestOrder = -1;
         uint8_t occupiedCount = 0;
@@ -706,7 +710,7 @@ namespace Lightnet {
         if (top) {
             out->animType   = top->cur.animType;
             out->group_id   = top->groupId;
-            out->elapsedMs  = (top->flags & Slot::PAUSED) ? top->pausedElapsedMs : (uint16_t)((uint16_t)millis() - top->cur.startMs);
+            out->elapsedMs  = (top->flags & Slot::PAUSED) ? top->pausedElapsedMs : (uint16_t)(nowMs - top->cur.startMs);
             out->durationMs = top->cur.durationMs;
             out->queueLen   = (occupiedCount > 0) ? (uint8_t)(occupiedCount - 1) : 0;
         } else {

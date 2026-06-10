@@ -1,10 +1,10 @@
 #pragma once
 #ifdef SIM_MODE
 
-    #include "../Panel/AnimationPlayer.hpp"
+    #include "../Core/Anim/AnimationPlayer.hpp"
     #include "SimRGBController.hpp"
     #include "../Common/Protocol.hpp"
-    #include "../Common/Palette.hpp"
+    #include "../Core/Anim/Palette.hpp"
 
     class SimPanel
     {
@@ -17,7 +17,6 @@
             {
                 panelIndex = idx;
                 rgb.setPanelIndex(idx);
-                player.setRGBController(&rgb);
             }
 
             uint8_t getIndex() const

@@ -206,6 +206,22 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 
 ## 5. Animation Framework Internals
 
+### AnimationPlayer (panel side) — layer compositor, shared with mobile
+
+`lib/Lightnet/Core/Anim/AnimationPlayer.{hpp,cpp}` (+ its pure deps `AnimationTypes`, `ColorCompose`,
+`ColorRef`, `Palette`, `LightnetConfig`, `ProtocolTypes`) is **portable, host-compilable C++** — no
+Arduino/FastLED, time passed as `uint16_t now`, output pulled via `currentColor()`/`takeDirty()`.
+It is the **single implementation** of panel-local animation math, compiled into:
+
+- the **Panel** firmware (`LightnetPanel`),
+- the **Controller**'s `SIM_MODE` virtual panels (`SimPanel`),
+- native unit tests (`test/test_panel_anim`),
+- and the **mobile app**, via `lib/Lightnet/Core/CApi` (a thin C ABI) — Android over JNI/NDK,
+  iOS over Kotlin/Native cinterop. The mobile `PanelAnimationPlayer` is a thin Kotlin wrapper that
+  feeds raw mirrored packet bytes to the native core and only owns mobile-specific clock-domain
+  translation (controller millis ↔ mobile monotonic clock). See `lib/Lightnet/Core/README.md` and
+  `lib/Lightnet/Core/CApi/README.md`.
+
 ### AnimationPlayer (panel side) — layer compositor
 
 - `slots[MAX_ANIM_SLOTS]` (8) — each an independent layer keyed by `group_id`, with its running
@@ -221,7 +237,8 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
   last value.
 - `PACKET_SET_BACKGROUND` sets the compositor base (default black; idle panels display it).
 - Progress interpolation: `progress_q8 = (elapsed * 256) / durationMs` (q8 fixed-point). The pure
-  compose/HSV/fold math lives in `Common/ColorCompose.hpp` (natively tested, mirrored in mobile).
+  compose/HSV/fold math lives in `Core/Anim/ColorCompose.hpp` (natively tested, shared with mobile
+  via `Core/CApi`).
 - `resolveColorRef()` called every tick — palette/colour changes take effect next frame with no re-prepare.
 
 ### AnimationScheduler (controller side)

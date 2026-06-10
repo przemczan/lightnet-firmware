@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include "../../Common/Protocol.hpp"
-#include "../../Common/LightnetConfig.hpp"
+#include "../../Core/Anim/LightnetConfig.hpp"
 #include "ScenePlayer.hpp"
 
 namespace Lightnet {

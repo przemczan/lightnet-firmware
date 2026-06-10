@@ -5,10 +5,9 @@
     #include "../Utils/Debug.hpp"
     #include "../Common/Protocol.hpp"
 
-    // Sim-only replacement for RGBController. No FastLED. No pins.
+    // Sim-only LED sink. No FastLED. No pins.
     // Emits [SIM:LED ] lines to Serial only when the output actually changes.
-    //
-    // Also aliased as RGBController so AnimationPlayer.hpp compiles unchanged.
+    // The SimPanel mirrors AnimationPlayer::currentColor() into this each tick.
     class SimRGBController
     {
         public:
@@ -129,8 +128,5 @@
                 );
             }
     };
-
-    // Make AnimationPlayer.hpp compile without changes in SIM_MODE
-    using RGBController = SimRGBController;
 
 #endif  // SIM_MODE && LIGHTNET_TARGET_CONTROLLER

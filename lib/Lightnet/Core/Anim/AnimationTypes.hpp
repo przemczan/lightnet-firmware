@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include "Protocol.hpp"
 #include "ColorRef.hpp"
 
 namespace Lightnet {

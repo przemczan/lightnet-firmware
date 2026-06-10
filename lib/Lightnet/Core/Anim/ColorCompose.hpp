@@ -5,8 +5,7 @@
 // ============================================================================
 // ColorCompose — pure integer colour blending + modifier math for the panel
 // layer compositor. No Arduino / FastLED dependency, so it is unit-testable
-// natively and can be mirrored bit-for-bit in the Kotlin PanelAnimationPlayer
-// port and the anim-refgen reference generator.
+// natively and is shared with the mobile app via Core/CApi (no separate port).
 //
 // A panel drives a single RGB output, so "compositing" is folding a handful of
 // RGB triples per tick: SOURCE layers combine via a ComposeMode, MODIFIER layers

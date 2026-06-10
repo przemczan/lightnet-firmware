@@ -1,8 +1,8 @@
-// Native unit tests for lib/Lightnet/Common/ColorCompose.hpp
+// Native unit tests for lib/Lightnet/Core/Anim/ColorCompose.hpp
 // Run with: pio test -e native -f test_compositor
 
 #include <unity.h>
-#include "Common/ColorCompose.hpp"
+#include "Core/Anim/ColorCompose.hpp"
 
 using namespace Lightnet;
 

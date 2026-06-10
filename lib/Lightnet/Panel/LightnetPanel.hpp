@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RGBController.hpp"
-#include "AnimationPlayer.hpp"
+#include "../Core/Anim/AnimationPlayer.hpp"
 #include "../Common/LightnetPanelEdge.hpp"
 #include "../Common/LightnetBus.hpp"
 #include "../Utils/CircularQueue.hpp"

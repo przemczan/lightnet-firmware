@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "../../Common/LightnetConfig.hpp"
+#include "../../Core/Anim/LightnetConfig.hpp"
 #include "PanelGraph.hpp" // PanelGraph, TopoLink
 
 namespace Lightnet {

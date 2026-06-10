@@ -49,7 +49,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_compositor`, `test_panel_anim`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -131,18 +131,6 @@ count × { u8 address, u8 type, u8 size, u8[size] packet }
 
 ---
 
-## Animation reference-vector generator (`tools/anim-refgen/refgen.cpp`)
-
-Standalone C++ program that re-implements the exact integer expressions from `lib/Lightnet/Panel/AnimationPlayer.cpp` and `lib/Lightnet/Common/Palette.hpp`, then prints `currentColor` values for a fixed set of representative inputs. The Kotlin `PanelAnimationPlayer` test suite (`PanelAnimationPlayerTest`) asserts its output matches these numbers, verifying that Kotlin's integer arithmetic (`ushr`, `Int` division, `0xFF` masking) is bit-for-bit identical to the C++ `uint8`/`uint16` code.
-
-```bash
-g++ -O2 -std=c++17 tools/anim-refgen/refgen.cpp -o refgen && ./refgen
-```
-
-**When to regenerate**: if the firmware animation math changes (new easing formula, changed lerp, updated palette sampling), rerun `refgen`, update the expected values in `PanelAnimationPlayerTest`, and update the Kotlin port in `PanelAnimationPlayer.kt` to match. All three must stay in sync.
-
----
-
 ## Scene portability (topology selectors, directionality, tags)
 
 Scenes pick panels and give runners direction by **resolving against the discovered panel tree
@@ -170,8 +158,8 @@ live in `API/http/TopologyServer` (`GET /api/topology`, `PUT /api/topology/root`
 `GET/PUT /api/panel-tags`), wired in `main.cpp` case 0.
 
 - **Controller-side, no protocol change**: runners (incl. directionality math) run on the ESP in
-  float — they are **not** under the `refgen`/Kotlin bit-exact contract (that governs panel-local
-  `AnimationPlayer.cpp` only). `N`/edges/adjacency come from existing discovery data.
+  float — they are **not** part of the shared `Core/Anim` panel-local animation math (which mobile
+  also runs via the C ABI). `N`/edges/adjacency come from existing discovery data.
 - **Backward compatible**: v2 `panels` forms map onto the RPN; legacy `originPanel` → `source:panel:N`;
   v2 WAVE/CHASE default to `source:root` (slight visual change — design §6.4). `source:geometric`
   requires `schemaVersion: 3` (current `SCENE_SCHEMA_VERSION`); `SceneTopology::rebuild()` builds the

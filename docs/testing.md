@@ -48,6 +48,7 @@ pio test -e native -vvv                  # verbose (compiler output)
 | `test_panel_field` | [`test/test_panel_field/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_field/test_main.cpp) | `computeDistanceField` — hop-distance field from each `source` (root/leaves/panel/all), `reverse`, missing-source fallback, max-coord over the targeted subset |
 | `test_panel_geometry` | [`test/test_panel_geometry/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_geometry/test_main.cpp) | `PanelGeometry` planar layout (centroids match the mobile visualizer frame) + `computeGeometricField` axis projection (horizontal/vertical/2-D), `reverse`, single-panel uniform, empty-build invalid |
 | `test_runner_math` | [`test/test_runner_math/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_runner_math/test_main.cpp) | `RunnerMath` wave/ripple/chase envelopes + sweep positions, including zero-width (no divide) |
+| `test_panel_anim` | [`test/test_panel_anim/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_anim/test_main.cpp) | Portable `Core/Anim/AnimationPlayer` — time-as-parameter (deterministic FADE), `setColorDirect` ungated (delta-gate regression), `FLAG_CURRENT_COLOR_*` reads current output, SOLID hold |
 
 126 tests total, ~6 s wall time.
 
@@ -60,7 +61,7 @@ pio test -e native -vvv                  # verbose (compiler output)
 | [`Utils/SimpleJson.hpp`](https://github.com/przemczan/lightnet-firmware/blob/master/lib/Lightnet/Utils/SimpleJson.hpp) | ✅ | Pure C++, header-only |
 | [`Controller/Palettes/PaletteJson.hpp`](https://github.com/przemczan/lightnet-firmware/blob/master/lib/Lightnet/Controller/Palettes/PaletteJson.hpp) | ✅ | Pure parser, split out of `PaletteStore` specifically for testability |
 | [`Controller/API/http/HttpUrl.hpp`](https://github.com/przemczan/lightnet-firmware/blob/master/lib/Lightnet/Controller/API/http/HttpUrl.hpp) | ✅ | Pure C string helpers, split out of `HttpHelpers.hpp` |
-| `Common/Palette.hpp` (sampler) | ✅ | Pure interpolation math — not yet tested but eligible |
+| `Core/Anim/Palette.hpp` (sampler) | ✅ | Pure interpolation math — not yet tested but eligible |
 | `PaletteStore::resolve`/`save`/`exists` | ❌ | Need LittleFS / hardware |
 | HTTP handlers (`PaletteServer`, `SceneServer`, …) | ❌ | Need `AsyncWebServerRequest` mocks; not worth the effort |
 | `AnimationScheduler`, `ScenePlayer` | ❌ | Time-driven, talk to panels over I²C |

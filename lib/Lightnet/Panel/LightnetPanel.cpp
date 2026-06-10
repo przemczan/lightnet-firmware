@@ -21,9 +21,6 @@ void LightnetPanel::configure(configuration_t _config)
     this->config = _config;
     this->rgbController = new RGBController();
 
-    // Give AnimationPlayer access to the LED controller
-    this->animPlayer.setRGBController(this->rgbController);
-
     LNBus.setOnPacketReceived(LightnetPanel::onPacketReceivedService);
     LNBus.setOnPacketRequested(LightnetPanel::onPacketRequestedService);
 }
@@ -95,7 +92,17 @@ void LightnetPanel::run()
 
         case STATE_WORKING:
             this->handleIncomingPackets();
-            this->animPlayer.tick();
+            this->animPlayer.tick((uint16_t)millis());
+
+            // The player is the single colour authority (animations, SET_COLOR via
+            // setColorDirect, background). Mirror its current colour to the LED whenever it
+            // changes — outside the player's 16ms frame gate so SET_COLOR is reflected at once.
+            if (this->animPlayer.takeDirty()) {
+                ::Protocol::ColorRGB c = this->animPlayer.currentColor();
+
+                this->rgbController->color(c.r, c.g, c.b);
+            }
+
             break;
     }
 }
@@ -367,7 +374,9 @@ void LightnetPanel::handleTurnOnOf(Protocol::PacketTurnOnOff *packet)
 
 void LightnetPanel::handleSetColor(Protocol::PacketSetColor *packet)
 {
-    this->rgbController->color(&packet->color.rgb);
+    // Route through the player so it stays the single colour authority (keeps lastOutput in
+    // sync for FLAG_CURRENT_COLOR_*). The main loop mirrors currentColor() to the LED.
+    this->animPlayer.setColorDirect(packet->color.rgb);
 }
 
 void LightnetPanel::handlePanelConfiguration(Protocol::PacketPanelConfiguration *packet)
@@ -468,7 +477,7 @@ void LightnetPanel::onPacketRequested()
             Protocol::PacketAnimationStatus status;
 
             Protocol::setPacketMeta(&status.meta, Protocol::PACKET_FETCH_ANIM_STATE);
-            this->animPlayer.fillStatus(&status);
+            this->animPlayer.fillStatus(&status, (uint16_t)millis());
             LNBus.sendResponseData(&status, sizeof(status));
             break;
         }
@@ -499,17 +508,22 @@ void LightnetPanel::handleAnimationPrepare(Protocol::PacketAnimationPrepare *pac
 
 void LightnetPanel::handleAnimationStart(Protocol::PacketAnimationStart *packet)
 {
-    this->animPlayer.start(packet->seq_id, packet->group_id);
+    this->animPlayer.start(packet->seq_id, packet->group_id, (uint16_t)millis());
 }
 
 void LightnetPanel::handleAnimationControl(Protocol::PacketAnimationControl *packet)
 {
-    this->animPlayer.control(packet->cmd, packet->group_id);
+    this->animPlayer.control(packet->cmd, packet->group_id, (uint16_t)millis());
 }
 
 void LightnetPanel::handleAnimationUpdateParams(Protocol::PacketAnimationUpdateParams *packet)
 {
-    this->animPlayer.updateParams(packet->seq_id, packet->group_id, packet->param_type, packet->value, packet->transitionMs);
+    this->animPlayer.updateParams(packet->seq_id,
+                                  packet->group_id,
+                                  packet->param_type,
+                                  packet->value,
+                                  packet->transitionMs,
+                                  (uint16_t)millis());
 }
 
 void LightnetPanel::handleEnterBootloader(Protocol::PacketEnterBootloader *packet)

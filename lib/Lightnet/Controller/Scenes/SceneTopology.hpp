@@ -15,7 +15,7 @@
 // ============================================================================
 
 #include <stdint.h>
-#include "../../Common/LightnetConfig.hpp"
+#include "../../Core/Anim/LightnetConfig.hpp"
 #include "../Panels/PanelsInitializer.hpp"
 #include "../Topology/PanelGraph.hpp"
 #include "../Topology/TopologyIndex.hpp"
