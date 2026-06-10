@@ -21,7 +21,7 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
     static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
-    static const uint8_t SCENE_SCHEMA_VERSION       = 5;  // v5: WHEEL runner + repeat (multi-ring waves/ripples/chases)
+    static const uint8_t SCENE_SCHEMA_VERSION       = 6;  // v6: MOD_BRIGHTEN/MOD_SATURATE modifiers (animates: brighten/saturate), plus MOD_DIM/MOD_DESATURATE/dim/desaturate renames
 
     // ============================================================================
     // Per-layer playback state (scene-cycle barrier model)

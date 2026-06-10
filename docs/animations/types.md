@@ -209,11 +209,11 @@ Modifier steps transform the colour composited **below** them rather than produc
 (0–255) over `duration`, and a finished modifier **holds** its final value. Place a modifier layer
 *after* (above) the layers it should affect.
 
-### MOD_BRIGHTNESS / MOD_SATURATION / MOD_HUE_SHIFT / MOD_INVERT
+### MOD_DIM / MOD_DESATURATE / MOD_HUE_SHIFT / MOD_INVERT / MOD_BRIGHTEN / MOD_SATURATE
 
 ```json
 {
-  "type": "MOD_BRIGHTNESS",
+  "type": "MOD_DIM",
   "from": 255,
   "to": 64,
   "duration": 2000
@@ -222,13 +222,18 @@ Modifier steps transform the colour composited **below** them rather than produc
 
 | Type | `from`/`to` | Identity (no-op) |
 |---|---|---|
-| `MOD_BRIGHTNESS` | brightness scale, 255 = full | 255 |
-| `MOD_SATURATION` | saturation scale, 255 = unchanged | 255 |
+| `MOD_DIM` | brightness scale down toward black, 255 = full | 255 |
+| `MOD_DESATURATE` | saturation scale down toward grey, 255 = unchanged | 255 |
 | `MOD_HUE_SHIFT` | hue rotation, 0…255 = a full turn | 0 |
 | `MOD_INVERT` | cross-fade toward RGB-inverted (`255-r,255-g,255-b`); 255 = fully inverted | 0 |
+| `MOD_BRIGHTEN` | push brightness up toward white, 255 = white | 0 |
+| `MOD_SATURATE` | push saturation up toward fully saturated, 255 = max | 0 |
 
-Brightness and invert are exact (RGB multiply / lerp); saturation/hue use an integer HSV
-approximation on the panel (small, deterministic colour drift, bypassed at the identity value).
+`MOD_DIM`/`MOD_BRIGHTEN` and `MOD_INVERT` are exact (RGB multiply / lerp); desaturate/saturate/hue
+variants use an integer HSV approximation on the panel (small, deterministic colour drift, bypassed
+at the identity value). Use `MOD_BRIGHTEN`/`MOD_SATURATE` when you want a sweep to *increase*
+brightness/saturation rather than suppress it — e.g. a wave that flares a dim background brighter,
+or pushes a muted colour toward full saturation.
 
 ---
 
@@ -254,23 +259,26 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | `reverse` | bool | Reverse the travel direction |
 | `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
 | `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass — colour-only, see below |
-| `animates` | string | What the sweep modulates: `color` (default), `brightness`, `saturation`, `hue`, or `invert` |
+| `repeatCount` | 1–255 | With `repeat:true`: number of sweeps in flight simultaneously, evenly spaced (also settable as `params[5]`). Default 1 (single train). |
+| `animates` | string | What the sweep modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate` |
 | `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
 | `shape` | string | Envelope shape for non-`color` sweeps: `fall` (peak→identity, default), `rise` (identity→peak), or `bell` (identity→peak→identity). Ignored when `animates:color`. |
 
 **What the sweep animates.** By default a runner sweeps `color` — each panel snaps a `PULSE`
-between `color` and the layer's background. Setting `animates` to `brightness`, `saturation`,
-`hue`, or `invert` instead drives the matching `MOD_*` modifier on each panel as the sweep passes
-through it: the panel snaps to `amount` at onset and **decays back to that property's identity**
-(255 for brightness/saturation, 0 for hue/invert) over the lit window, so the effect modulates —
-rather than replaces — whatever colour is composited below it (e.g. a brightness wave dimming an
-ambient background, or a hue sweep rotating it, as it passes).
+between `color` and the layer's background. Setting `animates` to `dim`, `desaturate`, `hue`,
+`invert`, `brighten`, or `saturate` instead drives the matching `MOD_*` modifier on each panel as
+the sweep passes through it: the panel snaps to `amount` at onset and **decays back to that
+property's identity** over the lit window, so the effect modulates — rather than replaces —
+whatever colour is composited below it (e.g. a dimming wave over an ambient background, a hue
+sweep rotating it, or a `brighten`/`saturate` wave flaring it brighter or more vivid, as it
+passes). The identity value is 255 for `dim`/`desaturate` (suppress toward black/grey), 0 for
+`hue`/`invert`, and 0 for `brighten`/`saturate` (boost toward white/full saturation).
 
 ```json
 {
   "runner": "WAVE",
   "source": "root",
-  "animates": "brightness",
+  "animates": "dim",
   "amount": 80,
   "waveWidth": 3,
   "duration": 5000
@@ -280,10 +288,12 @@ ambient background, or a hue sweep rotating it, as it passes).
 | `animates` | Drives | `amount` meaning |
 |---|---|---|
 | `color` (default) | per-panel colour `PULSE` between `color` and background | n/a — `color` is used instead |
-| `brightness` | `MOD_BRIGHTNESS` sweep | peak dimming: `0` = blackout, `255` = no change |
-| `saturation` | `MOD_SATURATION` sweep | peak desaturation: `0` = full grey, `255` = no change |
+| `dim` | `MOD_DIM` sweep | peak dimming: `0` = blackout, `255` = no change |
+| `desaturate` | `MOD_DESATURATE` sweep | peak desaturation: `0` = full grey, `255` = no change |
 | `hue` | `MOD_HUE_SHIFT` sweep | peak hue rotation: `0…255` = a full turn |
 | `invert` | `MOD_INVERT` sweep | peak invert blend: `0` = no change, `255` = fully inverted |
+| `brighten` | `MOD_BRIGHTEN` sweep | peak brightening: `0` = no change, `255` = white |
+| `saturate` | `MOD_SATURATE` sweep | peak saturation boost: `0` = no change, `255` = fully saturated |
 
 **Envelope shape (`shape`).** For non-`color` sweeps the shape of the modifier envelope within
 each panel's lit window is configurable:
@@ -313,6 +323,27 @@ sawtooth jump, so `repeat` is ignored for those targets. Needs `schemaVersion: 5
   },
   "rippleWidth": 1,
   "repeat": true,
+  "duration": 1500
+}
+```
+
+**Multiple simultaneous sweeps (`repeatCount`).** By default `repeat` runs a single train — one
+band/ring/blip in flight at a time, sweeping the whole field every `duration`. Setting
+`"repeatCount": N` (N > 1) instead places **N evenly-spaced sweeps in flight at once**, each
+travelling at the same speed and width as `repeatCount: 1` (i.e. `duration` stays the time for
+one sweep to cross the field; the train just gets denser). Also colour-only and requires
+`schemaVersion: 5`.
+
+```json
+{
+  "runner": "WAVE",
+  "source": "root",
+  "color": {
+    "palette": 200
+  },
+  "waveWidth": 2,
+  "repeat": true,
+  "repeatCount": 3,
   "duration": 1500
 }
 ```

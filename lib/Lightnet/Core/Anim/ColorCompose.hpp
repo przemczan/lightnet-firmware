@@ -176,21 +176,47 @@ namespace Lightnet {
     // ---- Modifier ops: transform the accumulated colour ----
     // `value` is the animated scalar (0..255). Identity points noted per op.
 
-    // Brightness: scale value down. Identity at 255. Pure RGB (lossless).
-    static inline RGB8 modBrightness(RGB8 acc, uint8_t value)
+    // Dim: scale value down. Identity at 255. Pure RGB (lossless).
+    static inline RGB8 modDim(RGB8 acc, uint8_t value)
     {
         return { cc_mul(acc.r, value), cc_mul(acc.g, value), cc_mul(acc.b, value) };
     }
 
-    // Saturation: scale S. Identity at 255 (value<255 desaturates toward grey).
+    // Desaturate: scale S down. Identity at 255 (value<255 desaturates toward grey).
     // The identity value bypasses the approximate HSV round-trip so it never drifts colour.
-    static inline RGB8 modSaturation(RGB8 acc, uint8_t value)
+    static inline RGB8 modDesaturate(RGB8 acc, uint8_t value)
     {
         if (value == 255) return acc;
 
         HSV8 h = rgb2hsv(acc);
 
         h.s = cc_mul(h.s, value);
+
+        return hsv2rgb(h);
+    }
+
+    // Brighten: push each channel up toward white. Identity at 0 (unchanged);
+    // value=255 -> white. Pure RGB (lossless), mirrors modDim's downscale.
+    static inline RGB8 modBrighten(RGB8 acc, uint8_t value)
+    {
+        if (value == 0) return acc;
+
+        return {
+            (uint8_t)(acc.r + (((int16_t)255 - acc.r) * value) / 255),
+            (uint8_t)(acc.g + (((int16_t)255 - acc.g) * value) / 255),
+            (uint8_t)(acc.b + (((int16_t)255 - acc.b) * value) / 255),
+        };
+    }
+
+    // Saturate: push S up toward fully saturated. Identity at 0 (unchanged);
+    // value=255 -> S=255. The identity bypass avoids HSV round-trip drift.
+    static inline RGB8 modSaturate(RGB8 acc, uint8_t value)
+    {
+        if (value == 0) return acc;
+
+        HSV8 h = rgb2hsv(acc);
+
+        h.s = (uint8_t)(h.s + (((int16_t)255 - h.s) * value) / 255);
 
         return hsv2rgb(h);
     }
@@ -227,7 +253,8 @@ namespace Lightnet {
 
     // ---- Layer fold (the panel compositor's per-tick contract, made pure) ----
     enum ModOp : uint8_t {
-        MO_BRIGHTNESS = 0, MO_SATURATION = 1, MO_HUE = 2, MO_INVERT = 3
+        MO_DIM = 0, MO_DESATURATE = 1, MO_HUE = 2, MO_INVERT = 3,
+        MO_BRIGHTEN = 4, MO_SATURATE = 5
     };
 
     struct CompositeLayer {
@@ -266,13 +293,17 @@ namespace Lightnet {
 
             if (L.isModifier) {
                 switch (L.op) {
-                    case MO_BRIGHTNESS: acc = modBrightness(acc, L.value);
+                    case MO_DIM:        acc = modDim(acc, L.value);
                         break;
-                    case MO_SATURATION: acc = modSaturation(acc, L.value);
+                    case MO_DESATURATE: acc = modDesaturate(acc, L.value);
                         break;
                     case MO_HUE:        acc = modHueShift(acc, L.value);
                         break;
                     case MO_INVERT:     acc = modInvert(acc, L.value);
+                        break;
+                    case MO_BRIGHTEN:   acc = modBrighten(acc, L.value);
+                        break;
+                    case MO_SATURATE:   acc = modSaturate(acc, L.value);
                         break;
                     default: break;
                 }

@@ -130,32 +130,63 @@ void test_grey_has_zero_saturation()
 
 // ---- Modifiers ------------------------------------------------------------
 
-void test_brightness_identity_and_scale()
+void test_dim_identity_and_scale()
 {
     RGB8 c = { 200, 100, 50 };
 
-    assertRGB(modBrightness(c, 255), 200, 100, 50); // identity
-    assertRGB(modBrightness(c, 0), 0, 0, 0);        // off
-    assertRGB(modBrightness(c, 128), 100, 50, 25);  // ~half
+    assertRGB(modDim(c, 255), 200, 100, 50); // identity
+    assertRGB(modDim(c, 0), 0, 0, 0);        // off
+    assertRGB(modDim(c, 128), 100, 50, 25);  // ~half
 }
 
-void test_saturation_identity_and_desaturate()
+void test_desaturate_identity_and_grey()
 {
     RGB8 red = { 255, 0, 0 };
 
     // Identity at 255 (within HSV round-trip tolerance).
-    RGB8 same = modSaturation(red, 255);
+    RGB8 same = modDesaturate(red, 255);
 
     TEST_ASSERT_INT_WITHIN(6, 255, same.r);
     TEST_ASSERT_INT_WITHIN(6, 0, same.g);
     TEST_ASSERT_INT_WITHIN(6, 0, same.b);
 
     // Zero saturation → grey at the same value (V=255).
-    RGB8 grey = modSaturation(red, 0);
+    RGB8 grey = modDesaturate(red, 0);
 
     TEST_ASSERT_EQUAL_UINT8(grey.r, grey.g);
     TEST_ASSERT_EQUAL_UINT8(grey.g, grey.b);
     TEST_ASSERT_EQUAL_UINT8(255, grey.r);
+}
+
+void test_brighten_identity_and_boost()
+{
+    RGB8 c = { 200, 100, 50 };
+
+    assertRGB(modBrighten(c, 0), 200, 100, 50);   // identity
+    assertRGB(modBrighten(c, 255), 255, 255, 255); // full boost -> white
+
+    // Halfway: channel + (255-channel)*128/255 ≈ channel + (255-channel)/2
+    RGB8 half = modBrighten(c, 128);
+
+    TEST_ASSERT_INT_WITHIN(1, 227, half.r); // 200 + 55*128/255 ≈ 227
+    TEST_ASSERT_INT_WITHIN(1, 177, half.g); // 100 + 155*128/255 ≈ 177
+    TEST_ASSERT_INT_WITHIN(1, 152, half.b); // 50 + 205*128/255 ≈ 152
+}
+
+void test_saturate_identity_and_boost()
+{
+    // Partially-desaturated red: high V, mid S.
+    RGB8 c = modDesaturate({ 255, 0, 0 }, 128); // S ~128
+
+    RGB8 same = modSaturate(c, 0); // identity
+
+    assertRGB(same, c.r, c.g, c.b);
+
+    RGB8 boosted = modSaturate(c, 255); // -> fully saturated
+
+    HSV8 h = rgb2hsv(boosted);
+
+    TEST_ASSERT_INT_WITHIN(2, 255, h.s);
 }
 
 void test_hue_shift_identity_and_rotate()
@@ -265,13 +296,24 @@ void test_fold_runner_over_scene_background()
 
 void test_fold_modifier_dims_layers_below()
 {
-    // Source then a brightness modifier at a higher order halves it.
+    // Source then a dim modifier at a higher order halves it.
     CompositeLayer ls[] = {
         srcLayer(0, { 200, 100, 50 }, CO_OPAQUE),
-        modLayer(1, MO_BRIGHTNESS, 128)
+        modLayer(1, MO_DIM, 128)
     };
 
     assertRGB(foldLayers(ls, 2, BLACK), 100, 50, 25);
+}
+
+void test_fold_modifier_boosts_layers_below()
+{
+    // Source then a brighten modifier at a higher order pushes it toward white.
+    CompositeLayer ls[] = {
+        srcLayer(0, { 200, 100, 50 }, CO_OPAQUE),
+        modLayer(1, MO_BRIGHTEN, 255)
+    };
+
+    assertRGB(foldLayers(ls, 2, BLACK), 255, 255, 255);
 }
 
 void test_fold_order_matters_for_modifier()
@@ -280,7 +322,7 @@ void test_fold_order_matters_for_modifier()
     // ABOVE the modifier (higher order) means the modifier sees only black, and the
     // opaque source then overwrites → unmodified.
     CompositeLayer ls[] = {
-        modLayer(0, MO_BRIGHTNESS, 0),           // dims black → still black
+        modLayer(0, MO_DIM, 0),                  // dims black → still black
         srcLayer(1, { 200, 100, 50 }, CO_OPAQUE) // opaque on top → wins
     };
 
@@ -313,8 +355,10 @@ int main(int, char **)
     RUN_TEST(test_hsv_primaries_roundtrip);
     RUN_TEST(test_grey_has_zero_saturation);
 
-    RUN_TEST(test_brightness_identity_and_scale);
-    RUN_TEST(test_saturation_identity_and_desaturate);
+    RUN_TEST(test_dim_identity_and_scale);
+    RUN_TEST(test_desaturate_identity_and_grey);
+    RUN_TEST(test_brighten_identity_and_boost);
+    RUN_TEST(test_saturate_identity_and_boost);
     RUN_TEST(test_hue_shift_identity_and_rotate);
     RUN_TEST(test_invert_identity_full_and_blend);
 
@@ -324,6 +368,7 @@ int main(int, char **)
     RUN_TEST(test_fold_max_treats_black_as_transparent);
     RUN_TEST(test_fold_runner_over_scene_background);
     RUN_TEST(test_fold_modifier_dims_layers_below);
+    RUN_TEST(test_fold_modifier_boosts_layers_below);
     RUN_TEST(test_fold_order_matters_for_modifier);
 
     return UNITY_END();

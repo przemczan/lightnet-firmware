@@ -154,13 +154,17 @@ namespace Lightnet {
             if (strcmp(s, "REACTIVE") == 0)  return ANIM_REACTIVE;
 
             // Modifier layers — transform the colour composited below them.
-            if (strcmp(s, "MOD_BRIGHTNESS") == 0) return ANIM_MOD_BRIGHTNESS;
+            if (strcmp(s, "MOD_DIM") == 0)        return ANIM_MOD_DIM;
 
-            if (strcmp(s, "MOD_SATURATION") == 0) return ANIM_MOD_SATURATION;
+            if (strcmp(s, "MOD_DESATURATE") == 0) return ANIM_MOD_DESATURATE;
 
             if (strcmp(s, "MOD_HUE_SHIFT") == 0)  return ANIM_MOD_HUE_SHIFT;
 
             if (strcmp(s, "MOD_INVERT") == 0)     return ANIM_MOD_INVERT;
+
+            if (strcmp(s, "MOD_BRIGHTEN") == 0)   return ANIM_MOD_BRIGHTEN;
+
+            if (strcmp(s, "MOD_SATURATE") == 0)   return ANIM_MOD_SATURATE;
 
             return 0xFF;
         }
@@ -488,10 +492,12 @@ namespace Lightnet {
                 uint8_t target;
 
                 if (strcmp(s, "color") == 0)           target = RUNNER_TARGET_COLOR;
-                else if (strcmp(s, "brightness") == 0) target = RUNNER_TARGET_BRIGHTNESS;
-                else if (strcmp(s, "saturation") == 0) target = RUNNER_TARGET_SATURATION;
+                else if (strcmp(s, "dim") == 0)        target = RUNNER_TARGET_DIM;
+                else if (strcmp(s, "desaturate") == 0) target = RUNNER_TARGET_DESATURATE;
                 else if (strcmp(s, "hue") == 0)        target = RUNNER_TARGET_HUE;
                 else if (strcmp(s, "invert") == 0)     target = RUNNER_TARGET_INVERT;
+                else if (strcmp(s, "brighten") == 0)   target = RUNNER_TARGET_BRIGHTEN;
+                else if (strcmp(s, "saturate") == 0)   target = RUNNER_TARGET_SATURATE;
                 else {
                     snprintf(errMsg, errLen, "step.animates: unknown (%s)", s);
 

@@ -318,18 +318,24 @@ namespace Lightnet {
             // Non-colour targets compile to a MOD_* sweep: peak effect at onset, decaying to
             // the property's identity value. Set up type/identity/peak and the protocol flags
             // for the envelope shape before the WHEEL block so both paths can use them.
-            uint8_t modType     = ANIM_MOD_BRIGHTNESS;
+            uint8_t modType     = ANIM_MOD_DIM;
             uint8_t modIdentity = 255;
             uint8_t modPeak     = step.params[RUNNER_PARAM_AMOUNT];
 
             switch (target) {
-                case RUNNER_TARGET_SATURATION: modType = ANIM_MOD_SATURATION;
+                case RUNNER_TARGET_DESATURATE: modType = ANIM_MOD_DESATURATE;
                     modIdentity = 255;
                     break;
                 case RUNNER_TARGET_HUE:        modType = ANIM_MOD_HUE_SHIFT;
                     modIdentity = 0;
                     break;
                 case RUNNER_TARGET_INVERT:     modType = ANIM_MOD_INVERT;
+                    modIdentity = 0;
+                    break;
+                case RUNNER_TARGET_BRIGHTEN:   modType = ANIM_MOD_BRIGHTEN;
+                    modIdentity = 0;
+                    break;
+                case RUNNER_TARGET_SATURATE:   modType = ANIM_MOD_SATURATE;
                     modIdentity = 0;
                     break;
                 default: break;
@@ -438,13 +444,16 @@ namespace Lightnet {
             // from `amount` back to its identity value with no rest, producing a sawtooth.
             bool repeating = repeat && (target == RUNNER_TARGET_COLOR);
 
-            // `repeatCount` > 1 places that many evenly-spaced waves in flight at once by
-            // shortening the loop period. Count 0 or 1 both mean one wave per duration.
+            // `repeatCount` > 1 places that many evenly-spaced waves in flight at once: the
+            // loop period is shortened to T/N and each panel's phase within it is multiplied
+            // by N (mod 1, in the compile*Repeating helpers), so the bands keep the same
+            // width/speed as repeatCount=1. Count 0 or 1 both mean one wave per duration.
             uint8_t repeatCount = step.params[RUNNER_PARAM_REPEAT_COUNT];
+            uint8_t effRepeatCount = (repeatCount > 1) ? repeatCount : 1;
             uint16_t repeatPeriod = effectiveDurationMs;
 
-            if (repeating && repeatCount > 1) {
-                repeatPeriod = (uint16_t)((uint32_t)effectiveDurationMs / repeatCount);
+            if (repeating && effRepeatCount > 1) {
+                repeatPeriod = (uint16_t)((uint32_t)effectiveDurationMs / effRepeatCount);
 
                 if (repeatPeriod == 0) repeatPeriod = 1;
             }
@@ -455,18 +464,18 @@ namespace Lightnet {
                 switch (step.animType) {
                     case RUN_WAVE:
                         cp = repeating
-                            ? compileWaveRepeating((float)coord[i], maxCoord, width, repeatPeriod)
+                            ? compileWaveRepeating((float)coord[i], maxCoord, width, repeatPeriod, effRepeatCount)
                             : compileWave((float)coord[i], maxCoord, width, effectiveDurationMs);
                         break;
                     case RUN_CHASE:
                         cp = repeating
-                            ? compileChaseRepeating(coord[i], maxCoord, repeatPeriod)
+                            ? compileChaseRepeating(coord[i], maxCoord, repeatPeriod, effRepeatCount)
                             : compileChase(coord[i], maxCoord, effectiveDurationMs);
                         break;
                     default: // RUN_RIPPLE
                         cp = repeating
                             ? compileRippleRepeating((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
-                                                     maxCoord, width, repeatPeriod)
+                                                     maxCoord, width, repeatPeriod, effRepeatCount)
                             : compileRipple((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
                                             maxCoord, width, effectiveDurationMs);
                         break;

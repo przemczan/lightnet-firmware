@@ -57,10 +57,15 @@ namespace Lightnet {
     // whatever is layered below rather than replacing it. See fireStep.
     enum RunnerTarget : uint8_t {
         RUNNER_TARGET_COLOR      = 0,
-        RUNNER_TARGET_BRIGHTNESS = 1,
-        RUNNER_TARGET_SATURATION = 2,
+        RUNNER_TARGET_DIM        = 1,
+        RUNNER_TARGET_DESATURATE = 2,
         RUNNER_TARGET_HUE        = 3,
         RUNNER_TARGET_INVERT     = 4,
+        // "Boost" variants: identity at amount=0, push toward max (white / full
+        // saturation) at amount=255 — the inverse of DIM/DESATURATE's
+        // suppress-toward-zero. See ColorCompose modBrighten/modSaturate.
+        RUNNER_TARGET_BRIGHTEN   = 5,
+        RUNNER_TARGET_SATURATE   = 6,
     };
 
     static inline uint8_t runnerTargetOf(uint8_t flags)

@@ -24,10 +24,12 @@ namespace Lightnet {
         // Modifier animations (10..31): a layer that transforms the colour accumulated
         // below it instead of producing its own. param1/param2 carry the animated scalar
         // (from→to, 0-255); colorFrom/colorTo are unused. See ColorCompose.hpp.
-        ANIM_MOD_BRIGHTNESS = 10,// scale brightness (RGB multiply); identity at 255
-        ANIM_MOD_SATURATION = 11,// scale saturation (HSV); identity at 255
+        ANIM_MOD_DIM        = 10,// scale brightness down (RGB multiply); identity at 255, blackout at 0
+        ANIM_MOD_DESATURATE = 11,// scale saturation down (HSV); identity at 255, grey at 0
         ANIM_MOD_HUE_SHIFT  = 12,// rotate hue (HSV); identity at 0, sweep 0-255 = full turn
         ANIM_MOD_INVERT     = 13,// blend toward RGB-inverted (255-r,255-g,255-b); identity at 0, full invert at 255
+        ANIM_MOD_BRIGHTEN   = 14,// push brightness up toward white; identity at 0, full white at 255
+        ANIM_MOD_SATURATE   = 15,// push saturation up toward fully-saturated; identity at 0, max at 255
 
         // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
         // to AnimationScheduler::addRunner(), or compiled to per-panel PREPARE. Not a panel type.
@@ -45,7 +47,7 @@ namespace Lightnet {
     // Modifier layers transform the composited accumulator rather than emitting a colour.
     inline bool isModifierType(uint8_t t)
     {
-        return (t >= ANIM_MOD_BRIGHTNESS) && (t <= ANIM_MOD_INVERT);
+        return (t >= ANIM_MOD_DIM) && (t <= ANIM_MOD_SATURATE);
     }
 
     // ============================================================================

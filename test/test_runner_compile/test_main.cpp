@@ -154,7 +154,8 @@ void test_wave_repeating_matches_band_geometry()
 {
     // Same band geometry as compileWave (peak at coord+halfWidth), reframed as a
     // per-cycle phase/halfWidth: coord=2, maxCoord=5, width=3 → denom=8, halfW=1.5.
-    CompiledPulse cp = compileWaveRepeating(2.0f, 5, 3, 1000);
+    // repeatCount=1 → no scaling, identical to the pre-repeatCount behaviour.
+    CompiledPulse cp = compileWaveRepeating(2.0f, 5, 3, 1000, 1);
 
     TEST_ASSERT_TRUE(cp.lit);
     TEST_ASSERT_EQUAL_UINT16(438, cp.startDelayMs); // (2+1.5)/8 * 1000
@@ -165,15 +166,29 @@ void test_wave_repeating_matches_band_geometry()
 
 void test_wave_repeating_zero_width_unlit()
 {
-    CompiledPulse cp = compileWaveRepeating(2.0f, 5, 0, 1000);
+    CompiledPulse cp = compileWaveRepeating(2.0f, 5, 0, 1000, 1);
 
     TEST_ASSERT_FALSE(cp.lit);
+}
+
+void test_wave_repeating_count_scales_phase_and_width()
+{
+    // Same panel as test_wave_repeating_matches_band_geometry (x = (2+1.5)/8 = 0.4375),
+    // but repeatCount=3 → phase = frac(0.4375*3) = frac(1.3125) = 0.3125, and the
+    // rise/fall width triples to keep each of the 3 in-flight bands the same visual size.
+    CompiledPulse cp = compileWaveRepeating(2.0f, 5, 3, 1000, 3);
+
+    TEST_ASSERT_TRUE(cp.lit);
+    TEST_ASSERT_EQUAL_UINT16(313, cp.startDelayMs); // 0.3125 * 1000
+    TEST_ASSERT_EQUAL_UINT16(1000, cp.durationMs);  // == period
+    TEST_ASSERT_EQUAL_UINT8(143, cp.risePct);       // (1.5/8 * 3) * 255
+    TEST_ASSERT_EQUAL_UINT8(143, cp.fallPct);
 }
 
 void test_chase_repeating_matches_blip_geometry()
 {
     // coord=2, maxCoord=5, period=1200 → denom=6, blip centred on coord+0.5.
-    CompiledPulse cp = compileChaseRepeating(2, 5, 1200);
+    CompiledPulse cp = compileChaseRepeating(2, 5, 1200, 1);
 
     TEST_ASSERT_TRUE(cp.lit);
     TEST_ASSERT_EQUAL_UINT16(500, cp.startDelayMs); // (2+0.5)/6 * 1200
@@ -186,7 +201,7 @@ void test_ripple_repeating_point_model_matches_band_geometry()
 {
     // near==far=2 (point), maxCoord=4, width=2, period=1000 → ringW=1, denom=5;
     // same centre/half-span the one-shot compileRipple derives from [near,far].
-    CompiledPulse cp = compileRippleRepeating(2.0f, 2.0f, 4, 2, 1000);
+    CompiledPulse cp = compileRippleRepeating(2.0f, 2.0f, 4, 2, 1000, 1);
 
     TEST_ASSERT_TRUE(cp.lit);
     TEST_ASSERT_EQUAL_UINT16(400, cp.startDelayMs); // 2/5 * 1000
@@ -197,7 +212,7 @@ void test_ripple_repeating_point_model_matches_band_geometry()
 
 void test_ripple_repeating_zero_width_unlit()
 {
-    CompiledPulse cp = compileRippleRepeating(2.0f, 2.0f, 4, 0, 1000);
+    CompiledPulse cp = compileRippleRepeating(2.0f, 2.0f, 4, 0, 1000, 1);
 
     TEST_ASSERT_FALSE(cp.lit);
 }
@@ -287,6 +302,7 @@ int main(int, char **)
     RUN_TEST(test_repeating_zero_period_unlit);
     RUN_TEST(test_wave_repeating_matches_band_geometry);
     RUN_TEST(test_wave_repeating_zero_width_unlit);
+    RUN_TEST(test_wave_repeating_count_scales_phase_and_width);
     RUN_TEST(test_chase_repeating_matches_blip_geometry);
     RUN_TEST(test_ripple_repeating_point_model_matches_band_geometry);
     RUN_TEST(test_ripple_repeating_zero_width_unlit);

@@ -149,7 +149,7 @@ The top-level object:
 
 | Property | Required | Default | What it is |
 |---|---|---|---|
-| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `5` — WHEEL runner / `repeat`). |
+| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `6` — brightness/saturation boost modifiers). |
 | `name` | yes (to save) | — | 1–18 chars, `[a-zA-Z0-9_-]`. The filename when stored. |
 | `loop` | no | `false` | Restart the whole scene when all layers finish. |
 | `speed` | no | `1.0` | Playback multiplier, clamped to `0.1`–`10.0`. Scales all durations. |
@@ -242,19 +242,34 @@ Each layer is either a **source** (combines its colour with what's below via `bl
 (a standalone runner over a black base is unchanged). To layer any source over a background, give
 it `add`/`max`/`screen`.
 
-**Modifier layers** are steps whose `type` is `MOD_BRIGHTNESS` / `MOD_SATURATION` / `MOD_HUE_SHIFT`
-/ `MOD_INVERT` — they animate a scalar `from`→`to` (0–255) and reshape everything composited below.
-Put the modifier layer *after* (above) the layers it should affect:
+**Modifier layers** are steps whose `type` is `MOD_DIM` / `MOD_DESATURATE` / `MOD_HUE_SHIFT`
+/ `MOD_INVERT` / `MOD_BRIGHTEN` / `MOD_SATURATE` — they animate a scalar `from`→`to`
+(0–255) and reshape everything composited below. Put the modifier layer *after* (above) the layers
+it should affect:
 
 ```json
 "layers": [
   { "group": "base", "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
-  { "group": "dim", "panels": "all", "sequence": [ { "type": "MOD_BRIGHTNESS", "from": 255, "to": 40, "duration": 3000 } ] }
+  { "group": "dim", "panels": "all", "sequence": [ { "type": "MOD_DIM", "from": 255, "to": 40, "duration": 3000 } ] }
 ]
 ```
 
-A finished modifier **holds** its final value; ramp it back to identity (255 / 255 / 0 / 0 for
-brightness/saturation/hue/invert) to release.
+A finished modifier **holds** its final value; ramp it back to identity to release: `255` for
+`MOD_DIM`/`MOD_DESATURATE`, `0` for `MOD_HUE_SHIFT`/`MOD_INVERT`, and `0` for
+`MOD_BRIGHTEN`/`MOD_SATURATE`.
+
+`MOD_BRIGHTEN`/`MOD_SATURATE` are the inverse of `MOD_DIM`/`MOD_DESATURATE`:
+identity at `0`, pushing toward white / full saturation as the value rises to `255`. Use these to
+*brighten* or *boost saturation* of whatever's below — e.g. flaring a dim background brighter, or
+making a multi-colour background more vivid (where the single-colour `screen`/`overlay` tricks
+don't generalise):
+
+```json
+"layers": [
+  { "group": "base", "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
+  { "group": "flare", "panels": "all", "sequence": [ { "type": "MOD_SATURATE", "from": 0, "to": 200, "duration": 1500 } ] }
+]
+```
 
 ---
 
@@ -406,7 +421,7 @@ spins, needs the geometric layout, and has no topology fallback).
 
 **Repeating sweeps — `repeat`.** Set `"repeat": true` on a WAVE/RIPPLE/CHASE step to replay it
 as a continuous train instead of a single pass: `duration` becomes the time for **one lap**, and
-several rings/bands/blips stay in flight at once with true dark gaps between them. Colour-only
+the ring/band/blip loops forever with a true dark gap between passes. Colour-only
 (`animates:color` — the modifier ramp can't loop cleanly). Needs `schemaVersion: 5`.
 
 ```json
@@ -420,11 +435,15 @@ several rings/bands/blips stay in flight at once with true dark gaps between the
 }
 ```
 
+For **multiple evenly-spaced sweeps in flight at once** (e.g. several waves chasing each other
+around the loop), add `"repeatCount": N` — see [`types.md`](types.md) for details.
+
 **What the sweep animates — `animates` / `amount`.** By default a runner sweeps `color` (a
-per-panel `PULSE` between `color` and the background). Set `animates` to `brightness` /
-`saturation` / `hue` / `invert` to sweep one of the modifier properties instead — each panel
-snaps to `amount` (peak intensity, 0–255) as the sweep passes and decays back to that property's
-identity, so the wave **modulates** what's already showing rather than replacing it:
+per-panel `PULSE` between `color` and the background). Set `animates` to `dim` /
+`desaturate` / `hue` / `invert` / `brighten` / `saturate` to sweep one of the
+modifier properties instead — each panel snaps to `amount` (peak intensity, 0–255) as the sweep
+passes and decays back to that property's identity, so the wave **modulates** what's already
+showing rather than replacing it:
 
 ```json
 {
@@ -440,10 +459,12 @@ identity, so the wave **modulates** what's already showing rather than replacing
 | `animates` | Modulates | `amount` = peak |
 |---|---|---|
 | `color` (default) | colour (`color` field) | — |
-| `brightness` | dimming | `0` blackout … `255` no change |
-| `saturation` | desaturation | `0` greyscale … `255` no change |
+| `dim` | dimming | `0` blackout … `255` no change |
+| `desaturate` | desaturation | `0` greyscale … `255` no change |
 | `hue` | hue rotation | `0…255` = a full turn |
 | `invert` | colour inversion | `0` no change … `255` fully inverted |
+| `brighten` | brightening toward white | `0` no change … `255` white |
+| `saturate` | saturation boost toward fully saturated | `0` no change … `255` fully saturated |
 
 **Envelope shape — `shape`.** For non-`color` targets you can also control the *shape* of
 the modifier within each panel's lit window:
@@ -636,7 +657,7 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 | Rule | Limit |
 |---|---|
 | Scene `name` | `[a-zA-Z0-9_-]`, 1–18 chars; required to save |
-| `schemaVersion` | ≤ firmware version (currently `5`) — else `409 schema_too_new` |
+| `schemaVersion` | ≤ firmware version (currently `6`) — else `409 schema_too_new` |
 | `speed` | clamped to 0.1–10.0 |
 | Layers per scene | 1–8 |
 | `group` | unique across layers; name or 1–254 (don't mix) |

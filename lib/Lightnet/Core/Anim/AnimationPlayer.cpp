@@ -273,7 +273,14 @@ namespace Lightnet {
         }
     }
 
-    void AnimationPlayer::updateParams(uint8_t seq_id, uint8_t group_id, uint8_t param_type, uint8_t value, uint8_t /*transitionMs*/, uint16_t now)
+    void AnimationPlayer::updateParams(
+        uint8_t  seq_id,
+        uint8_t  group_id,
+        uint8_t  param_type,
+        uint8_t  value,
+        uint8_t /*transitionMs*/,
+        uint16_t now
+    )
     {
         nowMs = now;
 
@@ -371,10 +378,12 @@ namespace Lightnet {
             if (isModifierType(s.cur.animType)) {
                 c.isModifier = true;
                 c.value      = modifierValue(s, animElapsed);
-                c.op         = (s.cur.animType == ANIM_MOD_SATURATION) ? MO_SATURATION
+                c.op         = (s.cur.animType == ANIM_MOD_DESATURATE) ? MO_DESATURATE
                              : (s.cur.animType == ANIM_MOD_HUE_SHIFT)  ? MO_HUE
                              : (s.cur.animType == ANIM_MOD_INVERT)     ? MO_INVERT
-                             : MO_BRIGHTNESS;
+                             : (s.cur.animType == ANIM_MOD_BRIGHTEN)   ? MO_BRIGHTEN
+                             : (s.cur.animType == ANIM_MOD_SATURATE)   ? MO_SATURATE
+                             : MO_DIM;
             } else {
                 computeSlotColor(s, animElapsed);
 
