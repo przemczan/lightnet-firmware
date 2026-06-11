@@ -83,7 +83,7 @@ The ATmega328P/PB has **2 KB SRAM**. Three build-time constants share that budge
 | Constant | Location | Controls |
 |---|---|---|
 | `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the 4 Wire/TWI static buffers |
-| `INCOMING_BUFFER_SIZE` | `LightnetPanel.hpp` | Size of each of the 2 circular packet queues |
+| `RX_QUEUE_BYTES` | `LightnetPanel.hpp` | Size of the single lock-free RX packet ring (`SpscByteQueue`) |
 | `Protocol::MAX_PACKET_SIZE` | `Protocol.hpp` | Largest packet in the protocol; sets the minimum safe `TWI_BUFFER_SIZE` |
 
 **Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE` (currently 80).**  
@@ -96,15 +96,24 @@ A packet larger than `TWI_BUFFER_SIZE` is silently truncated — the CRC still v
 | Allocation | Size |
 |---|---|
 | Wire/TWI buffers (`TWI_BUFFER_SIZE=80` × 4) | 320 B |
-| Packet queues (`INCOMING_BUFFER_SIZE=100` × 2 + overhead) | ~240 B |
-| `AnimationPlayer` (queue × 4 + palette × 16 + vars) | ~190 B |
+| RX packet ring (`RX_QUEUE_BYTES=80`, single `SpscByteQueue`) | 80 B |
+| `AnimationPlayer` (`MAX_ANIM_SLOTS` × 55 + palette × 16 + vars) | grows with slot count |
 | `LNPanel` other fields | ~30 B |
 | 3 × `LightnetPanelEdge` + `LightnetPinger` | ~125 B |
-| Arduino Serial ring buffers | ~128 B |
+| Arduino Serial ring buffers (`SERIAL_RX=2` + `SERIAL_TX=32`) | ~34 B |
 | Stack + heap metadata | ~200 B |
-| **Total** | **~1233 B** |
 
-Leaves ~800 bytes of headroom. If you see panels crashing mid-init, stopping after a few I²C packets, or printing garbage on serial — reduce `TWI_BUFFER_SIZE` or `INCOMING_BUFFER_SIZE` first.
+The packet RX path is a single lock-free single-producer/single-consumer ring
+([`Core/Util/SpscByteQueue`](lib/Lightnet/Core/Util/SpscByteQueue.hpp)) — the I²C ISR pushes,
+the main loop pops into an 80 B stack scratch buffer in `handleIncomingPackets()`. It replaced
+the old double-buffered `CircularQueue` pair, where **both** buffers (plus per-object/heap
+overhead, ~190 B total) were permanently heap-allocated for the program's lifetime. The new
+scratch buffer only exists on the stack for the duration of `handleIncomingPackets()` — it's
+reused free space, not a second standing allocation — and the swap no longer needs
+`noInterrupts()`.
+
+If you see panels crashing mid-init, stopping after a few I²C packets, or printing garbage on
+serial — reduce `MAX_ANIM_SLOTS`, `TWI_BUFFER_SIZE`, or `RX_QUEUE_BYTES` first.
 
 ## License
 

@@ -3,16 +3,12 @@
 
 LightnetPanel::LightnetPanel()
 {
-    this->incomingPackets = new CircularQueue(INCOMING_BUFFER_SIZE);
-    this->packetsToHandle = new CircularQueue(INCOMING_BUFFER_SIZE);
     this->edges = new List<LightnetPanelEdge *>();
     Protocol::setPacketMeta(&this->ackPacket, Protocol::PACKET_ACK);
 }
 
 LightnetPanel::~LightnetPanel()
 {
-    delete this->incomingPackets;
-    delete this->packetsToHandle;
     delete this->edges;
 }
 
@@ -229,16 +225,16 @@ void LightnetPanel::setState(state_t state)
 
 void LightnetPanel::handleIncomingPackets()
 {
-    this->fetchIncommingPackets();
-
-    if (!this->packetsToHandle->size()) {
-        return;
-    }
-
-    Protocol::PacketMeta *packet;
+    // Drain the lock-free RX ring. Each record is copied out of the ring (which the
+    // I2C ISR keeps filling concurrently) into a local buffer, then handled in place.
+    // No interrupt masking and no buffer swap — the ring is single-producer (ISR) /
+    // single-consumer (here). The scratch is sized to the ring so any record fits.
+    uint8_t rxBuf[RX_QUEUE_BYTES] __attribute__((aligned(2)));
     uint16_t size;
 
-    while (this->packetsToHandle->dequeue((void *&)packet, size)) {
+    while ((size = this->rxQueue.pop(rxBuf, sizeof(rxBuf))) != 0) {
+        Protocol::PacketMeta *packet = (Protocol::PacketMeta *)rxBuf;
+
         // ignore version validation for flashing-related packets
         bool validateProtocolVersion = (packet->header.type == Protocol::PACKET_ENTER_BOOTLOADER) ||
                                        (packet->header.type == Protocol::PACKET_RESET_DEVICE);
@@ -277,19 +273,6 @@ void LightnetPanel::handleIncomingPackets()
         }
 
     #endif
-}
-
-void LightnetPanel::fetchIncommingPackets()
-{
-    noInterrupts();
-
-    CircularQueue *temp = this->incomingPackets;
-
-    this->incomingPackets = this->packetsToHandle;
-    this->packetsToHandle = temp;
-    this->incomingPackets->reset();
-
-    interrupts();
 }
 
 void LightnetPanel::handlePacket(Protocol::PacketMeta *packet, int size)
@@ -437,7 +420,8 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 
         default:
 
-            if (!this->incomingPackets->enqueue(packet, size)) {
+            // Producer side of the lock-free RX ring (runs in I2C ISR context).
+            if (!this->rxQueue.push(packet, size)) {
                 this->droppedCount++;
             }
     }

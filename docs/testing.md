@@ -49,8 +49,9 @@ pio test -e native -vvv                  # verbose (compiler output)
 | `test_panel_geometry` | [`test/test_panel_geometry/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_geometry/test_main.cpp) | `PanelGeometry` planar layout (centroids match the mobile visualizer frame) + `computeGeometricField` axis projection (horizontal/vertical/2-D), `reverse`, single-panel uniform, empty-build invalid |
 | `test_runner_math` | [`test/test_runner_math/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_runner_math/test_main.cpp) | `RunnerMath` wave/ripple/chase envelopes + sweep positions, including zero-width (no divide) |
 | `test_panel_anim` | [`test/test_panel_anim/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_anim/test_main.cpp) | Portable `Core/Anim/AnimationPlayer` — time-as-parameter (deterministic FADE), `setColorDirect` ungated (delta-gate regression), `FLAG_CURRENT_COLOR_*` reads current output, SOLID hold |
+| `test_spsc_queue` | [`test/test_spsc_queue/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_spsc_queue/test_main.cpp) | Lock-free `Core/Util/SpscByteQueue` — FIFO order, full/empty edges, wrap-boundary straddle integrity, panel-sized (70 B) max record, 200k-iteration fuzz vs. a reference model |
 
-126 tests total, ~6 s wall time.
+241 tests total, ~9 s wall time.
 
 ---
 

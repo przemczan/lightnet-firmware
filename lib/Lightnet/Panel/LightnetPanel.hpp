@@ -2,9 +2,9 @@
 
 #include "RGBController.hpp"
 #include "../Core/Anim/AnimationPlayer.hpp"
+#include "../Core/Util/SpscByteQueue.hpp"
 #include "../Common/LightnetPanelEdge.hpp"
 #include "../Common/LightnetBus.hpp"
-#include "../Utils/CircularQueue.hpp"
 #include "../Utils/List.hpp"
 
 #if !IS_ESP
@@ -14,7 +14,10 @@
 
 class LightnetPanel
 {
-    const uint16_t INCOMING_BUFFER_SIZE = 64; // 2x max i2c packet size
+    // RX ring capacity. Must fit the largest inbound packet + a 2 B length prefix
+    // (PacketSetPalette = 70 B → 72 B queued). One lock-free ring replaces the old
+    // double-buffered CircularQueue pair — see SpscByteQueue.hpp.
+    static const uint16_t RX_QUEUE_BYTES = 80;
 
     typedef struct {
         uint8_t sdaPinNo;
@@ -56,8 +59,7 @@ class LightnetPanel
         volatile uint16_t index;
         RGBController *rgbController;
         Lightnet::AnimationPlayer animPlayer;
-        CircularQueue *incomingPackets;
-        CircularQueue *packetsToHandle;
+        Lightnet::SpscByteQueue<RX_QUEUE_BYTES> rxQueue;
         configuration_t config;
         Protocol::PacketMeta ackPacket;
         Protocol::packetType_t lastPacketType = Protocol::PACKET_NOOP;
@@ -75,7 +77,6 @@ class LightnetPanel
         void endEdgeRegistration();
         void bootEdge();
         void setRegisterState(register_state_t state);
-        void fetchIncommingPackets();
         void handlePacket(Protocol::PacketMeta *packet, int size);
         void returnToParent();
         void setNextEdgeToRegister();
