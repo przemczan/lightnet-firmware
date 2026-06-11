@@ -455,7 +455,7 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 | `type` + `runner` | Mutually exclusive — cannot both be set |
 | Step with neither `type` nor `runner` | Treated as a **gap** (timed no-op); only `duration` is used |
 | `type` value | Must be a known animation type string |
-| `runner` value | `WAVE`, `RIPPLE`, or `CHASE` |
+| `runner` value | `WAVE`, `RIPPLE`, `CHASE`, `WHEEL`, `BOUNCE`, `RAIN`, `SPARKLE`, or `MATRIX` |
 | `duration` | 0–65535 ms; 0 only on the last step of a layer |
 | Color values | Valid `#RRGGBB` hex, `{r,g,b}` each 0–255, `{"palette":0-255}`, or `{"useColor":0-2}` |
 | `params[i]` | 0–255 |
@@ -478,9 +478,11 @@ worked examples live in [`docs/design/scene-portability.md`](../design/scene-por
   `"fraction:0-0.33"` / `"first:K"` / `"last:K"` / `"even"` / `"odd"`, the per-device `"tag:<name>"`,
   and composition objects `{"any":[…]}` / `{"all":[…]}` / `{"not":…}`. A selector that matches no
   panel here skips the layer (or uses an optional sibling `"fallback"` selector).
-- **Directionality** (runner steps `WAVE`/`RIPPLE`/`CHASE`): `"source"` ∈ `root` | `leaves` |
-  `panel:N` (default `root`) sets the graph origin the effect emanates from; `"reverse": true` flips
-  it. The legacy `"originPanel"` is accepted and maps to `source:panel:N`.
+- **Directionality** (runner steps `WAVE`/`RIPPLE`/`CHASE`/`BOUNCE`/`RAIN`, and `WHEEL`'s pivot):
+  `"source"` ∈ `root` | `leaves` | `panel:N` (default `root`) sets the graph origin the effect
+  emanates from; `"reverse": true` flips it. The legacy `"originPanel"` is accepted and maps to
+  `source:panel:N`. `SPARKLE` has no directionality — `source`/`reverse`/`directionality`/`angle`
+  are ignored.
 - **Per-device config** (resolved against, set via the [Topology API](../api.md#27-topology-logical-root-panel-tags)):
   the **logical root** re-centres `depth`/`subtree`/`source:root`; **tags** map `tag:<name>` to panels
   on this device. Both are device-local and not part of the shared scene.

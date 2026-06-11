@@ -172,7 +172,7 @@ live in `API/http/TopologyServer` (`GET /api/topology`, `PUT /api/topology/root`
 ## Key facts for coding
 
 - **Single entry point**: `src/main.cpp` — includes `controller/main.hpp` or `panel/main.hpp` based on `LIGHTNET_TARGET_CONTROLLER`.
-- **I²C protocol version**: v4 (`VERSION` constant in `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
+- **I²C protocol version**: v6 (`VERSION` constant in `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
 - **`animScheduler->tick(millis())`** must be called in the main loop `case 1`.
 - **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.json`.
 

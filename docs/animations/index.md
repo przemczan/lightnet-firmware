@@ -15,7 +15,7 @@ Scene
 └── Layer (group ID, panel target, optional palette)
     └── Step  →  Step  →  Step …
         ├── Panel-local  (BREATHE, PULSE, WAVE …)  runs on ATmega
-        └── Controller runner  (WAVE, RIPPLE, CHASE)  runs on ESP
+        └── Controller runner  (WAVE, RIPPLE, CHASE, WHEEL, BOUNCE, RAIN, SPARKLE, MATRIX)  on ESP
 ```
 
 Multiple layers within a scene run in parallel. Each layer targets its own set of panels and belongs to a **group ID** so the controller can start them simultaneously with a single I²C broadcast.

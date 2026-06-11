@@ -106,4 +106,7 @@ namespace Lightnet {
     {
         return (coord == litCoord) ? 255 : 0;
     }
+
+    // NB: RAIN and SPARKLE have no envelope here — they are particle spawners (RunnerSpawn.hpp),
+    // not deterministic spatial sweeps. Their pseudo-random timing is a live controller-side PRNG.
 }  // namespace Lightnet

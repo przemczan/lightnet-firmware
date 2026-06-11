@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <math.h>
+#include "RunnerMath.hpp"
 
 namespace Lightnet {
     struct CompiledPulse {
@@ -68,6 +69,52 @@ namespace Lightnet {
 
         cp.risePct = 127; // symmetric triangle (rise→peak→fall), hold = 0
         cp.fallPct = 128;
+
+        return cp;
+    }
+
+    // BOUNCE: like WAVE, but the band's PEAK travels only the real panel span [0, maxCoord]
+    // (not -w/2 → maxCoord+w/2), so it reflects at the edges instead of sliding off-canvas.
+    // One pass: centre sweeps 0 → maxCoord over [0,dur]; panel `coord` peaks at t = coord/maxCoord
+    // and is lit while |centre-coord| < w/2. The caller toggles direction each cycle (bouncePhase)
+    // for the back-and-forth; the t=1-forward profile equals the t=0-reverse profile (band centred
+    // on the same edge), so the reflection is seamless. Edge panels get an asymmetric (clamped)
+    // rise/fall window — the peak is pinned to the edge so half the triangle is off the field.
+    inline CompiledPulse compileBounce(float coord, uint8_t maxCoord, uint8_t width, uint16_t dur)
+    {
+        CompiledPulse cp = { false, 0, 0, 127, 128 };
+
+        if (width == 0 || dur == 0) return cp;
+
+        float span = (float)maxCoord;
+
+        if (span <= 0.0f) span = 1.0f; // single-coord field — degenerate, light the whole pass
+
+        float halfW = (float)width / 2.0f;
+        float tPeak = coord / span;            // centre passes this panel
+        float tOn   = (coord - halfW) / span;  // band's leading edge reaches it
+        float tOff  = (coord + halfW) / span;  // band's trailing edge leaves it
+
+        if (tOn < 0.0f)  tOn  = 0.0f;
+
+        if (tOff > 1.0f) tOff = 1.0f;
+
+        if (tOff <= tOn) return cp;
+
+        if (tPeak < tOn)  tPeak = tOn;         // edge panel: peak pinned to the clamped window
+
+        if (tPeak > tOff) tPeak = tOff;
+
+        float spanT = tOff - tOn;
+
+        cp.lit          = true;
+        cp.startDelayMs = rc_ms((float)dur * tOn);
+        cp.durationMs   = rc_ms((float)dur * spanT);
+
+        if (cp.durationMs == 0) cp.durationMs = 1;
+
+        cp.risePct = rc_pct((tPeak - tOn) / spanT);
+        cp.fallPct = rc_pct((tOff - tPeak) / spanT);
 
         return cp;
     }
@@ -154,7 +201,9 @@ namespace Lightnet {
     // `phase`   — where in [0,1) of the period this panel's peak falls (its onset).
     // `halfWidth` — the visible band's half-width, also as a fraction of the period;
     //               shared symmetrically by the departing/approaching edges.
-    inline CompiledPulse compileRepeating(float phase, float halfWidth, uint16_t period)
+    // Asymmetric variant: independent rise/fall fractions of the period. `compileRepeating`
+    // (symmetric bands) is the riseFrac==fallFrac special case.
+    inline CompiledPulse compileRepeatingAsym(float phase, float riseFrac, float fallFrac, uint16_t period)
     {
         CompiledPulse cp = { false, 0, 0, 0, 0 };
 
@@ -170,10 +219,15 @@ namespace Lightnet {
         cp.lit          = true;
         cp.startDelayMs = rc_ms(phase * (float)period);
         cp.durationMs   = period;
-        cp.risePct      = rc_pct(halfWidth);
-        cp.fallPct      = rc_pct(halfWidth);
+        cp.risePct      = rc_pct(riseFrac);
+        cp.fallPct      = rc_pct(fallFrac);
 
         return cp;
+    }
+
+    inline CompiledPulse compileRepeating(float phase, float halfWidth, uint16_t period)
+    {
+        return compileRepeatingAsym(phase, halfWidth, halfWidth, period);
     }
 
     // WAVE, repeating: a steady train of triangular bands, one launched every `period`.
@@ -264,4 +318,9 @@ namespace Lightnet {
 
         return compileRepeating(phase, halfWidth, period);
     }
+
+    // NB: RAIN and SPARKLE are NOT compiled here. They are stochastic particle *spawners*
+    // (genuinely random, non-repeating, soft-draining) that the compiled-pulse model cannot
+    // express — ScenePlayer services them over the step window, emitting one-shot drop pulses
+    // on pooled group_ids. See RunnerSpawn.hpp + ScenePlayer::serviceSpawner.
 }  // namespace Lightnet

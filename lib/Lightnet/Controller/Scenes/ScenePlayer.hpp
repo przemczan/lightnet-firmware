@@ -21,7 +21,7 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
     static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
-    static const uint8_t SCENE_SCHEMA_VERSION       = 6;  // v6: MOD_BRIGHTEN/MOD_SATURATE modifiers (animates: brighten/saturate), plus MOD_DIM/MOD_DESATURATE/dim/desaturate renames
+    static const uint8_t SCENE_SCHEMA_VERSION       = 7;  // v7: BOUNCE/RAIN/SPARKLE/MATRIX runners, `waves` (rate, alias for repeatCount), and RAIN/MATRIX `speed` (duration becomes the play window)
 
     // ============================================================================
     // Per-layer playback state (scene-cycle barrier model)
@@ -34,7 +34,7 @@ namespace Lightnet {
     };
 
     // ============================================================================
-    // SceneStep — 20 bytes, generic params + ColorRef
+    // SceneStep — 22 bytes, generic params + ColorRef
     // ============================================================================
 
     struct __attribute__((__packed__)) SceneStep {
@@ -44,6 +44,7 @@ namespace Lightnet {
         ColorRef colorFrom;  // 4 bytes
         ColorRef colorTo;    // 4 bytes
         uint8_t  params[6];  // type-specific, params[0..1] sent via PREPARE; params[4] = RUNNER_PARAM_AMOUNT, params[5] = RUNNER_PARAM_LINES
+        uint16_t speedMs;    // RAIN/SPARKLE only: drop-fall / flash period (ms). 0 = derive the rate from `durationMs` (legacy); >0 makes `durationMs` the play window instead.
     };
 
     // ============================================================================
@@ -182,6 +183,26 @@ namespace Lightnet {
             uint8_t currentStep[SCENE_MAX_LAYERS];
             uint32_t stepStartMs[SCENE_MAX_LAYERS];
             LayerState layerState[SCENE_MAX_LAYERS];
+            // RUN_BOUNCE: sweep direction toggled each time the step re-fires, so a single
+            // band sweeps back and forth across scene cycles (perpetual pendulum motion).
+            // Reset to false on stop()/load — a fresh play always starts in the forward direction.
+            bool bouncePhase[SCENE_MAX_LAYERS];
+
+            // RUN_RAIN / RUN_SPARKLE particle-spawner state (see RunnerSpawn.hpp). Serviced over
+            // the step window in tick(); emits one-shot drop pulses at `waves`/s on pooled
+            // group_ids that self-reap on the panel (FLAG_REAP_ON_DONE). `cursor` PERSISTS across
+            // a window re-fire so new drops take fresh ids while old ones drain (soft seam);
+            // pool base/size are assigned once at load (allocSpawnPools).
+            struct LayerSpawnState {
+                uint32_t rng;           // PRNG state (re-seeded each window)
+                uint32_t accumMs;       // spawn-rate accumulator
+                uint32_t lastServiceMs; // for dt between services
+                uint16_t cursor;        // pool round-robin cursor (persists across re-fire)
+                uint8_t  poolBase;      // first group_id of this layer's drop pool
+                uint8_t  poolSize;      // pool length (0 = no pool / not a spawner layer)
+            };
+            LayerSpawnState spawnState[SCENE_MAX_LAYERS];
+
             uint8_t lCount;
             bool loop;
             bool playing;
@@ -196,6 +217,13 @@ namespace Lightnet {
             uint8_t resolvedPaletteCounts[SCENE_MAX_LAYERS];
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
+            // RUN_RAIN / RUN_SPARKLE: emit drops due this tick (rate-gated). Called from tick()
+            // while the spawner step is the layer's current RUNNING step.
+            void serviceSpawner(uint8_t layerIdx, uint32_t nowMs);
+            // True if any step of the layer is a particle-spawner runner (RAIN/SPARKLE).
+            bool layerIsSpawner(uint8_t layerIdx) const;
+            // Assign each spawner layer a contiguous group_id pool above all normal layer groups.
+            void allocSpawnPools();
             // Initialise per-layer state from startAfter gating and fire the ungated layers.
             // includeAsync=false leaves async layers untouched (used on the loop barrier so
             // they free-run across scene cycles); =true arms everything (initial start).

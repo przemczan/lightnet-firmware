@@ -1,11 +1,23 @@
 #include "ScenePlayer.hpp"
 #include "../Animations/AnimationRunner.hpp"
 #include "../Animations/RunnerCompile.hpp"
+#include "../Animations/RunnerSpawn.hpp"
 #include "../Topology/PanelField.hpp"
 #include "../Topology/PanelGeometry.hpp"
 #include "../../Utils/Debug.hpp"
 #include <string.h>
 #include <Arduino.h>
+
+namespace {
+    // RAIN/SPARKLE spawner tuning (controller-side; safe to adjust).
+    constexpr uint8_t SPAWN_MAX_BURST          = 8;    // max drops emitted per tick (anti-spiral)
+    constexpr uint8_t SPAWN_POOL_MAX           = 64;   // cap a layer's group_id pool
+    constexpr uint16_t SPARKLE_FADE_MS_PER_WIDTH = 8;  // sparkle: width(0-255) → fade ms
+    constexpr uint16_t RAIN_DEFAULT_FALL_MS     = 1000;// rain: fall time when `speed` is unset
+    constexpr float SPAWN_DEG2RAD            = 0.017453293f;
+    constexpr uint8_t MATRIX_HEAD_RISE         = 48;   // matrix: soft leading-edge onset (0-255 of the pulse)
+    constexpr float MATRIX_LINE_HALFWIDTH_K  = 2.0f;    // matrix line virtual half-width = K · panel radius (antialiased)
+}
 
 #if DEBUG_SCENE
     static const char *animTypeName(uint8_t t)
@@ -25,6 +37,10 @@
             case 65: return "RIPPLE";
             case 66: return "CHASE";
             case 67: return "WHEEL";
+            case 68: return "BOUNCE";
+            case 69: return "RAIN";
+            case 70: return "SPARKLE";
+            case 71: return "MATRIX";
             default: return "?";
         }
     }
@@ -48,6 +64,8 @@ namespace Lightnet {
         memset(currentStep, 0, sizeof(currentStep));
         memset(stepStartMs, 0, sizeof(stepStartMs));
         memset(layerState, 0, sizeof(layerState));
+        memset(bouncePhase, 0, sizeof(bouncePhase));
+        memset(spawnState, 0, sizeof(spawnState));
     }
 
     void ScenePlayer::loadAndPlay(
@@ -72,6 +90,7 @@ namespace Lightnet {
 
         lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
         memcpy(layers, newLayers, lCount * sizeof(SceneLayer));
+        allocSpawnPools(); // reserve group_id pools for RAIN/SPARKLE spawner layers
         loop = newLoop;
         speed = (newSpeed < 0.1f) ? 0.1f : (newSpeed > 10.0f) ? 10.0f : newSpeed;
 
@@ -115,6 +134,7 @@ namespace Lightnet {
     {
         playing = false;
         memset(layerState, 0, sizeof(layerState)); // all → WAITING (re-armed on next play)
+        memset(bouncePhase, 0, sizeof(bouncePhase)); // BOUNCE always restarts forward
         scheduler.broadcastStop();
     }
 
@@ -134,6 +154,9 @@ namespace Lightnet {
             if (layerState[i] != LayerState::RUNNING) continue;
 
             const SceneStep& step = layers[i].steps[currentStep[i]];
+
+            // RAIN/SPARKLE/MATRIX spawners do their work over time: emit any drops due this tick.
+            if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX) serviceSpawner(i, nowMs);
 
             if (step.durationMs == 0) continue; // infinite last step — holds, never completes
 
@@ -254,7 +277,7 @@ namespace Lightnet {
         }
     }
 
-    void ScenePlayer::fireStep(uint8_t layerIdx, uint32_t /*nowMs*/)
+    void ScenePlayer::fireStep(uint8_t layerIdx, uint32_t nowMs)
     {
         const SceneLayer& layer = layers[layerIdx];
         const SceneStep& step  = layer.steps[currentStep[layerIdx]];
@@ -283,10 +306,24 @@ namespace Lightnet {
             : (uint16_t)min((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
 
         if (isRunnerType(step.animType)) {
-            // A runner is no longer streamed: it is compiled into one local PULSE per panel
-            // (per-panel onset + shape from the sweep envelope), so each panel runs it
-            // autonomously and it composites with other layers like any other slot. No STOP
-            // is sent — that would clobber the layers below this one.
+            // RAIN/SPARKLE are particle *spawners*, not compiled pulses. fireStep just
+            // (re)initialises the per-layer spawner; tick()/serviceSpawner emits drops over the
+            // window. Re-seed the PRNG each window (genuinely non-repeating) and reset the rate
+            // accumulator — but the pool cursor PERSISTS (set at load) so a new window's drops
+            // take fresh group_ids while the previous window's drops are still draining.
+            if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX) {
+                LayerSpawnState& st = spawnState[layerIdx];
+
+                st.rng           = (nowMs * 2654435761u) ^ 0x9E3779B9u ^ ((uint32_t)st.cursor << 16) ^ 1u;
+                st.accumMs       = 0;
+                st.lastServiceMs = nowMs;
+
+                return;
+            }
+
+            // Other runners are compiled into one local PULSE per panel (per-panel onset + shape
+            // from the sweep envelope), so each panel runs it autonomously and it composites with
+            // other layers like any other slot. No STOP is sent — that would clobber layers below.
             if (effectiveDurationMs == 0) return; // an infinite sweep has no meaning
 
             // What the sweep modulates — `animates` (default "color"), packed into
@@ -311,6 +348,14 @@ namespace Lightnet {
             bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
             bool repeat    = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REPEAT) != 0;
             uint8_t maxCoord;
+
+            // BOUNCE: a single band that sweeps back and forth forever — flip the effective
+            // direction each time this step re-fires (once per scene cycle), so consecutive
+            // cycles alternate the sweep direction (perpetual pendulum motion).
+            if (step.animType == RUN_BOUNCE) {
+                reverse ^= bouncePhase[layerIdx];
+                bouncePhase[layerIdx] = !bouncePhase[layerIdx];
+            }
 
             const TopologyIndex& topo = sceneTopo.index();
             const PanelGeometry& geometry = sceneTopo.geom();
@@ -447,7 +492,9 @@ namespace Lightnet {
             // already used for the WHEEL modifier blade above. A rise/fall MOD_* shape can't
             // loop this way (it would jump from peak straight back to identity), so repeating
             // modifiers always use bell regardless of the step's modRise/modBell setting.
-            bool repeating = repeat;
+            // BOUNCE is always a single one-shot band per cycle, even if `repeat` is set.
+            // (RAIN/SPARKLE never reach here — they return early as particle spawners.)
+            bool repeating = (step.animType == RUN_BOUNCE) ? false : repeat;
 
             // `repeatCount` > 1 places that many evenly-spaced waves in flight at once: the
             // loop period is shortened to T/N and each panel's phase within it is multiplied
@@ -476,6 +523,11 @@ namespace Lightnet {
                         cp = repeating
                             ? compileChaseRepeating(coord[i], maxCoord, repeatPeriod, effRepeatCount)
                             : compileChase(coord[i], maxCoord, effectiveDurationMs);
+                        break;
+                    case RUN_BOUNCE:
+                        // Single band whose peak reflects at the field edges (center sweeps
+                        // [0, maxCoord]); direction toggled per cycle above via bouncePhase.
+                        cp = compileBounce((float)coord[i], maxCoord, width, effectiveDurationMs);
                         break;
                     default: // RUN_RIPPLE
                         cp = repeating
@@ -527,6 +579,537 @@ namespace Lightnet {
                                    step.params[0], step.params[1],
                                    panels, panelCount,
                                    layer.blend, /*composeOrder=*/ layerIdx);
+        }
+    }
+
+    // ========================================================================
+    // RAIN / SPARKLE particle spawner
+    // ========================================================================
+
+    namespace {
+        // Per-step drop appearance, resolved once per service call (shared by every drop and
+        // every panel of a rain path). Mirrors fireStep's animates/colour/blend resolution.
+        struct DropStyle {
+            uint8_t            target;      // RUNNER_TARGET_*
+            uint8_t            modType;     // ANIM_MOD_* (non-colour targets)
+            uint8_t            modIdentity; // value the modifier decays back to
+            uint8_t            modPeak;     // peak modifier amount
+            uint8_t            modFlags;    // FLAG_MOD_* envelope shape
+            uint8_t            blend;       // compose mode for this layer's drops
+            Protocol::ColorRGB fromRgb;     // colour the drop fades to (default black)
+            Protocol::ColorRGB litRgb;      // head colour the drop peaks at
+        };
+
+        // Scale an 8-bit channel by a 0-255 brightness factor (used for antialiasing).
+        inline uint8_t scale8(uint8_t v, uint8_t b)
+        {
+            return (uint8_t)(((uint16_t)v * (uint16_t)b) / 255u);
+        }
+
+        // Geometric "fall coordinate" of a slot: its centroid projected onto the fall axis, signed
+        // by `dir` (+1 normal, -1 for `reverse`). Drops fall from low → high fall-coordinate.
+        // False if the slot has no usable centroid.
+        bool fallCoordOf(
+            const PanelGeometry& geo,
+            const TopologyIndex& topo,
+            uint8_t              slot,
+            float                ca,
+            float                sa,
+            float                dir,
+            float&               out
+        )
+        {
+            float x, y;
+
+            if (!geo.centroidOf(topo.panelAt(slot), x, y)) return false;
+
+            out = (x * ca + y * sa) * dir;
+
+            return true;
+        }
+
+        // Perpendicular coordinate (across the fall axis) — MATRIX uses it to keep a column
+        // straight by preferring the descending neighbour with the least perpendicular drift.
+        bool perpCoordOf(
+            const PanelGeometry& geo,
+            const TopologyIndex& topo,
+            uint8_t              slot,
+            float                ca,
+            float                sa,
+            float&               out
+        )
+        {
+            float x, y;
+
+            if (!geo.centroidOf(topo.panelAt(slot), x, y)) return false;
+
+            out = -x * sa + y * ca;
+
+            return true;
+        }
+
+        // Emit one drop pulse on one panel (PREPARE only; the caller fires the group START once
+        // the whole drop is prepared). FLAG_REAP_ON_DONE frees the slot the instant it finishes.
+        // `extraDelayMs` is the per-drop random spawn jitter — added to the pulse's onset so a drop
+        // PREPAREd on the even spawn beat actually *appears* at a random time within the interval.
+        // `bright` (0-255) scales the drop's peak — used for MATRIX's antialiased line edges.
+        void sendDropPrepare(
+            AnimationScheduler& sch,
+            uint8_t             panel,
+            uint8_t             group,
+            uint8_t             composeOrder,
+            const DropStyle&    s,
+            const DropPulse&    dp,
+            uint16_t            extraDelayMs,
+            uint8_t             bright = 255
+        )
+        {
+            uint32_t sd32 = (uint32_t)dp.startDelayMs + extraDelayMs;
+            uint16_t sd   = (sd32 > 65535u) ? 65535u : (uint16_t)sd32;
+
+            if (s.target == RUNNER_TARGET_COLOR) {
+                // Instant onset (rise ≈ 0) to the head colour, fading to `from` (default black).
+                ColorRef from = ColorRef_rgb(scale8(s.fromRgb.r, bright), scale8(s.fromRgb.g, bright), scale8(s.fromRgb.b, bright));
+                ColorRef lit  = ColorRef_rgb(scale8(s.litRgb.r, bright), scale8(s.litRgb.g, bright), scale8(s.litRgb.b, bright));
+
+                sch.sendPrepareToPanel(panel, group, ANIM_PULSE, FLAG_REAP_ON_DONE,
+                                       dp.durationMs, from, lit, dp.risePct, dp.fallPct,
+                                       s.blend, composeOrder, sd);
+            } else {
+                // Modifier drop: peak → identity over the lit window (the drop's fade), then reap.
+                ColorRef black = ColorRef_rgb(0, 0, 0);
+
+                sch.sendPrepareToPanel(panel, group, s.modType,
+                                       (uint8_t)(FLAG_REAP_ON_DONE | s.modFlags),
+                                       dp.durationMs, black, black, scale8(s.modPeak, bright), s.modIdentity,
+                                       s.blend, composeOrder, sd);
+            }
+        }
+    }
+
+    bool ScenePlayer::layerIsSpawner(uint8_t layerIdx) const
+    {
+        const SceneLayer& layer = layers[layerIdx];
+
+        for (uint8_t s = 0; s < layer.stepCount; s++) {
+            uint8_t t = layer.steps[s].animType;
+
+            if (t == RUN_RAIN || t == RUN_SPARKLE || t == RUN_MATRIX) return true;
+        }
+
+        return false;
+    }
+
+    void ScenePlayer::allocSpawnPools()
+    {
+        memset(spawnState, 0, sizeof(spawnState));
+
+        uint8_t maxUsed  = 0;
+        uint8_t spawners = 0;
+
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (layers[i].groupId > maxUsed) maxUsed = layers[i].groupId;
+
+            if (layerIsSpawner(i)) spawners++;
+        }
+
+        if (spawners == 0) return;
+
+        // The pool region sits ABOVE every normal layer's group_id, so drop group_ids never
+        // collide with — nor, via the broadcast START, disturb — a normal layer's panel slots.
+        uint16_t regionStart = (uint16_t)maxUsed + 1;
+        uint16_t avail       = (254 >= regionStart) ? (uint16_t)(254 - regionStart + 1) : 0;
+        uint8_t per         = (uint8_t)min((uint16_t)SPAWN_POOL_MAX, (uint16_t)(avail / spawners));
+
+        uint8_t k = 0;
+
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (!layerIsSpawner(i)) continue;
+
+            spawnState[i].poolBase = (uint8_t)(regionStart + (uint16_t)k * per);
+            spawnState[i].poolSize = per;
+            spawnState[i].cursor   = 0;
+            k++;
+        }
+    }
+
+    void ScenePlayer::serviceSpawner(uint8_t layerIdx, uint32_t nowMs)
+    {
+        const SceneLayer& layer = layers[layerIdx];
+        const SceneStep& step  = layer.steps[currentStep[layerIdx]];
+        LayerSpawnState& st    = spawnState[layerIdx];
+
+        if (st.poolSize == 0) return; // no pool reserved → can't spawn
+
+        uint8_t waves = step.params[RUNNER_PARAM_REPEAT_COUNT]; // drops per second
+
+        if (waves == 0) waves = 1;
+
+        uint32_t dt      = nowMs - st.lastServiceMs;
+
+        st.lastServiceMs = nowMs;
+
+        uint8_t due = spawnDueCount(st.accumMs, dt, waves, SPAWN_MAX_BURST);
+
+        if (due == 0) return;
+
+        // Spawns fire on an even beat (every `spawnInterval` ms); scatter each drop by a random
+        // offset in [0, spawnInterval) so appearances look random rather than metronomic.
+        uint16_t spawnInterval = (uint16_t)(1000u / waves);
+
+        if (spawnInterval == 0) spawnInterval = 1;
+
+        // Resolve the drop appearance once (animates / from→to colour / blend) — same as fireStep.
+        DropStyle ds;
+
+        ds.target      = runnerTargetOf(step.params[RUNNER_PARAM_FLAGS]);
+        ds.modPeak     = step.params[RUNNER_PARAM_AMOUNT];
+        ds.modType     = ANIM_MOD_DIM;
+        ds.modIdentity = 255;
+
+        switch (ds.target) {
+            case RUNNER_TARGET_DESATURATE: ds.modType = ANIM_MOD_DESATURATE;
+                ds.modIdentity = 255;
+                break;
+            case RUNNER_TARGET_HUE:        ds.modType = ANIM_MOD_HUE_SHIFT;
+                ds.modIdentity = 0;
+                break;
+            case RUNNER_TARGET_INVERT:     ds.modType = ANIM_MOD_INVERT;
+                ds.modIdentity = 0;
+                break;
+            case RUNNER_TARGET_BRIGHTEN:   ds.modType = ANIM_MOD_BRIGHTEN;
+                ds.modIdentity = 0;
+                break;
+            case RUNNER_TARGET_SATURATE:   ds.modType = ANIM_MOD_SATURATE;
+                ds.modIdentity = 0;
+                break;
+            default: break;
+        }
+
+        ds.modFlags = 0;
+
+        if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_RISE) ds.modFlags |= FLAG_MOD_RISE;
+
+        if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_BELL) ds.modFlags |= FLAG_MOD_BELL;
+
+        Protocol::ColorRGB cTo   = resolveColorToRgb(step.colorTo, layerIdx);
+        Protocol::ColorRGB cFrom = resolveColorToRgb(step.colorFrom, layerIdx);
+
+        ds.litRgb  = cTo;
+        ds.fromRgb = cFrom;
+        ds.blend   = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+
+        float spd = (speed < 0.1f) ? 0.1f : speed; // global speed scales drop time
+
+        if (step.animType == RUN_SPARKLE) {
+            // SPARKLE: each drop is one random panel from the layer target — instant flash + fade.
+            uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
+            uint8_t pc = 0;
+
+            sceneTopo.resolvePanels(layer.target, panels, SCENE_MAX_RESOLVED_PANELS, pc);
+
+            if (pc == 0) return;
+
+            uint32_t fadeMs = (uint32_t)((float)((uint32_t)step.params[RUNNER_PARAM_WIDTH] * SPARKLE_FADE_MS_PER_WIDTH) / spd);
+
+            if (fadeMs < 1) fadeMs = 1;
+
+            if (fadeMs > 65535u) fadeMs = 65535u;
+
+            for (uint8_t d = 0; d < due; d++) {
+                uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
+                uint8_t panel = panels[spawnRandBelow(st.rng, pc)];
+                uint16_t off   = (uint16_t)spawnRandBelow(st.rng, spawnInterval);
+                DropPulse dp    = sparkleFlash((uint16_t)fadeMs);
+
+                sendDropPrepare(scheduler, panel, group, layerIdx, ds, dp, off);
+                delayMicroseconds(200);
+                scheduler.sendGroupStart(group);
+            }
+
+            return;
+        }
+
+        // RAIN: each drop is an ordered chain of panels (source→far) — the head cascades down it
+        // and the tail fades behind. Two ways to pick the chain: TOPOLOGY (a random root→leaf tree
+        // path) or GEOMETRIC (a random column of the planar layout along the `angle` axis).
+        const TopologyIndex& topo = sceneTopo.index();
+        uint8_t n = topo.count();
+
+        if (n == 0) return;
+
+        bool reverse    = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
+        uint8_t widthRings = step.params[RUNNER_PARAM_WIDTH];
+        uint32_t fallMs     = step.speedMs ? step.speedMs : RAIN_DEFAULT_FALL_MS;
+
+        fallMs = (uint32_t)((float)fallMs / spd);
+
+        if (fallMs < 1) fallMs = 1;
+
+        if (fallMs > 65535u) fallMs = 65535u;
+
+        if (step.animType == RUN_MATRIX) {
+            // MATRIX: straight, constant-speed digital-rain. Unlike RAIN (which meanders down panel
+            // connections at a per-drop rate), every MATRIX drop falls at the SAME steady speed and
+            // has a softened leading edge. Supports both directionality modes.
+            uint8_t rise = MATRIX_HEAD_RISE;          // soft onset
+            uint8_t fall = (uint8_t)(255 - rise);
+
+            if ((step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) && sceneTopo.geom().valid()) {
+                // GEOMETRIC: each drop is a straight LINE down the `angle` axis at a random panel's
+                // perpendicular position; it lights every panel the line *overlaps* (within that
+                // panel's own radius) — it draws a line, it does not follow panel connections.
+                // Onset = the panel's actual distance down the axis (constant velocity = span/fallMs).
+                const PanelGeometry& geo = sceneTopo.geom();
+
+                float th  = (float)step.params[RUNNER_PARAM_SRC_ARG] * 2.0f * SPAWN_DEG2RAD; // angle = srcArg·2°
+                float ca  = cosf(th), sa = sinf(th);
+                float dir = reverse ? -1.0f : 1.0f;
+
+                // Candidate panels (have a centroid) + the global along-extent (constant-speed ref).
+                uint8_t cand[LIGHTNET_MAX_PANELS];
+                uint8_t candCount = 0;
+                float alongMin = 0.0f, alongMax = 0.0f;
+
+                for (uint8_t s = 0; s < n; s++) {
+                    float fc;
+
+                    if (!fallCoordOf(geo, topo, s, ca, sa, dir, fc)) continue;
+
+                    if (candCount == 0 || fc < alongMin) alongMin = fc;
+
+                    if (candCount == 0 || fc > alongMax) alongMax = fc;
+
+                    cand[candCount++] = s;
+                }
+
+                if (candCount == 0) return;
+
+                float alongSpan = (alongMax - alongMin > 0.0f) ? (alongMax - alongMin) : 1.0f;
+
+                for (uint8_t d = 0; d < due; d++) {
+                    uint8_t group  = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
+                    uint16_t off    = (uint16_t)spawnRandBelow(st.rng, spawnInterval);
+                    uint8_t anchor = cand[spawnRandBelow(st.rng, candCount)];
+
+                    float anchorPerp;
+
+                    if (!perpCoordOf(geo, topo, anchor, ca, sa, anchorPerp)) continue;
+
+                    // Tail: constant-speed fade over `width` panel-widths of travel.
+                    float panelSize = geo.circumradiusOf(topo.panelAt(anchor));
+
+                    if (panelSize <= 0.0f) panelSize = alongSpan / (float)((n > 1) ? n : 1);
+
+                    uint16_t tailDur = (uint16_t)((float)(widthRings ? widthRings : 1) * panelSize * (float)fallMs / alongSpan);
+
+                    if (tailDur == 0) tailDur = 1;
+
+                    // The line has a soft virtual half-width; a panel lights with brightness that
+                    // falls off (antialiased, smoothstep) with its perpendicular distance to the
+                    // line — full on the line, fading to nothing at the edge — so the column reads
+                    // as a smooth falling line, not a few hard-lit panels.
+                    float lineHalfWidth = panelSize * MATRIX_LINE_HALFWIDTH_K;
+
+                    if (lineHalfWidth <= 0.0f) lineHalfWidth = 0.001f;
+
+                    for (uint8_t c = 0; c < candCount; c++) {
+                        uint8_t s = cand[c];
+                        float sp, sf;
+
+                        if (!perpCoordOf(geo, topo, s, ca, sa, sp)) continue;
+
+                        float dd = fabsf(sp - anchorPerp);
+
+                        if (dd >= lineHalfWidth) continue; // outside the line band
+
+                        float t      = dd / lineHalfWidth;              // 0 = on the line, 1 = edge
+                        uint8_t bright = (uint8_t)((1.0f - t * t * (3.0f - 2.0f * t)) * 255.0f); // smoothstep falloff
+
+                        if (bright < 12) continue; // skip near-black edge panels
+
+                        fallCoordOf(geo, topo, s, ca, sa, dir, sf);
+
+                        uint16_t startDelay = (uint16_t)((sf - alongMin) / alongSpan * (float)fallMs);
+                        DropPulse dp = { startDelay, tailDur, rise, fall };
+
+                        sendDropPrepare(scheduler, topo.panelAt(s), group, layerIdx, ds, dp, off, bright);
+                    }
+
+                    delayMicroseconds(300);
+                    scheduler.sendGroupStart(group);
+                }
+
+                return;
+            }
+
+            // TOPOLOGY: a random root→leaf tree path, but at constant speed — each hop takes
+            // fall-time / maxDepth (vs RAIN's per-streak rate), so all drops fall at the same rate.
+            uint8_t leaves[LIGHTNET_MAX_PANELS];
+            uint8_t parent[LIGHTNET_MAX_PANELS];
+            uint8_t leafCount = 0;
+
+            for (uint8_t s = 0; s < n; s++) {
+                parent[s] = topo.parentOf(s);
+
+                if (topo.isLeaf(s)) leaves[leafCount++] = s;
+            }
+
+            if (leafCount == 0) return;
+
+            uint8_t rootSlot = topo.root();
+            uint8_t maxDepth = topo.maxDepth();
+
+            if (maxDepth == 0) maxDepth = 1;
+
+            for (uint8_t d = 0; d < due; d++) {
+                uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
+                uint16_t off   = (uint16_t)spawnRandBelow(st.rng, spawnInterval);
+                uint8_t leaf  = leaves[spawnRandBelow(st.rng, leafCount)];
+
+                uint8_t path[LIGHTNET_MAX_PANELS];
+                uint8_t len = spawnBuildPath(parent, leaf, rootSlot, path, LIGHTNET_MAX_PANELS);
+
+                if (len == 0) continue;
+
+                for (uint8_t i = 0; i < len; i++) {
+                    uint8_t pos = reverse ? (uint8_t)(len - 1 - i) : i;
+                    DropPulse dp  = rainDropAt((uint16_t)fallMs, widthRings, pos, (uint8_t)(maxDepth + 1)); // constant speed
+
+                    dp.risePct = rise;
+                    dp.fallPct = fall;
+
+                    sendDropPrepare(scheduler, topo.panelAt(path[i]), group, layerIdx, ds, dp, off);
+                }
+
+                delayMicroseconds(300);
+                scheduler.sendGroupStart(group);
+            }
+
+            return;
+        }
+
+        if ((step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) && sceneTopo.geom().valid()) {
+            // GEOMETRIC rain: drops fall along the planar `angle` axis (the *visual* down), not the
+            // tree. A drop is a **1-wide streak following actual panel connections downhill**: it
+            // starts at a "top" panel (a local minimum of the fall coordinate) and repeatedly steps
+            // to the neighbour that descends most, until it can't. This stays one panel wide on any
+            // layout (no fuzzy width band) and naturally cascades top→bottom. `reverse` (or
+            // `angle ± 180°`) flips which way is "down".
+            const PanelGeometry& geo = sceneTopo.geom();
+
+            float th  = (float)step.params[RUNNER_PARAM_SRC_ARG] * 2.0f * SPAWN_DEG2RAD; // angle = srcArg·2°
+            float ca  = cosf(th), sa = sinf(th);
+            float dir = reverse ? -1.0f : 1.0f;
+
+            // Top panels = local minima of the fall coordinate (no neighbour higher up).
+            uint8_t tops[LIGHTNET_MAX_PANELS];
+            uint8_t topCount = 0;
+
+            for (uint8_t s = 0; s < n; s++) {
+                float fc;
+
+                if (!fallCoordOf(geo, topo, s, ca, sa, dir, fc)) continue;
+
+                bool isTop = true;
+
+                for (uint8_t k = 0; k < topo.degree(s); k++) {
+                    float nf;
+
+                    if (fallCoordOf(geo, topo, topo.neighborSlot(s, k), ca, sa, dir, nf) && nf < fc) {
+                        isTop = false;
+                        break;
+                    }
+                }
+
+                if (isTop) tops[topCount++] = s;
+            }
+
+            if (topCount == 0) return;
+
+            for (uint8_t d = 0; d < due; d++) {
+                uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
+                uint16_t off   = (uint16_t)spawnRandBelow(st.rng, spawnInterval); // per-drop jitter
+
+                // Build the streak: from a random top, step to the steepest-descending neighbour
+                // until none descends further. Fall coordinate strictly increases → no cycles.
+                uint8_t chain[LIGHTNET_MAX_PANELS];
+                uint8_t len = 0;
+                uint8_t cur = tops[spawnRandBelow(st.rng, topCount)];
+                float curF;
+
+                if (!fallCoordOf(geo, topo, cur, ca, sa, dir, curF)) continue;
+
+                while (len < n) {
+                    chain[len++] = cur;
+
+                    uint8_t best = 0xFF;
+                    float bestF = curF;
+
+                    for (uint8_t k = 0; k < topo.degree(cur); k++) {
+                        uint8_t v = topo.neighborSlot(cur, k);
+                        float vf;
+
+                        if (fallCoordOf(geo, topo, v, ca, sa, dir, vf) && vf > bestF) {
+                            bestF = vf;
+                            best  = v;
+                        }
+                    }
+
+                    if (best == 0xFF) break; // reached a low point — streak ends
+
+                    cur  = best;
+                    curF = bestF;
+                }
+
+                for (uint8_t i = 0; i < len; i++) {
+                    DropPulse dp = rainDropAt((uint16_t)fallMs, widthRings, i, len);
+
+                    sendDropPrepare(scheduler, topo.panelAt(chain[i]), group, layerIdx, ds, dp, off);
+                }
+
+                delayMicroseconds(300);
+                scheduler.sendGroupStart(group);
+            }
+
+            return;
+        }
+
+        // TOPOLOGY rain: random root→leaf tree path (the default).
+        uint8_t leaves[LIGHTNET_MAX_PANELS];
+        uint8_t parent[LIGHTNET_MAX_PANELS];
+        uint8_t leafCount = 0;
+
+        for (uint8_t s = 0; s < n; s++) {
+            parent[s] = topo.parentOf(s); // 0xFF for the root → matches spawnBuildPath's sentinel
+
+            if (topo.isLeaf(s)) leaves[leafCount++] = s;
+        }
+
+        if (leafCount == 0) return;
+
+        uint8_t rootSlot = topo.root();
+
+        for (uint8_t d = 0; d < due; d++) {
+            uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
+            uint8_t leaf  = leaves[spawnRandBelow(st.rng, leafCount)];
+            uint16_t off   = (uint16_t)spawnRandBelow(st.rng, spawnInterval); // per-drop jitter
+
+            uint8_t path[LIGHTNET_MAX_PANELS];
+            uint8_t len = spawnBuildPath(parent, leaf, rootSlot, path, LIGHTNET_MAX_PANELS);
+
+            if (len == 0) continue;
+
+            for (uint8_t i = 0; i < len; i++) {
+                uint8_t pos   = reverse ? (uint8_t)(len - 1 - i) : i;
+                uint8_t panel = topo.panelAt(path[i]);
+                DropPulse dp    = rainDropAt((uint16_t)fallMs, widthRings, pos, len);
+
+                sendDropPrepare(scheduler, panel, group, layerIdx, ds, dp, off);
+            }
+
+            delayMicroseconds(300);
+            scheduler.sendGroupStart(group);
         }
     }
 

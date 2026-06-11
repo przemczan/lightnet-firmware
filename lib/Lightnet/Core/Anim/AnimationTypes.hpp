@@ -37,6 +37,10 @@ namespace Lightnet {
         RUN_RIPPLE       = 65,
         RUN_CHASE        = 66,
         RUN_WHEEL        = 67,
+        RUN_BOUNCE       = 68,
+        RUN_RAIN         = 69,
+        RUN_SPARKLE      = 70,
+        RUN_MATRIX       = 71,
     };
 
     inline bool isRunnerType(uint8_t t)
@@ -92,6 +96,13 @@ namespace Lightnet {
         // BELL + FLAG_LOOP produces a smooth repeating pulse (e.g. WHEEL modifier blade).
         FLAG_MOD_RISE = 0x20,
         FLAG_MOD_BELL = 0x40,
+
+        // Reap-on-done: a non-looping slot carrying this flag FREES itself the instant its
+        // animation finishes (instead of holding its end-state forever). Used by the RAIN/
+        // SPARKLE particle spawner: each drop is a one-shot pulse on a pooled group_id, and
+        // reaping releases the slot/group the moment the drop ends (which is transparent —
+        // faded to colorFrom=black, or a modifier back to identity), so panels never clog.
+        FLAG_REAP_ON_DONE = 0x80,
     };
 
     // ============================================================================

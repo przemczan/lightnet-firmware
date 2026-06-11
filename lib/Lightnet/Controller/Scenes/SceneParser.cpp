@@ -179,6 +179,14 @@ namespace Lightnet {
 
             if (strcmp(s, "WHEEL") == 0)  return RUN_WHEEL;
 
+            if (strcmp(s, "BOUNCE") == 0)  return RUN_BOUNCE;
+
+            if (strcmp(s, "RAIN") == 0)    return RUN_RAIN;
+
+            if (strcmp(s, "SPARKLE") == 0) return RUN_SPARKLE;
+
+            if (strcmp(s, "MATRIX") == 0)  return RUN_MATRIX;
+
             return 0xFF;
         }
 
@@ -337,7 +345,10 @@ namespace Lightnet {
                 }
 
                 step.params[1] = (uint8_t)v;
-            } else if (strcmp(key, "waveWidth") == 0 || strcmp(key, "rippleWidth") == 0) {
+            } else if (strcmp(key, "waveWidth") == 0 || strcmp(key, "rippleWidth") == 0 || strcmp(key, "width") == 0) {
+                // `width` is the generic form: BOUNCE (band width, rings, like waveWidth),
+                // RAIN (tail length, rings), SPARKLE (fade-out duration, 0-255 -> 0-100% of
+                // the flash period).
                 long v;
 
                 if (!jsonReadUInt(p, end, &v) || v > 255) return false;
@@ -445,10 +456,12 @@ namespace Lightnet {
                 }
 
                 if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REPEAT;
-            } else if (strcmp(key, "repeatCount") == 0) {
+            } else if (strcmp(key, "repeatCount") == 0 || strcmp(key, "waves") == 0) {
                 // Number of wave/ring/chase passes visible simultaneously (waves per duration).
                 // 0 or 1 = one wave (default). Values > 1 divide effectiveDurationMs into that
                 // many sub-periods so N evenly-spaced rings sweep through at once.
+                // `waves` is the same field under RAIN/SPARKLE's naming (number of drops/
+                // flicker density).
                 long v;
 
                 if (!jsonReadUInt(p, end, &v) || v > 255) {
@@ -458,6 +471,19 @@ namespace Lightnet {
                 }
 
                 step.params[RUNNER_PARAM_REPEAT_COUNT] = (uint8_t)v;
+            } else if (strcmp(key, "speed") == 0) {
+                // RAIN/SPARKLE only: drop-fall / flash period in ms (0-65535). When set, `duration`
+                // becomes the play window and this is the constant rate (snapped in fireStep to
+                // tile the window). 0/absent = legacy (rate derived from `duration`).
+                long v;
+
+                if (!jsonReadUInt(p, end, &v) || v > 65535) {
+                    strncpy(errMsg, "step.speed: out of range", errLen);
+
+                    return false;
+                }
+
+                step.speedMs = (uint16_t)v;
             } else if (strcmp(key, "angle") == 0) {
                 // Geometric sweep direction in degrees [0,360). Stored in 2° units (angle/2)
                 // so it fits SRC_ARG; decoded back to degrees in ScenePlayer::fireStep.

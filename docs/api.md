@@ -57,7 +57,7 @@ Every frame has a **fixed 14-byte header** (`PacketMeta`) followed by a variable
 
 Bytes 0–6 (`type` + `protocolVersion` + `nonce`) form the inner `PacketHeader` struct that is covered by `headerCrc`.
 
-**CRC algorithm**: CRC-16/IBM (poly `0x8005`, init `0x0000`, no reflection) — same function throughout the firmware (`Utils/Crc.hpp`).
+**CRC algorithm**: CRC-16/IBM (reflected, poly `0xA001`, init `0xFFFF`) — same function throughout the firmware (`Utils/Crc.hpp`).
 
 !!! warning "Malformed frames are silently dropped"
     The controller validates header CRC, payload CRC, and protocol version. There is no error response — if a command has no effect, check these three fields first.

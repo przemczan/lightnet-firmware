@@ -364,6 +364,15 @@ namespace Lightnet {
                 if (!(s.flags & Slot::PAUSED) && !(s.flags & Slot::HOLDING) && s.cur.durationMs > 0 &&
                     animElapsed >= s.cur.durationMs && s.cur.animType != ANIM_REACTIVE) {
                     s.flags |= Slot::HOLDING;
+
+                    // Reap-on-done (spawner drops): free the slot the instant it finishes instead
+                    // of holding its end-state forever, releasing the pooled group_id so panels
+                    // never clog. The end state is transparent (faded to colorFrom=black, or a
+                    // modifier back to identity), so freeing is visually identical to holding.
+                    if (s.cur.flags & FLAG_REAP_ON_DONE) {
+                        s.flags = 0; // clear OCCUPIED/STARTED/HOLDING → slot free for reuse
+                        continue;    // contributes nothing this frame
+                    }
                 }
 
                 if ((s.flags & Slot::HOLDING) && s.cur.durationMs > 0) {

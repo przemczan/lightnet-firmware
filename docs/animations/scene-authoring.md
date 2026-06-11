@@ -43,12 +43,13 @@ Two kinds of step exist, and the difference matters for how they behave:
 | Step kind | Field | Runs where | Cost |
 |---|---|---|---|
 | **Panel-local animation** | `"type"` | On each panel's own chip (ATmega) | One setup packet, then **zero** per-frame traffic |
-| **Controller runner** | `"runner"` | On the controller (ESP), every frame | A `SET_COLOR` packet per panel per frame |
+| **Controller runner** | `"runner"` | Composed on the controller (ESP) | A per-panel pulse setup burst (WAVE/…/BOUNCE); RAIN/SPARKLE emit drop packets over time |
 
-A panel-local animation (BREATHE, FADE, …) is told once *what* to do and runs itself. A
-runner (WAVE, RIPPLE, CHASE) is a *moving* effect the controller computes by sending each
-panel a new colour every frame. Use panel-local types for per-panel effects; use runners for
-motion *across* panels.
+A panel-local animation (BREATHE, FADE, …) is told once *what* to do and runs itself. Most
+runners (WAVE, RIPPLE, CHASE, WHEEL, BOUNCE) are *moving* effects the controller compiles into one
+per-panel pulse and sends once. **RAIN and SPARKLE are particle *spawners*** the controller drives
+over the step window — random drops / flashes, each a self-finishing one-shot pulse. Use
+panel-local types for per-panel effects; use runners for motion or texture *across* panels.
 
 ---
 
@@ -149,7 +150,7 @@ The top-level object:
 
 | Property | Required | Default | What it is |
 |---|---|---|---|
-| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `6` — brightness/saturation boost modifiers). |
+| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `7` — BOUNCE/RAIN/SPARKLE runners, `waves` field). |
 | `name` | yes (to save) | — | 1–18 chars, `[a-zA-Z0-9_-]`. The filename when stored. |
 | `loop` | no | `false` | Restart the whole scene when all layers finish. |
 | `speed` | no | `1.0` | Playback multiplier, clamped to `0.1`–`10.0`. Scales all durations. |
@@ -362,7 +363,7 @@ controller runner (`runner`) — never both — **or** a gap (neither).
 | Property | Applies to | What it is |
 |---|---|---|
 | `type` | panel-local | Animation name (§7.2). Mutually exclusive with `runner`. |
-| `runner` | runner | `WAVE` / `RIPPLE` / `CHASE` (§7.3). |
+| `runner` | runner | `WAVE` / `RIPPLE` / `CHASE` / `WHEEL` / `BOUNCE` / `RAIN` / `SPARKLE` / `MATRIX` (§7.3). |
 | `color` / `colorTo` | both | The (target) colour — a [colour reference](#9-colours-palettes). `color` is an alias for `colorTo`. |
 | `colorFrom` | most types | Start colour (for fades, breathe, reactive rest, …). |
 | `duration` | all | Milliseconds, 0–65535. `0` = infinite, **only** on the last step. |
@@ -404,10 +405,23 @@ panels over `duration`:
 | `RIPPLE` | A ring expands outward from the source | `rippleWidth` (rings) |
 | `CHASE` | A single lit ring steps outward | — |
 | `WHEEL` | Blades rotate continuously about a centre | `thickness` (degrees), `lines` (1–6) |
+| `BOUNCE` | A bright band bounces back and forth forever | `width` (rings) |
+| `RAIN` | A **particle spawner**: random drops fall down tree paths, head + fading tail | `waves` (drops/sec), `speed` (fall time), `width` (tail rings) |
+| `SPARKLE` | A **particle spawner**: random panels flash (instant-on + fade) | `waves` (flashes/sec), `width` (fade) |
+| `MATRIX` | A **particle spawner**: constant-speed digital-rain (geometric = straight lines, topology = tree path) | `waves` (drops/sec), `speed` (fall time), `width` (tail rings), `angle` |
 
-The **direction** of WAVE/RIPPLE/CHASE is set by `source`/`reverse` — see §8. WHEEL pivots about
-`source` the same way (see [Animation Types → WHEEL](types.md#wheel) for its specifics — it always
-spins, needs the geometric layout, and has no topology fallback).
+The **direction** of WAVE/RIPPLE/CHASE/BOUNCE is set by `source`/`reverse` — see §8. WHEEL pivots
+about `source` the same way (see [Animation Types → WHEEL](types.md#wheel) for its specifics — it
+always spins, needs the geometric layout, and has no topology fallback). **RAIN/SPARKLE are
+spawners**, not compiled sweeps: `duration` is the **play window** (drops finishing when it ends),
+`waves` is the spawn **rate** (per second), and the effect is genuinely random and non-repeating.
+RAIN drops fall root→leaf (`reverse` makes them rise) with `speed` the fall-time — or, with
+`directionality:geometric` + `angle`, they fall along the **planar layout axis** (the visual down)
+instead of the tree. **MATRIX** is the **constant-speed** version of RAIN (digital-rain) — same
+knobs and both directionality modes: geometric draws **straight lines** (set `angle`), topology
+gives a constant-speed tree path. SPARKLE has no directionality (`source`/`reverse`/`angle`
+ignored) and no `speed`. See
+[Animation Types → RAIN/SPARKLE/MATRIX](types.md#rain) for full details (`schemaVersion: 7`).
 
 ```json
 {
@@ -660,7 +674,7 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 | Rule | Limit |
 |---|---|
 | Scene `name` | `[a-zA-Z0-9_-]`, 1–18 chars; required to save |
-| `schemaVersion` | ≤ firmware version (currently `6`) — else `409 schema_too_new` |
+| `schemaVersion` | ≤ firmware version (currently `7`) — else `409 schema_too_new` |
 | `speed` | clamped to 0.1–10.0 |
 | Layers per scene | 1–8 |
 | `group` | unique across layers; name or 1–254 (don't mix) |

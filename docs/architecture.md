@@ -262,14 +262,34 @@ traffic that previously grew with panel count.
 | `RIPPLE` | band PULSE from the panel's `[near,far]` radial extent |
 | `CHASE` | near-square PULSE, onset `dur·c/(maxCoord+1)`, window `dur/(maxCoord+1)` |
 | `WHEEL` | rotating-blade PULSE from the panel's geometric bearing; always `FLAG_LOOP`, `period = duration/lines` |
+| `BOUNCE` | a `WAVE` band whose **peak** reflects at the field edges (centre sweeps `[0,maxCoord]`); `reverse` is XOR'd with a per-layer toggle that flips on every re-fire — forward, then back, forever |
 
 `"repeat": true` plays WAVE/RIPPLE/CHASE as a continuous train instead of a single pass: the same
 `compile*` geometry feeds `compileRepeating()`, which **swaps `colorFrom`/`colorTo`** (lit↔dark) so
 the rise→hold→fall envelope reads departing→dark-hold→approaching with `FLAG_LOOP` — true dark gaps
-using only the existing PULSE/loop mechanism. WHEEL always uses this engine (`compileWheel`).
-Colour-only (`animates:color`); `SCENE_SCHEMA_VERSION` is 5.
+using only the existing PULSE/loop mechanism. WHEEL always uses this engine (`compileWheel` via
+`compileRepeatingAsym`). `SCENE_SCHEMA_VERSION` is 7.
 
 The streaming `WaveRunner`/`RippleRunner`/`ChaseRunner` classes remain for the built-in demos.
+
+### Controller runners — RAIN / SPARKLE particle spawners (v7)
+
+RAIN and SPARKLE are **not** compiled — they are stochastic particle spawners. The compiled-pulse
+model gives "seamless" only by *repeating forever*; a genuinely random, non-repeating effect
+requires drops that **finish on their own** rather than being overwritten. So `ScenePlayer` services
+these over the step window (`serviceSpawner()` in `tick()`): every `1000/waves` ms it launches one
+**drop** — a self-finishing one-shot PULSE — on a pooled `group_id`.
+
+| Aspect | Detail |
+|---|---|
+| **Pattern** | SPARKLE = one random panel (instant-on + `width` fade); RAIN = a random source→leaf path (`spawnBuildPath`), head cascading via staggered `startDelayMs`, tail fading over `width` rings, `speed` = fall-time |
+| **Knobs** | `duration` = play **window** (soft — in-flight drops finish); `waves` = spawn **rate** (per second); `width`/`speed` per above; full `animates` set + `colorFrom`→`colorTo` |
+| **Group pool** | each drop takes one `group_id` (one slot per touched panel) from a per-layer pool reserved **above** all normal layer groups (`allocSpawnPools`); the round-robin cursor **persists** across the window re-fire so new drops use fresh ids while old ones drain |
+| **Slot reaping** | drop pulses set **`FLAG_REAP_ON_DONE`** (a new, backward-compatible AnimationFlags bit — no I²C protocol bump); the panel frees the slot the instant the one-shot finishes (`AnimationPlayer`), so panels never clog and a recycled broadcast START can't re-fire a drained drop. **All panels must be re-flashed** with this firmware — older panels ignore the flag and would clog. |
+
+Pure helpers (`Animations/RunnerSpawn.hpp`: PRNG, rate accumulator, pool, path, drop timing) are
+natively tested in `test_runner_spawn`; the stateful real-time behaviour is verified on sim/device
+(`tools/api-shell/mirror-dump.js`).
 
 ### Bandwidth budget
 

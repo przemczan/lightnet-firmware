@@ -274,6 +274,75 @@ void test_wheel_high_phase_no_clamp()
     TEST_ASSERT_EQUAL_UINT16(850, cp.startDelayMs);
 }
 
+// ---- Repeating asymmetric (RAIN/SPARKLE engine) ----------------------------
+
+void test_repeating_asym_independent_rise_fall()
+{
+    CompiledPulse cp = compileRepeatingAsym(0.25f, 0.1f, 0.3f, 1000);
+
+    TEST_ASSERT_TRUE(cp.lit);
+    TEST_ASSERT_EQUAL_UINT16(250, cp.startDelayMs);
+    TEST_ASSERT_EQUAL_UINT16(1000, cp.durationMs);
+    TEST_ASSERT_EQUAL_UINT8(26, cp.risePct); // 0.1 * 255
+    TEST_ASSERT_EQUAL_UINT8(77, cp.fallPct); // 0.3 * 255
+}
+
+void test_repeating_asym_zero_period_unlit()
+{
+    CompiledPulse cp = compileRepeatingAsym(0.5f, 0.1f, 0.3f, 0);
+
+    TEST_ASSERT_FALSE(cp.lit);
+}
+
+// NB: RAIN and SPARKLE are no longer compiled — they are particle spawners (RunnerSpawn.hpp /
+// ScenePlayer::serviceSpawner), unit-tested in test_runner_spawn. Their old compile tests
+// (and the snapPeriodToWindow speed-decoupling tests) were removed with that retirement.
+
+// ---- BOUNCE -------------------------------------------------------------------
+
+void test_bounce_mid_panel_is_symmetric_triangle()
+{
+    // coord=3, maxCoord=6 (span 6), width=2 (halfW 1): peak at t=3/6=0.5, lit on
+    // t ∈ [2/6, 4/6] — a centred, symmetric triangle. rise == fall == 50%.
+    CompiledPulse cp = compileBounce(3.0f, 6, 2, 1200);
+
+    TEST_ASSERT_TRUE(cp.lit);
+    TEST_ASSERT_EQUAL_UINT16(400, cp.startDelayMs);   // (3-1)/6 * 1200
+    TEST_ASSERT_EQUAL_UINT16(400, cp.durationMs);     // (2/6) * 1200
+    TEST_ASSERT_EQUAL_UINT8(127, cp.risePct);         // 0.5
+    TEST_ASSERT_EQUAL_UINT8(128, cp.fallPct);         // 0.5
+}
+
+void test_bounce_near_edge_peaks_at_start()
+{
+    // coord=0: the band starts at full on the near edge (peak pinned to t=0) and only
+    // recedes — instant rise, all fall. This is the reflection point: the previous (reverse)
+    // pass ended here at full, so the seam is continuous.
+    CompiledPulse cp = compileBounce(0.0f, 6, 2, 1200);
+
+    TEST_ASSERT_TRUE(cp.lit);
+    TEST_ASSERT_EQUAL_UINT16(0, cp.startDelayMs);
+    TEST_ASSERT_EQUAL_UINT8(0, cp.risePct);           // peak already at the start
+    TEST_ASSERT_EQUAL_UINT8(255, cp.fallPct);         // recedes over the whole window
+}
+
+void test_bounce_far_edge_peaks_at_end()
+{
+    // coord==maxCoord: rises to full exactly at the far edge (t=1), then the pass ends and
+    // the next (reversed) pass continues from there — the other reflection point.
+    CompiledPulse cp = compileBounce(6.0f, 6, 2, 1200);
+
+    TEST_ASSERT_TRUE(cp.lit);
+    TEST_ASSERT_EQUAL_UINT8(255, cp.risePct);         // rises across the whole window
+    TEST_ASSERT_EQUAL_UINT8(0, cp.fallPct);           // peak pinned to the far edge
+}
+
+void test_bounce_zero_width_or_duration_unlit()
+{
+    TEST_ASSERT_FALSE(compileBounce(3.0f, 6, 0, 1200).lit);
+    TEST_ASSERT_FALSE(compileBounce(3.0f, 6, 2, 0).lit);
+}
+
 void setUp(void)
 {
 }
@@ -313,6 +382,14 @@ int main(int, char **)
     RUN_TEST(test_wheel_zero_rotation_unlit);
     RUN_TEST(test_wheel_period_floors_at_one_ms);
     RUN_TEST(test_wheel_high_phase_no_clamp);
+
+    RUN_TEST(test_repeating_asym_independent_rise_fall);
+    RUN_TEST(test_repeating_asym_zero_period_unlit);
+
+    RUN_TEST(test_bounce_mid_panel_is_symmetric_triangle);
+    RUN_TEST(test_bounce_near_edge_peaks_at_start);
+    RUN_TEST(test_bounce_far_edge_peaks_at_end);
+    RUN_TEST(test_bounce_zero_width_or_duration_unlit);
 
     return UNITY_END();
 }

@@ -250,16 +250,17 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 
 | Field | Type | Notes |
 |---|---|---|
-| `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`, `WHEEL`) |
+| `runner` | string | Runner name (`WAVE`, `RIPPLE`, `CHASE`, `WHEEL`, `BOUNCE`, `RAIN`, `SPARKLE`) |
 | `color` | color ref | Colour for the runner effect (only used when `animates:color`) |
-| `duration` | ms | Total duration of the runner effect |
-| `directionality` | string | Field mode: `topology` (graph hop-distance, default) or `geometric` (planar layout). Orthogonal to `source`. |
-| `source` | string | Where the motion emanates from: `root` (default), `leaves`, `panel:N`, or `all` |
-| `angle` | 0–359 | Geometric **axis sweep** direction in degrees (only `directionality:geometric` WAVE/CHASE; default 0). 2° resolution. Ignored by RIPPLE. |
-| `reverse` | bool | Reverse the travel direction |
-| `waveWidth` / `rippleWidth` | 0–255 | Band / ring width in **rings** (also settable as `params[0]`) |
-| `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass, see below |
-| `repeatCount` | 1–255 | With `repeat:true`: number of sweeps in flight simultaneously, evenly spaced (also settable as `params[5]`). Default 1 (single train). |
+| `duration` | ms | Total duration of the runner effect (one lap, for repeating/looping runners) |
+| `directionality` | string | Field mode: `topology` (graph hop-distance, default) or `geometric` (planar layout). Orthogonal to `source`. Ignored by SPARKLE. |
+| `source` | string | Where the motion emanates from: `root` (default), `leaves`, `panel:N`, or `all`. Ignored by SPARKLE. |
+| `angle` | 0–359 | Geometric **axis** direction in degrees (`directionality:geometric` WAVE/CHASE/BOUNCE/RAIN, and always-geometric **MATRIX** — the direction drops fall; default 0). 2° resolution. Ignored by RIPPLE/SPARKLE. |
+| `reverse` | bool | Reverse the travel direction (RAIN: drops rise instead of fall). Ignored by SPARKLE. |
+| `waveWidth` / `rippleWidth` / `width` | 0–255 | Band / ring / tail / fade width (also settable as `params[0]`) — see each runner's table for what `width` means for it |
+| `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass, see below. Ignored by BOUNCE/RAIN/SPARKLE. |
+| `repeatCount` / `waves` | 1–255 | With `repeat:true` (WAVE/RIPPLE/CHASE/WHEEL): number of sweeps in flight at once. For **RAIN/SPARKLE/MATRIX** (particle spawners) `waves` is instead the **spawn rate** — drops/flashes per **second**. `params[5]`. Default 1. |
+| `speed` | ms | **RAIN/MATRIX only.** The constant drop **fall-time** (one drop's trip down the field); `duration` is the play *window*, not the rate. SPARKLE ignores it (its flashes don't move). `0`/absent ⇒ a 1000 ms default. |
 | `animates` | string | What the sweep modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate` |
 | `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
 | `shape` | string | Envelope shape for non-`color` sweeps: `fall` (peak→identity, default), `rise` (identity→peak), or `bell` (identity→peak→identity). Ignored when `animates:color`, and when `repeat:true` (repeating modifier sweeps always use `bell`, see below). |
@@ -483,3 +484,154 @@ is the time for one full rotation.
 `angle` and `waveWidth`/`rippleWidth` are N/A. When `animates` is not `color`, the blade automatically
 uses a `bell` envelope (soft on both edges) since WHEEL always loops — `shape` has no effect on WHEEL.
 Needs `schemaVersion: 5`.
+
+---
+
+### BOUNCE
+
+Like WAVE — a triangular brightness band sweeps along the distance axis from `source` — but the
+band is a single "wave always 1" that **bounces back and forth forever**. Unlike WAVE (whose band
+slides fully on and off the canvas), BOUNCE's **peak travels only the real panel span** and
+**reflects the instant it reaches either end** — it never slides off-canvas — so the motion reads
+as a continuous pendulum that turns around right at the edge panels. `duration` is the time for
+**one pass** (one direction). `repeat`/`repeatCount` are ignored — there is always exactly one band
+in flight.
+
+```json
+{
+  "runner": "BOUNCE",
+  "source": "root",
+  "color": {
+    "palette": 128
+  },
+  "width": 3,
+  "duration": 2000
+}
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `width` (`params[0]`) | Band width in rings (hops illuminated at peak) | 3 |
+
+Direction starts as `source` → far end (or the reverse, if `reverse:true`) and flips on every
+subsequent pass. Needs `schemaVersion: 7`.
+
+---
+
+### RAIN
+
+RAIN is a **particle spawner**, not a compiled sweep. While the step plays, the controller
+launches **drops** at a steady rate (`waves`, drops per second), each down a random root→leaf path
+of the panel tree. Panels light in sequence as the drop's head passes (the cascade) and fade
+behind it over the `width`-ring tail. Each drop is an independent one-shot that finishes on its
+own, so the pattern is **genuinely random and never repeats** — and when the play window ends the
+in-flight drops simply finish (a soft, seamless boundary).
+
+- `duration` is the **play window** — how long RAIN runs before the scene advances/loops; it does
+  *not* set drop speed. Use `0` on the last step to rain indefinitely.
+- `speed` is the constant **drop fall-time** — how long one drop takes to cross its path.
+- `waves` is the **spawn rate** in drops per second.
+- `width` is the **tail length** in rings (hops behind the head that fade out).
+- `reverse` makes drops rise (leaf→root). `animates` (+ `amount`/`shape`) work as for any runner
+  (e.g. `animates:dim` → dimming raindrops); `colorFrom` is the colour the tail fades to (default
+  black), `color` the head colour.
+- **Directionality.** By default drops fall **down the tree** (root→leaf). With
+  `"directionality": "geometric"` + `"angle"` they instead fall along the **planar layout axis**
+  (the *visual* down): each drop is a **1-wide streak** that starts at a top panel and follows
+  actual panel connections downhill along `angle`, independent of the wiring. Use this when the
+  tree topology doesn't match the physical arrangement.
+
+```json
+{
+  "runner": "RAIN",
+  "color": { "palette": 200 },
+  "width": 3,
+  "waves": 4,
+  "speed": 800,
+  "duration": 0
+}
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `waves` (`params[5]`) | Spawn rate — **drops per second** | 1 |
+| `speed` (ms) | Drop fall-time — one drop's trip across its path | 1000 |
+| `width` (`params[0]`) | Tail length in rings behind the head | 0 |
+| `reverse` | Drops rise (leaf→root) instead of fall | false |
+
+> Drops follow tree **paths** (one random source→leaf per drop). Source/junction panels sit on
+> many drops at once; if a panel exceeds its 8 composite slots the busiest drop loses that segment
+> (a small gap). Needs `schemaVersion: 7`.
+
+---
+
+### SPARKLE
+
+SPARKLE is a **particle spawner**: while the step plays, the controller flashes **random panels**
+at a steady rate (`waves`, flashes per second) — each an almost-instant onset followed by a fade
+(`width`). It has no directionality (`source`/`directionality`/`reverse`/`angle` are ignored).
+Flashes are independent one-shots, so the twinkle is **genuinely random and never repeats**; when
+the play window ends, in-flight fades simply finish.
+
+- `duration` is the **play window** (use `0` on the last step to twinkle indefinitely).
+- `waves` is the **spawn rate** in flashes per second.
+- `width` is the **fade-out duration** (`0`–`255`, longer = slower fade).
+- `animates` (+ `amount`/`shape`) and `colorFrom`→`color` work as for any runner. SPARKLE ignores
+  `speed`.
+
+```json
+{
+  "runner": "SPARKLE",
+  "color": { "palette": 32 },
+  "width": 80,
+  "waves": 6,
+  "duration": 0
+}
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `waves` (`params[5]`) | Spawn rate — **flashes per second** | 1 |
+| `width` (`params[0]`) | Fade-out duration (`0`–`255`, longer = slower) | 0 (instant off) |
+
+Needs `schemaVersion: 7`.
+
+---
+
+### MATRIX
+
+MATRIX is the **constant-speed** cousin of RAIN — the classic *digital-rain* look. Same particle
+spawner (drops with a soft head + fading `width` tail, spawned at `waves`/sec, jittered), but where
+RAIN's speed varies per drop, **every MATRIX drop falls at the same uniform speed** (velocity =
+field span ÷ `speed`), with a **softened leading edge**.
+
+- **Geometric** (`directionality:geometric`, the default): each drop is a **straight line** down the
+  `angle` axis at a random position — it lights the panels the line passes through, **antialiased**:
+  brightness falls off (smoothstep) with a panel's perpendicular distance to the line over a soft
+  *virtual width*, so the column reads as a smooth line rather than a few hard-lit panels. Many lines
+  at different positions = falling columns. `angle` sets the fall direction; `reverse` (or
+  `angle ± 180°`) flips it.
+- **Topology**: a random root→leaf tree path, but each hop takes `speed` ÷ tree-depth — so every
+  drop falls at the same rate (this is what distinguishes it from RAIN's per-drop pacing).
+
+```json
+{
+  "runner": "MATRIX",
+  "color": { "palette": 96 },
+  "angle": 270,
+  "width": 3,
+  "waves": 4,
+  "speed": 1200,
+  "duration": 0
+}
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `waves` (`params[5]`) | Spawn rate — **drops per second** | 1 |
+| `speed` (ms) | Drop fall-time — one drop's trip down the field (constant for all drops) | 1000 |
+| `width` (`params[0]`) | Tail length in rings behind the head | 0 |
+| `angle` | Geometric fall direction (degrees); `reverse` flips it | 0 |
+
+Needs `schemaVersion: 7`. Contrast with [RAIN](#rain): RAIN's variable speed and organic,
+connection-following path vs. MATRIX's uniform speed and straight lines.
