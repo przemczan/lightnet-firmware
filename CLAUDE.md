@@ -21,7 +21,6 @@ Two distinct binaries are compiled from one source tree. `LIGHTNET_TARGET_CONTRO
 | [`docs/api.md`](docs/api.md) | WebSocket binary protocol (WebsocketApi) + all HTTP endpoints, request/response format |
 | [`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md) | **Scene authoring guide** — every scene/layer/step prop, topology, panel targeting (selectors/tags), directionality (`source`), colours/palettes, logical root, and an example-scene library |
 | [`docs/animations/`](docs/animations/index.md) | Animation reference: [`concepts`](docs/animations/concepts.md) (model/palettes/timing), [`types`](docs/animations/types.md) (per-type & runner params), [`api`](docs/animations/api.md) (HTTP/WS + examples) |
-| [`docs/design/scene-portability.md`](docs/design/scene-portability.md) | Design of device-agnostic scenes: topology selectors, φ-field directionality, tags, logical root, phasing |
 | [`docs/testing.md`](docs/testing.md) | Native host-side unit tests, what's covered, how to add new tests, MinGW setup |
 
 ---
@@ -134,9 +133,9 @@ count × { u8 address, u8 type, u8 size, u8[size] packet }
 ## Scene portability (topology selectors, directionality, tags)
 
 Scenes pick panels and give runners direction by **resolving against the discovered panel tree
-at play time**, so one scene adapts to devices with different panel counts/wiring. Design:
-[`docs/design/scene-portability.md`](docs/design/scene-portability.md); authoring:
-[`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md).
+at play time**, so one scene adapts to devices with different panel counts/wiring. Authoring:
+[`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md) (topology §2,
+selectors §6, directionality §8, logical root/tags §10).
 
 **Pure, natively-tested core** (`lib/Lightnet/Controller/Topology/`, no Arduino):
 

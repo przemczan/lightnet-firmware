@@ -12,7 +12,7 @@
 //   [1,3,5]          → [INDICES 3 1 3 5]
 //   {"exclude":[2]}  → [INDICES 1 2  NOT]      (all panels minus {2})
 //
-// See docs/design/scene-portability.md §3–§4.
+// See docs/animations/scene-authoring.md §6.
 // ============================================================================
 
 #include <stdint.h>

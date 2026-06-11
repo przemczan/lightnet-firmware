@@ -1,7 +1,7 @@
-// Native unit tests for lib/Lightnet/Controller/Topology/PanelSelector.hpp
+﻿// Native unit tests for lib/Lightnet/Controller/Topology/PanelSelector.hpp
 // Run with: pio test -e native -f test_panel_selector
 //
-// Same worked topology as test_topology (docs/design/scene-portability.md §2),
+// Same worked topology as test_topology (docs/animations/scene-authoring.md Â§2),
 // rooted at panel 1. emitPanelIndices yields panels in slot (discovery) order,
 // which for this fixture is ascending panel index.
 
@@ -25,7 +25,7 @@ static const TopoLink LINKS[] = {
 static PanelGraph graph;
 static TopologyIndex topo;
 
-// Mock tag resolver: "accent" → panels 1 and 5.
+// Mock tag resolver: "accent" â†’ panels 1 and 5.
 struct MockTags : ITagResolver {
     void panelsForTag(const char *name, const TopologyIndex& t, PanelSet& out) const override
     {
@@ -176,7 +176,7 @@ void test_first_last()
 
 void test_fraction()
 {
-    // fraction:0-0.5 ≈ [0, 128/255] → canonical positions 0,1,2 → panels 1,2,4
+    // fraction:0-0.5 â‰ˆ [0, 128/255] â†’ canonical positions 0,1,2 â†’ panels 1,2,4
     uint8_t ops[] = { SEL_FRACTION, 0, 128 };
     uint8_t e[]   = { 1, 2, 4 };
 
@@ -193,7 +193,7 @@ void test_indices()
 
 void test_indices_skips_missing()
 {
-    // panel 9 doesn't exist on this device → skipped
+    // panel 9 doesn't exist on this device â†’ skipped
     uint8_t ops[] = { SEL_INDICES, 2, 1, 9 };
     uint8_t e[]   = { 1 };
 
@@ -280,7 +280,7 @@ void test_tag_no_resolver_is_empty()
 
 void test_tag_composition()
 {
-    // accent ∪ leaves = {1,5} ∪ {4,6} = {1,4,5,6}
+    // accent âˆª leaves = {1,5} âˆª {4,6} = {1,4,5,6}
     PanelSelector sel;
 
     sel.clear();
@@ -305,7 +305,7 @@ void test_tag_composition()
 
 void test_tag_truncated_rejected()
 {
-    // Claims 5 name bytes but only 1 is present → malformed, rejected (no overread).
+    // Claims 5 name bytes but only 1 is present â†’ malformed, rejected (no overread).
     PanelSelector sel;
 
     sel.clear();
@@ -340,7 +340,7 @@ void test_v2_index_list()
 
 void test_v2_exclude()
 {
-    // {"exclude":[2]} → all panels minus {2}
+    // {"exclude":[2]} â†’ all panels minus {2}
     uint8_t ops[] = { SEL_INDICES, 1, 2, SEL_NOT };
     uint8_t e[]   = { 1, 3, 4, 5, 6 };
 

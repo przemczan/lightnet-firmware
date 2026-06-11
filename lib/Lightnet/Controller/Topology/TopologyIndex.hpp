@@ -11,7 +11,7 @@
 // "Rooted view" means: given a chosen root panel, it computes BFS depth, parent
 // pointers, child counts (→ leaf/branch), a deterministic canonical traversal
 // order, plus subtree / multi-source distance helpers. Re-rooting the tree (see
-// docs/design/scene-portability.md §4.1) is simply build() with a different
+// docs/animations/scene-authoring.md §10) is simply build() with a different
 // root — everything downstream reads this index, never the raw graph.
 // ============================================================================
 

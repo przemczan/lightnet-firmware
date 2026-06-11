@@ -471,7 +471,8 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations re
 
 Beyond `"all"` and explicit index arrays, a layer's `"panels"` accepts **graph selectors** and
 **tags**, and runner steps accept a **source** for directionality. Full grammar, semantics, and
-worked examples live in [`docs/design/scene-portability.md`](../design/scene-portability.md); a summary:
+worked examples live in [Scene Authoring → Targeting panels](scene-authoring.md#6-targeting-panels-the-panels-field) and
+[Scene Authoring → Directionality](scene-authoring.md#8-directionality--the-source-field); a summary:
 
 - **Targeting** (`"panels"`): `"all"`, `[1,3,5]`, `{"exclude":[2]}` (v2, unchanged), plus graph
   selectors `"root"` / `"leaves"` / `"branches"` / `"depth:1-2"` / `"subtree:N"` / `"neighbors:N"` /

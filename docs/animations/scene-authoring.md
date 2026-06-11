@@ -221,8 +221,9 @@ Each entry in `layers`:
 ### 5.1 Compositing overlapping layers — `blend` & modifiers
 
 Layers that target the same panel run **at the same time** and are composited into the panel's
-single colour, in **array order** (earlier layers are *below* later ones). A panel composites up to
-**4** layers; extra layers (by array order) are dropped.
+single colour, in **array order** (earlier layers are *below* later ones). See
+[§11.1 Per-panel animation capacity](#111-per-panel-animation-capacity) for how many layers a
+single panel can run at once and what happens beyond that.
 
 Each layer is either a **source** (combines its colour with what's below via `blend`) or a
 **modifier** (transforms what's below):
@@ -686,6 +687,44 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 | `source` | `root` / `leaves` / `panel:N` |
 | `params` | ≤ 4 entries, each 0–255 |
 | `startAfter` | existing group, no self-reference, no cycle, target not infinite |
+
+### 11.1 Per-panel animation capacity
+
+Layers run *per panel* — every panel that a layer targets gets its own copy of that layer's
+current step, animating independently and then composited together (§5.1). Each panel has a
+**fixed budget of 14 concurrently running animations**, shared by everything currently active on
+that panel:
+
+- **Panel-local steps and runner pulses.** Each layer occupies **one** of these slots on every
+  panel it targets, for as long as that layer's current step is active there. A scene has at
+  most 8 layers, so ordinary layers alone never get close to the 14-slot ceiling.
+- **RAIN / SPARKLE / MATRIX particle spawners are different.** Each in-flight drop or flash is
+  its own animation, drawn from the *same* 14-slot budget. A spawner step doesn't reserve a
+  fixed number of slots up front — it just keeps spawning new drops/flashes into whatever
+  capacity is free, so its effective density depends on how many slots other layers are using
+  on the same panels at that moment.
+
+**What this means in practice:**
+
+- A handful of ordinary layers plus one or two spawner layers on the same panels is the normal
+  case and has plenty of headroom.
+- If you stack **many** layers (panel-local *and* runner) onto the same panels — especially
+  several together with spawner layers (RAIN/SPARKLE/MATRIX) — and their active steps overlap in
+  time, a panel can run out of capacity. When that happens the panel **silently drops** the
+  excess: a layer's step simply doesn't show on that panel until a slot frees up. Nothing errors
+  and the rest of the scene keeps playing.
+- Spawners specifically get **starved rather than dropped**: with less free capacity, fewer
+  drops/flashes are in flight at once, so RAIN/SPARKLE/MATRIX can look sparser than expected when
+  many other layers are simultaneously animating the same panels. Reduce the number of
+  simultaneously-active layers covering those panels, or narrow the spawner's `panels` selector,
+  to give it more room.
+- Layers that don't overlap in time (e.g. gated with `startAfter`, or simply not targeting the
+  same panels) don't compete for the same budget — only animations that are *actually running on
+  the same panel at the same moment* count against the 14.
+
+For the underlying mechanics (slot allocation, composite ordering, spawner pools), see
+[`AnimationPlayer.hpp`](../../lib/Lightnet/Core/Anim/AnimationPlayer.hpp) (`MAX_ANIM_SLOTS`) and
+[`ScenePlayer.cpp`](../../lib/Lightnet/Controller/Scenes/ScenePlayer.cpp) (`allocSpawnPools`).
 
 ---
 

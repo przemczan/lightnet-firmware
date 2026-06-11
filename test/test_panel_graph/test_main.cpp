@@ -1,7 +1,7 @@
-// Native unit tests for lib/Lightnet/Controller/Topology/PanelGraph.hpp
+﻿// Native unit tests for lib/Lightnet/Controller/Topology/PanelGraph.hpp
 // Run with: pio test -e native -f test_panel_graph
 //
-// Same worked topology as test_topology (docs/design/scene-portability.md §2):
+// Same worked topology as test_topology (docs/animations/scene-authoring.md Â§2):
 //
 //             [1]  root            depth 0
 //            /   \
@@ -12,8 +12,8 @@
 //                     [6]          depth 3
 //
 // PanelGraph is the root-independent raw adjacency that TopologyIndex and
-// PanelGeometry both build their rooted views on top of (see PanelGraph.hpp) —
-// this suite exercises that shared surface directly: slot↔panel-index mapping,
+// PanelGeometry both build their rooted views on top of (see PanelGraph.hpp) â€”
+// this suite exercises that shared surface directly: slotâ†”panel-index mapping,
 // CSR adjacency, and the per-side connector indices the rooted views need.
 
 #include <unity.h>
@@ -25,8 +25,8 @@ using namespace Lightnet;
 static const uint8_t PANELS[] = { 1, 2, 3, 4, 5, 6 };
 
 static const TopoLink LINKS[] = {
-    { 1, 0, 2, 0 },  // root edge0 → 2
-    { 1, 1, 3, 0 },  // root edge1 → 3
+    { 1, 0, 2, 0 },  // root edge0 â†’ 2
+    { 1, 1, 3, 0 },  // root edge1 â†’ 3
     { 2, 1, 4, 0 },
     { 3, 1, 5, 0 },
     { 5, 1, 6, 0 },
@@ -102,7 +102,7 @@ void test_neighbor_slots_are_symmetric()
 
 void test_neighbor_edges_match_links()
 {
-    // Link {1,edge0 → 2,edge0}: from 1's side, my edge is 0 (edgeA), peer edge is 0 (edgeB).
+    // Link {1,edge0 â†’ 2,edge0}: from 1's side, my edge is 0 (edgeA), peer edge is 0 (edgeB).
     uint8_t i = neighborOffset(slot(1), slot(2));
 
     TEST_ASSERT_TRUE(i != 0xFF);
@@ -116,7 +116,7 @@ void test_neighbor_edges_match_links()
     TEST_ASSERT_EQUAL_UINT8(0, graph.neighborMyEdge(slot(2), j));
     TEST_ASSERT_EQUAL_UINT8(0, graph.neighborPeerEdge(slot(2), j));
 
-    // Link {1,edge1 → 3,edge0}: from 1's side toward 3, my edge is 1 (edgeA), peer edge is 0 (edgeB).
+    // Link {1,edge1 â†’ 3,edge0}: from 1's side toward 3, my edge is 1 (edgeA), peer edge is 0 (edgeB).
     uint8_t k = neighborOffset(slot(1), slot(3));
 
     TEST_ASSERT_TRUE(k != 0xFF);

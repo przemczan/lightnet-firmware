@@ -1,7 +1,7 @@
-// Native unit tests for lib/Lightnet/Controller/Topology/PanelField.hpp
+﻿// Native unit tests for lib/Lightnet/Controller/Topology/PanelField.hpp
 // Run with: pio test -e native -f test_panel_field
 //
-// Worked topology (docs/design/scene-portability.md §2), rooted at panel 1.
+// Worked topology (docs/animations/scene-authoring.md Â§2), rooted at panel 1.
 
 #include <unity.h>
 #include <string.h>
@@ -70,7 +70,7 @@ void test_source_all_is_uniform()
 
 void test_reverse_flips_field()
 {
-    // root field [0,1,1,2,2,3] reversed about maxCoord 3 → [3,2,2,1,1,0]
+    // root field [0,1,1,2,2,3] reversed about maxCoord 3 â†’ [3,2,2,1,1,0]
     uint8_t e[] = { 3, 2, 2, 1, 1, 0 };
 
     checkField(SRC_ROOT, 0, true, e, 3);
@@ -78,7 +78,7 @@ void test_reverse_flips_field()
 
 void test_missing_panel_falls_back_to_root()
 {
-    // SRC_PANEL naming a panel that doesn't exist → empty source → root fallback
+    // SRC_PANEL naming a panel that doesn't exist â†’ empty source â†’ root fallback
     uint8_t e[] = { 0, 1, 1, 2, 2, 3 };
 
     checkField(SRC_PANEL, 99, false, e, 3);
@@ -86,7 +86,7 @@ void test_missing_panel_falls_back_to_root()
 
 void test_maxcoord_is_over_targeted_subset()
 {
-    // Target only leaves {4,6}; from root their coords are 2 and 3 → maxCoord 3.
+    // Target only leaves {4,6}; from root their coords are 2 and 3 â†’ maxCoord 3.
     static const uint8_t subset[] = { 4, 6 };
     uint8_t coord[LIGHTNET_MAX_PANELS];
     uint8_t maxC = computeDistanceField(topo, subset, 2, SRC_ROOT, 0, false, coord);

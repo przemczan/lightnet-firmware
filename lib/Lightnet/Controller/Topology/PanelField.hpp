@@ -5,7 +5,7 @@
 //
 // A moving runner (WAVE/RIPPLE/CHASE) sweeps a 1-D spatial coordinate over time.
 // That coordinate is each panel's graph **hop-distance from a source set** — the
-// (un-normalised) φ-field of docs/design/scene-portability.md §6. Raw hops are
+// (un-normalised) φ-field of docs/animations/scene-authoring.md §8. Raw hops are
 // used deliberately: width parameters stay in intuitive ring units, a chain
 // rooted at one end reproduces the legacy list-order behaviour, and there is no
 // division by maxCoord (so a zero-span field can't divide by zero).

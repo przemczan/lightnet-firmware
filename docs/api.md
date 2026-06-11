@@ -436,7 +436,7 @@ These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANE
 
 ### 2.7 Topology (logical root + panel tags)
 
-Per-device topology configuration that scene **panel selectors** resolve against (see [`docs/design/scene-portability.md`](design/scene-portability.md)). Stored in `/config/topology.json`, written atomically.
+Per-device topology configuration that scene **panel selectors** resolve against (see [Scene Authoring → Targeting panels](animations/scene-authoring.md#6-targeting-panels-the-panels-field) and [§10 Per-device topology config](animations/scene-authoring.md#10-per-device-topology-config-logical-root--tags)). Stored in `/config/topology.json`, written atomically.
 
 | Method | Path | Body | Response |
 |---|---|---|---|

@@ -1,7 +1,7 @@
-// Native unit tests for lib/Lightnet/Controller/Topology/TopologyIndex.hpp
+﻿// Native unit tests for lib/Lightnet/Controller/Topology/TopologyIndex.hpp
 // Run with: pio test -e native -f test_topology
 //
-// Fixture is the "worked topology" from docs/design/scene-portability.md §2:
+// Fixture is the "worked topology" from docs/animations/scene-authoring.md Â§2:
 //
 //             [1]  root            depth 0
 //            /   \
@@ -12,7 +12,7 @@
 //                     [6]          depth 3
 //
 // Connector indices are chosen so the canonical (DFS, connector-order) traversal
-// is 1, 2, 4, 3, 5, 6 — matching the doc.
+// is 1, 2, 4, 3, 5, 6 â€” matching the doc.
 
 #include <unity.h>
 #include <string.h>
@@ -24,8 +24,8 @@ using namespace Lightnet;
 static const uint8_t PANELS[] = { 1, 2, 3, 4, 5, 6 };
 
 static const TopoLink LINKS[] = {
-    { 1, 0, 2, 0 },  // root edge0 → 2
-    { 1, 1, 3, 0 },  // root edge1 → 3
+    { 1, 0, 2, 0 },  // root edge0 â†’ 2
+    { 1, 1, 3, 0 },  // root edge1 â†’ 3
     { 2, 1, 4, 0 },
     { 3, 1, 5, 0 },
     { 5, 1, 6, 0 },
@@ -158,7 +158,7 @@ void test_distances_from_root()
 
     topo.distancesFrom(src, dist);
 
-    // φ source:root numerators (doc §6.1)
+    // Ï† source:root numerators (doc Â§6.1)
     TEST_ASSERT_EQUAL_UINT8(0, dist[slot(1)]);
     TEST_ASSERT_EQUAL_UINT8(1, dist[slot(2)]);
     TEST_ASSERT_EQUAL_UINT8(1, dist[slot(3)]);
@@ -181,7 +181,7 @@ void test_distances_from_leaves()
 
     topo.distancesFrom(src, dist);
 
-    // φ source:leaves numerators (doc §6.1): 4→0 6→0 5→1 2→1 1→2 3→2
+    // Ï† source:leaves numerators (doc Â§6.1): 4â†’0 6â†’0 5â†’1 2â†’1 1â†’2 3â†’2
     TEST_ASSERT_EQUAL_UINT8(0, dist[slot(4)]);
     TEST_ASSERT_EQUAL_UINT8(0, dist[slot(6)]);
     TEST_ASSERT_EQUAL_UINT8(1, dist[slot(5)]);
@@ -191,7 +191,7 @@ void test_distances_from_leaves()
 }
 
 // ---------------------------------------------------------------------------
-// Re-rooting (docs §4.1)
+// Re-rooting (docs Â§4.1)
 // ---------------------------------------------------------------------------
 
 void test_reroot_at_panel_3()
@@ -219,7 +219,7 @@ void test_reroot_at_panel_3()
 
 void test_unknown_root_falls_back_to_smallest()
 {
-    buildWorked(200); // panel 200 doesn't exist → fall back to physical root (index 1)
+    buildWorked(200); // panel 200 doesn't exist â†’ fall back to physical root (index 1)
 
     TEST_ASSERT_EQUAL_UINT8(slot(1), topo.root());
     TEST_ASSERT_EQUAL_UINT8(0, topo.depthOf(slot(1)));

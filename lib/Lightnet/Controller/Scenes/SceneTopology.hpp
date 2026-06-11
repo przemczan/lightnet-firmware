@@ -7,7 +7,7 @@
 // rooted TopologyIndex and the planar PanelGeometry) and resolves a layer's
 // PanelSelector against them. Split out of ScenePlayer purely for separation
 // of concerns — the playback state machine stays focused on timing/state while
-// this owns topology/targeting. See docs/design/scene-portability.md.
+// this owns topology/targeting. See docs/animations/scene-authoring.md §2, §6, §8.
 //
 // Not pure (rebuild() reads the live PanelsInitializer), but its core is a thin
 // composition over the natively-tested PanelGraph / TopologyIndex /
@@ -156,7 +156,7 @@ namespace Lightnet {
             // rooted views below (see PanelGraph.hpp).
             PanelGraph graph;
             // Rooted view of the tree; layer selectors and the hop-distance field resolve
-            // against this. See docs/design/scene-portability.md.
+            // against this. See docs/animations/scene-authoring.md §2, §6, §8.
             TopologyIndex topo;
             // Planar layout of the same tree, anchored at the lowest panel index (visualizer
             // frame), used by geometric runner directionality. Independent of logicalRoot_.

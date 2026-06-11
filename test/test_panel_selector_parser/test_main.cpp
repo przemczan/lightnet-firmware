@@ -1,9 +1,9 @@
-// Native unit tests for lib/Lightnet/Controller/Topology/PanelSelectorParser.hpp
+﻿// Native unit tests for lib/Lightnet/Controller/Topology/PanelSelectorParser.hpp
 // Run with: pio test -e native -f test_panel_selector_parser
 //
-// End-to-end: parse a JSON "panels" value → PanelSelector RPN → resolve against
-// the worked topology (docs/design/scene-portability.md §2, rooted at panel 1)
-// → assert the emitted panel list.
+// End-to-end: parse a JSON "panels" value â†’ PanelSelector RPN â†’ resolve against
+// the worked topology (docs/animations/scene-authoring.md Â§2, rooted at panel 1)
+// â†’ assert the emitted panel list.
 
 #include <unity.h>
 #include <string.h>
@@ -215,7 +215,7 @@ void test_not()
 
 void test_nested()
 {
-    // root ∪ (leaves ∩ subtree:3) = {1} ∪ {6} = {1,6}
+    // root âˆª (leaves âˆ© subtree:3) = {1} âˆª {6} = {1,6}
     uint8_t e[] = { 1, 6 };
 
     parseResolve("{\"any\":[\"root\",{\"all\":[\"leaves\",\"subtree:3\"]}]}", e, sizeof(e));

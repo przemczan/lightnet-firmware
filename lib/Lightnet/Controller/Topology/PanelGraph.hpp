@@ -9,7 +9,7 @@
 // underlying graph (rooted at logicalRoot and at the lowest panel index,
 // respectively) — so the raw graph itself is identical between them and is
 // built once here and borrowed by both, instead of being recomputed and
-// stored twice. See docs/architecture.md and docs/design/scene-portability.md.
+// stored twice. See docs/architecture.md and docs/animations/scene-authoring.md §2.
 //
 // Pure C++ (no Arduino), so it is unit-testable natively.
 // ============================================================================

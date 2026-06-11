@@ -5,7 +5,7 @@
 // PanelSelector RPN program. Pure C++ (SimpleJson + PanelSelector only) → it is
 // unit-testable natively and is delegated to by the Arduino-bound SceneParser.
 //
-// Grammar (docs/design/scene-portability.md §3.1):
+// Grammar (docs/animations/scene-authoring.md §6):
 //   value := indexArray | "token" | object
 //   indexArray := [ uint, … ]                       → INDICES
 //   token  := all|root|leaves|branches|even|odd
