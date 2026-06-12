@@ -19,8 +19,8 @@
         "summary": "Update Appearance",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — validated; applied to panels on the main loop"
           }
         },
         "requestBody": {
@@ -219,8 +219,8 @@
         "summary": "Play Inline Scene (stored as 'Current', then played by name)",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — validated; the play/trigger work was queued onto the main loop"
           },
           "409": {
             "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
@@ -257,8 +257,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — validated; the play/trigger work was queued onto the main loop"
           },
           "409": {
             "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
@@ -271,8 +271,8 @@
         "summary": "Stop Scene Playback",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — stop queued onto the main loop"
           }
         }
       }
@@ -282,8 +282,8 @@
         "summary": "Set Scene Playback Speed",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — speed change queued onto the main loop"
           }
         },
         "requestBody": {
@@ -316,8 +316,8 @@
         "summary": "Play One-Shot Animation",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — validated; the play/trigger work was queued onto the main loop"
           },
           "409": {
             "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
@@ -349,8 +349,8 @@
         "summary": "Trigger Reactive Animation",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — validated; the play/trigger work was queued onto the main loop"
           },
           "409": {
             "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
@@ -420,7 +420,7 @@
         "summary": "Set Logical Root Panel",
         "parameters": [],
         "responses": {
-          "200": { "description": "OK" },
+          "202": { "description": "Accepted — applied to a playing scene on the main loop" },
           "422": { "description": "logicalRoot out of range" }
         },
         "requestBody": {
@@ -508,8 +508,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — packet queued onto the main loop"
           }
         },
         "requestBody": {
@@ -548,8 +548,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "202": {
+            "description": "Accepted — packet queued onto the main loop"
           }
         },
         "requestBody": {
@@ -640,8 +640,8 @@
         "summary": "Set Power State",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": "OK",
+          "202": {
+            "description": "Accepted — state flipped; panel on/off effects applied on the main loop",
             "content": {
               "application/json": {
                 "example": {

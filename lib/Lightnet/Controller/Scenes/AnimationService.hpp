@@ -110,6 +110,38 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
 
+            // --- Deferred-play split ------------------------------------------------
+            // HTTP handlers run on the AsyncTCP task, but scene playback emits I2C
+            // packets that must originate on the main-loop task (see MainLoopQueue and
+            // PacketMirror's flush-on-overflow). So the work is split: prepare* (parse /
+            // validate / persist — pure, safe on AsyncTCP) runs in the handler and
+            // surfaces errors synchronously; playParsed* (emits packets) is deferred
+            // onto the main loop. The non-split play* methods above remain for callers
+            // that already run on the main loop (e.g. demos).
+
+            // Parse + validate an inline body and persist it under the reserved name,
+            // WITHOUT playing. Caller plays `out` later via playParsed (on the main loop).
+            SceneResult prepareInline(const char *body, size_t len, SceneParseResult& out);
+
+            // Load a stored scene by name and parse it, WITHOUT playing.
+            SceneResult prepareByName(const char *name, SceneParseResult& out);
+
+            // Parse a one-shot body into a single layer, WITHOUT playing.
+            SceneResult prepareOneShot(const char *body, size_t len, SceneLayer& out);
+
+            // Play an already-parsed scene / one-shot layer. Emits I2C packets — call
+            // only from the main loop.
+            SceneResult playParsed(
+                SceneParseResult&        parsed,
+                const char *             defaultPalette,
+                const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+            );
+            SceneResult playParsedOneShot(
+                SceneLayer&              layer,
+                const char *             defaultPalette,
+                const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+            );
+
             // Stop the currently playing scene. Scene data is kept in memory so
             // resumeScene() can restart it later (e.g. after power-on).
             void stopScene();

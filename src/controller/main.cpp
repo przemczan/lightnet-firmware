@@ -10,6 +10,7 @@ AsyncWiFiManager *wifiManager;
 WebsocketServer *websocketServer;
 WebsocketHandler *websocketHandler;
 PacketMirror *packetMirror = nullptr;
+Lightnet::MainLoopQueue *mainLoopQueue = nullptr;
 
 // LightnetBus::onPacketSent is a plain function pointer, so it can't capture.
 // Forward captured packets to the (global) mirror once it exists.
@@ -227,8 +228,13 @@ void setupWiFi()
     websocketServer = new WebsocketServer(webServer);
     websocketHandler = new WebsocketHandler(websocketServer, panelsController, animScheduler);
 
+    // Deferred-execution queue: HTTP handlers post their packet-emitting work here so it
+    // runs on the main loop (drained in case 1), keeping all capture() calls single-task.
+    mainLoopQueue = new Lightnet::MainLoopQueue();
+
     // Mirror outbound animation/color packets to WebSocket clients for live preview.
     packetMirror = new PacketMirror();
+    packetMirror->setServer(websocketServer);  // enables flush-on-overflow in capture()
     LNBus.setOnPacketSent(mirrorOutboundPacket);
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
@@ -370,15 +376,15 @@ void loop()
 
                 setupWiFi();
 
-                appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore, *animService);
+                appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore, *animService, *mainLoopQueue);
                 appearanceServer->begin();
                 paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
                 paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore, *appearance);
+                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore, *appearance, *mainLoopQueue);
                 sceneServer->begin();
-                animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance, *appStateStore);
+                animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance, *appStateStore, *mainLoopQueue);
                 animServer->begin();
-                panelServer = new Lightnet::PanelServer(*webServer, *panelsController);
+                panelServer = new Lightnet::PanelServer(*webServer, *panelsController, *mainLoopQueue);
                 panelServer->begin();
                 configServer = new Lightnet::ConfigurationServer(*webServer, *configStore);
                 configServer->begin();
@@ -388,10 +394,11 @@ void loop()
                                                         *animService,
                                                         *animScheduler,
                                                         *appearance,
+                                                        *mainLoopQueue,
                                                         packetMirror);
                 stateServer->begin();
 
-                topologyServer = new Lightnet::TopologyServer(*webServer, *topologyConfig, *scenePlayer);
+                topologyServer = new Lightnet::TopologyServer(*webServer, *topologyConfig, *scenePlayer, *mainLoopQueue);
                 topologyServer->begin();
 
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
@@ -430,6 +437,10 @@ void loop()
 
                 if (!panelFlasher || !panelFlasher->isActive()) {
                     websocketHandler->handleIncommingMessages();
+
+                    // Run work deferred by HTTP handlers (scene play, power, appearance, …)
+                    // on the main loop so all packet emission stays single-task.
+                    if (mainLoopQueue) mainLoopQueue->drain();
 
                     if (animScheduler && appStateStore->isOn()) animScheduler->tick(millis());
 

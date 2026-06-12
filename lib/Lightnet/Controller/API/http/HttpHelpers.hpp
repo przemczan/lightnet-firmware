@@ -123,6 +123,22 @@ namespace Lightnet {
             req->send(200, "application/json", json);
         }
 
+        // 202 Accepted: the request validated and its work was queued onto the main
+        // loop (see MainLoopQueue). Used by mutating endpoints whose side effects —
+        // I2C packet emission, ScenePlayer changes — must not run on the AsyncTCP task.
+        inline void sendAccepted(AsyncWebServerRequest *req)
+        {
+            DEBUG_IF(DEBUG_API, detail::logResponse(req, 202, "{\"ok\":true}"));
+            req->send(202, "application/json", "{\"ok\":true}");
+        }
+
+        // 202 with a caller-supplied JSON body (e.g. to echo the accepted value).
+        inline void sendAcceptedJson(AsyncWebServerRequest *req, const char *json)
+        {
+            DEBUG_IF(DEBUG_API, detail::logResponse(req, 202, json));
+            req->send(202, "application/json", json);
+        }
+
         inline void sendError(AsyncWebServerRequest *req, int code, const char *msg)
         {
             char buf[128];

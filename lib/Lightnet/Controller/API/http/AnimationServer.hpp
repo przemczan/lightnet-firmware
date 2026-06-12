@@ -5,6 +5,7 @@
 #include "../../Animations/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../AppState/AppStateStore.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
     class AnimationServer
@@ -15,7 +16,8 @@ namespace Lightnet {
                 AnimationService&   animService,
                 AnimationScheduler& scheduler,
                 AppearanceStore&    appearance,
-                AppStateStore&      appState
+                AppStateStore&      appState,
+                MainLoopQueue&      queue
             );
 
             void begin();
@@ -26,6 +28,7 @@ namespace Lightnet {
             AnimationScheduler& scheduler;
             AppearanceStore& appearance;
             AppStateStore& appState;
+            MainLoopQueue& queue;
 
             void registerRoutes();
 

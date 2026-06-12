@@ -5,6 +5,7 @@
 #include "../../Scenes/AnimationService.hpp"
 #include "../../AppState/AppStateStore.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
     class SceneServer
@@ -15,7 +16,8 @@ namespace Lightnet {
                 ScenePlayer&      player,
                 AnimationService& animService,
                 AppStateStore&    appState,
-                AppearanceStore&  appearance
+                AppearanceStore&  appearance,
+                MainLoopQueue&    queue
             );
 
             void begin();
@@ -26,8 +28,13 @@ namespace Lightnet {
             AnimationService& animService;
             AppStateStore& appState;
             AppearanceStore& appearance;
+            MainLoopQueue& queue;
 
             void registerRoutes();
+
+            // Queue an already-parsed scene to be played on the main loop. Takes
+            // ownership of `parsed` (freed by the task, or here if the queue is full).
+            void deferPlay(AsyncWebServerRequest *req, SceneParseResult *parsed);
 
             void handleListScenes(AsyncWebServerRequest *req);
             void handleGetSceneStatus(AsyncWebServerRequest *req);

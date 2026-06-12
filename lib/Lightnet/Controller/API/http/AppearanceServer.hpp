@@ -4,6 +4,7 @@
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../Palettes/PaletteStore.hpp"
 #include "../../Scenes/AnimationService.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
     class AppearanceServer
@@ -13,7 +14,8 @@ namespace Lightnet {
                 AsyncWebServer&   server,
                 AppearanceStore&  appearance,
                 PaletteStore&     palettes,
-                AnimationService& animService
+                AnimationService& animService,
+                MainLoopQueue&    queue
             );
 
             void begin();
@@ -23,6 +25,7 @@ namespace Lightnet {
             AppearanceStore& appearance;
             PaletteStore& palettes;
             AnimationService& animService;
+            MainLoopQueue& queue;
 
             void registerRoutes();
 

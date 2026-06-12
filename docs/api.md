@@ -243,14 +243,21 @@ To turn panel 3 on:
 
 ## 2. HTTP API
 
-All endpoints return `application/json`. Successful mutations return `200 {}`. All ports are 80.
+All endpoints return `application/json`. All ports are 80.
+
+Mutating endpoints whose side effects emit I²C packets to panels — scene play/stop/speed, one-shot
+play, animation trigger, appearance PATCH, per-panel on/color, power, and topology root — **validate
+synchronously then queue the work onto the main loop**, returning `202 Accepted`. The change is
+applied on the next main-loop tick (sub-millisecond later); validation failures (`4xx`) are still
+returned synchronously, and a full queue returns `503 busy`. Read-only endpoints and pure
+filesystem/config mutations (scene/palette save & delete, config PATCH, panel-tags) return `200`.
 
 ### 2.1 Appearance
 
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `GET` | `/api/appearance` | — | `{"brightness":N,"baseColors":["#..","#..","#.."],"palette":"..."}` |
-| `PATCH` | `/api/appearance` | Any subset of the three fields | `{}` |
+| `PATCH` | `/api/appearance` | Any subset of the three fields | `202 {}` (applied on the main loop) |
 
 Persists to `/config/appearance.json` atomically and broadcasts the updated value to all panels immediately.
 
@@ -297,10 +304,10 @@ Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes/play` | Full scene JSON body — stored under the reserved name `Current`, then played by name | `{}` |
-| `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `{}` |
-| `POST` | `/api/scenes/stop` | — | `{}` |
-| `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `{"ok":true,"speed":2.0}` |
+| `POST` | `/api/scenes/play` | Full scene JSON body — stored under the reserved name `Current`, then played by name | `202 {}` (parsed/validated synchronously; played on the main loop) |
+| `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `202 {}` |
+| `POST` | `/api/scenes/stop` | — | `202 {}` |
+| `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `202 {"ok":true,"speed":2.0}` |
 | `GET` | `/api/scenes/status` | — | See below |
 
 Status response while playing:
@@ -343,7 +350,7 @@ Content-Type: application/json
 
 For chained steps (e.g. pulse → fade-out), use `POST /api/scenes/play` with a full scene body containing one layer with the desired sequence, and a free group ID.
 
-Response: `200 {}`
+Response: `202 {}` (parsed synchronously; played on the main loop)
 
 #### Reactive trigger (HTTP alternative to WebSocket)
 
@@ -356,7 +363,7 @@ Content-Type: application/json
 
 `group` accepts a numeric ID **or** the string name used in the scene JSON (e.g. `"group": "layer5"`). The name is resolved against the currently playing scene; `group_not_found` is returned if no loaded layer has that name.
 
-Response: `200 {}`
+Response: `202 {}` (trigger applied on the main loop)
 
 !!! tip
     Use the WebSocket `ANIMATION_TRIGGER` (type 8) when latency matters — HTTP adds ~5 ms compared to the sub-millisecond path through the WebSocket handler.
@@ -423,8 +430,8 @@ Direct per-panel control. These endpoints bypass the animation system — any ru
 |---|---|---|---|
 | `GET` | `/api/panels` | — | `[{"address":N,"on":true,"color":"#RRGGBB"},...]` |
 | `GET` | `/api/panels/edges` | — | `[{"panel":N,"edge":N,"connectedPanel":N,"connectedEdge":N},...]` |
-| `PUT` | `/api/panels/:address/on` | `{"value":1}` | `{}` |
-| `PUT` | `/api/panels/:address/color` | `{"color":"#FF0000"}` | `{}` |
+| `PUT` | `/api/panels/:address/on` | `{"value":1}` | `202 {}` |
+| `PUT` | `/api/panels/:address/color` | `{"color":"#FF0000"}` | `202 {}` |
 
 `:address` is the panel's I²C index as returned by `GET /api/panels`.
 
@@ -441,7 +448,7 @@ Per-device topology configuration that scene **panel selectors** resolve against
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `GET` | `/api/topology` | — | `{"logicalRoot":5,"tags":{"1":["accent"],"5":["accent"]}}` |
-| `PUT` | `/api/topology/root` | `{"logicalRoot":N}` (1–255, or 0 to reset to the physical root) | `{"ok":true,"logicalRoot":N}` |
+| `PUT` | `/api/topology/root` | `{"logicalRoot":N}` (1–255, or 0 to reset to the physical root) | `202 {"ok":true,"logicalRoot":N}` |
 | `GET` | `/api/panel-tags` | — | `{"1":["accent","left"],"5":["accent"]}` |
 | `PUT` | `/api/panel-tags` | tag map (whole-map replace) | `{}` |
 
@@ -482,7 +489,7 @@ reserved name `Current`, see §2.3 Scenes).
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedScene":"sunset"}` |
-| `POST` | `/api/state/power` | `{"isOn":bool}` | `{"isOn":bool}` |
+| `POST` | `/api/state/power` | `{"isOn":bool}` | `202 {"isOn":bool}` (panel effects applied on the main loop) |
 
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.
 - Setting `isOn: true` turns all panels back on and re-broadcasts the current appearance (brightness, palette, base colors).
@@ -495,8 +502,10 @@ reserved name `Current`, see §2.3 Scenes).
 
 | Code | Meaning |
 |---|---|
-| `200 {}` | Success |
+| `200 {}` | Success (read-only or filesystem/config mutation) |
+| `202 {}` | Accepted — validated; the packet-emitting work was queued onto the main loop |
 | `404 {"error":"not_found"}` | Named scene or palette does not exist |
+| `503 {"error":"busy"}` | Main-loop work queue is full; retry shortly |
 | `409 {"error":"..."}` | Conflict — flash already running, or scene schema version too new for this firmware |
 | `422 {"error":"..."}` | Validation failure — the request body is invalid; no state was changed |
 | `403 {"error":"..."}` | Operation not permitted (e.g. deleting a built-in palette) |

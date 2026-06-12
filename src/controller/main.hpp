@@ -10,6 +10,7 @@
     #include "API/websocket/WebsocketHandler.hpp"
     #include "API/websocket/PacketMirror.hpp"
     #include "MirrorService.hpp"
+    #include "../../lib/Lightnet/Utils/MainLoopQueue.hpp"
     #include <ESPAsyncWebServer.h>
     #include <ESPAsyncWiFiManager.h>
     #ifdef ARDUINO_ARCH_ESP8266

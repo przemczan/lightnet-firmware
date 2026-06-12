@@ -6,6 +6,7 @@
 #include "../../Scenes/AnimationService.hpp"
 #include "../../Animations/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 class PacketMirror;  // forward declaration — only a pointer is stored
 
@@ -20,6 +21,7 @@ namespace Lightnet {
                 AnimationService&   animService,
                 AnimationScheduler& animScheduler,
                 AppearanceStore&    appearance,
+                MainLoopQueue&      queue,
                 PacketMirror *      packetMirror = nullptr
             );
 
@@ -32,6 +34,7 @@ namespace Lightnet {
             AnimationService& animService;
             AnimationScheduler& animScheduler;
             AppearanceStore& appearance;
+            MainLoopQueue& queue;
             PacketMirror *packetMirror;
 
             void registerRoutes();
@@ -39,6 +42,8 @@ namespace Lightnet {
             void handleGetState(AsyncWebServerRequest *req);
             void handlePostPower(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
 
-            void applyIsOn(bool newValue);
+            // Emits the on/off side effects (panel packets, scene stop/resume). Runs on
+            // the main loop; the caller has already flipped appState via setIsOn().
+            void applyPowerEffects(bool on);
     };
 }  // namespace Lightnet

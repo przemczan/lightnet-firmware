@@ -3,6 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include "../../Topology/TopologyConfigStore.hpp"
 #include "../../Scenes/ScenePlayer.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
     // HTTP surface for per-device topology config (logical root + panel tags).
@@ -13,7 +14,7 @@ namespace Lightnet {
     class TopologyServer
     {
         public:
-            TopologyServer(AsyncWebServer& server, TopologyConfigStore& store, ScenePlayer& player);
+            TopologyServer(AsyncWebServer& server, TopologyConfigStore& store, ScenePlayer& player, MainLoopQueue& queue);
 
             void begin();
 
@@ -21,6 +22,7 @@ namespace Lightnet {
             AsyncWebServer& server;
             TopologyConfigStore& store;
             ScenePlayer& player;
+            MainLoopQueue& queue;
 
             void registerRoutes();
 

@@ -39,27 +39,63 @@ namespace Lightnet {
     // Play
     // ---------------------------------------------------------------------------
 
-    SceneResult AnimationService::playSceneByName(
-        const char *             name,
-        const char *             defaultPalette,
-        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
-    )
+    SceneResult AnimationService::prepareByName(const char *name, SceneParseResult& out)
     {
         size_t n = 0;
         char *buf = scenes.load(name, n);
 
         if (!buf) return SceneResult::error(SceneError::NotFound, "scene not found");
 
-        SceneParseResult parsed;
-        bool ok = parseScene(buf, n, parsed);
+        bool ok = parseScene(buf, n, out);
 
         free(buf);
 
         if (!ok) {
-            SceneError e = isSchemaTooNew(parsed.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+            SceneError e = isSchemaTooNew(out.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
 
-            return SceneResult::error(e, parsed.errMsg);
+            return SceneResult::error(e, out.errMsg);
         }
+
+        return SceneResult::success();
+    }
+
+    SceneResult AnimationService::prepareInline(const char *body, size_t len, SceneParseResult& out)
+    {
+        if (!parseScene(body, len, out)) {
+            SceneError e = isSchemaTooNew(out.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+
+            return SceneResult::error(e, out.errMsg);
+        }
+
+        // Persist under the reserved "Current" name so the inline scene survives a
+        // cold boot the same way a named scene would (reloaded as the last-played
+        // scene; resumeScene() itself replays from in-memory state, not from this).
+        if (!scenes.save(SceneStore::reservedName(), body, len)) {
+            return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
+        }
+
+        return SceneResult::success();
+    }
+
+    SceneResult AnimationService::playParsed(
+        SceneParseResult&        parsed,
+        const char *             defaultPalette,
+        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+    )
+    {
+        return startPlay(parsed, defaultPalette, defaultColors);
+    }
+
+    SceneResult AnimationService::playSceneByName(
+        const char *             name,
+        const char *             defaultPalette,
+        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+    )
+    {
+        SceneParseResult parsed;
+        SceneResult r = prepareByName(name, parsed);
+
+        if (!r.ok()) return r;
 
         return startPlay(parsed, defaultPalette, defaultColors);
     }
@@ -72,29 +108,38 @@ namespace Lightnet {
     )
     {
         SceneParseResult parsed;
+        SceneResult r = prepareInline(body, len, parsed);
 
-        if (!parseScene(body, len, parsed)) {
-            SceneError e = isSchemaTooNew(parsed.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+        if (!r.ok()) return r;
 
-            return SceneResult::error(e, parsed.errMsg);
-        }
-
-        // Persist under the reserved "Current" name so the inline scene survives a
-        // cold boot the same way a named scene would (reloaded as the last-played
-        // scene; resumeScene() itself replays from in-memory state, not from this).
-        if (!scenes.save(SceneStore::reservedName(), body, len)) {
-            return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
-        }
-
-        // Already parsed and validated above — play it directly rather than reloading
-        // and re-parsing through playSceneByName, which would stack a second ~2.5 KB
-        // SceneParseResult underneath this one on the async HTTP handler's frame.
         return startPlay(parsed, defaultPalette, defaultColors);
     }
 
     // ---------------------------------------------------------------------------
     // One-shot
     // ---------------------------------------------------------------------------
+
+    SceneResult AnimationService::prepareOneShot(const char *body, size_t len, SceneLayer& out)
+    {
+        char errMsg[64];
+
+        if (!parseOneShotBody(body, len, out, errMsg, sizeof(errMsg))) {
+            return SceneResult::error(SceneError::Invalid, errMsg);
+        }
+
+        return SceneResult::success();
+    }
+
+    SceneResult AnimationService::playParsedOneShot(
+        SceneLayer&              layer,
+        const char *             defaultPalette,
+        const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
+    )
+    {
+        player.loadAndPlay(&layer, 1, false, "oneshot", defaultPalette, defaultColors, millis());
+
+        return SceneResult::success();
+    }
 
     SceneResult AnimationService::playOneShot(
         const char *             body,
@@ -104,15 +149,11 @@ namespace Lightnet {
     )
     {
         SceneLayer layer;
-        char errMsg[64];
+        SceneResult r = prepareOneShot(body, len, layer);
 
-        if (!parseOneShotBody(body, len, layer, errMsg, sizeof(errMsg))) {
-            return SceneResult::error(SceneError::Invalid, errMsg);
-        }
+        if (!r.ok()) return r;
 
-        player.loadAndPlay(&layer, 1, false, "oneshot", defaultPalette, defaultColors, millis());
-
-        return SceneResult::success();
+        return playParsedOneShot(layer, defaultPalette, defaultColors);
     }
 
     // ---------------------------------------------------------------------------

@@ -41,7 +41,7 @@ GET    /api/appearance
 PATCH  /api/appearance        {"brightness":192, "baseColors":["#FF4400","#FF8800","#000000"], "palette":"lava"}
 ```
 
-All fields are optional — omit any you don't want to change. Returns `200 {}` on success, `422 {"error":"..."}` on invalid input, persists to the filesystem, and broadcasts to panels.
+All fields are optional — omit any you don't want to change. Returns `202 {}` on success (validated synchronously; the broadcast to panels is applied on the next main-loop tick), `422 {"error":"..."}` on invalid input, and persists to the filesystem.
 
 ---
 
@@ -101,7 +101,8 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 | Code | Meaning |
 |---|---|
-| `200 {}` | Success |
+| `200 {}` | Success (read-only or filesystem/config mutation) |
+| `202 {}` | Accepted — validated; the packet-emitting work was queued onto the main loop (scene play/stop/speed, one-shot, trigger, appearance) |
 | `404 {"error":"not_found"}` | Scene / palette doesn't exist |
 | `409 {"error":"schema_too_new","scene":N,"firmware":M}` | Scene file has a newer schema version than the firmware supports |
 | `422 {"error":"<message>"}` | Validation failure — no changes applied |

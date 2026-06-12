@@ -173,9 +173,17 @@ void PacketMirror::capture(uint8_t address, const void *packet, uint8_t size, ui
     }
 
     if ((uint16_t)(recordsLen + RECORD_HEADER + size) > RECORDS_CAP) {
-        droppedCount++;
+        // Flush early instead of dropping. Safe because every caller runs on the
+        // main-loop task (HTTP packet emission is deferred via MainLoopQueue), so this
+        // cannot race the periodic flushTo() in serviceMirror(). After the flush the
+        // ring is empty and the append below proceeds, so no record is ever lost.
+        if (server) {
+            flushTo(server);
+        } else {
+            droppedCount++;   // pre-init fallback only (no server wired yet)
 
-        return;
+            return;
+        }
     }
 
     // Record the capture time. Use the earliest capture time for the whole batch

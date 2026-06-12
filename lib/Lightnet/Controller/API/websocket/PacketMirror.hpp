@@ -23,10 +23,20 @@ class PacketMirror
     public:
         PacketMirror();
 
+        // Wire the WebSocket server used for the flush-on-overflow safety valve in
+        // capture(). Must be set once at init. Until it is set, capture() falls back
+        // to dropping on overflow.
+        void setServer(WebsocketServer *s)
+        {
+            server = s;
+        }
+
         // Filtered append. Only animation/color/palette/brightness/on-off packets are
         // kept; everything else (discovery, fetch, bootloader, reset) is ignored.
-        // Drops the record (counted) if the buffer is full.
-        // Also updates the snapshot for stateful packet types.
+        // If the live ring is about to overflow it flushes early (never drops) — this is
+        // safe ONLY because every capture() caller now runs on the main-loop task (HTTP
+        // handlers defer their packet emission via MainLoopQueue), so flushTo()'s socket
+        // I/O cannot race the periodic flush. Also updates the snapshot for stateful types.
         void capture(uint8_t address, const void *packet, uint8_t size, uint8_t type);
 
         // Builds and broadcasts the MIRROR_BATCH frame to all mirroring-enabled clients
@@ -48,11 +58,15 @@ class PacketMirror
         }
 
     private:
+        // The live ring no longer has to hold an entire scene-start PREPARE storm:
+        // capture() flushes early on overflow (see setServer / capture), so nothing is
+        // dropped regardless of size. These caps only need to batch enough packets to
+        // keep flush frequency (and thus ws.binary() calls) reasonable during a burst.
         #ifdef ARDUINO_ARCH_ESP32
-            static const uint16_t RECORDS_CAP    = 1024 * 25;
+            static const uint16_t RECORDS_CAP    = 1024 * 6;
 
         #else
-            static const uint16_t RECORDS_CAP    = 2048;
+            static const uint16_t RECORDS_CAP    = 1024;
 
         #endif
         static const uint16_t PAYLOAD_HEADER = 6;  // u32 millis + u16 count
@@ -107,6 +121,9 @@ class PacketMirror
         uint16_t snapshotEntryCount  = 0;
         uint16_t snapshotRecordsLen  = 0;
         uint16_t snapshotDroppedCount = 0;
+
+        // Used by capture()'s flush-on-overflow safety valve. nullptr until setServer().
+        WebsocketServer *server = nullptr;
 
         static bool isMirrored(uint8_t type);
         static bool isSnapshotted(uint8_t type);

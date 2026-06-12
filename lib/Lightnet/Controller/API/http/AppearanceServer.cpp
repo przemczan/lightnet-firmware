@@ -10,9 +10,11 @@ namespace Lightnet {
         AsyncWebServer&   _server,
         AppearanceStore&  _appearance,
         PaletteStore&     _palettes,
-        AnimationService& _animService
+        AnimationService& _animService,
+        MainLoopQueue&    _queue
     )
-        : server(_server), appearance(_appearance), palettes(_palettes), animService(_animService)
+        : server(_server), appearance(_appearance), palettes(_palettes), animService(_animService),
+        queue(_queue)
     {
     }
 
@@ -49,7 +51,22 @@ namespace Lightnet {
 
     void AppearanceServer::handlePatchAppearance(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
+        // Validate everything synchronously (pure, no packets), collect the validated
+        // values, then defer the actual apply — every AppearanceStore mutator broadcasts
+        // to panels, which must happen on the main loop (see MainLoopQueue / PacketMirror).
         SimpleJson j(body, len);
+
+        struct Args {
+            AppearanceServer * self;
+            bool               hasBrightness;
+            uint8_t            brightness;
+            bool               hasColors;
+            Protocol::ColorRGB colors[BASE_COLORS_COUNT];
+            bool               hasPalette;
+            char               palette[20];
+        } args{};
+
+        args.self = this;
 
         if (j.hasKey("brightness")) {
             long v = j.getInt("brightness");
@@ -60,13 +77,13 @@ namespace Lightnet {
                 return;
             }
 
-            appearance.setBrightness((uint8_t)v);
+            args.hasBrightness = true;
+            args.brightness    = (uint8_t)v;
         }
 
         const char *p = j.rawValue("baseColors");
 
         if (p && jsonEnterArray(p, j.end())) {
-            Protocol::ColorRGB cur[BASE_COLORS_COUNT];
             uint8_t got = 0;
             char hex[16];
 
@@ -75,24 +92,44 @@ namespace Lightnet {
 
                 uint8_t r, g, b;
 
-                if (jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) cur[got++] = { r, g, b };
+                if (jsonParseHexColor(hex, strlen(hex), &r, &g, &b)) args.colors[got++] = { r, g, b };
             }
 
-            if (got == BASE_COLORS_COUNT) appearance.setAllBaseColors(cur);
+            if (got == BASE_COLORS_COUNT) args.hasColors = true;
         }
 
         char palName[20];
 
         if (j.getString("palette", palName, sizeof(palName))) {
-            if (!appearance.setPalette(palName)) {
+            if (!palettes.exists(palName)) {
                 Http::sendError(req, 404, "unknown_palette");
 
                 return;
             }
+
+            args.hasPalette = true;
+            strncpy(args.palette, palName, sizeof(args.palette) - 1);
         }
 
-        animService.onAppearanceChanged(appearance.paletteName(), appearance.baseColors());
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
 
-        Http::sendOk(req);
+            memcpy(&x, a, sizeof(x));
+
+            if (x.hasBrightness) x.self->appearance.setBrightness(x.brightness);
+            if (x.hasColors)     x.self->appearance.setAllBaseColors(x.colors);
+            if (x.hasPalette)    x.self->appearance.setPalette(x.palette);
+
+            x.self->animService.onAppearanceChanged(x.self->appearance.paletteName(),
+                                                    x.self->appearance.baseColors());
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
+
+        Http::sendAccepted(req);
     }
 }  // namespace Lightnet

@@ -15,11 +15,12 @@ namespace Lightnet {
         AnimationService&   _animService,
         AnimationScheduler& _animScheduler,
         AppearanceStore&    _appearance,
+        MainLoopQueue&      _queue,
         PacketMirror *      _packetMirror
     )
         : server(_server), appState(_appState), panelsController(_panelsController),
         animService(_animService), animScheduler(_animScheduler), appearance(_appearance),
-        packetMirror(_packetMirror)
+        queue(_queue), packetMirror(_packetMirror)
     {
     }
 
@@ -81,18 +82,38 @@ namespace Lightnet {
             return;
         }
 
-        applyIsOn(newValue);
+        // Defer both the state flip and its packet-emitting effects to the main loop so
+        // they stay atomic (a full queue leaves nothing changed). The response echoes the
+        // requested value — it takes effect on the next tick.
+        struct Args {
+            StateServer *self;
+            bool         on;
+        } args { this, newValue };
+
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
+
+            memcpy(&x, a, sizeof(x));
+
+            if (x.self->appState.setIsOn(x.on)) {
+                x.self->applyPowerEffects(x.on);
+            }
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
 
         char buf[16];
 
-        snprintf(buf, sizeof(buf), "{\"isOn\":%s}", appState.isOn() ? "true" : "false");
-        Http::sendOkJson(req, buf);
+        snprintf(buf, sizeof(buf), "{\"isOn\":%s}", newValue ? "true" : "false");
+        Http::sendAcceptedJson(req, buf);
     }
 
-    void StateServer::applyIsOn(bool newValue)
+    void StateServer::applyPowerEffects(bool newValue)
     {
-        if (!appState.setIsOn(newValue)) return; // no change
-
         List<Panel *> *panels = LNPanelsInitializer.getPanels();
 
         if (!newValue) {

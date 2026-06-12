@@ -48,9 +48,10 @@ namespace Lightnet {
 
     PanelServer::PanelServer(
         AsyncWebServer&   _server,
-        PanelsController& _panelsController
+        PanelsController& _panelsController,
+        MainLoopQueue&    _queue
     )
-        : server(_server), panelsController(_panelsController)
+        : server(_server), panelsController(_panelsController), queue(_queue)
     {
     }
 
@@ -155,6 +156,19 @@ namespace Lightnet {
 
         SimpleJson j(body, len);
 
+        // Both actions emit an I2C packet, so validate synchronously here and defer the
+        // emission to the main loop (see MainLoopQueue / PacketMirror).
+        struct Args {
+            PanelServer *      self;
+            uint8_t            addr;
+            bool               isColor;
+            uint8_t            on;       // for the "on" action
+            Protocol::ColorRGB rgb;      // for the "color" action
+        } args{};
+
+        args.self = this;
+        args.addr = addr;
+
         if (strcmp(action, "on") == 0) {
             long v = j.getInt("value");
 
@@ -164,8 +178,8 @@ namespace Lightnet {
                 return;
             }
 
-            panelsController.turnOnOff(addr, (uint8_t)v);
-            Http::sendOk(req);
+            args.isColor = false;
+            args.on      = (uint8_t)v;
         } else if (strcmp(action, "color") == 0) {
             char hex[16];
 
@@ -183,13 +197,35 @@ namespace Lightnet {
                 return;
             }
 
-            Protocol::Color color;
-
-            color.rgb = { r, g, b };
-            panelsController.setColor(addr, color);
-            Http::sendOk(req);
+            args.isColor = true;
+            args.rgb     = { r, g, b };
         } else {
             Http::sendError(req, 404, "not_found");
+
+            return;
         }
+
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
+
+            memcpy(&x, a, sizeof(x));
+
+            if (x.isColor) {
+                Protocol::Color color;
+
+                color.rgb = x.rgb;
+                x.self->panelsController.setColor(x.addr, color);
+            } else {
+                x.self->panelsController.turnOnOff(x.addr, x.on);
+            }
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
+
+        Http::sendAccepted(req);
     }
 }  // namespace Lightnet

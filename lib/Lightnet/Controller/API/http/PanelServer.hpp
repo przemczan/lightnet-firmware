@@ -2,6 +2,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include "../../Panels/PanelsController.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
     class PanelServer
@@ -9,7 +10,8 @@ namespace Lightnet {
         public:
             PanelServer(
                 AsyncWebServer&   server,
-                PanelsController& panelsController
+                PanelsController& panelsController,
+                MainLoopQueue&    queue
             );
 
             void begin();
@@ -17,6 +19,7 @@ namespace Lightnet {
         private:
             AsyncWebServer& server;
             PanelsController& panelsController;
+            MainLoopQueue& queue;
 
             void registerRoutes();
 

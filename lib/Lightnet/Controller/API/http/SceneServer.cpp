@@ -5,6 +5,7 @@
 #include "../../../Utils/Fs/Fs.hpp"
 #include <string.h>
 #include <stdio.h>
+#include <new>
 
 namespace Lightnet {
     SceneServer::SceneServer(
@@ -12,10 +13,11 @@ namespace Lightnet {
         ScenePlayer&      _player,
         AnimationService& _animService,
         AppStateStore&    _appState,
-        AppearanceStore&  _appearance
+        AppearanceStore&  _appearance,
+        MainLoopQueue&    _queue
     )
         : server(_server), player(_player), animService(_animService), appState(_appState),
-        appearance(_appearance)
+        appearance(_appearance), queue(_queue)
     {
     }
 
@@ -178,6 +180,36 @@ namespace Lightnet {
         Http::sendOk(req);
     }
 
+    // Plays an already-parsed scene on the main loop (where I2C packet emission must
+    // originate). `parsed` is heap-owned and freed by the task; if the queue is full we
+    // free it here and report 503 so nothing leaks.
+    void SceneServer::deferPlay(AsyncWebServerRequest *req, SceneParseResult *parsed)
+    {
+        struct Args {
+            SceneServer *     self;
+            SceneParseResult *parsed;
+        } args { this, parsed };
+
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
+
+            memcpy(&x, a, sizeof(x));
+            x.self->animService.playParsed(*x.parsed,
+                                           x.self->appearance.paletteName(),
+                                           x.self->appearance.baseColors());
+            delete x.parsed;
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            delete parsed;
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
+
+        Http::sendAccepted(req);
+    }
+
     void SceneServer::handlePostPlayScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
         if (!appState.isOn()) {
@@ -186,17 +218,27 @@ namespace Lightnet {
             return;
         }
 
-        auto r = animService.playSceneInline((const char *)body, len,
-                                             appearance.paletteName(), appearance.baseColors());
+        // Heap (not the AsyncTCP stack): SceneParseResult is ~2.5 KB. Ownership passes to
+        // the deferred play task.
+        SceneParseResult *parsed = new (std::nothrow) SceneParseResult;
+
+        if (!parsed) {
+            Http::sendError(req, 500, "oom");
+
+            return;
+        }
+
+        SceneResult r = animService.prepareInline((const char *)body, len, *parsed);
 
         if (!r.ok()) {
+            delete parsed;
             sendSceneError(req, r);
 
             return;
         }
 
         appState.setLastPlayedScene(SceneStore::reservedName());
-        Http::sendOk(req);
+        deferPlay(req, parsed);
     }
 
     void SceneServer::handlePostPlaySceneByName(AsyncWebServerRequest *req)
@@ -223,23 +265,47 @@ namespace Lightnet {
             return;
         }
 
-        auto r = animService.playSceneByName(name,
-                                             appearance.paletteName(), appearance.baseColors());
+        SceneParseResult *parsed = new (std::nothrow) SceneParseResult;
+
+        if (!parsed) {
+            Http::sendError(req, 500, "oom");
+
+            return;
+        }
+
+        SceneResult r = animService.prepareByName(name, *parsed);
 
         if (!r.ok()) {
+            delete parsed;
             sendSceneError(req, r);
 
             return;
         }
 
         appState.setLastPlayedScene(name);
-        Http::sendOk(req);
+        deferPlay(req, parsed);
     }
 
     void SceneServer::handlePostStopScene(AsyncWebServerRequest *req)
     {
-        animService.stopScene();
-        Http::sendOk(req);
+        struct Args {
+            SceneServer *self;
+        } args { this };
+
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
+
+            memcpy(&x, a, sizeof(x));
+            x.self->animService.stopScene();
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
+
+        Http::sendAccepted(req);
     }
 
     void SceneServer::handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -284,11 +350,27 @@ namespace Lightnet {
             return;
         }
 
-        animService.setSceneSpeed(speed);
+        struct Args {
+            SceneServer *self;
+            float        speed;
+        } args { this, speed };
+
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
+
+            memcpy(&x, a, sizeof(x));
+            x.self->animService.setSceneSpeed(x.speed);
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
 
         char buf[48];
 
         snprintf(buf, sizeof(buf), "{\"ok\":true,\"speed\":%.1f}", (double)speed);
-        Http::sendOkJson(req, buf);
+        Http::sendAcceptedJson(req, buf);
     }
 }  // namespace Lightnet

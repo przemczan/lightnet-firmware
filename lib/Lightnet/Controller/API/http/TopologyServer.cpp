@@ -6,8 +6,8 @@
 #include <stdio.h>
 
 namespace Lightnet {
-    TopologyServer::TopologyServer(AsyncWebServer& _server, TopologyConfigStore& _store, ScenePlayer& _player)
-        : server(_server), store(_store), player(_player)
+    TopologyServer::TopologyServer(AsyncWebServer& _server, TopologyConfigStore& _store, ScenePlayer& _player, MainLoopQueue& _queue)
+        : server(_server), store(_store), player(_player), queue(_queue)
     {
     }
 
@@ -97,13 +97,31 @@ namespace Lightnet {
             return;
         }
 
-        store.setLogicalRoot((uint8_t)root);
-        player.setLogicalRoot((uint8_t)root, millis()); // apply to a playing scene immediately
+        // player.setLogicalRoot re-aims a playing scene (mutates ScenePlayer state the
+        // main loop ticks, and re-fires runners), so defer the apply to the main loop.
+        struct Args {
+            TopologyServer *self;
+            uint8_t         root;
+        } args { this, (uint8_t)root };
+
+        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+            Args x;
+
+            memcpy(&x, a, sizeof(x));
+            x.self->store.setLogicalRoot(x.root);
+            x.self->player.setLogicalRoot(x.root, millis()); // apply to a playing scene immediately
+        }, &args, sizeof(args));
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
+
+            return;
+        }
 
         char buf[48];
 
-        snprintf(buf, sizeof(buf), "{\"ok\":true,\"logicalRoot\":%u}", (unsigned)store.logicalRoot());
-        Http::sendOkJson(req, buf);
+        snprintf(buf, sizeof(buf), "{\"ok\":true,\"logicalRoot\":%u}", (unsigned)root);
+        Http::sendAcceptedJson(req, buf);
     }
 
     void TopologyServer::handlePutTags(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
