@@ -87,8 +87,24 @@ void WebsocketServer::sendToMirroringClients(const void *frame, size_t len)
 
     this->unlockClients();
 
-    for (uint8_t i = 0; i < count; i++) {
-        this->socket->binary(targets[i], (const uint8_t *)frame, len);
+    if (count == 0) {
+        return;
+    }
+
+    // Build the frame once and share it across all mirroring clients (refcounted),
+    // instead of letting AsyncWebSocket::binary() allocate+copy a fresh buffer per client.
+    // A heavy scene can fragment the heap enough that even this allocation throws
+    // std::bad_alloc — drop this chunk rather than crash; the mobile client resyncs
+    // on the next flush/snapshot.
+    try {
+        auto buffer = std::make_shared<std::vector<uint8_t> >(
+            (const uint8_t *)frame, (const uint8_t *)frame + len);
+
+        for (uint8_t i = 0; i < count; i++) {
+            this->socket->binary(targets[i], buffer);
+        }
+    } catch (const std::bad_alloc &) {
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[MIRROR] flush chunk dropped (alloc failed)"));
     }
 }
 
@@ -98,7 +114,13 @@ void WebsocketServer::sendFrameToClient(uint32_t clientId, const void *frame, si
         return;
     }
 
-    this->socket->binary(clientId, (const uint8_t *)frame, len);
+    // socket->binary() allocates its own copy internally — see sendToMirroringClients
+    // for why this can throw std::bad_alloc on a fragmented heap.
+    try {
+        this->socket->binary(clientId, (const uint8_t *)frame, len);
+    } catch (const std::bad_alloc &) {
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[MIRROR] snapshot send dropped (alloc failed)"));
+    }
 }
 
 void WebsocketServer::setMirroringEnabled(uint32_t clientId, bool enabled)
