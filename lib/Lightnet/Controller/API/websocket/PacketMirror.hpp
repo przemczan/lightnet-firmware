@@ -49,7 +49,7 @@ class PacketMirror
 
     private:
         #ifdef ARDUINO_ARCH_ESP32
-            static const uint16_t RECORDS_CAP    = 1024 * 6;
+            static const uint16_t RECORDS_CAP    = 1024 * 32;
 
         #else
             static const uint16_t RECORDS_CAP    = 2048;
@@ -99,6 +99,7 @@ class PacketMirror
         static bool isMirrored(uint8_t type);
         static bool isSnapshotted(uint8_t type);
         void        updateSnapshot(uint8_t address, const void *packet, uint8_t size, uint8_t type);
+        void        invalidateSnapshot(uint8_t address, uint8_t group_id);
 
         uint8_t *payload()
         {

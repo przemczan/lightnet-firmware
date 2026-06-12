@@ -719,6 +719,12 @@ namespace Lightnet {
 
                         return false;
                     }
+                } else if (strcmp(key, "disabled") == 0) {
+                    if (!jsonReadBool(p, end, &layer.disabled)) {
+                        strncpy(errMsg, "layer.disabled: expected bool", errLen);
+
+                        return false;
+                    }
                 } else if (strcmp(key, "startAfter") == 0) {
                     if (!jsonReadString(p, end, startAfterName, GROUP_NAME_LEN) || startAfterName[0] == '\0') {
                         strncpy(errMsg, "layer.startAfter: not a non-empty group name", errLen);

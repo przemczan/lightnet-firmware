@@ -192,6 +192,8 @@ namespace Lightnet {
         bool anyBlockingAsync = false;
 
         for (uint8_t i = 0; i < lCount; i++) {
+            if (layers[i].disabled) continue;
+
             if (isAsyncLayer(i)) {
                 if (!(layers[i].async & LAYER_ASYNC_NON_BLOCKING)) anyBlockingAsync = true;
 
@@ -222,8 +224,8 @@ namespace Lightnet {
             currentStep[i] = 0;
             stepStartMs[i] = nowMs;
 
-            if (layers[i].stepCount == 0) {
-                layerState[i] = LayerState::DONE; // nothing to play
+            if (layers[i].stepCount == 0 || layers[i].disabled) {
+                layerState[i] = LayerState::DONE; // nothing to play, or disabled
             } else if (layers[i].startAfterGroupId == 0) {
                 layerState[i] = LayerState::RUNNING;
             } else {
@@ -1134,6 +1136,8 @@ namespace Lightnet {
         memset(cover, 0, sizeof(cover));
 
         for (uint8_t i = 0; i < lCount; i++) {
+            if (layers[i].disabled) continue;
+
             uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
             uint8_t panelCount = 0;
 

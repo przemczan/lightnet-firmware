@@ -235,10 +235,12 @@ void LightnetPanel::handleIncomingPackets()
     while ((size = this->rxQueue.pop(rxBuf, sizeof(rxBuf))) != 0) {
         Protocol::PacketMeta *packet = (Protocol::PacketMeta *)rxBuf;
 
-        // ignore version validation for flashing-related packets
-        bool validateProtocolVersion = (packet->header.type == Protocol::PACKET_ENTER_BOOTLOADER) ||
-                                       (packet->header.type == Protocol::PACKET_RESET_DEVICE);
-        uint8_t vErr = Protocol::validatePacket(packet, size, validateProtocolVersion);
+        // Skip protocol-version validation for flashing/reset packets: flashing is exactly
+        // how a controller/panel version mismatch gets resolved, so it must never be
+        // version-gated (otherwise an out-of-date panel can never be updated over I2C).
+        bool isFlashingPacket = (packet->header.type == Protocol::PACKET_ENTER_BOOTLOADER) ||
+                                (packet->header.type == Protocol::PACKET_RESET_DEVICE);
+        uint8_t vErr = Protocol::validatePacket(packet, size, !isFlashingPacket);
 
         #if DEBUG
             Serial.print(F("[PKT] type="));

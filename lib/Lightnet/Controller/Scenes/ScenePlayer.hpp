@@ -57,6 +57,7 @@ namespace Lightnet {
         uint8_t       async;                             // bitmask: 0x01 = loop independently, 0x02 = non-blocking free-running (scene ignores this layer)
         uint8_t       stepCount;
         uint8_t       blend;                             // ComposeMode — how this layer composites on the panel
+        bool          disabled;                          // true = layer is skipped entirely during playback
         char          groupName[16];                     // original string name, empty for numeric-only groups
         char          palette[16];                       // empty = use scene default
         PanelSelector target;                            // which panels this layer drives (resolved at play time)

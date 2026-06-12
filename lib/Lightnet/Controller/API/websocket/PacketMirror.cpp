@@ -1,6 +1,7 @@
 #include "PacketMirror.hpp"
 #include "WebsocketServer.hpp"
 #include "../../../Common/Protocol.hpp"
+#include "../../../Core/Anim/AnimationTypes.hpp"
 #include <string.h>
 
 PacketMirror::PacketMirror()
@@ -86,10 +87,63 @@ void PacketMirror::updateSnapshot(uint8_t address, const void *packet, uint8_t s
     snapshotRecordsLen += RECORD_HEADER + size;
 }
 
+// PACKET_ANIMATION_CONTROL is mirrored live but not snapshotted (see isSnapshotted), so a
+// STOP that clears a slot on the real panel would otherwise leave that slot's PREPARE/START
+// entries in the snapshot forever — replayed as phantom "residue" layers to any client that
+// joins/re-enables mirroring afterwards. Drop them here so the snapshot tracks STOPped slots.
+void PacketMirror::invalidateSnapshot(uint8_t address, uint8_t group_id)
+{
+    for (uint16_t i = 0; i < snapshotEntryCount; ) {
+        SnapshotEntry &e = snapshotIndex[i];
+
+        // address/group_id == 0 are General Call / "all slots" — match every snapshot
+        // entry's address/key respectively, the same way AnimationPlayer::control() does.
+        bool matches = ((address == 0) || (e.address == address)) &&
+                       ((group_id == 0) || (e.key == group_id) ) &&
+                       ((e.type == Protocol::PACKET_ANIMATION_PREPARE) || (e.type == Protocol::PACKET_ANIMATION_START) );
+
+        if (!matches) {
+            i++;
+            continue;
+        }
+
+        uint16_t recSize = RECORD_HEADER + e.size;
+        uint8_t *base = snapshotRecords();
+
+        // Shift remaining record bytes left over the removed entry.
+        memmove(base + e.offset, base + e.offset + recSize, snapshotRecordsLen - e.offset - recSize);
+        snapshotRecordsLen -= recSize;
+
+        // Fix up offsets of entries that pointed past the removed region.
+        for (uint16_t j = 0; j < snapshotEntryCount; j++) {
+            if (snapshotIndex[j].offset > e.offset) {
+                snapshotIndex[j].offset -= recSize;
+            }
+        }
+
+        // Remove this entry from the index — shift the tail left, re-check position i.
+        for (uint16_t j = i; j < snapshotEntryCount - 1; j++) {
+            snapshotIndex[j] = snapshotIndex[j + 1];
+        }
+
+        snapshotEntryCount--;
+    }
+}
+
 void PacketMirror::capture(uint8_t address, const void *packet, uint8_t size, uint8_t type)
 {
     if (!isMirrored(type)) {
         return;
+    }
+
+    // A STOP clears the matching slot(s) on the real panel; mirror the same invalidation
+    // onto the snapshot so a late-joining/re-mirroring client doesn't replay stale entries.
+    if (type == Protocol::PACKET_ANIMATION_CONTROL && size >= 7) {
+        const uint8_t *p = (const uint8_t *)packet;
+
+        if (p[5] == Lightnet::ANIM_CTRL_STOP) {
+            invalidateSnapshot(address, p[6]);
+        }
     }
 
     // Snapshot first: it has its own buffer, so a full live-stream ring must never

@@ -109,6 +109,14 @@ When a scene starts, **all panels are cleared to black**, then:
 - A layer with `startAfter: "X"` stays dark until layer `X`'s whole sequence finishes.
 
 ```mermaid
+---
+config:
+  gantt:
+    barHeight: 50
+    barGap: 10
+    fontSize: 24
+    sectionFontSize: 20
+---
 gantt
   title Two layers, one gated (loop = true)
   dateFormat x
@@ -193,13 +201,15 @@ Each entry in `layers`:
 | `startAfter` | no | — | Group **name** to wait for; until it finishes this layer is dark. |
 | `async` | no | `false` | Layer looping mode: `false`/absent = sync, `true`/`"loop"` = loop independently (blocks scene), `"free"` = loop independently (scene ignores it). Ignored if `startAfter` is set. |
 | `palette` | no | scene default | Palette override for this layer's panels (see the overlap caveat in §9). |
+| `disabled` | no | `false` | When `true`, this layer is skipped entirely during playback (treated as already finished). Still validated and stored, so it can be re-enabled later. |
 
 - **`group`** is the synchronisation unit — all panels in a group start a step together.
   Prefer **names** (auto-mapped to IDs in first-seen order); don't mix names and numbers in
   one scene, and never reuse a group across two layers.
 - **`startAfter`** turns the flat "all start at t=0" model into a dependency graph for
   choreography. The target must exist, can't be the layer itself, can't form a cycle, and
-  can't have an infinite last step (it would never finish).
+  can't have an infinite last step (it would never finish). A disabled dependency counts as
+  already finished, so dependents start immediately.
 - **`async`** controls independence from the scene barrier — see the async modes table above.
 
 ```json
