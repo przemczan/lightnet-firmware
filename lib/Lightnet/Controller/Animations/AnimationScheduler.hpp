@@ -25,7 +25,13 @@ namespace Lightnet {
     class AnimationScheduler
     {
         public:
+            // One runner per active layer at most; matches ScenePlayer::SCENE_MAX_LAYERS.
+            // Reserved up front so scene load doesn't realloc activeRunners on every
+            // addRunner() call (a fragmentation source during scene start).
+            static const uint8_t MAX_ACTIVE_RUNNERS = 8;
+
             AnimationScheduler(uint8_t maxPanels = LIGHTNET_MAX_PANELS);
+
             ~AnimationScheduler();
 
             // Setup

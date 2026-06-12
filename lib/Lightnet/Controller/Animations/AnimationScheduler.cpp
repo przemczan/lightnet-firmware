@@ -7,6 +7,7 @@ namespace Lightnet {
         : maxPanels(_maxPanels), lastFrameMs(0), nextSeqId(1)
     {
         activeRunners = new List<AnimationRunner *>();
+        activeRunners->reserve(MAX_ACTIVE_RUNNERS);
         panelStates = new AnimationRecord[maxPanels];
         memset(panelStates, 0, sizeof(AnimationRecord) * maxPanels);
     }

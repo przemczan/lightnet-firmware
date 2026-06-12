@@ -16,6 +16,7 @@ class List
         void (*clearCallback)(T);
 
         volatile uint16_t size = 0;
+        uint16_t capacity = 0;
 
     public:
         List(void(*clearCallback)(T) = NULL);
@@ -31,6 +32,11 @@ class List
         bool filterOne(bool ( *callback )(T), uint16_t *outIndex);
         void clear();
         uint16_t getSize();
+
+        // Pre-allocate storage for at least `n` items in a single realloc, so a
+        // burst of push() calls right after construction doesn't fragment the
+        // heap with one grow-by-one realloc per item. No-op if capacity already >= n.
+        void reserve(uint16_t n);
 };
 
 template<typename T>
@@ -48,8 +54,22 @@ List<T>::~List()
 template<typename T>
 void List<T>::push(T data)
 {
-    this->items = (item *)realloc(this->items, (++this->size) * sizeof(item));
-    this->items[this->size - 1].data = data;
+    if (this->size + 1 > this->capacity) {
+        this->capacity = this->size + 1;
+        this->items = (item *)realloc(this->items, this->capacity * sizeof(item));
+    }
+
+    this->items[this->size].data = data;
+    this->size++;
+}
+
+template<typename T>
+void List<T>::reserve(uint16_t n)
+{
+    if (n > this->capacity) {
+        this->capacity = n;
+        this->items = (item *)realloc(this->items, this->capacity * sizeof(item));
+    }
 }
 
 template<typename T>
@@ -75,6 +95,7 @@ void List<T>::removeByIndex(uint16_t index)
         }
 
         this->items = (item *)realloc(this->items, --this->size * sizeof(item));
+        this->capacity = this->size;
 
         if (!this->size) {
             this->items = 0;
@@ -169,6 +190,7 @@ void List<T>::clear()
         }
 
         this->size = 0;
+        this->capacity = 0;
         free(this->items);
         this->items = NULL;
     }
