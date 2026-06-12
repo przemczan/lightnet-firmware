@@ -1,5 +1,21 @@
 #include "WebsocketServer.hpp"
 
+// Largest contiguous block the allocator can currently hand out. The firmware builds with C++
+// exceptions disabled (the ESP8266 Arduino default), so a failed `new`/`make_shared` aborts the
+// chip rather than throwing — we must not even attempt an allocation the fragmented heap can't
+// satisfy. Mirror sends gate on this and drop the frame instead; the client resyncs on the next
+// flush/snapshot.
+static inline size_t largestFreeBlock()
+{
+    #if defined(ARDUINO_ARCH_ESP8266)
+        return ESP.getMaxFreeBlockSize();
+    #elif defined(ARDUINO_ARCH_ESP32)
+        return ESP.getMaxAllocHeap();
+    #else
+        return SIZE_MAX;
+    #endif
+}
+
 WebsocketServer::WebsocketServer(AsyncWebServer *server) : server(server)
 {
     this->cmdQueue = new CircularQueue(QUEUE_SIZE);
@@ -91,20 +107,22 @@ void WebsocketServer::sendToMirroringClients(const void *frame, size_t len)
         return;
     }
 
-    // Build the frame once and share it across all mirroring clients (refcounted),
-    // instead of letting AsyncWebSocket::binary() allocate+copy a fresh buffer per client.
-    // A heavy scene can fragment the heap enough that even this allocation throws
-    // std::bad_alloc — drop this chunk rather than crash; the mobile client resyncs
-    // on the next flush/snapshot.
-    try {
-        auto buffer = std::make_shared<std::vector<uint8_t> >(
-            (const uint8_t *)frame, (const uint8_t *)frame + len);
+    // Build the frame once and share it across all mirroring clients (refcounted), instead of
+    // letting AsyncWebSocket::binary() allocate+copy a fresh buffer per client. This allocates
+    // ~len bytes plus the vector/control-block overhead and a small per-client message; a heavy
+    // scene can fragment the heap enough that it would fail, so gate on the largest free block
+    // and drop this chunk rather than risk an abort (the client resyncs on the next flush).
+    if (largestFreeBlock() < len + 128) {
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[MIRROR] flush chunk dropped (low heap)"));
 
-        for (uint8_t i = 0; i < count; i++) {
-            this->socket->binary(targets[i], buffer);
-        }
-    } catch (const std::bad_alloc &) {
-        DEBUG_IF(DEBUG_API, D_PRINTLN("[MIRROR] flush chunk dropped (alloc failed)"));
+        return;
+    }
+
+    auto buffer = std::make_shared<std::vector<uint8_t> >(
+        (const uint8_t *)frame, (const uint8_t *)frame + len);
+
+    for (uint8_t i = 0; i < count; i++) {
+        this->socket->binary(targets[i], buffer);
     }
 }
 
@@ -114,13 +132,15 @@ void WebsocketServer::sendFrameToClient(uint32_t clientId, const void *frame, si
         return;
     }
 
-    // socket->binary() allocates its own copy internally — see sendToMirroringClients
-    // for why this can throw std::bad_alloc on a fragmented heap.
-    try {
-        this->socket->binary(clientId, (const uint8_t *)frame, len);
-    } catch (const std::bad_alloc &) {
-        DEBUG_IF(DEBUG_API, D_PRINTLN("[MIRROR] snapshot send dropped (alloc failed)"));
+    // socket->binary() copies the frame internally (~len bytes). Gate the allocation — see
+    // sendToMirroringClients for why we can't rely on catching a failure on a fragmented heap.
+    if (largestFreeBlock() < len + 64) {
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[MIRROR] snapshot send dropped (low heap)"));
+
+        return;
     }
+
+    this->socket->binary(clientId, (const uint8_t *)frame, len);
 }
 
 void WebsocketServer::setMirroringEnabled(uint32_t clientId, bool enabled)

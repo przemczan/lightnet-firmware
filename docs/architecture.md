@@ -17,6 +17,7 @@ Internal design reference for the Lightnet controller and panel firmware. Covers
 5. [Animation Framework Internals](#5-animation-framework-internals)
 6. [Discovery Sequence](#6-discovery-sequence)
 7. [Controller Boot & Startup](#7-controller-boot-startup)
+8. [Concurrency: Task Model & Deferred Execution](#8-concurrency-task-model-deferred-execution)
 
 ---
 
@@ -97,7 +98,7 @@ All firmware code lives under `lib/Lightnet/`.
 | `ScenePlayer` | Loads and ticks multi-layer scenes; resolves palettes, fires steps |
 | `SceneParser` | Parses scene JSON into `SceneLayer[]` structs |
 | `SceneStore` | Filesystem persistence for scene files at `/scenes/<name>.json` |
-| `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop |
+| `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
 
 **Palettes/**
 
@@ -120,6 +121,13 @@ All firmware code lives under `lib/Lightnet/`.
 | `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/status`, `/api/scenes/stop`, `/api/scenes/play` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `TopologyServer` | `GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags` | Logical root + panel tags (backed by `TopologyConfigStore`) |
+
+!!! note "Mutating endpoints defer to the main loop (§8)"
+    Every handler that emits I²C packets (scene play/stop/speed, one-shot/trigger, appearance,
+    per-panel on/color, power, topology root) **validates synchronously, then queues the
+    packet-emitting work onto the main loop via `MainLoopQueue` and returns `202 Accepted`**.
+    They are injected with a `MainLoopQueue&`. Read-only and pure filesystem/config endpoints stay
+    synchronous (`200`). See [§8](#8-concurrency-task-model-deferred-execution).
 
 **OTA/**
 
@@ -146,11 +154,13 @@ All firmware code lives under `lib/Lightnet/`.
 | `WebsocketServer` | `AsyncWebSocket` on `/ws`; lock-free queue swap between ISR and main loop; per-client `ClientSettings` (mirroring flag) with ESP32-safe locking |
 | `WebsocketHandler` | Decodes and dispatches commands: `TOGGLE`, `SET_COLOR`, `GET_PANELS_STATES`, `GET_EDGES_LIST`, `ANIMATION_TRIGGER`, `SET_MIRROR`, `PING` |
 | `WebsocketApi` | Binary packet structs and namespace for all commands/responses |
-| `PacketMirror` | Captures outbound I²C packets; maintains a live-stream ring (flushed at ~30 fps to mirroring clients) and a persistent snapshot (unicast to a client when it enables mirroring) |
+| `PacketMirror` | Captures outbound I²C packets; maintains a live-stream ring (flushed at ~30 fps to mirroring clients) and a persistent snapshot (unicast to a client when it enables mirroring). `capture()` **flushes inline on overflow instead of dropping** — safe only because all callers now run on the main loop (§8); `setServer()` wires the WS server for that self-flush |
 
 ### Utils/
 
-`CircularQueue`, `List`, `Crc` (CRC-16/IBM), `Mem`, `Macros`, `Debug` (`PRINTLN`/`PRINTKV`/`PRINTF` — no-ops at `DEBUG=0`), `Gamma` (correction table in PROGMEM).
+`CircularQueue`, `MainLoopQueue` (generic "run this on the main loop" deferral queue — see §8),
+`List`, `Crc` (CRC-16/IBM), `Mem`, `Macros`, `Debug` (`PRINTLN`/`PRINTKV`/`PRINTF` — no-ops at
+`DEBUG=0`), `Gamma` (correction table in PROGMEM).
 
 ---
 
@@ -358,12 +368,194 @@ flowchart TD
 !!! info "LittleFS mounted before WiFi"
     `Fs::begin()` is hoisted before WiFi so `PaletteStore` and `AppearanceStore` can read `/palettes/` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
 
-Main loop (`case 1`):
+Main loop (`case 1`), when no panel flash is in progress:
 ```cpp
 ArduinoOTA.handle();
 serialFwReceiver->run();
 panelFlasher->run();
-websocketHandler->handleIncommingMessages();
-if (animScheduler) animScheduler->tick(millis());   // drives controller-computed runners
-MDNS.update();  // ESP8266 only
+
+websocketHandler->handleIncommingMessages();        // drain WS commands   → main loop
+mainLoopQueue->drain();                              // drain HTTP-deferred work → main loop (§8)
+if (appStateStore->isOn()) animScheduler->tick(millis());  // controller-computed runners
+if (appStateStore->isOn()) scenePlayer->tick(millis());    // multi-layer scene playback
+appearance->tick(millis()); configStore->tick(millis()); appStateStore->tick(millis());
+serviceMirror();                                    // ≤30 fps flush of the mirror ring
+MDNS.update();                                      // ESP8266 only
 ```
+
+The ordering matters — see [§8 Main-loop service order](#main-loop-service-order).
+
+---
+
+## 8. Concurrency: Task Model & Deferred Execution
+
+### 8.1 Two execution contexts
+
+The controller firmware runs on **two concurrent tasks**:
+
+| Task | What runs on it | Examples |
+|---|---|---|
+| **Main loop** (Arduino `loop()`) | The `case 1` body: scene/animation ticks, mirror flush, queue draining | `scenePlayer->tick()`, `animScheduler->tick()`, `serviceMirror()` |
+| **AsyncTCP task** | All `AsyncWebServer` / `AsyncWebSocket` callbacks — HTTP route handlers and WS event/message callbacks | `SceneServer::handlePostPlayScene()`, `WebsocketServer::onMessage()` |
+
+On **ESP32** these are separate FreeRTOS tasks, usually on different cores, preemptively scheduled.
+On **ESP8266** the AsyncTCP callbacks run in a context that can preempt `loop()`. Either way the two
+tasks run concurrently and share no implicit synchronization.
+
+### 8.2 The hazard: outbound packets must be single-task
+
+Every outbound I²C packet is captured by `PacketMirror::capture()` (registered via
+`LNBus.setOnPacketSent()`). `capture()` appends to a single shared ring buffer **with no locks** — it
+is written assuming exactly one caller. But `LNBus.sendPacket()` is reached from **both** tasks:
+
+- **Main loop** — `scenePlayer->tick()` / `animScheduler->tick()` emit per-frame `SET_COLOR` and
+  step PREPARE/START packets.
+- **AsyncTCP** — a synchronous HTTP handler such as `/api/scenes/play` calls `loadAndPlay()`, which
+  emits a burst of ~300 PREPARE/START packets **inline on the AsyncTCP task**.
+
+Left uncoordinated, `capture()` on the AsyncTCP task races `PacketMirror::flushTo()` on the main loop
+over the same buffer — a data race. The same AsyncTCP handlers also mutate `ScenePlayer` state that
+the main loop ticks. The invariant that removes the whole class of hazard:
+
+> **All I²C packet emission — and the `ScenePlayer` state it touches — happens on the main-loop task.**
+
+WebSocket commands already obeyed this (see [§8.6](#86-ws-command-queue-sibling-mechanism)). HTTP
+handlers did not; `MainLoopQueue` brings them in line.
+
+### 8.3 MainLoopQueue — generic deferred execution
+
+`lib/Lightnet/Utils/MainLoopQueue.hpp` is a generic *"run this on the main loop"* queue. Any task
+`post()`s a unit of work; the main loop `drain()`s and runs it.
+
+```
+ AsyncTCP task                         main-loop task
+ ─────────────                         ──────────────
+ post(fn, args, len)                   drain():
+   under lock:                           loop:
+     ring.push([fn][args]) ──▶ SpscByteQueue ──▶ under lock: ring.pop(blob)
+                                                  fn(blob+ , len)   ◀── runs OUTSIDE the lock
+```
+
+- **Record format** — a function pointer (`TaskFn = void(*)(const uint8_t*, uint16_t)`) followed by
+  a small POD argument blob (≤ `MAX_ARGS` = 64 B). Each endpoint supplies a **captureless lambda**
+  (which decays to a `TaskFn`) plus a POD args struct, so there is **no central dispatch switch** —
+  work stays defined at the call site and each server owns its own execute function.
+- **Storage** is a `SpscByteQueue` (the codebase's lock-free byte-record ring). Both `push` and `pop`
+  are wrapped in the **same critical section** `WebsocketServer` uses (`portENTER_CRITICAL` on ESP32,
+  `noInterrupts()` on ESP8266). That supplies the memory barrier a multi-core ESP32 needs —
+  `SpscByteQueue` alone is only lock-free-safe on a single in-order core — and serializes producer vs
+  consumer, so it is robust even if work is posted from the main loop itself.
+- **The task `fn()` runs outside the lock** — its record is copied out of the ring under the lock
+  first — so a slow or packet-emitting task never blocks the producer.
+- **Args are copied by value** into the ring, so they must be self-contained POD with no pointers
+  into request-scoped memory. To defer something large (e.g. a ~2.5 KB parsed scene), the handler
+  heap-allocates it and passes only the pointer in the args; the task frees it.
+- **Overflow is honest** — a full queue makes `post()` return `false`, and the HTTP handler surfaces
+  that as `503 busy` rather than dropping the request silently.
+
+Covered by the native suite `test/test_main_loop_queue`.
+
+### 8.4 HTTP handler pattern: validate sync, execute deferred
+
+Every mutating endpoint that emits packets follows one shape:
+
+```cpp
+void Server::handleX(req, body, len) {
+    // 1. Validate synchronously (pure — no packets): parse, ranges, names, appState.isOn().
+    //    Failures return immediately (4xx).
+    // 2. Capture validated inputs into a POD args struct (or heap-own a large payload).
+    struct Args { Server* self; /* small scalars or a heap pointer */ } args { this, ... };
+    // 3. Queue the packet-emitting work; report the outcome.
+    bool ok = queue.post(+[](const uint8_t* a, uint16_t) {
+        Args x; memcpy(&x, a, sizeof x);
+        x.self->service.doIt(...);          // runs on the main loop; frees any heap payload
+    }, &args, sizeof args);
+    if (!ok) { Http::sendError(req, 503, "busy"); return; }
+    Http::sendAccepted(req);                // 202
+}
+```
+
+The HTTP success code therefore changes meaning: **`202 Accepted` = "validated and queued"**; the
+effect lands on the next main-loop tick (sub-millisecond later). Validation failures stay synchronous
+(`4xx`); a full queue is `503`. Read-only endpoints and pure filesystem/config mutations stay fully
+synchronous and return `200`.
+
+```mermaid
+sequenceDiagram
+  participant Cl as Client
+  participant TCP as AsyncTCP task
+  participant Q as MainLoopQueue
+  participant Loop as Main loop
+  participant Bus as LNBus → PacketMirror
+
+  Cl->>TCP: POST /api/scenes/play
+  TCP->>TCP: parse + validate (pure, no packets)
+  TCP->>Q: post(playParsed, parsed*)
+  TCP-->>Cl: 202 Accepted
+  Note over Loop: next tick
+  Loop->>Q: drain()
+  Q->>Loop: playParsed(parsed*) (frees parsed*)
+  Loop->>Bus: PREPARE × N + START — capture() on main loop
+  Loop->>Loop: serviceMirror() → flush ring to WS clients
+```
+
+`AnimationService` is split to support this: `prepareInline()` / `prepareByName()` /
+`prepareOneShot()` parse + persist (pure, safe on AsyncTCP, return a heap-ownable result), while
+`playParsed()` / `playParsedOneShot()` emit packets and are called from the queued task on the main
+loop. The legacy `playScene*` / `playOneShot` methods remain for callers that already run on the main
+loop (the demos).
+
+**What defers vs what stays synchronous** — the boundary is exactly "does this handler reach
+`capture()` or mutate `ScenePlayer`?":
+
+| Deferred → `202` | Reason |
+|---|---|
+| `POST /api/scenes/play`, `…/:name/play`, `…/stop`, `…/speed` | PREPARE/START packets, `ScenePlayer` state |
+| `POST /api/animations/play`, `…/trigger` | PREPARE/START, reactive-trigger packets |
+| `PATCH /api/appearance` | brightness / base-colors / palette broadcasts |
+| `POST /api/state/power` | per-panel on/off, scene stop/resume |
+| `PUT /api/panels/:addr/on`, `…/color` | per-panel packets |
+| `PUT /api/topology/root` | `ScenePlayer::setLogicalRoot` re-aims a playing scene |
+
+| Synchronous → `200` | Reason |
+|---|---|
+| All `GET`s | read-only |
+| `POST /api/scenes`, `DELETE /api/scenes/:name` | filesystem only |
+| `POST /api/palettes`, `DELETE /api/palettes/:name` | filesystem only |
+| `PATCH /api/configuration`, `PUT /api/panel-tags` | config/tag store only — no packets, no `ScenePlayer` |
+
+### 8.5 PacketMirror flush-on-overflow
+
+With `capture()` now guaranteed single-task, the mirror's live ring no longer has to hold an entire
+scene-start burst. When an append would overflow, `capture()` **flushes inline** (`flushTo()`) and
+then appends, so **no PREPARE/START packet is ever dropped**, and the ring shrank (ESP8266 2 KB → 1 KB,
+ESP32 25 KB → 6 KB, freeing scarce DRAM). This inline flush is safe **only because the [§8.2 invariant]
+(#82-the-hazard-outbound-packets-must-be-single-task) holds**: `flushTo()` touches the WS client list
+and calls `socket->binary()`, which must not race the periodic `serviceMirror()` flush — and now
+cannot, since both run on the main loop. A `WebsocketServer*` is wired into `PacketMirror` via
+`setServer()` at boot to enable the self-flush; before it is set, `capture()` falls back to dropping.
+
+### 8.6 WS command queue (sibling mechanism)
+
+`WebsocketServer` has carried the same idea for **inbound WebSocket commands** since before
+`MainLoopQueue`: a double-buffered `CircularQueue` pair (`cmdQueue` / `executionQueue`). `onMessage()`
+(AsyncTCP) enqueues under the critical section; `WebsocketHandler::handleIncommingMessages()`
+(main loop) swaps the two buffers under the lock and drains, so the command handlers (`cmdSetColor`,
+`cmdAnimationTrigger`, …) execute on the main loop. `MainLoopQueue` generalizes the same
+producer/consumer discipline to arbitrary function-pointer work for the HTTP layer.
+
+### Main-loop service order
+
+```cpp
+// case 1, when no panel flash is in progress:
+websocketHandler->handleIncommingMessages();        // 1. drain WS commands      → main loop
+mainLoopQueue->drain();                              // 2. drain HTTP-deferred work → main loop
+if (appStateStore->isOn()) animScheduler->tick(millis());
+if (appStateStore->isOn()) scenePlayer->tick(millis());
+appearance->tick(millis()); configStore->tick(millis()); appStateStore->tick(millis());
+serviceMirror();                                    // 3. ≤30 fps flush of the mirror ring
+```
+
+Draining HTTP work **before** the ticks means a scene queued this iteration is played and then ticked
+in the same pass. `serviceMirror()` runs **last** so any packets emitted by the drained work (or by an
+inline overflow flush during it) reach mirroring clients in the same iteration.
