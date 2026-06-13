@@ -84,7 +84,8 @@ namespace Lightnet {
     enum RunnerSource : uint8_t {
         SRC_ROOT      = 0, // the (logical) root
         SRC_LEAVES    = 1, // every leaf (field converges inward / one ripple per leaf)
-        SRC_ALL       = 2, // all panels (degenerate: maxCoord 0, uniform)
+        SRC_ALL       = 2, // all panels — hop-distance: degenerate (maxCoord 0, uniform);
+                           // geometric ripple: single ripple from the geometric centre (see PanelGeometry.hpp)
         SRC_PANEL     = 3, // a specific panel index (SRC_ARG)
     };
 

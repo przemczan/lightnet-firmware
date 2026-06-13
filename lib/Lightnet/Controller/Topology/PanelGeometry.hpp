@@ -447,6 +447,43 @@ namespace Lightnet {
         return maxC;
     }
 
+    // Nearest ripple-origin distance to a panel centroid (px,py): the distance to the single
+    // geometric centre when `useCenter`, otherwise the closest centroid in the source set.
+    // Returns <0 if no usable source exists. Shared by both passes of the radial field below.
+    inline float nearestRippleDist(
+        const PanelGeometry& geo,
+        const TopologyIndex& topo,
+        const PanelSet&      src,
+        uint8_t              n,
+        bool                 useCenter,
+        float                cx,
+        float                cy,
+        float                px,
+        float                py
+    )
+    {
+        if (useCenter) {
+            float dx = px - cx, dy = py - cy;
+
+            return sqrtf(dx * dx + dy * dy);
+        }
+
+        float best = -1.0f;
+
+        for (uint8_t s = 0; s < n; s++) {
+            float sx, sy;
+
+            if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), sx, sy)) continue;
+
+            float dx = px - sx, dy = py - sy;
+            float d  = sqrtf(dx * dx + dy * dy);
+
+            if (best < 0.0f || d < best) best = d;
+        }
+
+        return best;
+    }
+
     // Geometric *radial* directionality field — the ripple counterpart to computeGeometricField.
     // Where the axis sweep above is for wave/chase, a ripple has no axis: it expands from a centre.
     //
@@ -461,8 +498,11 @@ namespace Lightnet {
     //   source:root     → one ripple from the root centroid
     //   source:panel:N  → one ripple from panel N
     //   source:leaves   → one ripple per leaf, expanding inward simultaneously (nearest-leaf band)
+    //   source:all      → one ripple from the geometric centre (average centroid of all panels);
+    //                     every-panel-is-a-source would be degenerate (all lit at radius 0), so it
+    //                     collapses to a single mid-point origin, matching computeWheelField.
     // With `reverse`, the bands invert (front collapses toward the source). Returns maxCoord
-    // (0 ⇒ uniform: no usable source centroid, or every panel is a source).
+    // (0 ⇒ uniform: no usable source centroid).
     //
     // No per-panel scratch array: two passes, each recomputing the (cheap) nearest-source distance,
     // keeping the ESP8266 stack lean alongside fireStep's own coord[]/panels[] buffers.
@@ -487,6 +527,38 @@ namespace Lightnet {
 
         const uint8_t n = topo.count();
 
+        // `all` collapses to a single ripple from the geometric centre (average centroid of the
+        // source set). Using every panel as its own source would give every panel a nearest
+        // distance of 0 → all lit at radius 0 (degenerate). See header.
+        const bool useCenter = (srcKind == SRC_ALL);
+        float centerX = 0.0f, centerY = 0.0f;
+
+        if (useCenter) {
+            uint8_t srcN = 0;
+
+            for (uint8_t s = 0; s < n; s++) {
+                float x, y;
+
+                if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), x, y)) continue;
+
+                centerX += x;
+                centerY += y;
+                srcN++;
+            }
+
+            if (srcN == 0) {
+                for (uint8_t i = 0; i < panelCount; i++) {
+                    nearOut[i] = 0;
+                    farOut[i]  = 0;
+                }
+
+                return 0;
+            }
+
+            centerX /= (float)srcN;
+            centerY /= (float)srcN;
+        }
+
         // Pass 1: largest far edge over the targeted panels (the span to normalise both edges by).
         float maxFar = 0.0f;
         bool any    = false;
@@ -496,18 +568,7 @@ namespace Lightnet {
 
             if (!geo.centroidOf(panels[i], px, py)) continue;
 
-            float best = -1.0f;
-
-            for (uint8_t s = 0; s < n; s++) {
-                float sx, sy;
-
-                if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), sx, sy)) continue;
-
-                float dx = px - sx, dy = py - sy;
-                float d  = sqrtf(dx * dx + dy * dy);
-
-                if (best < 0.0f || d < best) best = d;
-            }
+            float best = nearestRippleDist(geo, topo, src, n, useCenter, centerX, centerY, px, py);
 
             if (best < 0.0f) continue;
 
@@ -540,18 +601,7 @@ namespace Lightnet {
                 continue;
             }
 
-            float best = -1.0f;
-
-            for (uint8_t s = 0; s < n; s++) {
-                float sx, sy;
-
-                if (!src.test(s) || !geo.centroidOf(topo.panelAt(s), sx, sy)) continue;
-
-                float dx = px - sx, dy = py - sy;
-                float d  = sqrtf(dx * dx + dy * dy);
-
-                if (best < 0.0f || d < best) best = d;
-            }
+            float best = nearestRippleDist(geo, topo, src, n, useCenter, centerX, centerY, px, py);
 
             float c = ((best < 0.0f) ? 0.0f : best);
             float r = geo.circumradiusOf(panels[i]);

@@ -533,7 +533,7 @@ Directionality is **two independent choices**: the field **mode** (`"directional
 | `"root"` *(default)* | emanates outward from the root/centre | distance from the root |
 | `"leaves"` | converges inward from the tips | distance from the nearest leaf |
 | `"panel:N"` | emanates from panel N | distance from panel N |
-| `"all"` | every panel pulses together (degenerate) | — |
+| `"all"` | topology: every panel pulses together (degenerate). Geometric ripple: one ripple from the geometric centre (see below) | — |
 
 In **topology** mode (default) "distance" is graph **hops**; in **geometric** mode it is physical
 distance (see below). `"reverse": true` flips the coordinate, so the effect travels the other way
@@ -580,6 +580,7 @@ time. This is where `source` shines in geometric mode:
 | `"root"` *(default)* | one ripple from the root's centroid |
 | `"panel:N"` | one ripple from panel N's centroid |
 | `"leaves"` | **one ripple per leaf**, all expanding inward at once (fronts meet in the middle) |
+| `"all"` | one ripple from the **geometric centre** (average centroid of all panels) — a single front growing outward from the middle |
 
 ```json
 {

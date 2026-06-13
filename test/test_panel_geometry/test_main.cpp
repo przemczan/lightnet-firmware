@@ -169,6 +169,26 @@ void test_center_field_panel_and_reverse()
     TEST_ASSERT_EQUAL_UINT8(4, far[2]);
 }
 
+void test_center_field_all_ripples_from_geometric_center()
+{
+    // source:all collapses to ONE ripple from the geometric centre — the average centroid
+    // (100, 38.49), not "every panel is its own source" (which would light all bands [0,maxC]
+    // uniformly → all-at-once). Centroid dists to centre: P1≈50.9, P2≈19.2, P3≈50.9; R≈57.74.
+    // bands: P1[0,108.7] P2[0,77.0] P3[0,108.7]; maxFar≈108.7 → /108.7 ×4.
+    // The centre panel (P2) sits closest, so its far ring is smaller — a real spatial gradient.
+    uint8_t near[LIGHTNET_MAX_PANELS], far[LIGHTNET_MAX_PANELS];
+    uint8_t maxC = computeGeometricCenterField(geo, topo, PANELS, 3,
+                                               SRC_ALL, 0, false, 4, near, far);
+
+    TEST_ASSERT_EQUAL_UINT8(4, maxC);
+    TEST_ASSERT_EQUAL_UINT8(0, near[0]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[0]);
+    TEST_ASSERT_EQUAL_UINT8(0, near[1]);
+    TEST_ASSERT_EQUAL_UINT8(3, far[1]); // centre panel: closest to the centre → smaller far ring
+    TEST_ASSERT_EQUAL_UINT8(0, near[2]);
+    TEST_ASSERT_EQUAL_UINT8(4, far[2]);
+}
+
 // ---- Angular (wheel) field: each panel's bearing in turns [0,1), counter-clockwise
 // from +x, from the centre = average centroid of the source set (single-panel here).
 
@@ -332,6 +352,7 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_center_field_from_root);
     RUN_TEST(test_center_field_leaves_is_multi_source);
     RUN_TEST(test_center_field_panel_and_reverse);
+    RUN_TEST(test_center_field_all_ripples_from_geometric_center);
 
     RUN_TEST(test_wheel_field_from_panel_center);
     RUN_TEST(test_wheel_field_reverse_flips_bearing);
