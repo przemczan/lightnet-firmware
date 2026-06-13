@@ -107,6 +107,8 @@ When a scene starts, **all panels are cleared to black**, then:
 - Every layer **without** `startAfter` begins immediately, in parallel.
 - Within a layer, steps play in order; each advances when its `duration` elapses.
 - A layer with `startAfter: "X"` stays dark until layer `X`'s whole sequence finishes.
+- A layer with `startAfter: "X:stepId"` stays dark until just that named step of `X`'s
+  sequence finishes — the rest of `X`'s sequence keeps playing independently.
 
 ```mermaid
 ---
@@ -158,7 +160,7 @@ The top-level object:
 
 | Property | Required | Default | What it is |
 |---|---|---|---|
-| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `7` — BOUNCE/RAIN/SPARKLE runners, `waves` field). |
+| `schemaVersion` | no | `1` | Format version. Rejected (`409`) if newer than the firmware (currently `8` — step `id` + `startAfter: "group:stepId"`, §5/§7.1). |
 | `name` | yes (to save) | — | 1–18 chars, `[a-zA-Z0-9_-]`. The filename when stored. |
 | `loop` | no | `false` | Restart the whole scene when all layers finish. |
 | `speed` | no | `1.0` | Playback multiplier, clamped to `0.1`–`10.0`. Scales all durations. |
@@ -198,7 +200,7 @@ Each entry in `layers`:
 | `panels` | no | `"all"` | Which panels this layer drives — see §6. |
 | `blend` | no | `opaque` (runners: `max`) | How this layer composites with the layers below it — see §5.1. |
 | `sequence` | yes | — | 1–12 steps, played in order — see §7. |
-| `startAfter` | no | — | Group **name** to wait for; until it finishes this layer is dark. |
+| `startAfter` | no | — | Group **name** to wait for (`"ambient"`), or a specific step of it (`"ambient:intro"`, requires `schemaVersion: 8`) — until it finishes this layer is dark. |
 | `async` | no | `false` | Layer looping mode: `false`/absent = sync, `true`/`"loop"` = loop independently (blocks scene), `"free"` = loop independently (scene ignores it). Ignored if `startAfter` is set. |
 | `palette` | no | scene default | Palette override for this layer's panels (see the overlap caveat in §9). |
 | `disabled` | no | `false` | When `true`, this layer is skipped entirely during playback (treated as already finished). Still validated and stored, so it can be re-enabled later. |
@@ -208,8 +210,12 @@ Each entry in `layers`:
   one scene, and never reuse a group across two layers.
 - **`startAfter`** turns the flat "all start at t=0" model into a dependency graph for
   choreography. The target must exist, can't be the layer itself, can't form a cycle, and
-  can't have an infinite last step (it would never finish). A disabled dependency counts as
-  already finished, so dependents start immediately.
+  the awaited step (or, if none is named, the whole sequence's last step) can't be infinite
+  (it would never finish). A disabled dependency counts as already finished, so dependents
+  start immediately.
+- **`startAfter: "group:stepId"`** waits for one specific step of `group`'s sequence to
+  finish, rather than the whole sequence — see [§7.1](#71-common-step-properties) for the
+  step `id` property and an example. Requires `schemaVersion: 8`.
 - **`async`** controls independence from the scene barrier — see the async modes table above.
 
 ```json
@@ -373,6 +379,7 @@ controller runner (`runner`) — never both — **or** a gap (neither).
 
 | Property | Applies to | What it is |
 |---|---|---|
+| `id` | all | Optional name for this step, `[a-zA-Z0-9_-]` (no `:`), unique within the layer's sequence. Lets other layers target it with `startAfter: "group:stepId"` (requires `schemaVersion: 8`). Not sent to panels — parse-time only. |
 | `type` | panel-local | Animation name (§7.2). Mutually exclusive with `runner`. |
 | `runner` | runner | `WAVE` / `RIPPLE` / `CHASE` / `WHEEL` / `BOUNCE` / `RAIN` / `SPARKLE` / `MATRIX` (§7.3). |
 | `color` / `colorTo` | both | The (target) colour — a [colour reference](#9-colours-palettes). `color` is an alias for `colorTo`. |

@@ -178,7 +178,10 @@ namespace Lightnet {
                 stepStartMs[i] = nowMs;
                 fireStep(i, nowMs);
             } else {
-                // Sequence finished — hold the last frame until the scene-cycle barrier.
+                // Sequence finished — release the layer's slot so its last frame stops
+                // covering lower layers while we wait for the scene-cycle barrier / loop
+                // restart (mirrors the GAP handling in fireStep).
+                stopLayerGroup(i);
                 layerState[i] = LayerState::DONE;
             }
         }
@@ -262,6 +265,18 @@ namespace Lightnet {
         return 0;
     }
 
+    // True once the awaited dependency (whole sequence, or just step `stepIdx` of it)
+    // has finished. A dependency that has reached DONE has by definition completed
+    // every one of its steps, regardless of which one it last ran.
+    bool ScenePlayer::dependencySatisfied(uint8_t depIdx, uint8_t stepIdx) const
+    {
+        if (layerState[depIdx] == LayerState::DONE) return true;
+
+        if (stepIdx == SCENE_NO_STEP_INDEX) return false;
+
+        return currentStep[depIdx] > stepIdx;
+    }
+
     void ScenePlayer::promoteReadyLayers(uint32_t nowMs)
     {
         for (uint8_t i = 0; i < lCount; i++) {
@@ -270,12 +285,26 @@ namespace Lightnet {
             int dep = layerIndexForGroup(layers[i].startAfterGroupId);
 
             // Missing dependency is treated as satisfied (parser validates references).
-            if (dep >= 0 && layerState[dep] != LayerState::DONE) continue;
+            if (dep >= 0 && !dependencySatisfied((uint8_t)dep, layers[i].startAfterStepIndex)) continue;
 
             layerState[i] = LayerState::RUNNING;
             currentStep[i] = 0;
             stepStartMs[i] = nowMs;
             fireStep(i, nowMs);
+        }
+    }
+
+    void ScenePlayer::stopLayerGroup(uint8_t layerIdx)
+    {
+        const SceneLayer& layer = layers[layerIdx];
+
+        uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
+        uint8_t panelCount = 0;
+
+        sceneTopo.resolvePanels(layer.target, panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
+
+        if (panelCount > 0) {
+            scheduler.sendControlToPanels(layer.groupId, ANIM_CTRL_STOP, panels, panelCount);
         }
     }
 
@@ -292,9 +321,16 @@ namespace Lightnet {
                                        (unsigned)step.durationMs,
                                        (unsigned)layer.groupId));
 
-        // GAP — a timed no-op. Send nothing; the layer's panels hold their current
-        // state and tick() advances past this step when its duration elapses.
-        if (step.animType == ANIM_GAP) return;
+        // GAP — a timed no-op for this layer's own sequence, but a previous step's
+        // animation slot must be released here: a finished, non-looping animation
+        // (e.g. BREATHE) otherwise stays HOLDING and keeps compositing its frozen
+        // end colour on top of lower layers for the whole gap, hiding them.
+        // Stopping the group clears the slot so lower layers show through again.
+        if (step.animType == ANIM_GAP) {
+            stopLayerGroup(layerIdx);
+
+            return;
+        }
 
         uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
         uint8_t panelCount = 0;

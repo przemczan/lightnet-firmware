@@ -453,7 +453,8 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play/one-shot`. All viol
 | Layer count | 1–8 |
 | Steps per layer | 1–12 |
 | `group` | Name (string) or number 1–254; unique within the scene |
-| `startAfter` | Must name an existing group; no self-reference, no dependency cycles |
+| Step `id` | Optional, `[a-zA-Z0-9_-]` (no `:`), unique within the layer's sequence (`schemaVersion: 8`+) |
+| `startAfter` | `"group"` or `"group:stepId"` (`schemaVersion: 8`+); must name an existing group (and step, if given); no self-reference, no dependency cycles |
 | `async` | Bool; loops the layer independently of the barrier. No effect when `startAfter` is set |
 | `type` + `runner` | Mutually exclusive — cannot both be set |
 | Step with neither `type` nor `runner` | Treated as a **gap** (timed no-op); only `duration` is used |
@@ -466,7 +467,7 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play/one-shot`. All viol
 | Panel indices | 1–254; unique panel addresses (panels are numbered from 1) |
 | Panel list length | 1–32 per layer |
 | Layer palette override | Layers with different effective palettes should not share any target panel (not validated at save time) |
-| Infinite last step | Holds forever; layer can't be a `startAfter` target and blocks the whole-scene loop |
+| Infinite last step | Holds forever; layer (or its last step, if targeted via `startAfter: "group:stepId"`) can't be a `startAfter` target, and blocks the whole-scene loop |
 
 ---
 

@@ -38,7 +38,7 @@ A **layer** is an animation track inside a scene. Each layer:
 - Targets a set of panels (`"all"`, a list, or an exclude list)
 - Belongs to a **group** — a name (e.g. `"intro"`) or a number (1–254). Panels run all groups concurrently without interference.
 - Runs a sequence of steps back-to-back, advancing automatically when the current step ends
-- Optionally declares **`startAfter`** — the name of another layer's group it waits for. Unset ⇒ the layer starts immediately at scene start (parallel). Set ⇒ the layer stays dark until the referenced layer's sequence finishes (sequential).
+- Optionally declares **`startAfter`** — the name of another layer's group (`"intro"`) or one of its steps (`"intro:flash"`, `schemaVersion: 8`+) that it waits for. Unset ⇒ the layer starts immediately at scene start (parallel). Set ⇒ the layer stays dark until the referenced layer's sequence (or just the named step) finishes (sequential).
 
 Because groups are independent, panels can run several overlapping layers simultaneously. A
 panel playing group `ambient` (breathe) and group `notify` (pulse) at the same time runs **both
@@ -63,9 +63,16 @@ graph, so you can both **sequence** and **parallelise** groups from one field:
 `main` stays dark until `intro`'s whole sequence completes, then begins. Layers
 that share the same `startAfter` (or none) run in parallel.
 
-Validation rejects: an unknown `startAfter` target, a self-reference, a
-dependency **cycle**, and a `startAfter` target whose last step is infinite
-(`duration:0`) — such a layer never finishes, so its dependents would never start.
+A step within `intro` can be given an optional `id` (e.g. `"id": "flash"`), and
+another layer can target it with `"startAfter": "intro:flash"` — that layer starts
+as soon as `intro`'s `flash` step finishes, while the rest of `intro`'s sequence
+keeps playing independently. Step `id`s are unique within their layer and `:` is
+reserved as the group/step separator. Requires `schemaVersion: 8`.
+
+Validation rejects: an unknown `startAfter` target (group or step), a
+self-reference, a dependency **cycle**, and a `startAfter` target whose targeted
+step (the named step, or the sequence's last step if none is named) is infinite
+(`duration:0`) — such a step never finishes, so its dependents would never start.
 
 ---
 
@@ -102,7 +109,8 @@ Groups are the synchronisation unit. When the controller fires a `GENERAL CALL S
 
 A `group` may be written as a **name** (`"group": "intro"`) or a **number** (`"group": 3`). Names are the preferred, readable form; the controller maps each distinct name to an auto-assigned numeric ID (1, 2, 3…) in order of first appearance at parse time, so the on-the-wire protocol is unchanged. Numbers (1–254) still work for back-compat; 0 is reserved.
 
-`startAfter` references a layer by its group **name**.
+`startAfter` references a layer by its group **name**, optionally followed by
+`:stepId` to target one of that layer's steps (see [Layer ordering](#layer-ordering-startafter)).
 
 !!! note "Groups must be unique within a scene"
     The controller validates this on save. Two layers cannot share the same group name/ID. Avoid mixing named and numeric groups in one scene — a name auto-assigned to `1` collides with a literal `"group": 1`.
@@ -299,7 +307,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 7; v2 = named groups / `startAfter` / gaps, v3 = geometric directionality, v4 = layer blend / modifiers, v5 = WHEEL runner / `repeat`, v6 = brightness/saturation boost modifiers, v7 = BOUNCE/RAIN/SPARKLE runners / `waves` field). |
+| `schemaVersion` | No | 1 | Schema version check. `409` if greater than firmware's version (currently 8; v2 = named groups / `startAfter` / gaps, v3 = geometric directionality, v4 = layer blend / modifiers, v5 = WHEEL runner / `repeat`, v6 = brightness/saturation boost modifiers, v7 = BOUNCE/RAIN/SPARKLE runners / `waves` field, v8 = step `id` + `startAfter: "group:stepId"`). |
 | `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. |
 | `loop` | No | `false` | When `true`, the whole scene restarts (all layers together) once every layer has finished — the scene-cycle barrier. |
 | `speed` | No | `1.0` | Playback speed multiplier [0.1, 10.0]. Scales all step durations. |
@@ -316,7 +324,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 | `panels` | No | `"all"` | Panel targeting — see below. |
 | `blend` | No | `opaque` (runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
 | `palette` | No | scene default | Per-layer palette override. |
-| `startAfter` | No | — | Group name of the layer this one waits for; unset ⇒ starts at scene start. |
+| `startAfter` | No | — | Group name of the layer this one waits for, optionally `:stepId` for a specific step (`schemaVersion: 8`+); unset ⇒ starts at scene start. |
 | `async` | No | `false` | When `true`, the layer loops on its own, independent of the scene-cycle barrier (see below). Ignored if `startAfter` is set. |
 | `sequence` | Yes | — | Ordered array of steps (1–12). |
 

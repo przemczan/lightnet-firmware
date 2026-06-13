@@ -17,6 +17,9 @@
 namespace Lightnet {
     namespace {
         static const uint8_t GROUP_NAME_LEN = 16;
+        static const uint8_t STEP_NAME_LEN  = 16;
+        // "groupName:stepName" — both parts up to their own *_NAME_LEN minus separator/terminator.
+        static const uint8_t START_AFTER_LEN = GROUP_NAME_LEN + STEP_NAME_LEN;
 
         // ---------------------------------------------------------------------------
         // Group-name → numeric-ID table. String group names are interned in order of
@@ -575,7 +578,10 @@ namespace Lightnet {
         // Parse one step object. p points just after the opening '{'.
         // ---------------------------------------------------------------------------
 
-        static bool parseStep(const char *& p, const char *end, SceneStep& step, char *errMsg, size_t errLen)
+        // `stepId` (if non-null) receives the step's optional "id" string (empty if absent),
+        // used by the caller to resolve other layers' `startAfter: "group:stepId"` references.
+        static bool parseStep(const char *& p, const char *end, SceneStep& step,
+                               char *stepId, size_t stepIdLen, char *errMsg, size_t errLen)
         {
             memset(&step, 0, sizeof(step));
             step.animType = ANIM_SOLID;
@@ -584,7 +590,25 @@ namespace Lightnet {
 
             char key[20];
 
+            if (stepId) stepId[0] = '\0';
+
             while (jsonNextKey(p, end, key, sizeof(key))) {
+                if (stepId && strcmp(key, "id") == 0) {
+                    if (!jsonReadString(p, end, stepId, stepIdLen) || stepId[0] == '\0') {
+                        strncpy(errMsg, "step.id: not a non-empty string", errLen);
+
+                        return false;
+                    }
+
+                    if (strchr(stepId, ':') != nullptr) {
+                        strncpy(errMsg, "step.id: ':' is reserved, not allowed", errLen);
+
+                        return false;
+                    }
+
+                    continue;
+                }
+
                 if (!handleStepField(key, p, end, step, hasType, errMsg, errLen)) return false;
             }
 
@@ -615,7 +639,8 @@ namespace Lightnet {
             const char *  end,
             SceneLayer&   layer,
             NameTable&    names,
-            char (&startAfterName)[GROUP_NAME_LEN],
+            char (&startAfterName)[START_AFTER_LEN],
+            char (&stepIds)[SCENE_MAX_STEPS][STEP_NAME_LEN],
             char *        errMsg,
             size_t        errLen
         )
@@ -623,7 +648,10 @@ namespace Lightnet {
             memset(&layer, 0, sizeof(layer));
             layer.target.clear();
             layer.target.emit(SEL_ALL); // default targeting when no "panels" key is present
+            layer.startAfterStepIndex = SCENE_NO_STEP_INDEX;
             startAfterName[0] = '\0';
+
+            for (uint8_t s = 0; s < SCENE_MAX_STEPS; s++) stepIds[s][0] = '\0';
 
             char key[16];
 
@@ -726,8 +754,8 @@ namespace Lightnet {
                         return false;
                     }
                 } else if (strcmp(key, "startAfter") == 0) {
-                    if (!jsonReadString(p, end, startAfterName, GROUP_NAME_LEN) || startAfterName[0] == '\0') {
-                        strncpy(errMsg, "layer.startAfter: not a non-empty group name", errLen);
+                    if (!jsonReadString(p, end, startAfterName, START_AFTER_LEN) || startAfterName[0] == '\0') {
+                        strncpy(errMsg, "layer.startAfter: not a non-empty \"group\" or \"group:stepId\"", errLen);
 
                         return false;
                     }
@@ -759,7 +787,18 @@ namespace Lightnet {
                             return false;
                         }
 
-                        if (!parseStep(p, end, layer.steps[layer.stepCount], errMsg, errLen)) return false;
+                        if (!parseStep(p, end, layer.steps[layer.stepCount],
+                                        stepIds[layer.stepCount], STEP_NAME_LEN, errMsg, errLen)) return false;
+
+                        if (stepIds[layer.stepCount][0] != '\0') {
+                            for (uint8_t s = 0; s < layer.stepCount; s++) {
+                                if (strcmp(stepIds[s], stepIds[layer.stepCount]) == 0) {
+                                    snprintf(errMsg, errLen, "layer.sequence: duplicate step id \"%s\"", stepIds[s]);
+
+                                    return false;
+                                }
+                            }
+                        }
 
                         layer.stepCount++;
                     }
@@ -910,9 +949,12 @@ namespace Lightnet {
 
         names.reset();
 
-        char startAfterNames[SCENE_MAX_LAYERS][GROUP_NAME_LEN];
+        char startAfterNames[SCENE_MAX_LAYERS][START_AFTER_LEN];
 
         for (uint8_t i = 0; i < SCENE_MAX_LAYERS; i++) startAfterNames[i][0] = '\0';
+
+        // Per-layer step "id" → index, used to resolve other layers' "group:stepId" startAfter.
+        char stepIds[SCENE_MAX_LAYERS][SCENE_MAX_STEPS][STEP_NAME_LEN];
 
         const char *p   = json;
         const char *end = json + len;
@@ -1002,6 +1044,7 @@ namespace Lightnet {
 
                     if (!parseLayer(p, end, out.layers[out.layerCount], names,
                                     startAfterNames[out.layerCount],
+                                    stepIds[out.layerCount],
                                     out.errMsg, sizeof(out.errMsg))) return false;
 
                     out.layerCount++;
@@ -1074,15 +1117,45 @@ namespace Lightnet {
             }
         }
 
-        // Resolve layer-level startAfter (by group name) to numeric group IDs.
+        // Resolve layer-level startAfter ("group" or "group:stepId") to a numeric group ID
+        // and, if a step part is given, the 0-based index of that step within the target's
+        // sequence.
         for (uint8_t i = 0; i < out.layerCount; i++) {
             if (startAfterNames[i][0] == '\0') continue;
 
-            uint8_t id = names.find(startAfterNames[i]);
+            char groupName[GROUP_NAME_LEN];
+            char stepName[STEP_NAME_LEN];
+
+            stepName[0] = '\0';
+
+            char *colon = strchr(startAfterNames[i], ':');
+
+            if (colon != nullptr) {
+                size_t glen = (size_t)(colon - startAfterNames[i]);
+
+                if (glen >= GROUP_NAME_LEN) glen = GROUP_NAME_LEN - 1;
+
+                memcpy(groupName, startAfterNames[i], glen);
+                groupName[glen] = '\0';
+
+                strncpy(stepName, colon + 1, STEP_NAME_LEN - 1);
+                stepName[STEP_NAME_LEN - 1] = '\0';
+
+                if (stepName[0] == '\0') {
+                    strncpy(out.errMsg, "startAfter: empty step id after \":\"", sizeof(out.errMsg));
+
+                    return false;
+                }
+            } else {
+                strncpy(groupName, startAfterNames[i], GROUP_NAME_LEN - 1);
+                groupName[GROUP_NAME_LEN - 1] = '\0';
+            }
+
+            uint8_t id = names.find(groupName);
 
             if (id == 0) {
                 snprintf(out.errMsg, sizeof(out.errMsg),
-                         "startAfter: unknown group \"%s\"", startAfterNames[i]);
+                         "startAfter: unknown group \"%s\"", groupName);
 
                 return false;
             }
@@ -1095,10 +1168,36 @@ namespace Lightnet {
 
             out.layers[i].startAfterGroupId = id;
             out.layers[i].async = 0; // startAfter takes precedence — async has no effect
+
+            if (stepName[0] != '\0') {
+                int found = -1;
+
+                for (uint8_t k = 0; k < out.layerCount; k++) {
+                    if (out.layers[k].groupId != id) continue;
+
+                    for (uint8_t s = 0; s < out.layers[k].stepCount; s++) {
+                        if (strcmp(stepIds[k][s], stepName) == 0) {
+                            found = (int)s;
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+
+                if (found < 0) {
+                    snprintf(out.errMsg, sizeof(out.errMsg),
+                             "startAfter: unknown step \"%s\" in group \"%s\"", stepName, groupName);
+
+                    return false;
+                }
+
+                out.layers[i].startAfterStepIndex = (uint8_t)found;
+            }
         }
 
-        // A depended-upon layer must be able to finish, otherwise its dependents never
-        // start — reject an infinite (duration=0) last step on any startAfter target.
+        // A depended-upon layer (or step) must be able to finish, otherwise its dependents
+        // never start — reject an infinite (duration=0) last step on any startAfter target.
         for (uint8_t i = 0; i < out.layerCount; i++) {
             uint8_t dep = out.layers[i].startAfterGroupId;
 
@@ -1109,8 +1208,12 @@ namespace Lightnet {
 
                 if (t.groupId != dep) continue;
 
-                if (t.stepCount > 0 && t.steps[t.stepCount - 1].durationMs == 0) {
-                    strncpy(out.errMsg, "startAfter: target layer never ends (infinite last step)", sizeof(out.errMsg));
+                uint8_t lastIdx = (out.layers[i].startAfterStepIndex == SCENE_NO_STEP_INDEX)
+                                      ? (uint8_t)(t.stepCount - 1)
+                                      : out.layers[i].startAfterStepIndex;
+
+                if (t.stepCount > 0 && t.steps[lastIdx].durationMs == 0 && lastIdx == (uint8_t)(t.stepCount - 1)) {
+                    strncpy(out.errMsg, "startAfter: target step never ends (infinite last step)", sizeof(out.errMsg));
 
                     return false;
                 }

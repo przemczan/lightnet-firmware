@@ -21,7 +21,11 @@ namespace Lightnet {
     static const uint8_t SCENE_MAX_STEPS            = 12;
     static const uint8_t SCENE_MAX_PANELS_PER_LAYER = 32;  // legacy authored-list cap (mirrors SEL_MAX_INDEX_LIST)
     static const uint8_t SCENE_MAX_RESOLVED_PANELS  = LIGHTNET_MAX_PANELS; // a selector can resolve to any panel
-    static const uint8_t SCENE_SCHEMA_VERSION       = 7;  // v7: BOUNCE/RAIN/SPARKLE/MATRIX runners, `waves` (rate, alias for repeatCount), and RAIN/MATRIX `speed` (duration becomes the play window)
+    static const uint8_t SCENE_SCHEMA_VERSION       = 8;  // v8: step `id` + startAfter "group:stepId" (wait for a specific step, not the whole sequence)
+    // v7: BOUNCE/RAIN/SPARKLE/MATRIX runners, `waves` (rate, alias for repeatCount), and RAIN/MATRIX `speed` (duration becomes the play window)
+
+    // Sentinel for SceneLayer::startAfterStepIndex meaning "whole sequence" (no specific step targeted).
+    static const uint8_t SCENE_NO_STEP_INDEX = 0xFF;
 
     // ============================================================================
     // Per-layer playback state (scene-cycle barrier model)
@@ -53,7 +57,8 @@ namespace Lightnet {
 
     struct SceneLayer {
         uint8_t       groupId;
-        uint8_t       startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer to finish
+        uint8_t       startAfterGroupId;                 // 0 = start immediately; else wait for that group's layer
+        uint8_t       startAfterStepIndex;                // SCENE_NO_STEP_INDEX = wait for the whole sequence; else wait for this step (0-based) of startAfterGroupId's layer
         uint8_t       async;                             // bitmask: 0x01 = loop independently, 0x02 = non-blocking free-running (scene ignores this layer)
         uint8_t       stepCount;
         uint8_t       blend;                             // ComposeMode — how this layer composites on the panel
@@ -215,6 +220,10 @@ namespace Lightnet {
             uint8_t resolvedPaletteCounts[SCENE_MAX_LAYERS];
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
+            // Clears the layer's animation slot on its panels (ANIM_CTRL_STOP) so it stops
+            // contributing to the composite — used when a layer hits a GAP step or finishes
+            // its sequence, so a held last frame doesn't permanently cover lower layers.
+            void stopLayerGroup(uint8_t layerIdx);
             // RUN_RAIN / RUN_SPARKLE: emit drops due this tick (rate-gated). Called from tick()
             // while the spawner step is the layer's current RUNNING step.
             void serviceSpawner(uint8_t layerIdx, uint32_t nowMs);
@@ -228,7 +237,10 @@ namespace Lightnet {
             void armLayers(uint32_t nowMs, bool includeAsync);
             // Index of the layer owning groupId, or -1 if none.
             int  layerIndexForGroup(uint8_t groupId) const;
-            // Promote WAITING layers whose dependency is DONE to RUNNING and fire them.
+            // True once layer `depIdx` has finished (whole sequence) or, if stepIdx !=
+            // SCENE_NO_STEP_INDEX, has progressed past that step of its sequence.
+            bool dependencySatisfied(uint8_t depIdx, uint8_t stepIdx) const;
+            // Promote WAITING layers whose dependency is satisfied to RUNNING and fire them.
             void promoteReadyLayers(uint32_t nowMs);
             // True when the layer loops on its own, independent of the scene-cycle barrier.
             // async has no effect while startAfter gates the layer.
