@@ -234,7 +234,7 @@ It is the **single implementation** of panel-local animation math, compiled into
 
 ### AnimationPlayer (panel side) — layer compositor
 
-- `slots[MAX_ANIM_SLOTS]` (8) — each an independent layer keyed by `group_id`, with its running
+- `slots[MAX_ANIM_SLOTS]` (18) — each an independent layer keyed by `group_id`, with its running
   step + a 1-deep pending step (PREPARE buffers `pending`; START activates it).
 - `tick()` gated at 16 ms (60 fps), integer math only. Each tick resolves every started slot to one
   contribution (source colour or modifier value). **Non-looping** layers honour `startDelayMs`

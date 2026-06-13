@@ -66,36 +66,39 @@ freely.
 |---|---|---|
 | Wire/TWI buffers (`TWI_BUFFER_SIZE=80` × 4) | 320 B | `twi_rxBuffer`, `twi_txBuffer`, `TwoWire::rxBuffer`, `TwoWire::txBuffer`. Must be ≥ `Protocol::MAX_PACKET_SIZE` (80) — see above. |
 | RX packet ring (`RX_QUEUE_BYTES=80`, `SpscByteQueue`) | 80 B | Single lock-free ring (`.bss`). `handleIncomingPackets()` also uses an 80 B stack scratch buffer while draining it — but that's reused stack space, not a second standing allocation. The old double-buffered `CircularQueue` pair permanently held **both** buffers (plus heap/object overhead, ~190 B) for the program's lifetime. |
-| `AnimationPlayer` — `MAX_ANIM_SLOTS × 55 B` | 770 B at 14 slots | Each `Slot` is 55 B: two `AnimationState` (`cur` + `pending`, 22 B each) + ~11 B of flags/timing/reactive fields. This is the **only per-slot cost** and the main lever. |
+| `AnimationPlayer` — `MAX_ANIM_SLOTS × 55 B` | 990 B at 18 slots | Each `Slot` is 55 B: two `AnimationState` (`cur` + `pending`, 22 B each) + ~11 B of flags/timing/reactive fields. This is the **only per-slot cost** and the main lever. |
 | `AnimationPlayer` — palette + base colours | 73 B | `palette[PALETTE_STOPS=16]` (64 B) + `baseColors[BASE_COLORS_COUNT=3]` (9 B). Fixed, independent of slot count. |
 | `LNPanel` other fields | ~30 B | Address, flags, config, misc bookkeeping. |
 | 3 × `LightnetPanelEdge` + `LightnetPinger` | ~125 B | Per-edge state for the 3 physical connectors plus ping-pulse tracking. |
 | Arduino Serial ring buffers (`SERIAL_RX=2` + `SERIAL_TX=32`) | ~34 B | Reduced from MiniCore defaults (64 B RX is overkill for 57600-baud debug output). |
-| **Static total** (above) | **~1432 B** | |
+| **Static total** (above) | **~1652 B** | |
 | Free for stack growth / runtime dynamic state | **remainder** | See below. |
 
 ### Current measurement
 
-At `MAX_ANIM_SLOTS = 14` (`pio run -e panel_atmega328p`):
+At `MAX_ANIM_SLOTS = 18` (`pio run -e panel_atmega328p`):
 
 ```
-RAM:   [=======   ]  72.4% (used 1482 bytes from 2048 bytes)
-Flash: [=====     ]  54.3% (used 17512 bytes from 32256 bytes)
+RAM:   [========  ]  83.0% (used 1700 bytes from 2048 bytes)
+Flash: [=====     ]  51.4% (used 16844 bytes from 32768 bytes)
 ```
 
-**566 B free** for stack and any remaining heap use. Flash is not a constraint (54.3%).
+**348 B free** for stack and any remaining heap use. Flash is not a constraint (51.4%).
 
 ### Sizing `MAX_ANIM_SLOTS`
 
-Marginal cost is **55 B per slot**, confirmed empirically (8→16 slots: +440 B = 55 B/slot).
-From the 14-slot baseline above:
+Marginal cost is **55 B per slot**, confirmed empirically (14→24 slots: +550 B = 55 B/slot).
+From the 18-slot baseline above:
 
-- **Hard ceiling** (0 B free, unsafe): 14 + ⌊566 / 55⌋ = **24 slots**. Don't do this — leaves
+- **Hard ceiling** (0 B free, unsafe): 18 + ⌊348 / 55⌋ = **24 slots**. Don't do this — leaves
   nothing for the call stack, which on AVR with FastLED's interrupt-driven output and nested
   I²C ISR handling needs real headroom.
-- **Practical safe range**: keep ≥150–200 B free for stack. That's 14 + ⌊(566−175)/55⌋ ≈
-  **20–21 slots** as an upper bound. **14 is comfortable** (566 B / 27.6% free) with plenty of
-  margin for future protocol/feature growth.
+- **Practical safe range**: keep ≥150–200 B free for stack. That's 18 + ⌊(348−175)/55⌋ ≈
+  **21 slots** as a hard upper bound. **18 is the current default** (348 B / 17.0% free) — within
+  the safe range, but note that `composite()` also puts a transient `7 × MAX_ANIM_SLOTS` B array
+  on the stack each frame (126 B at 18), so the effective per-frame headroom is tighter than the
+  static free figure suggests. Going above 18 is not recommended without an on-device free-stack
+  measurement.
 
 If a panel starts crashing mid-init, dropping I²C packets, or printing garbage on serial after
 raising `MAX_ANIM_SLOTS`, that's stack-corruption-by-overrun — lower it back down (or also check

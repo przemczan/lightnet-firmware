@@ -702,14 +702,14 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 
 Layers run *per panel* — every panel that a layer targets gets its own copy of that layer's
 current step, animating independently and then composited together (§5.1). Each panel has a
-**fixed budget of 14 concurrently running animations**, shared by everything currently active on
+**fixed budget of 18 concurrently running animations**, shared by everything currently active on
 that panel:
 
 - **Panel-local steps and runner pulses.** Each layer occupies **one** of these slots on every
   panel it targets, for as long as that layer's current step is active there. A scene has at
-  most 8 layers, so ordinary layers alone never get close to the 14-slot ceiling.
+  most 8 layers, so ordinary layers alone never get close to the 18-slot ceiling.
 - **RAIN / SPARKLE / MATRIX particle spawners are different.** Each in-flight drop or flash is
-  its own animation, drawn from the *same* 14-slot budget. A spawner step doesn't reserve a
+  its own animation, drawn from the *same* 18-slot budget. A spawner step doesn't reserve a
   fixed number of slots up front — it just keeps spawning new drops/flashes into whatever
   capacity is free, so its effective density depends on how many slots other layers are using
   on the same panels at that moment.
@@ -730,13 +730,13 @@ that panel:
   to give it more room.
 - Layers that don't overlap in time (e.g. gated with `startAfter`, or simply not targeting the
   same panels) don't compete for the same budget — only animations that are *actually running on
-  the same panel at the same moment* count against the 14.
+  the same panel at the same moment* count against the 18.
 
 For the underlying mechanics (slot allocation, composite ordering, spawner pools), see
 [`AnimationPlayer.hpp`](../../lib/Lightnet/Core/Anim/AnimationPlayer.hpp) (`MAX_ANIM_SLOTS`) and
 [`ScenePlayer.cpp`](../../lib/Lightnet/Controller/Scenes/ScenePlayer.cpp) (`allocSpawnPools`).
 
-This 14-slot panel-side budget is independent of the controller-side
+This 18-slot panel-side budget is independent of the controller-side
 [`AnimationScheduler`](../../lib/Lightnet/Controller/Animations/AnimationScheduler.hpp)
 (`MAX_ACTIVE_RUNNERS = 8`), which tracks one in-flight **runner** (WAVE/RIPPLE/CHASE/WHEEL/
 BOUNCE/RAIN/SPARKLE/MATRIX) per layer. Since a scene has at most 8 layers, this cap is never

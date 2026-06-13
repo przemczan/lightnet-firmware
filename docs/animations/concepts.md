@@ -45,7 +45,7 @@ panel playing group `ambient` (breathe) and group `notify` (pulse) at the same t
 at once** and **composites** them into its single colour output each frame — they no longer
 overwrite each other. How they combine is set by each layer's [`blend` mode](#layer-compositing),
 and layers are stacked in **array order** (earlier layers are below later ones). A panel runs up
-to `MAX_ANIM_SLOTS` (8) composited layers; if more layers target one panel the extra ones (by
+to `MAX_ANIM_SLOTS` (18) composited layers; if more layers target one panel the extra ones (by
 array order) are dropped.
 
 ### Layer ordering (`startAfter`)
