@@ -67,11 +67,14 @@ namespace Lightnet {
 
     // Direct SET_COLOR: becomes the current colour unconditionally (event-driven, ungated —
     // reproduces the panel's pre-refactor immediate LED write). Also keeps lastOutput in sync
-    // so FLAG_CURRENT_COLOR_* substitution reads the true current colour.
+    // so FLAG_CURRENT_COLOR_* substitution reads the true current colour. Also updates
+    // backgroundColor so a later composite() with no active layers falls back to this
+    // colour instead of a stale scene background.
     void AnimationPlayer::setColorDirect(const ::Protocol::ColorRGB& c)
     {
-        lastOutput  = c;
-        outputDirty = true;
+        lastOutput      = c;
+        backgroundColor = c;
+        outputDirty     = true;
     }
 
     ::Protocol::ColorRGB AnimationPlayer::resolveColorRef(const ColorRef& ref) const
@@ -404,7 +407,14 @@ namespace Lightnet {
             n++;
         }
 
-        if (n == 0) return; // nothing active → leave the LED (idle background / direct SET_COLOR)
+        // Nothing actively contributing this frame — fall back to the background colour
+        // (the scene compositor base, or the last direct SET_COLOR outside a scene) rather
+        // than leaving the LED frozen at whatever the last composited colour happened to be.
+        if (n == 0) {
+            setOutput(backgroundColor);
+
+            return;
+        }
 
         RGB8 base = { backgroundColor.r, backgroundColor.g, backgroundColor.b };
         RGB8 acc  = foldLayers(contrib, n, base);
