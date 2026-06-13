@@ -63,7 +63,7 @@ class PacketMirror
         // dropped regardless of size. These caps only need to batch enough packets to
         // keep flush frequency (and thus ws.binary() calls) reasonable during a burst.
         #ifdef ARDUINO_ARCH_ESP32
-            static const uint16_t RECORDS_CAP    = 1024 * 6;
+            static const uint16_t RECORDS_CAP    = 1024 * 5;
 
         #else
             static const uint16_t RECORDS_CAP    = 1024;
@@ -71,18 +71,6 @@ class PacketMirror
         #endif
         static const uint16_t PAYLOAD_HEADER = 6;  // u32 millis + u16 count
         static const uint8_t RECORD_HEADER  = 3;   // u8 address + u8 type + u8 size
-
-        // flushTo() splits buffered records into MIRROR_BATCH frames no larger than
-        // this many record bytes, so a single flush of a burst (e.g. all PREPARE/START
-        // packets at scene start) doesn't require one huge contiguous allocation on the
-        // WebSocket send side.
-        #ifdef ARDUINO_ARCH_ESP32
-            static const uint16_t FLUSH_CHUNK_CAP = 1024 * 5;
-
-        #else
-            static const uint16_t FLUSH_CHUNK_CAP = 512;
-
-        #endif
 
         // ---- live-stream buffer ----
         // Single contiguous frame: [PacketMeta][payload header][records].

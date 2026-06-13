@@ -216,6 +216,22 @@ bool PacketMirror::flushTo(WebsocketServer *server)
     // current millis(). This keeps the preview timing closer to the controller's
     // actual send times when multiple packets are coalesced.
     uint32_t now = (firstRecordMs != 0) ? firstRecordMs : millis();
+    uint8_t *p = payload();
+
+    // memcpy: payload lands at an odd offset (sizeof(PacketMeta)==13), so direct
+    // multi-byte stores would be unaligned and fault on ESP8266.
+    memcpy(&p[0], &now, sizeof(now));
+    memcpy(&p[4], &recordCount, sizeof(recordCount));
+
+    uint16_t payloadSize = PAYLOAD_HEADER + recordsLen;
+
+    WebsocketApi::updatePacketMeta(
+        (WebsocketApi::PacketMeta *)frame,
+        WebsocketApi::MIRROR_BATCH,
+        payloadSize
+    );
+
+    server->sendToMirroringClients(frame, sizeof(WebsocketApi::PacketMeta) + payloadSize);
 
     DEBUG_IF(DEBUG_API, {
         D_PRINTLN("[MIRROR] records sent", recordCount);
@@ -225,52 +241,8 @@ bool PacketMirror::flushTo(WebsocketServer *server)
         }
     });
 
-    // Send in chunks of at most FLUSH_CHUNK_CAP record bytes, so a large burst
-    // (e.g. all PREPARE/START packets at scene start) is sent as several smaller
-    // MIRROR_BATCH frames instead of one large one.
-    while (recordCount > 0) {
-        uint8_t *r = records();
-        uint16_t chunkBytes = 0;
-        uint16_t chunkCount = 0;
-
-        while (chunkCount < recordCount) {
-            uint8_t recSize = RECORD_HEADER + r[chunkBytes + 2];
-
-            if (chunkBytes > 0 && (uint16_t)(chunkBytes + recSize) > FLUSH_CHUNK_CAP) {
-                break;
-            }
-
-            chunkBytes += recSize;
-            chunkCount++;
-        }
-
-        uint8_t *p = payload();
-
-        // memcpy: payload lands at an odd offset (sizeof(PacketMeta)==13), so direct
-        // multi-byte stores would be unaligned and fault on ESP8266.
-        memcpy(&p[0], &now, sizeof(now));
-        memcpy(&p[4], &chunkCount, sizeof(chunkCount));
-
-        uint16_t payloadSize = PAYLOAD_HEADER + chunkBytes;
-
-        WebsocketApi::updatePacketMeta(
-            (WebsocketApi::PacketMeta *)frame,
-            WebsocketApi::MIRROR_BATCH,
-            payloadSize
-        );
-
-        server->sendToMirroringClients(frame, sizeof(WebsocketApi::PacketMeta) + payloadSize);
-
-        uint16_t remaining = recordsLen - chunkBytes;
-
-        if (remaining > 0) {
-            memmove(records(), records() + chunkBytes, remaining);
-        }
-
-        recordsLen  -= chunkBytes;
-        recordCount -= chunkCount;
-    }
-
+    recordsLen   = 0;
+    recordCount  = 0;
     droppedCount = 0;
     firstRecordMs = 0;
 
