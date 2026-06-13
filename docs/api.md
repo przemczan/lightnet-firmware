@@ -304,24 +304,13 @@ Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes/play` | Full scene JSON body — stored under the reserved name `Current`, then played by name | `202 {}` (parsed/validated synchronously; played on the main loop) |
+| `POST` | `/api/scenes/play/one-shot` | Full scene JSON body — stored under the hidden name `@one-shot`, then played by name | `202 {}` (parsed/validated synchronously; played on the main loop) |
+| `POST` | `/api/scenes/play` | — (replays `lastPlayedScene`: by name if it was a stored scene, or `@one-shot` if it was a one-shot play) | `202 {}`, or `404 no_last_played_scene` |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `202 {}` |
 | `POST` | `/api/scenes/stop` | — | `202 {}` |
 | `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `202 {"ok":true,"speed":2.0}` |
-| `GET` | `/api/scenes/status` | — | See below |
 
-Status response while playing:
-```json
-{
-  "playing": true,
-  "scene": "sunset",
-  "loop": true,
-  "layers": 2,
-  "speed": 1.0
-}
-```
-
-Status when idle: `{"playing": false}`
+Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (§2.5).
 
 ---
 
@@ -348,7 +337,7 @@ Content-Type: application/json
 }
 ```
 
-For chained steps (e.g. pulse → fade-out), use `POST /api/scenes/play` with a full scene body containing one layer with the desired sequence, and a free group ID.
+For chained steps (e.g. pulse → fade-out), use `POST /api/scenes/play/one-shot` with a full scene body containing one layer with the desired sequence, and a free group ID.
 
 Response: `202 {}` (parsed synchronously; played on the main loop)
 
@@ -480,15 +469,16 @@ Values outside `0–2` return `422`.
 
 ### 2.9 State
 
-Runtime app state — power state and the most recently played scene's name. Persisted in
-`/config/app_state.json` with a 5-second deferred-write window. The initial `isOn` value on boot
-is derived from `powerStateOnBoot` (see §2.7); `lastPlayedScene` is set whenever a scene is played
-via `POST /api/scenes/play` or `POST /api/scenes/:name/play` (inline plays are recorded under the
-reserved name `Current`, see §2.3 Scenes).
+Runtime app state — power state, scene playback status, and the most recently played scene's
+name. Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial
+`isOn` value on boot is derived from `powerStateOnBoot` (see §2.7); `lastPlayedScene` /
+`lastPlayedSceneIsStored` are set whenever a scene is played via `POST /api/scenes/play/one-shot`
+or `POST /api/scenes/:name/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` is `false` when
+`lastPlayedScene` refers to the hidden `@one-shot` scene rather than a device-stored scene.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedScene":"sunset"}` |
+| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedScene":"sunset","lastPlayedSceneIsStored":true,"playing":true,"speed":1.0}` |
 | `POST` | `/api/state/power` | `{"isOn":bool}` | `202 {"isOn":bool}` (panel effects applied on the main loop) |
 
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.

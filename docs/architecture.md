@@ -118,7 +118,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|---|
 | `AppearanceServer` | `GET /api/appearance`, `PATCH /api/appearance` | Appearance read/write |
 | `PaletteServer` | `GET/POST /api/palettes`, `GET/DELETE /api/palettes/*` | Palette CRUD |
-| `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/status`, `/api/scenes/stop`, `/api/scenes/play` | Scene CRUD + playback |
+| `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `TopologyServer` | `GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags` | Logical root + panel tags (backed by `TopologyConfigStore`) |
 
@@ -410,7 +410,7 @@ is written assuming exactly one caller. But `LNBus.sendPacket()` is reached from
 
 - **Main loop** — `scenePlayer->tick()` / `animScheduler->tick()` emit per-frame `SET_COLOR` and
   step PREPARE/START packets.
-- **AsyncTCP** — a synchronous HTTP handler such as `/api/scenes/play` calls `loadAndPlay()`, which
+- **AsyncTCP** — a synchronous HTTP handler such as `/api/scenes/play/one-shot` calls `loadAndPlay()`, which
   emits a burst of ~300 PREPARE/START packets **inline on the AsyncTCP task**.
 
 Left uncoordinated, `capture()` on the AsyncTCP task races `PacketMirror::flushTo()` on the main loop
@@ -488,7 +488,7 @@ sequenceDiagram
   participant Loop as Main loop
   participant Bus as LNBus → PacketMirror
 
-  Cl->>TCP: POST /api/scenes/play
+  Cl->>TCP: POST /api/scenes/play/one-shot
   TCP->>TCP: parse + validate (pure, no packets)
   TCP->>Q: post(playParsed, parsed*)
   TCP-->>Cl: 202 Accepted
@@ -510,7 +510,7 @@ loop (the demos).
 
 | Deferred → `202` | Reason |
 |---|---|
-| `POST /api/scenes/play`, `…/:name/play`, `…/stop`, `…/speed` | PREPARE/START packets, `ScenePlayer` state |
+| `POST /api/scenes/play`, `…/play/one-shot`, `…/:name/play`, `…/stop`, `…/speed` | PREPARE/START packets, `ScenePlayer` state |
 | `POST /api/animations/play`, `…/trigger` | PREPARE/START, reactive-trigger packets |
 | `PATCH /api/appearance` | brightness / base-colors / palette broadcasts |
 | `POST /api/state/power` | per-panel on/off, scene stop/resume |

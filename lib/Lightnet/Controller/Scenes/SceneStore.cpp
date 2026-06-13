@@ -12,9 +12,9 @@ namespace Lightnet {
         }
     } // anonymous namespace
 
-    bool SceneStore::isReservedName(const char *name)
+    bool SceneStore::isHiddenName(const char *name)
     {
-        return strcmp(name, reservedName()) == 0;
+        return name[0] == '@';
     }
 
     bool SceneStore::save(const char *name, const char *json, size_t len) const
@@ -124,7 +124,7 @@ namespace Lightnet {
 
             memcpy(name, base, nlen);
 
-            if (isReservedName(name)) continue;
+            if (isHiddenName(name)) continue;
 
             n += snprintf(buf + n, bufLen - n, "%s{\"name\":\"%s\",\"size\":%u}",
                           first ? "" : ",", name, (unsigned)d.fileSize());

@@ -37,11 +37,11 @@ namespace Lightnet {
             void deferPlay(AsyncWebServerRequest *req, SceneParseResult *parsed);
 
             void handleListScenes(AsyncWebServerRequest *req);
-            void handleGetSceneStatus(AsyncWebServerRequest *req);
             void handleGetSceneByName(AsyncWebServerRequest *req);
             void handleDeleteScene(AsyncWebServerRequest *req);
             void handlePostSaveScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
-            void handlePostPlayScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
+            void handlePostPlayOneShotScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
+            void handlePostPlayLastScene(AsyncWebServerRequest *req);
             void handlePostPlaySceneByName(AsyncWebServerRequest *req);
             void handlePostStopScene(AsyncWebServerRequest *req);
             void handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len);

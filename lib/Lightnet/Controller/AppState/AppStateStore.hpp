@@ -9,7 +9,7 @@ namespace Lightnet {
     //
     // filesystem layout:
     //   /config/app_state.json
-    //   { "schemaVersion": 1, "isOn": true, "lastPlayedScene": "sunset" }
+    //   { "schemaVersion": 1, "isOn": true, "lastPlayedScene": "sunset", "lastPlayedSceneIsStored": true }
     //
     // Written atomically via tmp+rename with a 5-second deferred-write window.
     class AppStateStore
@@ -42,13 +42,23 @@ namespace Lightnet {
                 return _lastPlayedScene;
             }
 
-            // Record the most recently played scene's name and mark dirty.
-            // Returns false if the name is unchanged.
-            bool setLastPlayedScene(const char *name);
+            // True if lastPlayedScene() is a stored scene's real name (play it by
+            // name to replay). False if it was a one-shot scene (replay via
+            // SceneStore::oneShotName() / "@one-shot").
+            bool lastPlayedSceneIsStored() const
+            {
+                return _lastPlayedSceneIsStored;
+            }
+
+            // Record the most recently played scene's name + whether it is a
+            // device-stored scene (vs. a one-shot inline play), and mark dirty.
+            // Returns false if nothing changed.
+            bool setLastPlayedScene(const char *name, bool isStored);
 
         private:
             bool _isOn = true;
             char _lastPlayedScene[20] = { 0 };
+            bool _lastPlayedSceneIsStored = true;
             DeferredWriter writer{ 5000 };
 
             bool readFile();

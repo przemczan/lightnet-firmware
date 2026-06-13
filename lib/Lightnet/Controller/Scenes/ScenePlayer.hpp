@@ -168,9 +168,6 @@ namespace Lightnet {
                 return lCount;
             }
 
-            // Write JSON status to caller-supplied buffer.
-            void writeStatusJson(char *buf, size_t bufLen) const;
-
         private:
             AnimationScheduler& scheduler;
             PaletteStore& paletteStore;

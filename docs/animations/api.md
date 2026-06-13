@@ -84,11 +84,13 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/scenes/play` | Full scene JSON body — stored under the reserved name `Current`, then played by name (so it survives resume / power-cycle like a named scene; `Current` is hidden from `GET /api/scenes` and cannot be used as a saved-scene name) |
+| `POST` | `/api/scenes/play/one-shot` | Full scene JSON body — stored under the hidden name `@one-shot`, then played by name (so it survives resume / power-cycle like a named scene; names starting with `@` are hidden from `GET /api/scenes` and cannot be used as a saved-scene name) |
+| `POST` | `/api/scenes/play` | — replays `lastPlayedScene` from `GET /api/state` (by name if it was a stored scene, or `@one-shot` if it was a one-shot play); `404` if nothing has been played yet |
 | `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) |
 | `POST` | `/api/scenes/stop` | — |
 | `POST` | `/api/scenes/speed` | `{"speed":<float>}` — change playback speed [0.1, 10.0] while playing |
-| `GET` | `/api/scenes/status` | `{"playing":false}` or `{"playing":true,"scene":"sunset","loop":true,"layers":2,"speed":1.0}` |
+
+Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (see [`docs/api.md`](../api.md#29-state)).
 
 ### One-shot / triggers
 
@@ -150,7 +152,7 @@ Use `POST /api/animations/play` to send a single animation step directly, bypass
 
 All the same step fields documented in [Animation Types](types.md) and [Controller Runners](types.md#controller-runners) are supported. The notification runs on group 250 while the ambient scene continues on groups 1–N. The panel's AnimationPlayer handles both groups independently.
 
-For chained steps on a notification (e.g. pulse → fade), use a short scene via `POST /api/scenes/play` with a free group ID instead.
+For chained steps on a notification (e.g. pulse → fade), use a short scene via `POST /api/scenes/play/one-shot` with a free group ID instead.
 
 ---
 
@@ -443,11 +445,11 @@ gantt
 
 ## Appendix: Validation Rules
 
-These apply to `POST /api/scenes` and `POST /api/scenes/play`. All violations return `HTTP 422`.
+These apply to `POST /api/scenes` and `POST /api/scenes/play/one-shot`. All violations return `HTTP 422`.
 
 | Field | Rule |
 |---|---|
-| Scene name | `[a-zA-Z0-9_-]`, 1–18 chars; `Current` is reserved (used internally for `POST /api/scenes/play`) and rejected on `POST /api/scenes` |
+| Scene name | `[a-zA-Z0-9_-]`, 1–18 chars; names cannot start with `@` (reserved for internal scenes such as `@one-shot`, used by `POST /api/scenes/play/one-shot`) |
 | Layer count | 1–8 |
 | Steps per layer | 1–12 |
 | `group` | Name (string) or number 1–254; unique within the scene |

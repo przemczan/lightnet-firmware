@@ -35,14 +35,16 @@ namespace Lightnet {
         return true;
     }
 
-    bool AppStateStore::setLastPlayedScene(const char *name)
+    bool AppStateStore::setLastPlayedScene(const char *name, bool isStored)
     {
         if (!name) name = "";
 
-        if (strncmp(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1) == 0) return false;
+        if (strncmp(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1) == 0 &&
+            _lastPlayedSceneIsStored == isStored) return false;
 
         strncpy(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1);
         _lastPlayedScene[sizeof(_lastPlayedScene) - 1] = '\0';
+        _lastPlayedSceneIsStored = isStored;
         writer.markDirty(millis());
 
         return true;
@@ -102,6 +104,21 @@ namespace Lightnet {
 
         j.getString("lastPlayedScene", _lastPlayedScene, sizeof(_lastPlayedScene));
 
+        const char *isStoredVal = j.rawValue("lastPlayedSceneIsStored");
+
+        if (isStoredVal) {
+            const char *p   = isStoredVal;
+            const char *end = buf + n;
+            bool v          = true;
+
+            if (jsonReadBool(p, end, &v)) {
+                _lastPlayedSceneIsStored = v;
+            }
+        } else {
+            // Missing in pre-existing files; treat lastPlayedScene as a stored name.
+            _lastPlayedSceneIsStored = true;
+        }
+
         return true;
     }
 
@@ -115,12 +132,13 @@ namespace Lightnet {
             return;
         }
 
-        char buf[96];
+        char buf[128];
         int len = snprintf(buf, sizeof(buf),
-                           "{\"schemaVersion\":%u,\"isOn\":%s,\"lastPlayedScene\":\"%s\"}\n",
+                           "{\"schemaVersion\":%u,\"isOn\":%s,\"lastPlayedScene\":\"%s\",\"lastPlayedSceneIsStored\":%s}\n",
                            (unsigned)APP_STATE_SCHEMA,
                            _isOn ? "true" : "false",
-                           _lastPlayedScene);
+                           _lastPlayedScene,
+                           _lastPlayedSceneIsStored ? "true" : "false");
 
         if (len > 0) f.write((const uint8_t *)buf, (size_t)len);
 

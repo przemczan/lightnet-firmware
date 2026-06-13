@@ -214,9 +214,9 @@
         }
       }
     },
-    "/api/scenes/play": {
+    "/api/scenes/play/one-shot": {
       "post": {
-        "summary": "Play Inline Scene (stored as 'Current', then played by name)",
+        "summary": "Play Inline Scene (stored as '@one-shot', then played by name)",
         "parameters": [],
         "responses": {
           "202": {
@@ -239,6 +239,23 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/scenes/play": {
+      "post": {
+        "summary": "Replay Last-Played Scene (stored scene by name, or the one-shot scene)",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "Accepted — validated; the play/trigger work was queued onto the main loop"
+          },
+          "404": {
+            "description": "no_last_played_scene — nothing has been played yet"
+          },
+          "409": {
+            "description": "system_off — controller is powered off; turn it on via POST /api/state/power first"
           }
         }
       }
@@ -296,17 +313,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/scenes/status": {
-      "get": {
-        "summary": "Get Scene Playback Status",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK"
           }
         }
       }
@@ -627,7 +633,10 @@
               "application/json": {
                 "example": {
                   "isOn": true,
-                  "lastPlayedScene": "sunset"
+                  "lastPlayedScene": "sunset",
+                  "lastPlayedSceneIsStored": true,
+                  "playing": true,
+                  "speed": 1.0
                 }
               }
             }

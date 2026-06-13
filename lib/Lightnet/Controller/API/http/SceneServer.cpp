@@ -44,16 +44,19 @@ namespace Lightnet {
     void SceneServer::registerRoutes()
     {
         // Specific action routes before wildcard and general routes.
-        server.on("/api/scenes/status", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetSceneStatus(r);
-        });
         server.on("/api/scenes/stop", HTTP_POST, [this](AsyncWebServerRequest *r) {
             handlePostStopScene(r);
         });
         Http::onBody(server, "/api/scenes/speed", HTTP_POST, Http::MAX_BODY_LARGE,
                      this, &SceneServer::handlePostSetSpeed);
-        Http::onBody(server, "/api/scenes/play", HTTP_POST, Http::MAX_BODY_LARGE,
-                     this, &SceneServer::handlePostPlayScene);
+        Http::onBody(server, "/api/scenes/play/one-shot", HTTP_POST, Http::MAX_BODY_LARGE,
+                     this, &SceneServer::handlePostPlayOneShotScene);
+        // No-body replay of lastPlayedScene; must be registered before the
+        // /api/scenes/* wildcard POST handler, which would otherwise treat
+        // "play" as a scene name.
+        server.on("/api/scenes/play", HTTP_POST, [this](AsyncWebServerRequest *r) {
+            handlePostPlayLastScene(r);
+        });
         // Wildcard routes before general /api/scenes routes.
         server.on("/api/scenes/*", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleGetSceneByName(r);
@@ -99,7 +102,7 @@ namespace Lightnet {
 
             memcpy(name, base, nlen);
 
-            if (SceneStore::isReservedName(name)) continue;
+            if (SceneStore::isHiddenName(name)) continue;
 
             n += snprintf(buf + n, sizeof(buf) - n, "%s{\"name\":\"%s\",\"size\":%u}",
                           first ? "" : ",", name, (unsigned)d.fileSize());
@@ -107,14 +110,6 @@ namespace Lightnet {
         }
 
         snprintf(buf + n, sizeof(buf) - n, "]");
-        Http::sendOkJson(req, buf);
-    }
-
-    void SceneServer::handleGetSceneStatus(AsyncWebServerRequest *req)
-    {
-        char buf[128];
-
-        player.writeStatusJson(buf, sizeof(buf));
         Http::sendOkJson(req, buf);
     }
 
@@ -210,7 +205,7 @@ namespace Lightnet {
         Http::sendAccepted(req);
     }
 
-    void SceneServer::handlePostPlayScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
+    void SceneServer::handlePostPlayOneShotScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
         if (!appState.isOn()) {
             Http::sendError(req, 409, "system_off");
@@ -237,7 +232,45 @@ namespace Lightnet {
             return;
         }
 
-        appState.setLastPlayedScene(SceneStore::reservedName());
+        appState.setLastPlayedScene(parsed->name, false);
+        deferPlay(req, parsed);
+    }
+
+    void SceneServer::handlePostPlayLastScene(AsyncWebServerRequest *req)
+    {
+        if (!appState.isOn()) {
+            Http::sendError(req, 409, "system_off");
+
+            return;
+        }
+
+        const char *lastName = appState.lastPlayedScene();
+
+        if (lastName[0] == '\0') {
+            Http::sendError(req, 404, "no_last_played_scene");
+
+            return;
+        }
+
+        const char *name = appState.lastPlayedSceneIsStored() ? lastName : SceneStore::oneShotName();
+
+        SceneParseResult *parsed = new (std::nothrow) SceneParseResult;
+
+        if (!parsed) {
+            Http::sendError(req, 500, "oom");
+
+            return;
+        }
+
+        SceneResult r = animService.prepareByName(name, *parsed);
+
+        if (!r.ok()) {
+            delete parsed;
+            sendSceneError(req, r);
+
+            return;
+        }
+
         deferPlay(req, parsed);
     }
 
@@ -282,7 +315,7 @@ namespace Lightnet {
             return;
         }
 
-        appState.setLastPlayedScene(name);
+        appState.setLastPlayedScene(name, true);
         deferPlay(req, parsed);
     }
 

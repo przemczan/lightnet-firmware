@@ -316,7 +316,11 @@ namespace Lightnet {
             if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX) {
                 LayerSpawnState& st = spawnState[layerIdx];
 
-                st.rng           = (nowMs * 2654435761u) ^ 0x9E3779B9u ^ ((uint32_t)st.cursor << 16) ^ 1u;
+                // XOR in layerIdx so two layers with identical settings (same cursor=0,
+                // same nowMs at scene start) don't derive the same PRNG stream and end up
+                // spawning identical drops in lockstep.
+                st.rng           = (nowMs * 2654435761u) ^ 0x9E3779B9u ^ ((uint32_t)st.cursor << 16)
+                                   ^ ((uint32_t)layerIdx * 0x01000193u) ^ 1u;
                 st.accumMs       = 0;
                 st.lastServiceMs = nowMs;
 
@@ -1210,17 +1214,6 @@ namespace Lightnet {
             } else if (!paletteStore.resolve(defaultPalette, resolvedPalettes[i], resolvedPaletteCounts[i])) {
                 PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
             }
-        }
-    }
-
-    void ScenePlayer::writeStatusJson(char *buf, size_t bufLen) const
-    {
-        if (!playing) {
-            snprintf(buf, bufLen, "{\"playing\":false}");
-        } else {
-            snprintf(buf, bufLen,
-                     "{\"playing\":true,\"scene\":\"%s\",\"loop\":%s,\"layers\":%u,\"speed\":%.1f}",
-                     name, loop ? "true" : "false", (unsigned)lCount, (double)speed);
         }
     }
 }  // namespace Lightnet

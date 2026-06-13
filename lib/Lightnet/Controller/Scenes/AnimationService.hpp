@@ -4,7 +4,7 @@
 //
 //   saveScene       — parse/validate → write to SceneStore
 //   playSceneByName — load from SceneStore → parse → play
-//   playSceneInline — validate inline body → store as "Current" → playSceneByName
+//   playSceneInline — validate inline body → store as "@one-shot" → playSceneByName
 //   playOneShot     — parse flat one-shot body → play
 //   stopScene       — stop the running scene
 //
@@ -89,8 +89,8 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT] = nullptr
             );
 
-            // Parse and validate an inline scene body, persist it under the
-            // reserved SceneStore::reservedName() ("Current"), then play it by
+            // Parse and validate an inline scene body, persist it under
+            // SceneStore::oneShotName() ("@one-shot"), then play it by
             // name — there is no separate inline-play code path.
             SceneResult playSceneInline(
                 const char *             body,
@@ -158,6 +158,10 @@ namespace Lightnet {
             // Resolve a layer's string name to its numeric groupId in the playing scene.
             // Returns 0 if no scene is playing or the name is not found.
             uint8_t groupIdForName(const char *name) const;
+
+            // Pass-throughs for /api/state.
+            bool isPlaying() const;
+            float getSpeed() const;
 
             // Call when the active appearance palette or base colors change. Re-resolves
             // the playing scene's palettes for layers that use the appearance defaults

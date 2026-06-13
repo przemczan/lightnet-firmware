@@ -24,7 +24,7 @@ namespace Lightnet {
             return SceneResult::error(e, parsed.errMsg);
         }
 
-        if (SceneStore::isReservedName(parsed.name)) {
+        if (SceneStore::isHiddenName(parsed.name)) {
             return SceneResult::error(SceneError::Invalid, "name: reserved");
         }
 
@@ -67,10 +67,10 @@ namespace Lightnet {
             return SceneResult::error(e, out.errMsg);
         }
 
-        // Persist under the reserved "Current" name so the inline scene survives a
+        // Persist under the "@one-shot" name so the inline scene survives a
         // cold boot the same way a named scene would (reloaded as the last-played
         // scene; resumeScene() itself replays from in-memory state, not from this).
-        if (!scenes.save(SceneStore::reservedName(), body, len)) {
+        if (!scenes.save(SceneStore::oneShotName(), body, len)) {
             return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
         }
 
@@ -177,6 +177,16 @@ namespace Lightnet {
     uint8_t AnimationService::groupIdForName(const char *name) const
     {
         return player.groupIdForName(name);
+    }
+
+    bool AnimationService::isPlaying() const
+    {
+        return player.isPlaying();
+    }
+
+    float AnimationService::getSpeed() const
+    {
+        return player.getSpeed();
     }
 
     // ---------------------------------------------------------------------------

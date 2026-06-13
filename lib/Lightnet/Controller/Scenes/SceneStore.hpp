@@ -29,15 +29,17 @@ namespace Lightnet {
             // Maximum body size accepted for scene files.
             static constexpr size_t MAX_SCENE_BYTES = 4096;
 
-            // Reserved name for the scene most recently played via
-            // POST /api/scenes/play (inline body): it is stored under this name
-            // and then played by name, so there is a single play-by-name path.
-            // User-named scenes may not use this name (see isReservedName).
-            static const char * reservedName()
+            // Name under which the most recent one-shot (inline, mobile-sent) scene
+            // is persisted, so it survives a cold boot / can be replayed like a
+            // stored scene. Names starting with '@' are hidden from GET /api/scenes
+            // and can never collide with a user-saved scene (scene name validation
+            // rejects '@').
+            static const char * oneShotName()
             {
-                return "Current";
+                return "@one-shot";
             }
 
-            static bool isReservedName(const char *name);
+            // True if `name` starts with '@' (internal/hidden scene file).
+            static bool isHiddenName(const char *name);
     };
 }  // namespace Lightnet
