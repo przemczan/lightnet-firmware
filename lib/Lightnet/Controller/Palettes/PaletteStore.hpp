@@ -2,8 +2,9 @@
 
 #include <stdint.h>
 #include "../../Utils/Debug.hpp"
-#include "../../Core/Anim/Palette.hpp"
-#include "../../Core/Anim/LightnetConfig.hpp"
+#include "../../Core/Common/Palette.hpp"
+#include "../../Core/Common/LightnetConfig.hpp"
+#include "../../Core/Controller/Scene/IPaletteResolver.hpp"
 #include "../../Common/Protocol.hpp"
 
 namespace Lightnet {
@@ -12,7 +13,7 @@ namespace Lightnet {
     //
     // Special palette names handled outside this store:
     //   "userColors" — synthesized from base colors at use time; not stored here.
-    class PaletteStore
+    class PaletteStore : public IPaletteResolver
     {
         public:
             PaletteStore();
@@ -20,7 +21,7 @@ namespace Lightnet {
             // Look up a palette by name. Checks built-ins first, then the filesystem.
             // Fills outStops with up to PALETTE_STOPS entries. Returns true on success.
             // "userColors" is intentionally NOT handled here — callers must synthesize it.
-            bool resolve(const char *name, GradientStop *outStops, uint8_t& outCount) const;
+            bool resolve(const char *name, GradientStop *outStops, uint8_t& outCount) const override;
 
             // True if `name` is a known palette (built-in or user-defined on the filesystem).
             bool exists(const char *name) const;

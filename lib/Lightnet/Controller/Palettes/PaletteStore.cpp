@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../../Utils/Fs/Fs.hpp"
+#include "../../Core/Common/UserColors.hpp"
 
 namespace Lightnet {
     namespace {
@@ -143,10 +144,9 @@ namespace Lightnet {
         uint8_t&                 outCount
     )
     {
-        outStops[0] = { 0, baseColors[0].r, baseColors[0].g, baseColors[0].b };
-        outStops[1] = { 128, baseColors[1].r, baseColors[1].g, baseColors[1].b };
-        outStops[2] = { 255, baseColors[2].r, baseColors[2].g, baseColors[2].b };
-        outCount = 3;
+        // Canonical implementation lives in the portable core (Core/Common/UserColors.hpp)
+        // so the shared scene engine builds it identically without the filesystem.
+        Lightnet::buildUserColors(baseColors, outStops, outCount);
     }
 
     uint8_t PaletteStore::builtInCount() const

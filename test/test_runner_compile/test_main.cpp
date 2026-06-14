@@ -1,12 +1,12 @@
-// Native unit tests for lib/Lightnet/Controller/Animations/RunnerCompile.hpp
+// Native unit tests for lib/Lightnet/Core/Controller/Scene/RunnerCompile.hpp
 // Verifies the per-panel PULSE inversion lines up with the RunnerMath envelopes:
 // the compiled onset is where the envelope turns on, the peak is where it is full,
 // and the end is where it turns off again.
 // Run with: pio test -e native -f test_runner_compile
 
 #include <unity.h>
-#include "Controller/Animations/RunnerCompile.hpp"
-#include "Controller/Animations/RunnerMath.hpp"
+#include "Core/Controller/Scene/RunnerCompile.hpp"
+#include "Core/Controller/Scene/RunnerMath.hpp"
 
 using namespace Lightnet;
 

@@ -1,7 +1,7 @@
 #include "PacketMirror.hpp"
 #include "WebsocketServer.hpp"
 #include "../../../Common/Protocol.hpp"
-#include "../../../Core/Anim/AnimationTypes.hpp"
+#include "../../../Core/Common/AnimationTypes.hpp"
 #include <string.h>
 
 PacketMirror::PacketMirror()

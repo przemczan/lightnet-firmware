@@ -15,8 +15,8 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "TopologyIndex.hpp"
-#include "TagResolver.hpp"
+#include "../../Core/Controller/Scene/TopologyIndex.hpp"
+#include "../../Core/Controller/Scene/TagResolver.hpp"
 
 namespace Lightnet {
     class TopologyConfigStore : public ITagResolver

@@ -1,7 +1,10 @@
 #pragma once
 
-#include <Arduino.h>
+// Pure container — no Arduino dependency so it compiles host-side and on mobile
+// (used by the shared AnimationScheduler's runner list). Needs only the C stdlib.
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 template<typename T>
 class List

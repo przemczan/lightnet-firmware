@@ -1,4 +1,4 @@
-// Native unit tests for lib/Lightnet/Controller/Animations/RunnerSpawn.hpp
+// Native unit tests for lib/Lightnet/Core/Controller/Scene/RunnerSpawn.hpp
 // Covers the pure pieces of the RAIN/SPARKLE particle spawner: the PRNG, the spawn-rate
 // accumulator, the group-id pool, source->leaf path building, and per-panel drop timing.
 // NOTE: these prove the math only — the stateful real-time behaviour (cursor recycling vs.
@@ -6,7 +6,7 @@
 // Run with: pio test -e native -f test_runner_spawn
 
 #include <unity.h>
-#include "Controller/Animations/RunnerSpawn.hpp"
+#include "Core/Controller/Scene/RunnerSpawn.hpp"
 
 using namespace Lightnet;
 

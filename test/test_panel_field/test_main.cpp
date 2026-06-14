@@ -1,12 +1,12 @@
-﻿// Native unit tests for lib/Lightnet/Controller/Topology/PanelField.hpp
+﻿// Native unit tests for lib/Lightnet/Core/Controller/Scene/PanelField.hpp
 // Run with: pio test -e native -f test_panel_field
 //
 // Worked topology (docs/animations/scene-authoring.md Â§2), rooted at panel 1.
 
 #include <unity.h>
 #include <string.h>
-#include "Controller/Topology/PanelGraph.hpp"
-#include "Controller/Topology/PanelField.hpp"
+#include "Core/Controller/Scene/PanelGraph.hpp"
+#include "Core/Controller/Scene/PanelField.hpp"
 
 using namespace Lightnet;
 

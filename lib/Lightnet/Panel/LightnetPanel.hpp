@@ -1,8 +1,8 @@
 #pragma once
 
 #include "RGBController.hpp"
-#include "../Core/Anim/AnimationPlayer.hpp"
-#include "../Core/Util/SpscByteQueue.hpp"
+#include "../Core/Panel/AnimationPlayer.hpp"
+#include "../Core/Common/SpscByteQueue.hpp"
 #include "../Common/LightnetPanelEdge.hpp"
 #include "../Common/LightnetBus.hpp"
 #include "../Utils/List.hpp"

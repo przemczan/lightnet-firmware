@@ -9,26 +9,46 @@
 // of concerns — the playback state machine stays focused on timing/state while
 // this owns topology/targeting. See docs/animations/scene-authoring.md §2, §6, §8.
 //
-// Not pure (rebuild() reads the live PanelsInitializer), but its core is a thin
-// composition over the natively-tested PanelGraph / TopologyIndex /
+// Pure: it pulls the current panel tree through an injected ITopologyProvider
+// (controller wraps PanelsInitializer; mobile supplies a cached/virtual tree) and is
+// otherwise a thin composition over the natively-tested PanelGraph / TopologyIndex /
 // PanelGeometry / PanelSelector. Single-threaded use only.
 // ============================================================================
 
 #include <stdint.h>
-#include "../../Core/Anim/LightnetConfig.hpp"
-#include "../Panels/PanelsInitializer.hpp"
-#include "../Topology/PanelGraph.hpp"
-#include "../Topology/TopologyIndex.hpp"
-#include "../Topology/PanelGeometry.hpp"
-#include "../Topology/PanelSelector.hpp"
-#include "../Topology/TagResolver.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "PanelGraph.hpp"
+#include "TopologyIndex.hpp"
+#include "PanelGeometry.hpp"
+#include "PanelSelector.hpp"
+#include "TagResolver.hpp"
 
 namespace Lightnet {
+    // Source of the current panel tree, decoupled from discovery. The controller impl
+    // reads the live PanelsInitializer; the mobile impl yields a cached or user-authored
+    // (virtual) tree. Co-located with SceneTopology (both move to Core/Scene later) since
+    // it references TopoLink. Buffers are caller-owned, sized LIGHTNET_MAX_PANELS.
+    class ITopologyProvider
+    {
+        public:
+            virtual ~ITopologyProvider() {}
+
+            // Fill indices[]/edgeCounts[] (per panel) and links[] (up to maxLinks), set
+            // linkCount, and return the panel count (0 → no/invalid tree).
+            virtual uint8_t fillTopology(
+                uint8_t *  indices,
+                uint8_t *  edgeCounts,
+                TopoLink * links,
+                uint8_t    maxLinks,
+                uint8_t &  linkCount
+            ) const = 0;
+    };
+
     class SceneTopology
     {
         public:
-            explicit SceneTopology(PanelsInitializer& _initializer)
-                : initializer(_initializer), logicalRoot_(1), tagResolver(nullptr)
+            explicit SceneTopology(const ITopologyProvider& _provider)
+                : provider(_provider), logicalRoot_(1), tagResolver(nullptr)
             {
             }
 
@@ -50,12 +70,16 @@ namespace Lightnet {
                 return logicalRoot_;
             }
 
-            // Rebuild all views from the live discovered graph, rooted at logicalRoot_.
-            // Reflects the current panel tree on every play/resume/re-root.
+            // Rebuild all views from the current panel tree (via the provider), rooted at
+            // logicalRoot_. Reflects the live tree on every play/resume/re-root.
             void rebuild()
             {
-                List<Panel *> *panels = initializer.getPanels();
-                uint16_t total = panels ? panels->getSize() : 0;
+                uint8_t indices[LIGHTNET_MAX_PANELS];
+                uint8_t edgeCounts[LIGHTNET_MAX_PANELS];  // polygon side count per panel (for geometry)
+                TopoLink links[LIGHTNET_MAX_PANELS];
+                uint8_t linkCount = 0;
+
+                uint8_t total = provider.fillTopology(indices, edgeCounts, links, LIGHTNET_MAX_PANELS, linkCount);
 
                 if (total == 0 || total > LIGHTNET_MAX_PANELS) {
                     graph.build(nullptr, 0, nullptr, 0); // empty / unusable graph
@@ -65,52 +89,7 @@ namespace Lightnet {
                     return;
                 }
 
-                uint8_t indices[LIGHTNET_MAX_PANELS];
-                uint8_t edgeCounts[LIGHTNET_MAX_PANELS];  // polygon side count per panel (for geometry)
-                TopoLink links[LIGHTNET_MAX_PANELS];
-                uint8_t linkCount = 0;
-
-                for (uint16_t i = 0; i < total; i++) {
-                    Panel *panel = panels->get(i);
-
-                    indices[i] = (uint8_t)panel->index;
-
-                    List<Edge *> *edges = panel->edges;
-                    uint16_t ec    = edges ? edges->getSize() : 0;
-
-                    edgeCounts[i] = (uint8_t)ec;
-
-                    for (uint16_t e = 0; e < ec; e++) {
-                        Edge *edge = edges->get(e);
-
-                        if (!edge || !edge->connectedEdge || !edge->connectedEdge->panel) continue;
-
-                        uint8_t a = (uint8_t)panel->index;
-                        uint8_t b = (uint8_t)edge->connectedEdge->panel->index;
-
-                        // connectedEdge is normally set on the parent side only, so each link is
-                        // seen once — but dedupe defensively in case both sides are ever linked.
-                        bool seen = false;
-
-                        for (uint8_t k = 0; k < linkCount; k++) {
-                            if ((links[k].panelA == a && links[k].panelB == b) ||
-                                (links[k].panelA == b && links[k].panelB == a)) {
-                                seen = true;
-                                break;
-                            }
-                        }
-
-                        if (seen || linkCount >= LIGHTNET_MAX_PANELS) continue;
-
-                        links[linkCount].panelA = a;
-                        links[linkCount].edgeA  = edge->index;
-                        links[linkCount].panelB = b;
-                        links[linkCount].edgeB  = edge->connectedEdge->index;
-                        linkCount++;
-                    }
-                }
-
-                graph.build(indices, (uint8_t)total, links, linkCount);
+                graph.build(indices, total, links, linkCount);
                 topo.build(graph, logicalRoot_);
 
                 // Geometric directionality borrows the same graph but is anchored at the lowest
@@ -150,7 +129,7 @@ namespace Lightnet {
             }
 
         private:
-            PanelsInitializer& initializer;
+            const ITopologyProvider& provider;
 
             // Root-independent raw adjacency, built once per rebuild() and borrowed by both
             // rooted views below (see PanelGraph.hpp).

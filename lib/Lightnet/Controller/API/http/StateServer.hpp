@@ -4,7 +4,7 @@
 #include "../../AppState/AppStateStore.hpp"
 #include "../../Panels/PanelsController.hpp"
 #include "../../Scenes/AnimationService.hpp"
-#include "../../Animations/AnimationScheduler.hpp"
+#include "../../../Core/Controller/Scene/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
 

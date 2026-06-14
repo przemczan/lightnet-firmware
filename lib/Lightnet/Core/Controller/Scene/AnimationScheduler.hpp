@@ -1,12 +1,14 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Core/Anim/AnimationTypes.hpp"
-#include "../../Common/LightnetBus.hpp"
-#include "../../Core/Anim/LightnetConfig.hpp"
-#include "../../Core/Anim/ColorRef.hpp"
-#include "../../Core/Anim/Palette.hpp"
-#include "../../Utils/List.hpp"
+#include "../../Common/AnimationTypes.hpp"
+#include "../../Common/ProtocolTypes.hpp"
+#include "../../Common/ProtocolMeta.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "../../Common/ColorRef.hpp"
+#include "../../Common/Palette.hpp"
+#include "IPacketSink.hpp"
+#include "../../../Utils/List.hpp"
 
 namespace Lightnet {
     // Forward declare AnimationRunner (defined in AnimationRunner.hpp)
@@ -17,7 +19,7 @@ namespace Lightnet {
         uint8_t  animType;  // current animation type
         uint8_t  groupId;   // current group ID
         uint16_t durationMs; // duration (0=infinite)
-        uint32_t startMs;   // millis() at start
+        uint32_t startMs;   // reserved (diagnostic; not populated — no device clock here)
         uint8_t  queueLength; // estimated queue length
         bool     isController; // true if controller-computed (runner exists)
     };
@@ -30,7 +32,9 @@ namespace Lightnet {
             // addRunner() call (a fragmentation source during scene start).
             static const uint8_t MAX_ACTIVE_RUNNERS = 8;
 
-            AnimationScheduler(uint8_t maxPanels = LIGHTNET_MAX_PANELS);
+            // `sink` receives every outbound packet — the controller wraps the I2C bus,
+            // the mobile/preview build forwards bytes to the per-panel players.
+            AnimationScheduler(IPacketSink& sink, uint8_t maxPanels = LIGHTNET_MAX_PANELS);
 
             ~AnimationScheduler();
 
@@ -123,6 +127,13 @@ namespace Lightnet {
             // Status queries
             const AnimationRecord * getStatus(uint8_t panelAddress);
 
+            // Inter-packet bus settle delay, forwarded to the sink (no-op off-device).
+            // ScenePlayer uses this to pace bursts of per-panel PREPAREs before a START.
+            void pace(uint16_t microseconds)
+            {
+                sink.pace(microseconds);
+            }
+
             // Per-frame updates (called from main loop)
             void tick(uint32_t nowMs);
 
@@ -131,6 +142,7 @@ namespace Lightnet {
             void removeRunner(AnimationRunner *runner);
 
         private:
+            IPacketSink& sink;
             uint8_t maxPanels;
             List<AnimationRunner *> *activeRunners;
             AnimationRecord *panelStates; // per-panel state tracking

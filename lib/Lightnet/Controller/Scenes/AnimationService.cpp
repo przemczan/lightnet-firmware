@@ -1,5 +1,5 @@
 #include "AnimationService.hpp"
-#include "SceneParser.hpp"
+#include "../../Core/Controller/Scene/SceneParser.hpp"
 #include <stdlib.h>
 #include <string.h>
 #include <Arduino.h>

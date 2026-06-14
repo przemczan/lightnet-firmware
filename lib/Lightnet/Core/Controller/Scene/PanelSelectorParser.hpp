@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "PanelSelector.hpp"
-#include "../../Utils/SimpleJson.hpp"
+#include "../../../Utils/SimpleJson.hpp"
 
 namespace Lightnet {
     inline bool selErr(char *e, size_t n, const char *m)

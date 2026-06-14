@@ -1,0 +1,6 @@
+{
+  "name": "LightnetCoreCApi",
+  "build": {
+    "srcFilter": ["-<*>"]
+  }
+}

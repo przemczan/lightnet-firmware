@@ -48,7 +48,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_scene_player`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -137,34 +137,48 @@ at play time**, so one scene adapts to devices with different panel counts/wirin
 [`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md) (topology §2,
 selectors §6, directionality §8, logical root/tags §10).
 
-**Pure, natively-tested core** (`lib/Lightnet/Controller/Topology/`, no Arduino):
+The whole scene engine is now the **shared `lib/Lightnet/Core/Controller/Scene/` library** (no
+Arduino) — built into the controller and, via the scene C ABI
+(`Core/CApi/controller_core_c.h`), into the mobile app so a scene can be **previewed without a
+controller**. It's decoupled from hardware by three pure seams: `IPacketSink` (the bus),
+`IPaletteResolver` (palettes), `ITopologyProvider` (the panel tree), plus `ITagResolver` (tags). The
+AVR panel never pulls `Controller/Scene/`.
+
+**Pure, natively-tested topology primitives** (in `lib/Lightnet/Core/Controller/Scene/`, no Arduino):
 
 | File | Role |
 |---|---|
 | `TopologyIndex.hpp` | Rooted view of the tree (depth, parent, leaf/branch, subtree, neighbours, canonical order, multi-source hop-distance). Built from a generic link list; **parameterised by a start node** → re-rooting is just a rebuild. |
 | `PanelSelector.hpp` + `PanelSelectorParser.hpp` | The `panels` grammar (`all`/indices/`exclude`, graph selectors `root`/`leaves`/`depth:a-b`/`subtree:N`/`fraction`/…, `tag:<name>`, `any`/`all`/`not`) compiled to a compact RPN program; `resolveSelector(sel, topo, out, ITagResolver*)`. |
-| `PanelField.hpp` | Runner directionality: per-panel **hop-distance coord** from a `source` (`root`/`leaves`/`panel:N`, `reverse`). Envelopes are pure in `Animations/RunnerMath.hpp`. |
+| `PanelField.hpp` | Runner directionality: per-panel **hop-distance coord** from a `source` (`root`/`leaves`/`panel:N`, `reverse`). Envelopes are pure in `RunnerMath.hpp` (same `Scene/` lib). |
 | `PanelGeometry.hpp` | **Geometric** runner directionality (`source:geometric` + `angle`): planar (x,y) layout of the tree from regular-polygon geometry (faithful port of mobile `PanelsLayoutService`, anchored at the lowest panel index = visualizer frame), then `computeGeometricField()` projects centroids onto the chosen axis. No protocol change. |
 | `TagResolver.hpp` | `ITagResolver` + the single `isValidTagName`/`TAG_NAME_MAX` shared by parser, store, and endpoint. |
 
-**Device side**: `Topology/TopologyConfigStore` persists `/config/topology.json` (logical root +
-panel tags) and is the `ITagResolver`. `Scenes/SceneTopology` owns the panel-tree views
-(`PanelGraph` + `TopologyIndex` + `PanelGeometry`), the logical root, the tag resolver, and
-selector resolution (`rebuild()` + `resolvePanels()`). `ScenePlayer` holds one `SceneTopology`
-(rebuilt in `loadAndPlay`/`resume`),
-delegates `setLogicalRoot()` / `setTagResolver()` to it, and reads its views in `fireStep`. Endpoints
+**Engine side** (`lib/Lightnet/Core/Controller/Scene/`, shared): `SceneTopology` owns the panel-tree views
+(`PanelGraph` + `TopologyIndex` + `PanelGeometry`), the logical root, the tag resolver, and selector
+resolution (`rebuild()` + `resolvePanels()`); it pulls the tree through `ITopologyProvider`.
+`ScenePlayer` holds one `SceneTopology` (rebuilt in `loadAndPlay`/`resume`), delegates
+`setLogicalRoot()` / `setTagResolver()` to it, reads its views in `fireStep`, and emits packets via
+`AnimationScheduler` → `IPacketSink`.
+
+**Device glue** (`lib/Lightnet/Controller/`, implements the seams): `ControllerPacketSink` wraps
+`LNBus` (ack-retry + bus pacing); `PaletteStore` is the `IPaletteResolver`; `PanelsTopologyProvider`
+flattens the live `PanelsInitializer` tree into the `ITopologyProvider` arrays;
+`Topology/TopologyConfigStore` persists `/config/topology.json` and is the `ITagResolver`. Endpoints
 live in `API/http/TopologyServer` (`GET /api/topology`, `PUT /api/topology/root`,
 `GET/PUT /api/panel-tags`), wired in `main.cpp` case 0.
 
-- **Controller-side, no protocol change**: runners (incl. directionality math) run on the ESP in
-  float — they are **not** part of the shared `Core/Anim` panel-local animation math (which mobile
-  also runs via the C ABI). `N`/edges/adjacency come from existing discovery data.
+- **No protocol change**: runners (incl. directionality math) run in float — they are **not** part of
+  the `Core/Panel` panel-local math (which mobile also runs via `panel_core`). On the controller they
+  run on the ESP; on mobile they run via `controller_core` (offline scene preview, no controller).
+  `N`/edges/adjacency come from discovery data (controller) or a cached/virtual tree (mobile).
 - **Backward compatible**: v2 `panels` forms map onto the RPN; legacy `originPanel` → `source:panel:N`;
   v2 WAVE/CHASE default to `source:root` (slight visual change — design §6.4). `source:geometric`
   requires `schemaVersion: 3` (current `SCENE_SCHEMA_VERSION`); `SceneTopology::rebuild()` builds the
   `PanelGeometry` alongside `topo`, and `ScenePlayer::fireStep` branches on it.
 - Native suites: `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`,
-  `test_panel_field`, `test_panel_geometry`, `test_runner_math`.
+  `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`,
+  `test_scene_player` (engine end-to-end via a mock `IPacketSink`), `test_scene_capi` (the scene C ABI).
 
 ---
 

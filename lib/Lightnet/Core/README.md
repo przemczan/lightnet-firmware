@@ -5,24 +5,28 @@
 The single source of truth for animation logic, shared by:
 
 - **Panel** (ATmega328) — `LightnetPanel` drives the LED from `currentColor()`
-- **Controller** (ESP, incl. `SIM_MODE`) — `SimPanel` runs one `AnimationPlayer` per virtual panel
-- **Native tests** — `test/test_panel_anim`, `test/test_compositor`
-- **Mobile** (Kotlin Multiplatform) — via a C ABI (NDK on Android, cinterop on iOS)
+- **Controller** (ESP, incl. `SIM_MODE`) — `SimPanel` runs one `AnimationPlayer` per virtual panel,
+  and the controller-side scene engine (`Controller/Scene`) drives the bus
+- **Native tests** — `test/test_panel_anim`, `test/test_compositor`, `test/test_scene_player`, etc.
+- **Mobile** (Kotlin Multiplatform) — via two C ABIs (NDK on Android, cinterop on iOS)
 
 ## Rules
 
 - **Nothing here may `#include <Arduino.h>`, `<FastLED.h>`, or any hardware/RTOS header.** The native
   build (`pio test -e native`) enforces this — a stray Arduino include breaks it immediately.
-- Time is a **parameter**: the player takes `uint16_t now` (16-bit ms, wraps ~65.5 s); it never calls
-  `millis()`.
-- Output is **pulled, not pushed**: the player computes `currentColor()`; the platform reads it and
-  drives the LED. The player owns no output driver.
+- Time is a **parameter**: players/engines take `now` explicitly; they never call `millis()`.
+- Output is **pulled, not pushed**: the player computes `currentColor()`; the engine emits packets
+  via `IPacketSink`. Neither owns hardware.
 
 ## Modules
 
 | Folder | Contents |
 |---|---|
-| `Anim/` | `AnimationPlayer` (panel-side layer compositor) + its pure deps: `AnimationTypes`, `ColorCompose`, `ColorRef`, `Palette`, `LightnetConfig`, and `ProtocolTypes` (the host-compilable subset of the wire protocol). |
-| `CApi/` | C ABI (`anim_core_c.h/.cpp`) + CMake build exposing `Anim/` to non-PlatformIO consumers (mobile NDK/cinterop, host tests). **Not** part of the PlatformIO library (`library.json` `srcDirs` is `["Anim"]` only) — firmware builds never see it. |
+| `Common/` | Shared protocol/animation types used by both `Panel/` and `Controller/`: `ProtocolMeta`, `ProtocolTypes`, `LightnetConfig`, `Palette`, `ColorRef`, `AnimationTypes`, `UserColors`, `SpscByteQueue`. |
+| `Panel/` | `AnimationPlayer` (panel-side layer compositor) + `ColorCompose`. Used by the AVR panel, `SimPanel`, and the `panel_core` C ABI. |
+| `Controller/Scene/` | The controller-side scene engine: `ScenePlayer`, `AnimationScheduler`, `AnimationRunner`, `SceneParser`, topology/selector/field primitives (`TopologyIndex`, `PanelSelector`, `PanelField`, `PanelGeometry`, `TagResolver`). Decoupled from hardware via `IPacketSink` / `IPaletteResolver` / `ITopologyProvider` / `ITagResolver`. The AVR panel never pulls this in. |
+| `CApi/` | C ABIs (`panel_core_c.h/.cpp`, `controller_core_c.h/.cpp`) + CMake build exposing `Panel/` and `Controller/Scene/` to non-PlatformIO consumers (mobile NDK/cinterop, host smoke tests). Excluded from firmware builds via `library.json` `srcFilter`. |
 
-Future portable controller logic (scene/topology) moves here as additional modules.
+`Core/library.json` builds `Common/` + `Panel/` + `Controller/Scene/` as one PlatformIO library
+(`CApi` excluded); unused subtrees (e.g. `Controller/Scene` in the panel build) are dropped by the
+linker's `--gc-sections`.

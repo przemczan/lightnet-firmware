@@ -1,12 +1,12 @@
 #include "AnimationRunner.hpp"
 #include "RunnerMath.hpp"
-#include "../Panels/PanelsController.hpp"
-#include "Arduino.h"
 
 namespace Lightnet {
-    // Shared helper: emit a SET_COLOR(color × brightness/255) to one panel.
-    static void sendScaledColor(uint8_t address, const Protocol::ColorRGB& color, uint8_t brightness)
+    // Emit a SET_COLOR(color × brightness/255) to one panel through the sink.
+    void AnimationRunner::sendScaledColor(uint8_t address, const Protocol::ColorRGB& color, uint8_t brightness)
     {
+        if (!sink) return;
+
         Protocol::PacketSetColor colorPkt;
 
         Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
@@ -15,7 +15,7 @@ namespace Lightnet {
             (uint8_t)((uint16_t)color.g * brightness / 255),
             (uint8_t)((uint16_t)color.b * brightness / 255)
         };
-        LNBus.sendPacketNack(address, &colorPkt, sizeof(colorPkt), Protocol::PACKET_SET_COLOR);
+        sink->send(address, Protocol::PACKET_SET_COLOR, &colorPkt, sizeof(colorPkt), false);
     }
 
     // ============================================================================

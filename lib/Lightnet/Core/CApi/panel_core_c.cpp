@@ -1,12 +1,12 @@
-// anim_core_c.cpp — thin C ABI over Lightnet::AnimationPlayer. See anim_core_c.h.
+// panel_core_c.cpp — thin C ABI over Lightnet::AnimationPlayer. See panel_core_c.h.
 //
 // Packet decoding reuses the firmware struct layout: the on-wire bytes are the packed,
 // little-endian PacketMeta-prefixed structs, so a bounds-checked reinterpret_cast is the
 // decoder. (Packed structs have alignment 1 → the cast is well-defined for any byte pointer.)
 // Target ABIs — Android arm64/x86_64, iOS arm64 — are all little-endian, matching the bus.
 
-#include "anim_core_c.h"
-#include "AnimationPlayer.hpp"   // resolved via the Core/Anim include dir (see CMakeLists.txt)
+#include "panel_core_c.h"
+#include "AnimationPlayer.hpp"   // resolved via the Core/Panel include dir (see CMakeLists.txt)
 
 using Lightnet::AnimationPlayer;
 

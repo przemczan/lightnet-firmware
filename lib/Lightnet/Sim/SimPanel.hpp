@@ -1,10 +1,10 @@
 #pragma once
 #ifdef SIM_MODE
 
-    #include "../Core/Anim/AnimationPlayer.hpp"
+    #include "../Core/Panel/AnimationPlayer.hpp"
     #include "SimRGBController.hpp"
     #include "../Common/Protocol.hpp"
-    #include "../Core/Anim/Palette.hpp"
+    #include "../Core/Common/Palette.hpp"
 
     class SimPanel
     {

@@ -3,8 +3,8 @@
 #include "../Controller/Panels/PanelsInitializer.hpp"
 #include "../Controller/Panels/Panel.hpp"
 #include "../Controller/Panels/Edge.hpp"
-#include "../Controller/Topology/PanelGraph.hpp"
-#include "../Controller/Topology/PanelGeometry.hpp"
+#include "../Core/Controller/Scene/PanelGraph.hpp"
+#include "../Core/Controller/Scene/PanelGeometry.hpp"
 #include "../Utils/List.hpp"
 #include <Arduino.h>
 

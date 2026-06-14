@@ -1,4 +1,4 @@
-// Native unit tests for lib/Lightnet/Core/Util/SpscByteQueue.hpp
+// Native unit tests for lib/Lightnet/Core/Common/SpscByteQueue.hpp
 // Run with: pio test -e native -f test_spsc_queue
 
 #include <unity.h>
@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cstring>
-#include "Core/Util/SpscByteQueue.hpp"
+#include "Core/Common/SpscByteQueue.hpp"
 
 using namespace Lightnet;
 

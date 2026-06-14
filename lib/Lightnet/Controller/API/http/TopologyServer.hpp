@@ -2,7 +2,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include "../../Topology/TopologyConfigStore.hpp"
-#include "../../Scenes/ScenePlayer.hpp"
+#include "../../../Core/Controller/Scene/ScenePlayer.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {

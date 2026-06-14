@@ -1,9 +1,10 @@
 #include "SceneParser.hpp"
-#include "../../Utils/SimpleJson.hpp"
-#include "../Topology/PanelSelectorParser.hpp"
-#include "../Topology/PanelField.hpp"
+#include "../../../Utils/SimpleJson.hpp"
+#include "PanelSelectorParser.hpp"
+#include "PanelField.hpp"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 // ============================================================================
 // Recursive-descent JSON parser for scene documents.

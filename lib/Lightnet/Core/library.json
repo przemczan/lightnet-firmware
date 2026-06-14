@@ -1,9 +1,6 @@
 {
   "name": "LightnetCore",
-  "version": "1.0.0",
-  "description": "Portable, host-compilable C++ core shared by Panel, Controller and the mobile app. No Arduino/FastLED dependency.",
   "build": {
-    "srcFilter": ["+<*>", "-<CApi>"],
-    "includeDir": "."
+    "srcFilter": ["+<*>", "-<CApi>"]
   }
 }

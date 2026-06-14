@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "../Core/Util/SpscByteQueue.hpp"
+#include "../Core/Common/SpscByteQueue.hpp"
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
     #include <Arduino.h>

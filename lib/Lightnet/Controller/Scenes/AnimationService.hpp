@@ -19,11 +19,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include "ScenePlayer.hpp"
+#include "../../Core/Controller/Scene/ScenePlayer.hpp"
 #include "SceneStore.hpp"
-#include "SceneParser.hpp"
+#include "../../Core/Controller/Scene/SceneParser.hpp"
 #include "../../Common/Protocol.hpp"  // Protocol::ColorRGB for playOneShot defaults
-#include "../../Core/Anim/LightnetConfig.hpp"
+#include "../../Core/Common/LightnetConfig.hpp"
 
 namespace Lightnet {
     // ============================================================================

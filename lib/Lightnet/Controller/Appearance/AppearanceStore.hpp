@@ -1,10 +1,10 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Core/Anim/Palette.hpp"
-#include "../../Core/Anim/LightnetConfig.hpp"
+#include "../../Core/Common/Palette.hpp"
+#include "../../Core/Common/LightnetConfig.hpp"
 #include "../../Common/Protocol.hpp"
-#include "../Animations/AnimationScheduler.hpp"
+#include "../../Core/Controller/Scene/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"
 #include "../../Utils/DeferredWriter.hpp"
 

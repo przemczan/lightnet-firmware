@@ -1,10 +1,10 @@
-// smoke.cpp — host smoke test for the C ABI.
+// panel_core_smoke.cpp — host smoke test for the C ABI.
 //
 // Drives the same FADE-midpoint scenario as the native unit test (test/test_panel_anim): a black->
 // white fade, duration 1000 ms, sampled at t=500 ms, must read (127,127,127). This proves the C
 // ABI round-trips a raw wire packet through the player and reproduces the firmware integer math.
 
-#include "anim_core_c.h"
+#include "panel_core_c.h"
 #include "ProtocolTypes.hpp"   // construct a wire packet (host-side test only)
 #include <stdint.h>
 #include <stdio.h>

@@ -1,4 +1,4 @@
-// Native unit tests for lib/Lightnet/Controller/Topology/PanelGeometry.hpp
+// Native unit tests for lib/Lightnet/Core/Controller/Scene/PanelGeometry.hpp
 // Run with: pio test -e native -f test_panel_geometry
 //
 // A chain of three triangles (all N=3), anchored at panel 1:
@@ -11,9 +11,9 @@
 
 #include <unity.h>
 #include <string.h>
-#include "Controller/Topology/PanelGraph.hpp"
-#include "Controller/Topology/PanelGeometry.hpp"
-#include "Controller/Topology/TopologyIndex.hpp"
+#include "Core/Controller/Scene/PanelGraph.hpp"
+#include "Core/Controller/Scene/PanelGeometry.hpp"
+#include "Core/Controller/Scene/TopologyIndex.hpp"
 
 using namespace Lightnet;
 

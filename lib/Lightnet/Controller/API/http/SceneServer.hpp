@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ESPAsyncWebServer.h>
-#include "../../Scenes/ScenePlayer.hpp"
+#include "../../../Core/Controller/Scene/ScenePlayer.hpp"
 #include "../../Scenes/AnimationService.hpp"
 #include "../../AppState/AppStateStore.hpp"
 #include "../../Appearance/AppearanceStore.hpp"

@@ -4,9 +4,9 @@
 
         #include "../../../lib/Lightnet/Controller/Scenes/AnimationService.hpp"
         #include "../../../lib/Lightnet/Controller/Scenes/SceneStore.hpp"
-        #include "../../../lib/Lightnet/Controller/Scenes/ScenePlayer.hpp"
-        #include "../../../lib/Lightnet/Controller/Animations/AnimationScheduler.hpp"
-        #include "../../../lib/Lightnet/Controller/Animations/AnimationRunner.hpp"
+        #include "../../../lib/Lightnet/Core/Controller/Scene/ScenePlayer.hpp"
+        #include "../../../lib/Lightnet/Core/Controller/Scene/AnimationScheduler.hpp"
+        #include "../../../lib/Lightnet/Core/Controller/Scene/AnimationRunner.hpp"
         #include "../../../lib/Lightnet/Controller/Panels/PanelsController.hpp"
         #include "../../../lib/Lightnet/Controller/Panels/PanelsInitializer.hpp"
         #include "../MirrorService.hpp"   // serviceMirror() — keeps live preview streaming during demos

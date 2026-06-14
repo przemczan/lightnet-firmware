@@ -1,12 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include "AnimationTypes.hpp"
-#include "ProtocolTypes.hpp"
-#include "Palette.hpp"
-#include "ColorRef.hpp"
+#include "../Common/AnimationTypes.hpp"
+#include "../Common/ProtocolTypes.hpp"
+#include "../Common/Palette.hpp"
+#include "../Common/ColorRef.hpp"
 #include "ColorCompose.hpp"
-#include "LightnetConfig.hpp"
+#include "../Common/LightnetConfig.hpp"
 
 namespace Lightnet {
     // AnimationPlayer — panel-side layer compositor.

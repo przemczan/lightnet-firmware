@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include "../../Core/Anim/Palette.hpp"
-#include "../../Core/Anim/LightnetConfig.hpp"
+#include "../../Core/Common/Palette.hpp"
+#include "../../Core/Common/LightnetConfig.hpp"
 #include "../../Utils/SimpleJson.hpp"
 
 namespace Lightnet {

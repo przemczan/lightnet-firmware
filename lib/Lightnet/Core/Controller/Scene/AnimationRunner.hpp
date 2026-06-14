@@ -1,8 +1,10 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Common/Protocol.hpp"
-#include "../../Core/Anim/LightnetConfig.hpp"
+#include "../../Common/ProtocolTypes.hpp"
+#include "../../Common/ProtocolMeta.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "IPacketSink.hpp"
 
 namespace Lightnet {
     class AnimationRunner
@@ -35,12 +37,23 @@ namespace Lightnet {
                 return groupId;
             }
 
+            // Wired by AnimationScheduler::addRunner so tick() can emit SET_COLOR through
+            // the shared packet sink instead of the bus directly.
+            void setSink(IPacketSink *s)
+            {
+                sink = s;
+            }
+
         protected:
-            AnimationRunner(uint8_t _groupId) : groupId(_groupId), cancelled(false)
+            AnimationRunner(uint8_t _groupId) : groupId(_groupId), sink(nullptr), cancelled(false)
             {
             }
 
-            uint8_t groupId;
+            // Emit a SET_COLOR(color × brightness/255) to one panel through the sink.
+            void sendScaledColor(uint8_t address, const Protocol::ColorRGB &color, uint8_t brightness);
+
+            uint8_t      groupId;
+            IPacketSink *sink;
 
         private:
             volatile bool cancelled;

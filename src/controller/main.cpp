@@ -47,6 +47,12 @@ void serviceMirror()
     }
 }
 
+// Bus/topology seams between the shared scene engine and the controller hardware.
+// Hold only references (to the global LNBus / LNPanelsInitializer), so static-init order
+// across TUs is irrelevant — they're not dereferenced until runtime.
+Lightnet::ControllerPacketSink controllerPacketSink(LNBus);
+Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
+
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
 Lightnet::PaletteStore *paletteStore     = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
@@ -322,7 +328,7 @@ void loop()
                 sendConfiguration();
                 selfTest();
 
-                animScheduler = new Lightnet::AnimationScheduler();
+                animScheduler = new Lightnet::AnimationScheduler(controllerPacketSink);
                 animScheduler->initialize();
 
                 // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
@@ -339,7 +345,7 @@ void loop()
                 appearance->loadAndApply();   // broadcasts brightness, base colors, palette to panels
 
                 sceneStore  = new Lightnet::SceneStore();
-                scenePlayer = new Lightnet::ScenePlayer(*animScheduler, LNPanelsInitializer, *paletteStore);
+                scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
                 animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
 
                 // Per-device topology config: logical root + panel tags (used by scene selectors).

@@ -1,4 +1,4 @@
-/* anim_core_c.h — C ABI over the portable Lightnet animation core.
+/* panel_core_c.h — C ABI over the portable Lightnet animation core.
  *
  * One flat C surface that both Android (NDK/JNI) and iOS (Kotlin/Native cinterop) can bind to.
  * It wraps Lightnet::AnimationPlayer (lib/Lightnet/Core/Anim). The animation MATH lives in C++;
@@ -12,8 +12,8 @@
  * Lifecycle: anim_create() -> ... -> anim_destroy(). Not thread-safe; drive one handle from one
  * thread (e.g. the preview tick loop).
  */
-#ifndef ANIM_CORE_C_H
-#define ANIM_CORE_C_H
+#ifndef PANEL_CORE_C_H
+#define PANEL_CORE_C_H
 
 #include <stdint.h>
 
@@ -58,4 +58,4 @@ int  anim_is_animating(anim_handle h);
     }
 #endif
 
-#endif /* ANIM_CORE_C_H */
+#endif /* PANEL_CORE_C_H */

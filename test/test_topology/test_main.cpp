@@ -1,4 +1,4 @@
-﻿// Native unit tests for lib/Lightnet/Controller/Topology/TopologyIndex.hpp
+﻿// Native unit tests for lib/Lightnet/Core/Controller/Scene/TopologyIndex.hpp
 // Run with: pio test -e native -f test_topology
 //
 // Fixture is the "worked topology" from docs/animations/scene-authoring.md Â§2:
@@ -16,8 +16,8 @@
 
 #include <unity.h>
 #include <string.h>
-#include "Controller/Topology/PanelGraph.hpp"
-#include "Controller/Topology/TopologyIndex.hpp"
+#include "Core/Controller/Scene/PanelGraph.hpp"
+#include "Core/Controller/Scene/TopologyIndex.hpp"
 
 using namespace Lightnet;
 

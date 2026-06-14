@@ -1,4 +1,4 @@
-// Native unit tests for the portable animation core: lib/Lightnet/Core/Anim/AnimationPlayer.
+// Native unit tests for the portable animation core: lib/Lightnet/Core/Panel/AnimationPlayer.
 // Run with: pio test -e native -f test_panel_anim
 //
 // Proves the player compiles and runs on a plain host compiler (no Arduino, no millis(), no
@@ -11,7 +11,7 @@
 // The implementation is compiled in directly (the native env has no lib_extra_dirs for Core).
 
 #include <unity.h>
-#include "Core/Anim/AnimationPlayer.cpp"
+#include "Core/Panel/AnimationPlayer.cpp"
 
 using namespace Lightnet;
 

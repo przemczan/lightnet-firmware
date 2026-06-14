@@ -1,15 +1,15 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Core/Anim/AnimationTypes.hpp"
-#include "../../Core/Anim/ColorRef.hpp"
-#include "../../Core/Anim/LightnetConfig.hpp"
-#include "../../Core/Anim/Palette.hpp"
-#include "../../Common/Protocol.hpp"
-#include "../Animations/AnimationScheduler.hpp"
-#include "../Palettes/PaletteStore.hpp"
-#include "../Panels/PanelsInitializer.hpp"
-#include "../Topology/PanelSelector.hpp"
+#include "../../Common/AnimationTypes.hpp"
+#include "../../Common/ColorRef.hpp"
+#include "../../Common/LightnetConfig.hpp"
+#include "../../Common/Palette.hpp"
+#include "../../Common/ProtocolTypes.hpp"
+#include "../../Common/UserColors.hpp"
+#include "IPaletteResolver.hpp"
+#include "AnimationScheduler.hpp"
+#include "PanelSelector.hpp"
 #include "SceneTopology.hpp"
 
 namespace Lightnet {
@@ -81,9 +81,9 @@ namespace Lightnet {
             static const uint8_t LAYER_ASYNC_NON_BLOCKING = 0x02; // free-running: scene ignores this layer
 
             ScenePlayer(
-                AnimationScheduler& scheduler,
-                PanelsInitializer&  initializer,
-                PaletteStore&       paletteStore
+                AnimationScheduler&      scheduler,
+                IPaletteResolver&        paletteResolver,
+                const ITopologyProvider& topoProvider
             );
 
             // Load layers and start playing. Sends palette + base colors to panels.
@@ -175,7 +175,7 @@ namespace Lightnet {
 
         private:
             AnimationScheduler& scheduler;
-            PaletteStore& paletteStore;
+            IPaletteResolver& paletteResolver;
 
             // Topology/targeting: owns the panel-tree views (graph/rooted index/geometry),
             // the logical root, the tag resolver, and selector resolution. Rebuilt from the

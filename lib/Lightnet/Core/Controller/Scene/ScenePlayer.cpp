@@ -1,14 +1,18 @@
 #include "ScenePlayer.hpp"
-#include "../Animations/AnimationRunner.hpp"
-#include "../Animations/RunnerCompile.hpp"
-#include "../Animations/RunnerSpawn.hpp"
-#include "../Topology/PanelField.hpp"
-#include "../Topology/PanelGeometry.hpp"
-#include "../../Utils/Debug.hpp"
+#include "AnimationRunner.hpp"
+#include "RunnerCompile.hpp"
+#include "RunnerSpawn.hpp"
+#include "PanelField.hpp"
+#include "PanelGeometry.hpp"
+#include "../../../Utils/Debug.hpp"
 #include <string.h>
-#include <Arduino.h>
 
 namespace {
+    // Portable min — avoids Arduino's min() macro (which would corrupt std::min) so this
+    // TU compiles host-side as well as on the device.
+    template<typename T>
+    static inline T minT(T a, T b) { return a < b ? a : b; }
+
     // RAIN/SPARKLE spawner tuning (controller-side; safe to adjust).
     constexpr uint8_t SPAWN_MAX_BURST          = 8;    // max drops emitted per tick (anti-spiral)
     constexpr uint8_t SPAWN_POOL_MAX           = 64;   // cap a layer's group_id pool
@@ -49,12 +53,12 @@ namespace {
 
 namespace Lightnet {
     ScenePlayer::ScenePlayer(
-        AnimationScheduler& _scheduler,
-        PanelsInitializer&  _initializer,
-        PaletteStore&       _paletteStore
+        AnimationScheduler&      _scheduler,
+        IPaletteResolver&        _paletteResolver,
+        const ITopologyProvider& _topoProvider
     )
-        : scheduler(_scheduler), paletteStore(_paletteStore),
-        sceneTopo(_initializer),
+        : scheduler(_scheduler), paletteResolver(_paletteResolver),
+        sceneTopo(_topoProvider),
         lCount(0), loop(false), playing(false), speed(1.0f)
     {
         memset(name, 0, sizeof(name));
@@ -109,9 +113,9 @@ namespace Lightnet {
             const char *palName = (layers[i].palette[0]) ? layers[i].palette : defaultPalette;
 
             if (strcmp(palName, "userColors") == 0) {
-                PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
-            } else if (!paletteStore.resolve(palName, resolvedPalettes[i], resolvedPaletteCounts[i])) {
-                PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
+                Lightnet::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
+            } else if (!paletteResolver.resolve(palName, resolvedPalettes[i], resolvedPaletteCounts[i])) {
+                Lightnet::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
             }
         }
 
@@ -341,7 +345,7 @@ namespace Lightnet {
 
         uint16_t effectiveDurationMs = ((step.durationMs == 0) || (speed == 1.0f))
             ? step.durationMs
-            : (uint16_t)min((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
+            : (uint16_t)minT((uint32_t)65535, (uint32_t)((float)step.durationMs / speed));
 
         if (isRunnerType(step.animType)) {
             // RAIN/SPARKLE are particle *spawners*, not compiled pulses. fireStep just
@@ -482,7 +486,7 @@ namespace Lightnet {
                     }
                 }
 
-                delayMicroseconds(300);
+                scheduler.pace(300);
                 scheduler.sendGroupStart(layer.groupId);
 
                 return;
@@ -612,7 +616,7 @@ namespace Lightnet {
                 }
             }
 
-            delayMicroseconds(300);
+            scheduler.pace(300);
             scheduler.sendGroupStart(layer.groupId);
         } else {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
@@ -761,7 +765,7 @@ namespace Lightnet {
         // collide with — nor, via the broadcast START, disturb — a normal layer's panel slots.
         uint16_t regionStart = (uint16_t)maxUsed + 1;
         uint16_t avail       = (254 >= regionStart) ? (uint16_t)(254 - regionStart + 1) : 0;
-        uint8_t per         = (uint8_t)min((uint16_t)SPAWN_POOL_MAX, (uint16_t)(avail / spawners));
+        uint8_t per         = (uint8_t)minT((uint16_t)SPAWN_POOL_MAX, (uint16_t)(avail / spawners));
 
         uint8_t k = 0;
 
@@ -865,7 +869,7 @@ namespace Lightnet {
                 DropPulse dp    = sparkleFlash((uint16_t)fadeMs);
 
                 sendDropPrepare(scheduler, panel, group, layerIdx, ds, dp, off);
-                delayMicroseconds(200);
+                scheduler.pace(200);
                 scheduler.sendGroupStart(group);
             }
 
@@ -978,7 +982,7 @@ namespace Lightnet {
                         sendDropPrepare(scheduler, topo.panelAt(s), group, layerIdx, ds, dp, off, bright);
                     }
 
-                    delayMicroseconds(300);
+                    scheduler.pace(300);
                     scheduler.sendGroupStart(group);
                 }
 
@@ -1024,7 +1028,7 @@ namespace Lightnet {
                     sendDropPrepare(scheduler, topo.panelAt(path[i]), group, layerIdx, ds, dp, off);
                 }
 
-                delayMicroseconds(300);
+                scheduler.pace(300);
                 scheduler.sendGroupStart(group);
             }
 
@@ -1110,7 +1114,7 @@ namespace Lightnet {
                     sendDropPrepare(scheduler, topo.panelAt(chain[i]), group, layerIdx, ds, dp, off);
                 }
 
-                delayMicroseconds(300);
+                scheduler.pace(300);
                 scheduler.sendGroupStart(group);
             }
 
@@ -1150,7 +1154,7 @@ namespace Lightnet {
                 sendDropPrepare(scheduler, panel, group, layerIdx, ds, dp, off);
             }
 
-            delayMicroseconds(300);
+            scheduler.pace(300);
             scheduler.sendGroupStart(group);
         }
     }
@@ -1246,9 +1250,9 @@ namespace Lightnet {
             if (layers[i].palette[0]) continue; // layer has its own palette — skip
 
             if (strcmp(defaultPalette, "userColors") == 0) {
-                PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
-            } else if (!paletteStore.resolve(defaultPalette, resolvedPalettes[i], resolvedPaletteCounts[i])) {
-                PaletteStore::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
+                Lightnet::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
+            } else if (!paletteResolver.resolve(defaultPalette, resolvedPalettes[i], resolvedPaletteCounts[i])) {
+                Lightnet::buildUserColors(baseColors, resolvedPalettes[i], resolvedPaletteCounts[i]);
             }
         }
     }
