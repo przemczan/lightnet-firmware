@@ -5,7 +5,7 @@ controller mirrors:
 
 - **`panel_core_c.h`** — one panel's player (`Lightnet::AnimationPlayer`, `lib/Lightnet/Core/Panel`).
 - **`controller_core_c.h`** — the whole controller scene engine (`Lightnet::ScenePlayer` +
-  `AnimationScheduler` + runners, `lib/Lightnet/Core/Controller/Scene`), so a scene can be previewed
+  `AnimationScheduler` + runners, `lib/Lightnet/Core/Controller`), so a scene can be previewed
   **without a controller**. See "Scene C ABI" below.
 
 The two compose: `controller_core` produces a scene's packets (the same ones a controller would
@@ -79,6 +79,6 @@ The sink callback gets `(user, address, type, bytes, len)` — raw wire packets 
 included), identical to a `MIRROR_BATCH` record. `address` 0 = general call. `links` is
 `link_count * 4` bytes `{panelA, edgeA, panelB, edgeB}`; palette `stops` are `count * 4` bytes
 `{pos, r, g, b}`. `controller_core` builds as a second static library from this same
-`CMakeLists.txt` (`LIGHTNET_SCENE_DIR` defaults to `Core/Controller/Scene`); link both `panel_core`
+`CMakeLists.txt` (`LIGHTNET_SCENE_DIR` defaults to `Core/Controller`); link both `panel_core`
 and `controller_core`. `controller_core_smoke` proves a one-layer SOLID scene emits one PREPARE per
 panel + a general-call START.

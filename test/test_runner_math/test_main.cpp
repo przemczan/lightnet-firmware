@@ -1,8 +1,8 @@
-// Native unit tests for lib/Lightnet/Core/Controller/Scene/RunnerMath.hpp
+// Native unit tests for lib/Lightnet/Core/Controller/RunnerMath.hpp
 // Run with: pio test -e native -f test_runner_math
 
 #include <unity.h>
-#include "Core/Controller/Scene/RunnerMath.hpp"
+#include "Core/Controller/RunnerMath.hpp"
 
 using namespace Lightnet;
 

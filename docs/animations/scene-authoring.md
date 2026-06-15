@@ -727,11 +727,11 @@ that panel:
   the same panel at the same moment* count against the 18.
 
 For the underlying mechanics (slot allocation, composite ordering, spawner pools), see
-[`AnimationPlayer.hpp`](../../lib/Lightnet/Core/Anim/AnimationPlayer.hpp) (`MAX_ANIM_SLOTS`) and
-[`ScenePlayer.cpp`](../../lib/Lightnet/Controller/Scenes/ScenePlayer.cpp) (`allocSpawnPools`).
+[`AnimationPlayer.hpp`](lib/Lightnet/Core/Panel/AnimationPlayer.hpp) (`MAX_ANIM_SLOTS`) and
+[`ScenePlayer.cpp`](lib/Lightnet/Core/Controller/ScenePlayer.cpp) (`allocSpawnPools`).
 
 This 18-slot panel-side budget is independent of the controller-side
-[`AnimationScheduler`](../../lib/Lightnet/Controller/Animations/AnimationScheduler.hpp)
+[`AnimationScheduler`](lib/Lightnet/Core/Controller/AnimationScheduler.hpp)
 (`MAX_ACTIVE_RUNNERS = 8`), which tracks one in-flight **runner** (WAVE/RIPPLE/CHASE/WHEEL/
 BOUNCE/RAIN/SPARKLE/MATRIX) per layer. Since a scene has at most 8 layers, this cap is never
 actually reached — it just lets the controller pre-size its runner list at scene load instead

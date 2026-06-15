@@ -4,7 +4,7 @@
 #include "../../Utils/Debug.hpp"
 #include "../../Core/Common/Palette.hpp"
 #include "../../Core/Common/LightnetConfig.hpp"
-#include "../../Core/Controller/Scene/IPaletteResolver.hpp"
+#include "../../Core/Controller/IPaletteResolver.hpp"
 #include "../../Common/Protocol.hpp"
 
 namespace Lightnet {

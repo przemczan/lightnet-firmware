@@ -11,7 +11,7 @@
 #include "../../Panels/Panel.hpp"
 #include "../../Panels/PanelsInitializer.hpp"
 #include "../../Panels/PanelsController.hpp"
-#include "../../../Core/Controller/Scene/AnimationScheduler.hpp"
+#include "../../../Core/Controller/AnimationScheduler.hpp"
 
 class WebsocketHandler
 {

@@ -42,8 +42,8 @@ target_include_directories(panel_core PUBLIC
 # Where panel_core runs one panel's player, controller_core runs SceneParser -> ScenePlayer ->
 # AnimationScheduler -> runners with no hardware, emitting the same wire packets the controller
 # would. The mobile app links BOTH: controller_core produces a scene's packets, panel_core renders
-# them per panel. The engine lives in Core/Controller/Scene (a library the AVR panel never pulls).
-set(LIGHTNET_SCENE_DIR "${LIGHTNET_CORE_DIR}/Controller/Scene" CACHE PATH "Path to lib/Lightnet/Core/Controller/Scene")
+# them per panel. The engine lives in Core/Controller (a library the AVR panel never pulls).
+set(LIGHTNET_SCENE_DIR "${LIGHTNET_CORE_DIR}/Controller" CACHE PATH "Path to lib/Lightnet/Core/Controller")
 set(LIGHTNET_UTILS_DIR "${LIGHTNET_CORE_DIR}/../Utils" CACHE PATH "Path to lib/Lightnet/Utils")
 
 if(NOT EXISTS "${LIGHTNET_SCENE_DIR}/ScenePlayer.cpp")

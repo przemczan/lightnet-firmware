@@ -9,7 +9,7 @@
 // host-side and on mobile with no Arduino dependency.
 
 #include <stdint.h>
-#include "../../Common/ProtocolTypes.hpp"  // Protocol::packetType_t
+#include "../Common/ProtocolTypes.hpp"  // Protocol::packetType_t
 
 namespace Lightnet {
     class IPacketSink {

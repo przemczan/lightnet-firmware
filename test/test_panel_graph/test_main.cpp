@@ -1,4 +1,4 @@
-﻿// Native unit tests for lib/Lightnet/Core/Controller/Scene/PanelGraph.hpp
+﻿// Native unit tests for lib/Lightnet/Core/Controller/PanelGraph.hpp
 // Run with: pio test -e native -f test_panel_graph
 //
 // Same worked topology as test_topology (docs/animations/scene-authoring.md Â§2):
@@ -18,7 +18,7 @@
 
 #include <unity.h>
 #include <string.h>
-#include "Core/Controller/Scene/PanelGraph.hpp"
+#include "Core/Controller/PanelGraph.hpp"
 
 using namespace Lightnet;
 

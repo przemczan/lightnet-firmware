@@ -1,4 +1,4 @@
-﻿// Native unit tests for lib/Lightnet/Core/Controller/Scene/PanelSelectorParser.hpp
+﻿// Native unit tests for lib/Lightnet/Core/Controller/PanelSelectorParser.hpp
 // Run with: pio test -e native -f test_panel_selector_parser
 //
 // End-to-end: parse a JSON "panels" value â†’ PanelSelector RPN â†’ resolve against
@@ -7,8 +7,8 @@
 
 #include <unity.h>
 #include <string.h>
-#include "Core/Controller/Scene/PanelGraph.hpp"
-#include "Core/Controller/Scene/PanelSelectorParser.hpp"
+#include "Core/Controller/PanelGraph.hpp"
+#include "Core/Controller/PanelSelectorParser.hpp"
 
 using namespace Lightnet;
 

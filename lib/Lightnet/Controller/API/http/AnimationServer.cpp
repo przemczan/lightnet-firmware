@@ -1,7 +1,7 @@
 #include "AnimationServer.hpp"
 #include "HttpHelpers.hpp"
 #include "../../../Utils/SimpleJson.hpp"
-#include "../../../Core/Controller/Scene/ScenePlayer.hpp"  // SceneLayer
+#include "../../../Core/Controller/ScenePlayer.hpp"  // SceneLayer
 #include <Arduino.h>
 #include <string.h>
 #include <new>

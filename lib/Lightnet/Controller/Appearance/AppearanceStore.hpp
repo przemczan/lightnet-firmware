@@ -4,7 +4,7 @@
 #include "../../Core/Common/Palette.hpp"
 #include "../../Core/Common/LightnetConfig.hpp"
 #include "../../Common/Protocol.hpp"
-#include "../../Core/Controller/Scene/AnimationScheduler.hpp"
+#include "../../Core/Controller/AnimationScheduler.hpp"
 #include "../Palettes/PaletteStore.hpp"
 #include "../../Utils/DeferredWriter.hpp"
 

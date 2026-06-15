@@ -1,4 +1,4 @@
-﻿// Native unit tests for lib/Lightnet/Core/Controller/Scene/PanelSelector.hpp
+﻿// Native unit tests for lib/Lightnet/Core/Controller/PanelSelector.hpp
 // Run with: pio test -e native -f test_panel_selector
 //
 // Same worked topology as test_topology (docs/animations/scene-authoring.md Â§2),
@@ -7,8 +7,8 @@
 
 #include <unity.h>
 #include <string.h>
-#include "Core/Controller/Scene/PanelGraph.hpp"
-#include "Core/Controller/Scene/PanelSelector.hpp"
+#include "Core/Controller/PanelGraph.hpp"
+#include "Core/Controller/PanelSelector.hpp"
 
 using namespace Lightnet;
 

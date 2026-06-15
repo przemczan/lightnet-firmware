@@ -19,9 +19,9 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include "../../Core/Controller/Scene/ScenePlayer.hpp"
+#include "../../Core/Controller/ScenePlayer.hpp"
 #include "SceneStore.hpp"
-#include "../../Core/Controller/Scene/SceneParser.hpp"
+#include "../../Core/Controller/SceneParser.hpp"
 #include "../../Common/Protocol.hpp"  // Protocol::ColorRGB for playOneShot defaults
 #include "../../Core/Common/LightnetConfig.hpp"
 

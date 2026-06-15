@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "../../Common/LightnetConfig.hpp"
+#include "../Common/LightnetConfig.hpp"
 
 namespace Lightnet {
     // One physical connector-to-connector link between two panels (undirected).

@@ -1,5 +1,5 @@
 #include "SceneParser.hpp"
-#include "../../../Utils/SimpleJson.hpp"
+#include "../../Utils/SimpleJson.hpp"
 #include "PanelSelectorParser.hpp"
 #include "PanelField.hpp"
 #include <string.h>

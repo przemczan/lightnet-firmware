@@ -1,14 +1,14 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Common/AnimationTypes.hpp"
-#include "../../Common/ProtocolTypes.hpp"
-#include "../../Common/ProtocolMeta.hpp"
-#include "../../Common/LightnetConfig.hpp"
-#include "../../Common/ColorRef.hpp"
-#include "../../Common/Palette.hpp"
+#include "../Common/AnimationTypes.hpp"
+#include "../Common/ProtocolTypes.hpp"
+#include "../Common/ProtocolMeta.hpp"
+#include "../Common/LightnetConfig.hpp"
+#include "../Common/ColorRef.hpp"
+#include "../Common/Palette.hpp"
 #include "IPacketSink.hpp"
-#include "../../../Utils/List.hpp"
+#include "../../Utils/List.hpp"
 
 namespace Lightnet {
     // Forward declare AnimationRunner (defined in AnimationRunner.hpp)

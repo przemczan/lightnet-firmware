@@ -2,7 +2,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include "../../Scenes/AnimationService.hpp"
-#include "../../../Core/Controller/Scene/AnimationScheduler.hpp"
+#include "../../../Core/Controller/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../AppState/AppStateStore.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"

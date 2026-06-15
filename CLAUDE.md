@@ -140,14 +140,14 @@ at play time**, so one scene adapts to devices with different panel counts/wirin
 [`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md) (topology §2,
 selectors §6, directionality §8, logical root/tags §10).
 
-The whole scene engine is now the **shared `lib/Lightnet/Core/Controller/Scene/` library** (no
+The whole scene engine is now the **shared `lib/Lightnet/Core/Controller/` library** (no
 Arduino) — built into the controller and, via the scene C ABI
 (`Core/CApi/controller_core_c.h`), into the mobile app so a scene can be **previewed without a
 controller**. It's decoupled from hardware by three pure seams: `IPacketSink` (the bus),
 `IPaletteResolver` (palettes), `ITopologyProvider` (the panel tree), plus `ITagResolver` (tags). The
-AVR panel never pulls `Controller/Scene/`.
+AVR panel never pulls `Controller/`.
 
-**Pure, natively-tested topology primitives** (in `lib/Lightnet/Core/Controller/Scene/`, no Arduino):
+**Pure, natively-tested topology primitives** (in `lib/Lightnet/Core/Controller/`, no Arduino):
 
 | File | Role |
 |---|---|
@@ -157,7 +157,7 @@ AVR panel never pulls `Controller/Scene/`.
 | `PanelGeometry.hpp` | **Geometric** runner directionality (`source:geometric` + `angle`): planar (x,y) layout of the tree from regular-polygon geometry (faithful port of mobile `PanelsLayoutService`, anchored at the lowest panel index = visualizer frame), then `computeGeometricField()` projects centroids onto the chosen axis. No protocol change. |
 | `TagResolver.hpp` | `ITagResolver` + the single `isValidTagName`/`TAG_NAME_MAX` shared by parser, store, and endpoint. |
 
-**Engine side** (`lib/Lightnet/Core/Controller/Scene/`, shared): `SceneTopology` owns the panel-tree views
+**Engine side** (`lib/Lightnet/Core/Controller/`, shared): `SceneTopology` owns the panel-tree views
 (`PanelGraph` + `TopologyIndex` + `PanelGeometry`), the logical root, the tag resolver, and selector
 resolution (`rebuild()` + `resolvePanels()`); it pulls the tree through `ITopologyProvider`.
 `ScenePlayer` holds one `SceneTopology` (rebuilt in `loadAndPlay`/`resume`), delegates

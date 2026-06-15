@@ -1,12 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Common/AnimationTypes.hpp"
-#include "../../Common/ColorRef.hpp"
-#include "../../Common/LightnetConfig.hpp"
-#include "../../Common/Palette.hpp"
-#include "../../Common/ProtocolTypes.hpp"
-#include "../../Common/UserColors.hpp"
+#include "../Common/AnimationTypes.hpp"
+#include "../Common/ColorRef.hpp"
+#include "../Common/LightnetConfig.hpp"
+#include "../Common/Palette.hpp"
+#include "../Common/ProtocolTypes.hpp"
+#include "../Common/UserColors.hpp"
 #include "IPaletteResolver.hpp"
 #include "AnimationScheduler.hpp"
 #include "PanelSelector.hpp"

@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include "TopologyIndex.hpp"
-#include "../../Common/AnimationTypes.hpp"
+#include "../Common/AnimationTypes.hpp"
 
 namespace Lightnet {
     // How a runner step encodes its directionality in SceneStep.params[].

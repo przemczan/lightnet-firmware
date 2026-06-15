@@ -4,7 +4,7 @@
 #include "RunnerSpawn.hpp"
 #include "PanelField.hpp"
 #include "PanelGeometry.hpp"
-#include "../../../Utils/Debug.hpp"
+#include "../../Utils/Debug.hpp"
 #include <string.h>
 
 namespace {

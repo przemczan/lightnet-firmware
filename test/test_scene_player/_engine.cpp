@@ -4,9 +4,9 @@
 // AnimationPlayer.cpp) we pull the shared scene-engine translation units in here. After the
 // IPacketSink / IPaletteResolver / ITopologyProvider decoupling these are all Arduino-free,
 // which is exactly what this test proves: the controller scene engine runs on the host.
-#include "Core/Controller/Scene/ScenePlayer.cpp"
-#include "Core/Controller/Scene/SceneParser.cpp"
-#include "Core/Controller/Scene/AnimationScheduler.cpp"
-#include "Core/Controller/Scene/AnimationRunner.cpp"
+#include "Core/Controller/ScenePlayer.cpp"
+#include "Core/Controller/SceneParser.cpp"
+#include "Core/Controller/AnimationScheduler.cpp"
+#include "Core/Controller/AnimationRunner.cpp"
 #include "Core/Common/ProtocolMeta.cpp"
 #include "Utils/Crc.cpp"

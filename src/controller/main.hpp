@@ -20,8 +20,8 @@
         #include <ESPmDNS.h>
     #endif
     #include "Protocol.hpp"
-    #include "../../lib/Lightnet/Core/Controller/Scene/AnimationScheduler.hpp"
-    #include "../../lib/Lightnet/Core/Controller/Scene/AnimationRunner.hpp"
+    #include "../../lib/Lightnet/Core/Controller/AnimationScheduler.hpp"
+    #include "../../lib/Lightnet/Core/Controller/AnimationRunner.hpp"
     #include "Animations/ControllerPacketSink.hpp"
     #include "Palettes/PaletteStore.hpp"
     #include "Appearance/AppearanceStore.hpp"
@@ -36,9 +36,9 @@
     #include "API/http/StateServer.hpp"
     #include "Topology/TopologyConfigStore.hpp"
     #include "API/http/TopologyServer.hpp"
-    #include "../../lib/Lightnet/Core/Controller/Scene/ScenePlayer.hpp"
+    #include "../../lib/Lightnet/Core/Controller/ScenePlayer.hpp"
     #include "Scenes/PanelsTopologyProvider.hpp"
-    #include "../../lib/Lightnet/Core/Controller/Scene/SceneParser.hpp"
+    #include "../../lib/Lightnet/Core/Controller/SceneParser.hpp"
     #include "Scenes/SceneStore.hpp"
     #include "Scenes/AnimationService.hpp"
     #include "OTA/TwibootClient.hpp"

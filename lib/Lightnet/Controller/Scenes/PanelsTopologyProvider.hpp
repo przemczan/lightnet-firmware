@@ -7,12 +7,13 @@
 // SceneTopology::rebuild() graph walk, verbatim.)
 
 #include <stdint.h>
-#include "../../Core/Controller/Scene/SceneTopology.hpp"               // ITopologyProvider, TopoLink
+#include "../../Core/Controller/SceneTopology.hpp"               // ITopologyProvider, TopoLink
 #include "../Panels/PanelsInitializer.hpp" // PanelsInitializer, Panel, Edge, List
 #include "../../Core/Common/LightnetConfig.hpp"
 
 namespace Lightnet {
-    class PanelsTopologyProvider : public ITopologyProvider {
+    class PanelsTopologyProvider : public ITopologyProvider
+    {
         public:
             explicit PanelsTopologyProvider(PanelsInitializer& _initializer)
                 : initializer(_initializer)
@@ -20,11 +21,11 @@ namespace Lightnet {
             }
 
             uint8_t fillTopology(
-                uint8_t *  indices,
-                uint8_t *  edgeCounts,
-                TopoLink * links,
-                uint8_t    maxLinks,
-                uint8_t &  linkCount
+            uint8_t * indices,
+            uint8_t * edgeCounts,
+            TopoLink *links,
+            uint8_t   maxLinks,
+            uint8_t & linkCount
             ) const override
             {
                 linkCount = 0;

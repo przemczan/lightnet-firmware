@@ -9,7 +9,7 @@
 // the caller via Core/Anim/UserColors.hpp, not here.
 
 #include <stdint.h>
-#include "../../Common/Palette.hpp"  // Lightnet::GradientStop
+#include "../Common/Palette.hpp"  // Lightnet::GradientStop
 
 namespace Lightnet {
     class IPaletteResolver {
