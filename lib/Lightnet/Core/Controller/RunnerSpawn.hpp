@@ -63,6 +63,24 @@ namespace Lightnet {
         return count;
     }
 
+    // ---- WAVE/RIPPLE/CHASE sweep-spawn interval -----------------------------------------------
+    // `density` (0-255) is a "fill rate": 0 → one sweep per `durationMs` (gapless single-file
+    // train, the next sweep starts as the previous one finishes); 255 → floors at
+    // `durationMs / maxConcurrent` (maxConcurrent sweeps in flight). Linear in between.
+    inline uint16_t spawnSweepIntervalMs(uint16_t durationMs, uint8_t density, uint8_t maxConcurrent)
+    {
+        if (durationMs == 0 || maxConcurrent == 0) return 0;
+
+        float interval = (float)durationMs * (1.0f - (float)density / 255.0f);
+        float floorMs  = (float)durationMs / (float)maxConcurrent;
+
+        if (interval < floorMs) interval = floorMs;
+
+        uint16_t result = (uint16_t)(interval + 0.5f);
+
+        return result ? result : 1;
+    }
+
     // ---- Group-id pool: round-robin a contiguous block [base, base+size). Cursor persists -----
     // across the window re-fire so a new window's drops take fresh ids while the previous
     // window's drops are still draining (resetting to `base` would collide with them).

@@ -19,6 +19,7 @@ namespace {
     // RAIN/SPARKLE spawner tuning (controller-side; safe to adjust).
     constexpr uint8_t SPAWN_MAX_BURST          = 8;    // max drops emitted per tick (anti-spiral)
     constexpr uint8_t SPAWN_POOL_MAX           = 64;   // cap a layer's group_id pool
+    constexpr uint8_t MAX_CONCURRENT_SWEEPS    = 8;    // WAVE/RIPPLE/CHASE: cap on sweeps in flight at density=255
     constexpr uint16_t SPARKLE_FADE_MS_PER_WIDTH = 8;  // sparkle: width(0-255) → fade ms
     constexpr uint16_t RAIN_DEFAULT_FALL_MS     = 1000;// rain: fall time when `speed` is unset
     constexpr float SPAWN_DEG2RAD            = 0.017453293f;
@@ -162,8 +163,12 @@ namespace Lightnet {
 
             const SceneStep& step = layers[i].steps[currentStep[i]];
 
-            // RAIN/SPARKLE/MATRIX spawners do their work over time: emit any drops due this tick.
-            if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX) serviceSpawner(i, nowMs);
+            // RAIN/SPARKLE/MATRIX and WAVE/RIPPLE/CHASE spawners do their work over time:
+            // emit any drops/sweeps due this tick.
+            if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX
+                || step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
+                serviceSpawner(i, nowMs);
+            }
 
             if (step.durationMs == 0) continue; // infinite last step — holds, never completes
 
@@ -397,7 +402,6 @@ namespace Lightnet {
             uint8_t srcArg    = step.params[RUNNER_PARAM_SRC_ARG];
             bool reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
             bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
-            bool repeat    = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REPEAT) != 0;
             uint8_t maxCoord;
 
             // BOUNCE: a single band that sweeps back and forth forever — flip the effective
@@ -499,7 +503,13 @@ namespace Lightnet {
                                                 srcKind, srcArg, reverse, coord);
             }
 
+            // Bands narrower than 2 coordinate-rings leave no overlap between adjacent
+            // panels' compiled pulses (RunnerCompile.hpp): each panel's pulse fades fully
+            // to black exactly as its neighbour's rises from black, producing a visible
+            // blink at every step. Clamp to 2 so wave/ripple/bounce always overlap.
             uint8_t width = step.params[RUNNER_PARAM_WIDTH];
+
+            if (width < 2) width = 2;
 
             // Compile the sweep to a per-panel PULSE: black (colorFrom) → lit colour (colorTo).
             ColorRef black = ColorRef_rgb(0, 0, 0);
@@ -511,94 +521,71 @@ namespace Lightnet {
             // base, i.e. a standalone runner); honour an explicit non-default blend.
             uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
 
-            // `repeat` works for both COLOR and non-colour targets via the same swapped trick
-            // (compileRepeating, RunnerCompile.hpp): the loop seam coincides with the pulse's
-            // peak, giving a clean departing -> gap -> approaching cycle with no discontinuity.
-            // For non-colour targets, peak<->identity is swapped exactly like lit<->black.
-            // BOUNCE is always a single one-shot band per cycle, even if `repeat` is set.
-            // (RAIN/SPARKLE never reach here — they return early as particle spawners.)
-            bool repeating = (step.animType == RUN_BOUNCE) ? false : repeat;
+            if (step.animType == RUN_BOUNCE) {
+                // Single band whose peak reflects at the field edges (center sweeps [0,
+                // maxCoord]), one-shot per scene cycle; direction toggled above via
+                // bouncePhase. Not spawner-driven — a perpetual pendulum is already a
+                // continuous train of one.
+                for (uint8_t i = 0; i < panelCount; i++) {
+                    CompiledPulse cp = compileBounce((float)coord[i], maxCoord, width, effectiveDurationMs);
 
-            // `repeatCount` > 1 places that many evenly-spaced waves in flight at once: the
-            // loop period is shortened to T/N and each panel's phase within it is multiplied
-            // by N (mod 1, in the compile*Repeating helpers), so the bands keep the same
-            // width/speed as repeatCount=1. Count 0 or 1 both mean one wave per duration.
-            uint8_t repeatCount = step.params[RUNNER_PARAM_REPEAT_COUNT];
-            uint8_t effRepeatCount = (repeatCount > 1) ? repeatCount : 1;
-            uint16_t repeatPeriod = effectiveDurationMs;
+                    if (!cp.lit) continue;
 
-            if (repeating && effRepeatCount > 1) {
-                repeatPeriod = (uint16_t)((uint32_t)effectiveDurationMs / effRepeatCount);
+                    if (target == TARGET_COLOR) {
+                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, 0,
+                                                     cp.durationMs, black, lit,
+                                                     cp.risePct, cp.fallPct,
+                                                     runnerBlend, /*composeOrder=*/ layerIdx,
+                                                     cp.startDelayMs);
+                    } else {
+                        ColorRef fromVal = ColorRef_rgb(identity, 0, 0);
+                        ColorRef toVal   = ColorRef_rgb(peak, 0, 0);
 
-                if (repeatPeriod == 0) repeatPeriod = 1;
-            }
-
-            for (uint8_t i = 0; i < panelCount; i++) {
-                CompiledPulse cp;
-
-                switch (step.animType) {
-                    case RUN_WAVE:
-                        cp = repeating
-                            ? compileWaveRepeating((float)coord[i], maxCoord, width, repeatPeriod, effRepeatCount)
-                            : compileWave((float)coord[i], maxCoord, width, effectiveDurationMs);
-                        break;
-                    case RUN_CHASE:
-                        cp = repeating
-                            ? compileChaseRepeating(coord[i], maxCoord, repeatPeriod, effRepeatCount)
-                            : compileChase(coord[i], maxCoord, effectiveDurationMs);
-                        break;
-                    case RUN_BOUNCE:
-                        // Single band whose peak reflects at the field edges (center sweeps
-                        // [0, maxCoord]); direction toggled per cycle above via bouncePhase.
-                        cp = compileBounce((float)coord[i], maxCoord, width, effectiveDurationMs);
-                        break;
-                    default: // RUN_RIPPLE
-                        cp = repeating
-                            ? compileRippleRepeating((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
-                                                     maxCoord, width, repeatPeriod, effRepeatCount)
-                            : compileRipple((float)coord[i], (float)(haveFar ? coordFar[i] : coord[i]),
-                                            maxCoord, width, effectiveDurationMs);
-                        break;
+                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, 0,
+                                                     cp.durationMs, fromVal, toVal,
+                                                     cp.risePct, cp.fallPct,
+                                                     layer.blend, /*composeOrder=*/ layerIdx,
+                                                     cp.startDelayMs, target);
+                    }
                 }
 
-                // Unlit panels get no slot for this group → they stay transparent in the fold.
-                // (Edge case: if a prior step lit this panel and this runner leaves it unlit —
-                // width 0 / out of range — the panel holds that prior step, since no PREPARE
-                // arrives and START finds nothing pending. Normal runners light every targeted
-                // panel each cycle, so this only bites pathological width/coord combos.)
-                if (!cp.lit) continue;
+                scheduler.pace(300);
+                scheduler.sendGroupStart(layer.groupId);
 
-                uint8_t flags = repeating ? FLAG_LOOP : 0;
-
-                if (target == TARGET_COLOR) {
-                    // `repeat`: swapped colour trick (compileRepeating) — the loop seam coincides
-                    // with this panel's peak, giving a clean departing → dark-gap → approaching cycle.
-                    const ColorRef& from = repeating ? lit   : black;
-                    const ColorRef& to   = repeating ? black : lit;
-
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, flags,
-                                                 cp.durationMs, from, to,
-                                                 cp.risePct, cp.fallPct,
-                                                 runnerBlend, /*composeOrder=*/ layerIdx,
-                                                 cp.startDelayMs);
-                } else {
-                    // Same swap, mirrored onto identity<->peak.
-                    uint8_t valFrom = repeating ? peak     : identity;
-                    uint8_t valTo   = repeating ? identity : peak;
-
-                    ColorRef fromVal = ColorRef_rgb(valFrom, 0, 0);
-                    ColorRef toVal   = ColorRef_rgb(valTo, 0, 0);
-
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, flags,
-                                                 cp.durationMs, fromVal, toVal,
-                                                 cp.risePct, cp.fallPct,
-                                                 layer.blend, /*composeOrder=*/ layerIdx,
-                                                 cp.startDelayMs, target);
-                }
+                return;
             }
 
-            scheduler.pace(300);
-            scheduler.sendGroupStart(layer.groupId);
+            // WAVE/RIPPLE/CHASE: spawner-driven (serviceSpawner). Cache the field + step
+            // params here; no PREPARE is sent from fireStep — serviceSpawner fires every
+            // sweep, including the first one, on the schedule derived from `density`.
+            LayerSpawnState& sst = spawnState[layerIdx];
+
+            sst.sweepPanelCount = panelCount;
+            memcpy(sst.sweepPanels, panels, panelCount);
+            memcpy(sst.sweepCoord, coord, panelCount);
+
+            if (haveFar) memcpy(sst.sweepCoordFar, coordFar, panelCount);
+
+            sst.sweepHaveFar    = haveFar;
+            sst.sweepMaxCoord   = maxCoord;
+            sst.sweepWidth      = width;
+            sst.sweepDurationMs = effectiveDurationMs;
+
+            uint8_t density = step.params[RUNNER_PARAM_DENSITY];
+            uint16_t prevInterval = sst.sweepIntervalMs;
+
+            sst.sweepIntervalMs = spawnSweepIntervalMs(effectiveDurationMs, density, MAX_CONCURRENT_SWEEPS);
+
+            // First fire of this step (spawnState was cleared by play()/loadAndPlay), or the
+            // cadence changed (different density/duration): start a fresh schedule now. On a
+            // plain loop restart of the *same* step (armLayers re-fires it every cycle),
+            // leave nextSpawnMs/cursor as they were — the schedule continues on the same
+            // absolute-time grid across the loop seam, so the wrap-around gap matches every
+            // other gap instead of depending on durationMs being a multiple of the interval.
+            if (prevInterval == 0 || prevInterval != sst.sweepIntervalMs) {
+                sst.nextSpawnMs = nowMs;
+                sst.cursor      = 0;
+            }
         } else if (step.animates == TARGET_COLOR) {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
@@ -731,10 +718,27 @@ namespace Lightnet {
         for (uint8_t s = 0; s < layer.stepCount; s++) {
             uint8_t t = layer.steps[s].animType;
 
-            if (t == RUN_RAIN || t == RUN_SPARKLE || t == RUN_MATRIX) return true;
+            if (t == RUN_RAIN || t == RUN_SPARKLE || t == RUN_MATRIX
+                || t == RUN_WAVE || t == RUN_RIPPLE || t == RUN_CHASE) return true;
         }
 
         return false;
+    }
+
+    namespace {
+        // WAVE/RIPPLE/CHASE spawner pools only ever need MAX_CONCURRENT_SWEEPS+1 group_ids
+        // (the +1 covers a sweep still draining while the next launches) — capping their
+        // pool size leaves more of the shared region for RAIN/SPARKLE/MATRIX layers.
+        bool layerIsSweepSpawner(const SceneLayer& layer)
+        {
+            for (uint8_t s = 0; s < layer.stepCount; s++) {
+                uint8_t t = layer.steps[s].animType;
+
+                if (t == RUN_WAVE || t == RUN_RIPPLE || t == RUN_CHASE) return true;
+            }
+
+            return false;
+        }
     }
 
     void ScenePlayer::allocSpawnPools()
@@ -763,10 +767,93 @@ namespace Lightnet {
         for (uint8_t i = 0; i < lCount; i++) {
             if (!layerIsSpawner(i)) continue;
 
+            uint8_t size = layerIsSweepSpawner(layers[i])
+                ? minT((uint8_t)(MAX_CONCURRENT_SWEEPS + 1), per)
+                : per;
+
             spawnState[i].poolBase = (uint8_t)(regionStart + (uint16_t)k * per);
-            spawnState[i].poolSize = per;
+            spawnState[i].poolSize = size;
             spawnState[i].cursor   = 0;
             k++;
+        }
+    }
+
+    // WAVE/RIPPLE/CHASE: fire one-shot sweeps (compileWave/compileChase/compileRipple) on a
+    // fixed schedule, each on a fresh pooled group_id with FLAG_REAP_ON_DONE so it self-reaps
+    // on the panel once it finishes. The field/coords/width/duration were cached by fireStep;
+    // only the spawn cadence (sweepIntervalMs/nextSpawnMs) is tracked here.
+    void ScenePlayer::serviceSweepSpawner(uint8_t layerIdx, uint32_t nowMs)
+    {
+        const SceneLayer& layer = layers[layerIdx];
+        const SceneStep& step  = layer.steps[currentStep[layerIdx]];
+        LayerSpawnState& st    = spawnState[layerIdx];
+
+        if (st.sweepPanelCount == 0 || st.sweepIntervalMs == 0) return;
+
+        // No "near the end of the step" cutoff: the spawn cadence runs on a continuous
+        // absolute-time grid (see fireStep) that carries across loop restarts of this
+        // step, so a sweep due near the boundary simply continues into the next cycle
+        // with its full travel time — keeping the gap between the last sweep of one
+        // cycle and the first of the next equal to every other gap.
+        if (nowMs < st.nextSpawnMs) return;
+
+        // Resolve appearance once per due batch (same as fireStep's runner colour/target).
+        uint8_t target   = step.animates;
+        uint8_t identity = ((target == TARGET_DIM) || (target == TARGET_DESATURATE)) ? 255 : 0;
+        uint8_t peak     = step.params[RUNNER_PARAM_AMOUNT];
+
+        Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
+        ColorRef black = ColorRef_rgb(0, 0, 0);
+        ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
+        uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+
+        uint8_t spawned = 0;
+
+        while (nowMs >= st.nextSpawnMs && spawned < MAX_CONCURRENT_SWEEPS) {
+            uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
+
+            for (uint8_t i = 0; i < st.sweepPanelCount; i++) {
+                CompiledPulse cp;
+
+                switch (step.animType) {
+                    case RUN_WAVE:
+                        cp = compileWave((float)st.sweepCoord[i], st.sweepMaxCoord, st.sweepWidth, st.sweepDurationMs);
+                        break;
+                    case RUN_CHASE:
+                        cp = compileChase(st.sweepCoord[i], st.sweepMaxCoord, st.sweepDurationMs);
+                        break;
+                    default: // RUN_RIPPLE
+                        cp = compileRipple((float)st.sweepCoord[i],
+                                           (float)(st.sweepHaveFar ? st.sweepCoordFar[i] : st.sweepCoord[i]),
+                                           st.sweepMaxCoord, st.sweepWidth, st.sweepDurationMs);
+                        break;
+                }
+
+                if (!cp.lit) continue;
+
+                if (target == TARGET_COLOR) {
+                    scheduler.sendPrepareToPanel(st.sweepPanels[i], group, ANIM_PULSE, FLAG_REAP_ON_DONE,
+                                                 cp.durationMs, black, lit,
+                                                 cp.risePct, cp.fallPct,
+                                                 runnerBlend, /*composeOrder=*/ layerIdx,
+                                                 cp.startDelayMs);
+                } else {
+                    ColorRef fromVal = ColorRef_rgb(identity, 0, 0);
+                    ColorRef toVal   = ColorRef_rgb(peak, 0, 0);
+
+                    scheduler.sendPrepareToPanel(st.sweepPanels[i], group, ANIM_PULSE, FLAG_REAP_ON_DONE,
+                                                 cp.durationMs, fromVal, toVal,
+                                                 cp.risePct, cp.fallPct,
+                                                 layer.blend, /*composeOrder=*/ layerIdx,
+                                                 cp.startDelayMs, target);
+                }
+            }
+
+            scheduler.pace(300);
+            scheduler.sendGroupStart(group);
+
+            st.nextSpawnMs += st.sweepIntervalMs;
+            spawned++;
         }
     }
 
@@ -778,7 +865,13 @@ namespace Lightnet {
 
         if (st.poolSize == 0) return; // no pool reserved → can't spawn
 
-        uint8_t waves = step.params[RUNNER_PARAM_REPEAT_COUNT]; // drops per second
+        if (step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
+            serviceSweepSpawner(layerIdx, nowMs);
+
+            return;
+        }
+
+        uint8_t waves = step.params[RUNNER_PARAM_DENSITY]; // drops per second
 
         if (waves == 0) waves = 1;
 

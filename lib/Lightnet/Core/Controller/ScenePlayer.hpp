@@ -206,6 +206,21 @@ namespace Lightnet {
                 uint16_t cursor;        // pool round-robin cursor (persists across re-fire)
                 uint8_t  poolBase;      // first group_id of this layer's drop pool
                 uint8_t  poolSize;      // pool length (0 = no pool / not a spawner layer)
+
+                // RUN_WAVE/RUN_RIPPLE/RUN_CHASE spawner state: the directionality field and
+                // step params are computed once in fireStep and cached here; serviceSpawner
+                // fires one-shot sweeps (compileWave/compileChase/compileRipple) on a fixed
+                // schedule derived from `density` (RUNNER_PARAM_DENSITY).
+                uint8_t  sweepPanels[SCENE_MAX_RESOLVED_PANELS];
+                uint8_t  sweepCoord[SCENE_MAX_RESOLVED_PANELS];
+                uint8_t  sweepCoordFar[SCENE_MAX_RESOLVED_PANELS]; // geometric ripple only
+                uint8_t  sweepPanelCount;
+                uint8_t  sweepMaxCoord;
+                bool     sweepHaveFar;
+                uint8_t  sweepWidth;
+                uint16_t sweepDurationMs; // each sweep's travel time == effectiveDurationMs of the step
+                uint16_t sweepIntervalMs; // ms between successive sweep spawns
+                uint32_t nextSpawnMs;     // absolute time of the next due sweep
             };
             LayerSpawnState spawnState[SCENE_MAX_LAYERS];
 
@@ -227,9 +242,15 @@ namespace Lightnet {
             // contributing to the composite — used when a layer hits a GAP step or finishes
             // its sequence, so a held last frame doesn't permanently cover lower layers.
             void stopLayerGroup(uint8_t layerIdx);
-            // RUN_RAIN / RUN_SPARKLE: emit drops due this tick (rate-gated). Called from tick()
-            // while the spawner step is the layer's current RUNNING step.
+            // RUN_RAIN / RUN_SPARKLE / RUN_MATRIX / RUN_WAVE / RUN_RIPPLE / RUN_CHASE: emit
+            // drops/sweeps due this tick (rate-gated). Called from tick() while the spawner
+            // step is the layer's current RUNNING step.
             void serviceSpawner(uint8_t layerIdx, uint32_t nowMs);
+            // RUN_WAVE / RUN_RIPPLE / RUN_CHASE: fire one-shot sweeps on the schedule cached
+            // in spawnState by fireStep (sweepIntervalMs/nextSpawnMs). Split out of
+            // serviceSpawner for readability — the RAIN/SPARKLE/MATRIX particle model and the
+            // sweep model share only the group_id pool.
+            void serviceSweepSpawner(uint8_t layerIdx, uint32_t nowMs);
             // True if any step of the layer is a particle-spawner runner (RAIN/SPARKLE).
             bool layerIsSpawner(uint8_t layerIdx) const;
             // Assign each spawner layer a contiguous group_id pool above all normal layer groups.

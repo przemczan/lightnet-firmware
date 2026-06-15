@@ -182,8 +182,8 @@ namespace Lightnet {
     }
 
     // ========================================================================
-    // Repeating sweeps — `repeat` turns WAVE/RIPPLE/CHASE into a continuous train
-    // ("multiple waves passing through") and backs WHEEL's perpetual rotation.
+    // Repeating envelope — backs WHEEL's perpetual rotation (a wheel never stops
+    // spinning, so it always loops via this swapped-colour FLAG_LOOP trick).
     //
     // A one-shot compile above produces black → lit → black once, holding dark at
     // the end (no FLAG_LOOP). Looping that same shape would re-enter the rise edge
@@ -228,63 +228,6 @@ namespace Lightnet {
     inline CompiledPulse compileRepeating(float phase, float halfWidth, uint16_t period)
     {
         return compileRepeatingAsym(phase, halfWidth, halfWidth, period);
-    }
-
-    // WAVE, repeating: a steady train of triangular bands, one launched every `period`.
-    // Same band geometry as compileWave (peak at the midpoint), reframed as a per-cycle peak.
-    // `repeatCount` (>=1) places that many evenly-spaced bands in flight at once: each
-    // panel's phase within `period` is multiplied by it (mod 1), and the band's rise/fall
-    // width is scaled to match, so every band keeps the same width/speed as repeatCount=1.
-    inline CompiledPulse compileWaveRepeating(float coord, uint8_t maxCoord, uint8_t width, uint16_t period, uint8_t repeatCount)
-    {
-        if (width == 0 || period == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
-
-        float denom = (float)maxCoord + (float)width;
-
-        if (denom <= 0.0f) return CompiledPulse{ false, 0, 0, 0, 0 };
-
-        float halfW = (float)width / 2.0f;
-        float n     = (repeatCount > 1) ? (float)repeatCount : 1.0f;
-
-        return compileRepeating(((coord + halfW) / denom) * n, (halfW / denom) * n, period);
-    }
-
-    // CHASE, repeating: a steady train of single-step blips, one launched every `period`.
-    inline CompiledPulse compileChaseRepeating(uint8_t coord, uint8_t maxCoord, uint16_t period, uint8_t repeatCount)
-    {
-        if (period == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
-
-        float denom = (float)maxCoord + 1.0f;
-        float n     = (repeatCount > 1) ? (float)repeatCount : 1.0f;
-
-        return compileRepeating((((float)coord + 0.5f) / denom) * n, (0.5f / denom) * n, period);
-    }
-
-    // RIPPLE, repeating: a steady train of rings, one launched every `period` —
-    // "multiple waves go through the panels" (scene-authoring `repeat`). Same band
-    // geometry as compileRipple (centred on the panel's [near,far] band, softened
-    // by the ring's half-width); near==far reduces to the point model.
-    inline CompiledPulse compileRippleRepeating(
-        float    nearC,
-        float    farC,
-        uint8_t  maxCoord,
-        uint8_t  width,
-        uint16_t period,
-        uint8_t  repeatCount
-    )
-    {
-        if (width == 0 || period == 0) return CompiledPulse{ false, 0, 0, 0, 0 };
-
-        float ringW = (float)width / 2.0f;
-        float denom = (float)maxCoord + ringW;
-
-        if (denom <= 0.0f) return CompiledPulse{ false, 0, 0, 0, 0 };
-
-        float center   = (nearC + farC) / 2.0f;
-        float halfSpan = (farC - nearC) / 2.0f + ringW;
-        float n        = (repeatCount > 1) ? (float)repeatCount : 1.0f;
-
-        return compileRepeating((center / denom) * n, (halfSpan / denom) * n, period);
     }
 
     // WHEEL: `lines` evenly-spaced blades rotate together with period `rotationMs`,

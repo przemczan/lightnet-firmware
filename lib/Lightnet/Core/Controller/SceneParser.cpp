@@ -435,24 +435,21 @@ namespace Lightnet {
                 }
 
                 if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REVERSE;
-            } else if (strcmp(key, "repeat") == 0) {
-                // WAVE/RIPPLE/CHASE: continuous train of sweeps instead of a single pass
-                // (compile*Repeating in RunnerCompile.hpp). Colour-only — see `animates`.
-                bool b;
+            } else if (strcmp(key, "density") == 0) {
+                // WAVE/RIPPLE/CHASE: spawn density 0-255 (fill-rate). 0 = one sweep per
+                // duration (gapless single-file train); 255 = MAX_CONCURRENT_SWEEPS in
+                // flight. See ScenePlayer::serviceSpawner.
+                long v;
 
-                if (!jsonReadBool(p, end, &b)) {
-                    strncpy(errMsg, "step.repeat: not bool", errLen);
+                if (!jsonReadUInt(p, end, &v) || v > 255) {
+                    strncpy(errMsg, "step.density: out of range", errLen);
 
                     return false;
                 }
 
-                if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REPEAT;
+                step.params[RUNNER_PARAM_DENSITY] = (uint8_t)v;
             } else if (strcmp(key, "repeatCount") == 0 || strcmp(key, "waves") == 0) {
-                // Number of wave/ring/chase passes visible simultaneously (waves per duration).
-                // 0 or 1 = one wave (default). Values > 1 divide effectiveDurationMs into that
-                // many sub-periods so N evenly-spaced rings sweep through at once.
-                // `waves` is the same field under RAIN/SPARKLE's naming (number of drops/
-                // flicker density).
+                // RAIN/SPARKLE/MATRIX: drops/flickers per second (0 or 1 = one per duration).
                 long v;
 
                 if (!jsonReadUInt(p, end, &v) || v > 255) {
@@ -461,7 +458,7 @@ namespace Lightnet {
                     return false;
                 }
 
-                step.params[RUNNER_PARAM_REPEAT_COUNT] = (uint8_t)v;
+                step.params[RUNNER_PARAM_DENSITY] = (uint8_t)v;
             } else if (strcmp(key, "speed") == 0) {
                 // RAIN/SPARKLE only: drop-fall / flash period in ms (0-65535). When set, `duration`
                 // becomes the play window and this is the constant rate (snapped in fireStep to

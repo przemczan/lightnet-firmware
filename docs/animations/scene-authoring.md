@@ -451,11 +451,14 @@ ignored) and no `speed`. See
 }
 ```
 
-**Repeating sweeps — `repeat`.** Set `"repeat": true` on a WAVE/RIPPLE/CHASE step to replay it
-as a continuous train instead of a single pass: `duration` becomes the time for **one lap**, and
-the ring/band/blip loops forever. Each pass uses the same swapped-endpoints trick — departing →
-dark/identity → approaching — on `colorFrom`/`colorTo` for `color` or `valueFrom`/`valueTo` for
-other `animates` targets. Needs `schemaVersion: 5`.
+**Repeating sweeps — `density`.** WAVE/RIPPLE/CHASE are always a continuous train of passes:
+each pass is a full one-shot sweep from the field's origin to its far edge, travelling over
+`duration`, and a new pass starts on a schedule controlled by `"density"` (0-255, default 0):
+
+- `density: 0` — one pass in flight at a time, gapless (the next starts as the previous finishes).
+- `density: 128` — roughly two passes in flight at once.
+- `density: 255` — as many passes in flight as the implementation allows (capped, see
+  [`types.md`](types.md)).
 
 ```json
 {
@@ -463,13 +466,10 @@ other `animates` targets. Needs `schemaVersion: 5`.
   "source": "root",
   "color": { "palette": 96 },
   "rippleWidth": 1,
-  "repeat": true,
+  "density": 128,
   "duration": 1500
 }
 ```
-
-For **multiple evenly-spaced sweeps in flight at once** (e.g. several waves chasing each other
-around the loop), add `"repeatCount": N` — see [`types.md`](types.md) for details.
 
 **What the sweep animates — `animates` / `amount`.** By default a runner sweeps `color` (a
 per-panel `PULSE` between `color` and the background). Set `animates` to `dim` /
