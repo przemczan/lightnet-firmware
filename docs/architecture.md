@@ -144,7 +144,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|
 | `LightnetPanel` | Main panel state machine; handles I²C packets, drives edge registration |
 | `RGBController` | FastLED wrapper for the single WS2812 LED on PD5. `globalBrightness` multiplier on all output |
-| `AnimationPlayer` | Layer compositor: `slots[4]` composited each ~16 ms tick (blend modes + `MOD_*` modifiers + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
+| `AnimationPlayer` | Layer compositor: `slots[4]` composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
 | `BootloaderBridge` | Writes EEPROM boot-magic `0xB007` then software-jumps to twiboot |
 
 ### Controller/API/websocket/ — WebSocket (controller only)
@@ -242,9 +242,9 @@ It is the **single implementation** of panel-local animation math, compiled into
   phase offset so they start immediately and re-fire/sync seamlessly. After onset, the layer
   composites until finish→hold (or repeats if looping), then `ColorCompose::foldLayers()` sorts by
   `composeOrder` and folds onto the **background base** — one write to the LED.
-- Source layers blend via `composeMode`; modifier layers (`MOD_*`) transform the accumulator
-  (brightness = RGB multiply; saturation/hue = integer HSV). Finished non-loop slots hold their
-  last value.
+- Source layers blend via `composeMode`; modifier layers (`animates != TARGET_COLOR`) transform
+  the accumulator (brightness = RGB multiply; saturation/hue = integer HSV). Finished non-loop
+  slots hold their last value.
 - `PACKET_SET_BACKGROUND` sets the compositor base (default black; idle panels display it).
 - Progress interpolation: `progress_q8 = (elapsed * 256) / durationMs` (q8 fixed-point). The pure
   compose/HSV/fold math lives in `Core/Anim/ColorCompose.hpp` (natively tested, shared with mobile

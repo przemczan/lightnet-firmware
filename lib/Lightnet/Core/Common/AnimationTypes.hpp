@@ -21,16 +21,6 @@ namespace Lightnet {
         ANIM_GAP         = 9,// controller-only: timed no-op delay. Never sent to a panel —
                              // ScenePlayer holds the layer's panels for the step duration.
 
-        // Modifier animations (10..31): a layer that transforms the colour accumulated
-        // below it instead of producing its own. param1/param2 carry the animated scalar
-        // (from→to, 0-255); colorFrom/colorTo are unused. See ColorCompose.hpp.
-        ANIM_MOD_DIM        = 10,// scale brightness down (RGB multiply); identity at 255, blackout at 0
-        ANIM_MOD_DESATURATE = 11,// scale saturation down (HSV); identity at 255, grey at 0
-        ANIM_MOD_HUE_SHIFT  = 12,// rotate hue (HSV); identity at 0, sweep 0-255 = full turn
-        ANIM_MOD_INVERT     = 13,// blend toward RGB-inverted (255-r,255-g,255-b); identity at 0, full invert at 255
-        ANIM_MOD_BRIGHTEN   = 14,// push brightness up toward white; identity at 0, full white at 255
-        ANIM_MOD_SATURATE   = 15,// push saturation up toward fully-saturated; identity at 0, max at 255
-
         // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
         // to AnimationScheduler::addRunner(), or compiled to per-panel PREPARE. Not a panel type.
         RUN_WAVE         = 64,
@@ -48,11 +38,20 @@ namespace Lightnet {
         return t >= 64;
     }
 
-    // Modifier layers transform the composited accumulator rather than emitting a colour.
-    inline bool isModifierType(uint8_t t)
-    {
-        return (t >= ANIM_MOD_DIM) && (t <= ANIM_MOD_SATURATE);
-    }
+    // What an animation modulates. COLOR (default) lerps colorFrom/colorTo and contributes
+    // as a SOURCE compositing layer. The others lerp valueFrom/valueTo (0-255, stored in
+    // colorFrom.raw[0]/colorTo.raw[0] — colorFrom/colorTo are otherwise unused) and
+    // contribute as a MODIFIER layer transforming the accumulator below it. See ColorCompose.hpp.
+    enum AnimateTarget : uint8_t {
+        TARGET_COLOR      = 0,
+        TARGET_DIM        = 1,// identity at 255 (full), suppress toward 0 (black)
+        TARGET_DESATURATE = 2,// identity at 255 (full colour), suppress toward 0 (grey)
+        TARGET_HUE        = 3,// identity at 0, sweep 0-255 = full hue rotation
+        TARGET_INVERT     = 4,// binary: full-strength cross-fade toward RGB-inverted
+        // "Boost" variants: identity at 0, push toward max (white / full saturation) at 255.
+        TARGET_BRIGHTEN   = 5,
+        TARGET_SATURATE   = 6,
+    };
 
     // ============================================================================
     // Layer compositing
@@ -89,14 +88,6 @@ namespace Lightnet {
         FLAG_CURRENT_COLOR_FROM = 0x08,// override colorFrom with current LED color
         FLAG_CURRENT_COLOR_TO   = 0x10,// override colorTo with current LED color
 
-        // ANIM_MOD_* only: controls the modifier envelope shape.
-        // Default (no flags): fall  — peak → identity over the lit window.
-        // RISE:               rise  — identity → peak over the lit window.
-        // BELL:               bell  — identity → peak → identity (symmetric triangle).
-        // BELL + FLAG_LOOP produces a smooth repeating pulse (e.g. WHEEL modifier blade).
-        FLAG_MOD_RISE = 0x20,
-        FLAG_MOD_BELL = 0x40,
-
         // Reap-on-done: a non-looping slot carrying this flag FREES itself the instant its
         // animation finishes (instead of holding its end-state forever). Used by the RAIN/
         // SPARKLE particle spawner: each drop is a one-shot pulse on a pooled group_id, and
@@ -127,7 +118,7 @@ namespace Lightnet {
     };
 
     // ============================================================================
-    // Panel-Side Animation State (22 bytes)
+    // Panel-Side Animation State (23 bytes)
     // ============================================================================
 
     struct __attribute__((__packed__)) AnimationState {
@@ -137,13 +128,15 @@ namespace Lightnet {
         uint8_t  transitionMs; // crossfade duration into this animation (0-255ms)
         uint16_t durationMs; // animation duration (0=infinite for looping)
         uint16_t startMs;    // millis() snapshot at start
-        ColorRef colorFrom;  // 4 B — resolved at frame time against panel's palette/base colors
-        ColorRef colorTo;    // 4 B
+        ColorRef colorFrom;  // 4 B — resolved at frame time against panel's palette/base colors.
+                             // When animates != TARGET_COLOR, colorFrom.raw[0] is valueFrom (0-255) instead.
+        ColorRef colorTo;    // 4 B — when animates != TARGET_COLOR, colorTo.raw[0] is valueTo (0-255) instead.
         uint8_t  param1;     // type-specific: blink period, decay rate, hue speed, etc.
         uint8_t  param2;     // type-specific
         uint8_t  composeMode;  // ComposeMode — how this SOURCE layer blends (unused for modifiers)
         uint8_t  composeOrder; // layer array index → deterministic stacking order
         uint16_t startDelayMs; // per-panel onset offset (runner sweep phase / staggering)
+        uint8_t  animates;   // AnimateTarget — what this animation modulates (default TARGET_COLOR)
     };
 
     // ============================================================================

@@ -260,23 +260,23 @@ Each layer is either a **source** (combines its colour with what's below via `bl
 (a standalone runner over a black base is unchanged). To layer any source over a background, give
 it `add`/`max`/`screen`.
 
-**Modifier layers** are steps whose `type` is `MOD_DIM` / `MOD_DESATURATE` / `MOD_HUE_SHIFT`
-/ `MOD_INVERT` / `MOD_BRIGHTEN` / `MOD_SATURATE` — they animate a scalar `from`→`to`
-(0–255) and reshape everything composited below. Put the modifier layer *after* (above) the layers
-it should affect:
+**Modifier layers** are panel-local steps (any `type` except `HUE_CYCLE`) with `animates` set to
+something other than `color` — `dim` / `desaturate` / `hue` / `invert` / `brighten` / `saturate`.
+Instead of producing a colour, they animate a scalar `from`→`to` (0–255) and reshape everything
+composited below (see [Modifier targets](types.md#modifier-targets-animates) for the full field
+reference). Put the modifier layer *after* (above) the layers it should affect:
 
 ```json
 "layers": [
   { "group": "base", "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
-  { "group": "dim", "panels": "all", "sequence": [ { "type": "MOD_DIM", "from": 255, "to": 40, "duration": 3000 } ] }
+  { "group": "dim", "panels": "all", "sequence": [ { "type": "FADE", "animates": "dim", "from": 255, "to": 40, "duration": 3000 } ] }
 ]
 ```
 
 A finished modifier **holds** its final value; ramp it back to identity to release: `255` for
-`MOD_DIM`/`MOD_DESATURATE`, `0` for `MOD_HUE_SHIFT`/`MOD_INVERT`, and `0` for
-`MOD_BRIGHTEN`/`MOD_SATURATE`.
+`dim`/`desaturate`, `0` for `hue`/`invert`, and `0` for `brighten`/`saturate`.
 
-`MOD_BRIGHTEN`/`MOD_SATURATE` are the inverse of `MOD_DIM`/`MOD_DESATURATE`:
+`brighten`/`saturate` are the inverse of `dim`/`desaturate`:
 identity at `0`, pushing toward white / full saturation as the value rises to `255`. Use these to
 *brighten* or *boost saturation* of whatever's below — e.g. flaring a dim background brighter, or
 making a multi-colour background more vivid (where the single-colour `screen`/`overlay` tricks
@@ -285,7 +285,7 @@ don't generalise):
 ```json
 "layers": [
   { "group": "base", "panels": "all", "sequence": [ { "type": "SOLID", "color": { "palette": 200 }, "duration": 0 } ] },
-  { "group": "flare", "panels": "all", "sequence": [ { "type": "MOD_SATURATE", "from": 0, "to": 200, "duration": 1500 } ] }
+  { "group": "flare", "panels": "all", "sequence": [ { "type": "FADE", "animates": "saturate", "from": 0, "to": 200, "duration": 1500 } ] }
 ]
 ```
 
@@ -390,8 +390,8 @@ controller runner (`runner`) — never both — **or** a gap (neither).
 | `params` | both | Up to 5 bytes (0–255), type-specific. Prefer the named keys below. |
 | `source` | runner | Where a moving effect emanates from (§8). |
 | `reverse` | runner | Flip the direction (§8). |
-| `animates` / `amount` | runner | What the sweep modulates, and its peak intensity (§7.3). |
-| `shape` | runner | Envelope shape for non-`color` sweeps: `fall` (default) / `rise` / `bell` (§7.3). |
+| `animates` / `amount` | both | What the animation/sweep modulates, and (for runners) its peak intensity (§7.3, [types.md](types.md#modifier-targets-animates)). |
+| `from` / `to` | panel-local | Scalar ramp endpoints (0–255), used instead of `colorFrom`/`colorTo` when `animates` is not `color`. |
 
 ### 7.2 Panel-local animation types
 
@@ -453,10 +453,9 @@ ignored) and no `speed`. See
 
 **Repeating sweeps — `repeat`.** Set `"repeat": true` on a WAVE/RIPPLE/CHASE step to replay it
 as a continuous train instead of a single pass: `duration` becomes the time for **one lap**, and
-the ring/band/blip loops forever. For `animates:color` (default), each pass is a true dark gap
-between passes. For other `animates` targets, each pass is a `bell` envelope (identity → `amount`
-→ identity) — `shape` is ignored while repeating, since only `bell` loops without a jump. Needs
-`schemaVersion: 5`.
+the ring/band/blip loops forever. Each pass uses the same swapped-endpoints trick — departing →
+dark/identity → approaching — on `colorFrom`/`colorTo` for `color` or `valueFrom`/`valueTo` for
+other `animates` targets. Needs `schemaVersion: 5`.
 
 ```json
 {
@@ -474,10 +473,10 @@ around the loop), add `"repeatCount": N` — see [`types.md`](types.md) for deta
 
 **What the sweep animates — `animates` / `amount`.** By default a runner sweeps `color` (a
 per-panel `PULSE` between `color` and the background). Set `animates` to `dim` /
-`desaturate` / `hue` / `invert` / `brighten` / `saturate` to sweep one of the
-modifier properties instead — each panel snaps to `amount` (peak intensity, 0–255) as the sweep
-passes and decays back to that property's identity, so the wave **modulates** what's already
-showing rather than replacing it:
+`desaturate` / `hue` / `invert` / `brighten` / `saturate` to compile the **same** `PULSE`
+(same envelope as the colour sweep), but ramping between that property's identity value and
+`amount` (peak intensity, 0–255) instead — so the wave **modulates** what's already showing
+rather than replacing it:
 
 ```json
 {
@@ -499,19 +498,6 @@ showing rather than replacing it:
 | `invert` | colour inversion | `0` no change … `255` fully inverted |
 | `brighten` | brightening toward white | `0` no change … `255` white |
 | `saturate` | saturation boost toward fully saturated | `0` no change … `255` fully saturated |
-
-**Envelope shape — `shape`.** For non-`color` targets you can also control the *shape* of
-the modifier within each panel's lit window:
-
-| `shape` | Envelope | Use case |
-|---|---|---|
-| `fall` *(default)* | peak → identity | burst that decays |
-| `rise` | identity → peak | swell that builds |
-| `bell` | identity → peak → identity | soft symmetric pulse |
-
-`shape` is ignored when `animates: "color"`, and when `repeat: true` (a repeating modifier sweep
-always uses `bell` — see above). WHEEL forces `bell` (it always loops; `shape` has no effect on
-WHEEL).
 
 See [Animation Types → Controller Runners](types.md#controller-runners) for the full mechanics.
 

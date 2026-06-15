@@ -119,7 +119,8 @@ namespace Protocol {
         uint8_t            composeMode;      // ComposeMode (blend for source layers)
         uint8_t            composeOrder;     // layer array index — deterministic stacking
         uint16_t           startDelayMs;     // per-panel onset offset (runner sweep phase)
-    } PacketAnimationPrepare;  // 25 bytes
+        uint8_t            animates;         // AnimateTarget — what this animation modulates (default TARGET_COLOR)
+    } PacketAnimationPrepare;  // 26 bytes
 
     typedef struct PACK {
         PacketMeta meta;

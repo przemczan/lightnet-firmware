@@ -11,7 +11,10 @@ namespace {
     // Portable min — avoids Arduino's min() macro (which would corrupt std::min) so this
     // TU compiles host-side as well as on the device.
     template<typename T>
-    static inline T minT(T a, T b) { return a < b ? a : b; }
+    static inline T minT(T a, T b)
+    {
+        return (a < b) ? a : b;
+    }
 
     // RAIN/SPARKLE spawner tuning (controller-side; safe to adjust).
     constexpr uint8_t SPAWN_MAX_BURST          = 8;    // max drops emitted per tick (anti-spiral)
@@ -372,10 +375,12 @@ namespace Lightnet {
             // other layers like any other slot. No STOP is sent — that would clobber layers below.
             if (effectiveDurationMs == 0) return; // an infinite sweep has no meaning
 
-            // What the sweep modulates — `animates` (default "color"), packed into
-            // RUNNER_PARAM_FLAGS. COLOR compiles to a per-panel colour PULSE exactly as
-            // before; the others compile to a MOD_* sweep instead (see below the field).
-            uint8_t target = runnerTargetOf(step.params[RUNNER_PARAM_FLAGS]);
+            // What the sweep modulates — `animates` (default TARGET_COLOR). COLOR compiles to
+            // a per-panel colour PULSE exactly as before; the others compile to the same
+            // pulse shape but lerp valueFrom/valueTo (identity<->peak) instead of colorFrom/
+            // colorTo (black<->lit), and tag the PREPARE with `animates` so the panel runs it
+            // as a modifier layer.
+            uint8_t target = step.animates;
 
             // Runners are single-colour: the lit colour is `colorTo` (aliased by the JSON
             // `color` key), consistent with SOLID/STROBE/BLINK. `colorFrom` is the start
@@ -406,38 +411,12 @@ namespace Lightnet {
             const TopologyIndex& topo = sceneTopo.index();
             const PanelGeometry& geometry = sceneTopo.geom();
 
-            // Non-colour targets compile to a MOD_* sweep: peak effect at onset, decaying to
-            // the property's identity value. Set up type/identity/peak and the protocol flags
-            // for the envelope shape before the WHEEL block so both paths can use them.
-            uint8_t modType     = ANIM_MOD_DIM;
-            uint8_t modIdentity = 255;
-            uint8_t modPeak     = step.params[RUNNER_PARAM_AMOUNT];
-
-            switch (target) {
-                case RUNNER_TARGET_DESATURATE: modType = ANIM_MOD_DESATURATE;
-                    modIdentity = 255;
-                    break;
-                case RUNNER_TARGET_HUE:        modType = ANIM_MOD_HUE_SHIFT;
-                    modIdentity = 0;
-                    break;
-                case RUNNER_TARGET_INVERT:     modType = ANIM_MOD_INVERT;
-                    modIdentity = 0;
-                    break;
-                case RUNNER_TARGET_BRIGHTEN:   modType = ANIM_MOD_BRIGHTEN;
-                    modIdentity = 0;
-                    break;
-                case RUNNER_TARGET_SATURATE:   modType = ANIM_MOD_SATURATE;
-                    modIdentity = 0;
-                    break;
-                default: break;
-            }
-
-            // Translate the two modifier-shape runner flags to their protocol equivalents.
-            uint8_t modFlags = 0;
-
-            if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_RISE) modFlags |= FLAG_MOD_RISE;
-
-            if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_BELL) modFlags |= FLAG_MOD_BELL;
+            // Non-colour targets reuse the exact same compiled pulse as COLOR would, just
+            // lerping valueFrom/valueTo (identity<->peak) instead of colorFrom/colorTo
+            // (black<->lit). Identity table: DIM/DESATURATE settle at full (255); the
+            // "boost" targets (HUE/INVERT/BRIGHTEN/SATURATE) settle at none (0).
+            uint8_t identity = ((target == TARGET_DIM) || (target == TARGET_DESATURATE)) ? 255 : 0;
+            uint8_t peak     = step.params[RUNNER_PARAM_AMOUNT];
 
             // WHEEL: rotating blades radiating from a centre — a polar sweep, not a linear
             // axis or radial-ring field, so it bypasses the coord/maxCoord machinery below
@@ -467,7 +446,7 @@ namespace Lightnet {
 
                     if (!cp.lit) continue;
 
-                    if (target == RUNNER_TARGET_COLOR) {
+                    if (target == TARGET_COLOR) {
                         // Swapped-colour trick (compileRepeating): the loop seam coincides with
                         // this blade's peak, giving a clean departing → dark-gap → approaching cycle.
                         scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
@@ -476,13 +455,15 @@ namespace Lightnet {
                                                      runnerBlend, /*composeOrder=*/ layerIdx,
                                                      cp.startDelayMs);
                     } else {
-                        // Modifier WHEEL: bell shape forced (smooth repeating pulse per blade pass).
-                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType,
-                                                     FLAG_LOOP | FLAG_MOD_BELL,
-                                                     cp.durationMs, black, black,
-                                                     modPeak, modIdentity,
+                        // Modifier WHEEL: same loop seam trick, peak -> identity per blade pass.
+                        ColorRef fromVal = ColorRef_rgb(peak, 0, 0);
+                        ColorRef toVal   = ColorRef_rgb(identity, 0, 0);
+
+                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
+                                                     cp.durationMs, fromVal, toVal,
+                                                     cp.risePct, cp.fallPct,
                                                      layer.blend, /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs);
+                                                     cp.startDelayMs, target);
                     }
                 }
 
@@ -530,14 +511,10 @@ namespace Lightnet {
             // base, i.e. a standalone runner); honour an explicit non-default blend.
             uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
 
-            // `repeat` works for both COLOR and MOD_* targets, but via different envelopes:
-            // COLOR uses the swapped-colour trick (compileRepeating, RunnerCompile.hpp) for a
-            // departing -> dark-gap -> approaching cycle. MOD_* targets instead force a bell
-            // envelope (identity -> peak -> identity, FLAG_MOD_BELL) which already starts and
-            // ends at identity, so FLAG_LOOP repeats it with no discontinuity — the same trick
-            // already used for the WHEEL modifier blade above. A rise/fall MOD_* shape can't
-            // loop this way (it would jump from peak straight back to identity), so repeating
-            // modifiers always use bell regardless of the step's modRise/modBell setting.
+            // `repeat` works for both COLOR and non-colour targets via the same swapped trick
+            // (compileRepeating, RunnerCompile.hpp): the loop seam coincides with the pulse's
+            // peak, giving a clean departing -> gap -> approaching cycle with no discontinuity.
+            // For non-colour targets, peak<->identity is swapped exactly like lit<->black.
             // BOUNCE is always a single one-shot band per cycle, even if `repeat` is set.
             // (RAIN/SPARKLE never reach here — they return early as particle spawners.)
             bool repeating = (step.animType == RUN_BOUNCE) ? false : repeat;
@@ -591,12 +568,13 @@ namespace Lightnet {
                 // panel each cycle, so this only bites pathological width/coord combos.)
                 if (!cp.lit) continue;
 
-                if (target == RUNNER_TARGET_COLOR) {
+                uint8_t flags = repeating ? FLAG_LOOP : 0;
+
+                if (target == TARGET_COLOR) {
                     // `repeat`: swapped colour trick (compileRepeating) — the loop seam coincides
                     // with this panel's peak, giving a clean departing → dark-gap → approaching cycle.
                     const ColorRef& from = repeating ? lit   : black;
                     const ColorRef& to   = repeating ? black : lit;
-                    uint8_t flags        = repeating ? FLAG_LOOP : 0;
 
                     scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, flags,
                                                  cp.durationMs, from, to,
@@ -604,27 +582,42 @@ namespace Lightnet {
                                                  runnerBlend, /*composeOrder=*/ layerIdx,
                                                  cp.startDelayMs);
                 } else {
-                    // Repeating modifier: bell shape forced (smooth repeating pulse per pass),
-                    // same as the WHEEL modifier blade above.
-                    uint8_t flags = repeating ? (FLAG_LOOP | FLAG_MOD_BELL) : modFlags;
+                    // Same swap, mirrored onto identity<->peak.
+                    uint8_t valFrom = repeating ? peak     : identity;
+                    uint8_t valTo   = repeating ? identity : peak;
 
-                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, modType, flags,
-                                                 cp.durationMs, black, black,
-                                                 modPeak, modIdentity,
+                    ColorRef fromVal = ColorRef_rgb(valFrom, 0, 0);
+                    ColorRef toVal   = ColorRef_rgb(valTo, 0, 0);
+
+                    scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, flags,
+                                                 cp.durationMs, fromVal, toVal,
+                                                 cp.risePct, cp.fallPct,
                                                  layer.blend, /*composeOrder=*/ layerIdx,
-                                                 cp.startDelayMs);
+                                                 cp.startDelayMs, target);
                 }
             }
 
             scheduler.pace(300);
             scheduler.sendGroupStart(layer.groupId);
-        } else {
+        } else if (step.animates == TARGET_COLOR) {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
                                    step.colorFrom, step.colorTo,
                                    step.params[0], step.params[1],
                                    panels, panelCount,
                                    layer.blend, /*composeOrder=*/ layerIdx);
+        } else {
+            // Non-colour `animates`: valueFrom/valueTo travel in colorFrom.raw[0]/colorTo.raw[0].
+            ColorRef from = ColorRef_rgb(step.valueFrom, 0, 0);
+            ColorRef to   = ColorRef_rgb(step.valueTo, 0, 0);
+
+            scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
+                                   effectiveDurationMs,
+                                   from, to,
+                                   step.params[0], step.params[1],
+                                   panels, panelCount,
+                                   layer.blend, /*composeOrder=*/ layerIdx,
+                                   step.animates);
         }
     }
 
@@ -636,11 +629,9 @@ namespace Lightnet {
         // Per-step drop appearance, resolved once per service call (shared by every drop and
         // every panel of a rain path). Mirrors fireStep's animates/colour/blend resolution.
         struct DropStyle {
-            uint8_t            target;      // RUNNER_TARGET_*
-            uint8_t            modType;     // ANIM_MOD_* (non-colour targets)
-            uint8_t            modIdentity; // value the modifier decays back to
-            uint8_t            modPeak;     // peak modifier amount
-            uint8_t            modFlags;    // FLAG_MOD_* envelope shape
+            uint8_t            target;      // AnimateTarget
+            uint8_t            identity;    // non-colour target: value the modifier decays back to
+            uint8_t            peak;        // non-colour target: peak modifier amount
             uint8_t            blend;       // compose mode for this layer's drops
             Protocol::ColorRGB fromRgb;     // colour the drop fades to (default black)
             Protocol::ColorRGB litRgb;      // head colour the drop peaks at
@@ -713,7 +704,7 @@ namespace Lightnet {
             uint32_t sd32 = (uint32_t)dp.startDelayMs + extraDelayMs;
             uint16_t sd   = (sd32 > 65535u) ? 65535u : (uint16_t)sd32;
 
-            if (s.target == RUNNER_TARGET_COLOR) {
+            if (s.target == TARGET_COLOR) {
                 // Instant onset (rise ≈ 0) to the head colour, fading to `from` (default black).
                 ColorRef from = ColorRef_rgb(scale8(s.fromRgb.r, bright), scale8(s.fromRgb.g, bright), scale8(s.fromRgb.b, bright));
                 ColorRef lit  = ColorRef_rgb(scale8(s.litRgb.r, bright), scale8(s.litRgb.g, bright), scale8(s.litRgb.b, bright));
@@ -722,13 +713,13 @@ namespace Lightnet {
                                        dp.durationMs, from, lit, dp.risePct, dp.fallPct,
                                        s.blend, composeOrder, sd);
             } else {
-                // Modifier drop: peak → identity over the lit window (the drop's fade), then reap.
-                ColorRef black = ColorRef_rgb(0, 0, 0);
+                // Modifier drop: same pulse shape, identity -> peak over the lit window, then reap.
+                ColorRef from = ColorRef_rgb(s.identity, 0, 0);
+                ColorRef lit  = ColorRef_rgb(scale8(s.peak, bright), 0, 0);
 
-                sch.sendPrepareToPanel(panel, group, s.modType,
-                                       (uint8_t)(FLAG_REAP_ON_DONE | s.modFlags),
-                                       dp.durationMs, black, black, scale8(s.modPeak, bright), s.modIdentity,
-                                       s.blend, composeOrder, sd);
+                sch.sendPrepareToPanel(panel, group, ANIM_PULSE, FLAG_REAP_ON_DONE,
+                                       dp.durationMs, from, lit, dp.risePct, dp.fallPct,
+                                       s.blend, composeOrder, sd, s.target);
             }
         }
     }
@@ -808,35 +799,9 @@ namespace Lightnet {
         // Resolve the drop appearance once (animates / from→to colour / blend) — same as fireStep.
         DropStyle ds;
 
-        ds.target      = runnerTargetOf(step.params[RUNNER_PARAM_FLAGS]);
-        ds.modPeak     = step.params[RUNNER_PARAM_AMOUNT];
-        ds.modType     = ANIM_MOD_DIM;
-        ds.modIdentity = 255;
-
-        switch (ds.target) {
-            case RUNNER_TARGET_DESATURATE: ds.modType = ANIM_MOD_DESATURATE;
-                ds.modIdentity = 255;
-                break;
-            case RUNNER_TARGET_HUE:        ds.modType = ANIM_MOD_HUE_SHIFT;
-                ds.modIdentity = 0;
-                break;
-            case RUNNER_TARGET_INVERT:     ds.modType = ANIM_MOD_INVERT;
-                ds.modIdentity = 0;
-                break;
-            case RUNNER_TARGET_BRIGHTEN:   ds.modType = ANIM_MOD_BRIGHTEN;
-                ds.modIdentity = 0;
-                break;
-            case RUNNER_TARGET_SATURATE:   ds.modType = ANIM_MOD_SATURATE;
-                ds.modIdentity = 0;
-                break;
-            default: break;
-        }
-
-        ds.modFlags = 0;
-
-        if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_RISE) ds.modFlags |= FLAG_MOD_RISE;
-
-        if (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_MOD_BELL) ds.modFlags |= FLAG_MOD_BELL;
+        ds.target   = step.animates;
+        ds.peak     = step.params[RUNNER_PARAM_AMOUNT];
+        ds.identity = ((ds.target == TARGET_DIM) || (ds.target == TARGET_DESATURATE)) ? 255 : 0;
 
         Protocol::ColorRGB cTo   = resolveColorToRgb(step.colorTo, layerIdx);
         Protocol::ColorRGB cFrom = resolveColorToRgb(step.colorFrom, layerIdx);

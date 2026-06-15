@@ -49,6 +49,9 @@ namespace Lightnet {
         ColorRef colorTo;    // 4 bytes
         uint8_t  params[6];  // type-specific, params[0..1] sent via PREPARE; params[4] = RUNNER_PARAM_AMOUNT, params[5] = RUNNER_PARAM_LINES
         uint16_t speedMs;    // RAIN/SPARKLE only: drop-fall / flash period (ms). 0 = derive the rate from `durationMs` (legacy); >0 makes `durationMs` the play window instead.
+        uint8_t  animates;   // AnimateTarget — what this animation modulates (default TARGET_COLOR)
+        uint8_t  valueFrom;  // animates != TARGET_COLOR: scalar (0-255) ramp start ("from")
+        uint8_t  valueTo;    // animates != TARGET_COLOR: scalar (0-255) ramp end ("to")
     };
 
     // ============================================================================

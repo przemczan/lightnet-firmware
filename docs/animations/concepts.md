@@ -125,8 +125,9 @@ in `layers[]` is the bottom of the stack). Each layer is one of:
 
 - A **source** layer (any normal animation/runner) — produces a colour and combines it with what's
   below via its `blend` mode.
-- A **modifier** layer (`MOD_*`) — has no colour of its own; it *transforms* the colour accumulated
-  below it (brightness/saturation/hue).
+- A **modifier** layer (a panel-local step with `animates` set to something other than `color`) —
+  has no colour of its own; it *transforms* the colour accumulated below it (brightness/
+  saturation/hue).
 
 The accumulator starts from the scene [`background`](#scene-background) (black by default).
 
@@ -150,18 +151,18 @@ black); a standalone runner over a black background looks identical to before.
 
 ### Modifier layers
 
-A modifier is a step whose `type` is `MOD_DIM`, `MOD_DESATURATE`, `MOD_HUE_SHIFT`, `MOD_INVERT`,
-`MOD_BRIGHTEN`, or `MOD_SATURATE`. It animates a scalar from `from` → `to` (0–255) over its
-`duration` and applies it to everything composited below it:
+A modifier is a panel-local step (any `type` except `HUE_CYCLE`) with `animates` set to `dim`,
+`desaturate`, `hue`, `invert`, `brighten`, or `saturate`. It animates a scalar from `from` → `to`
+(0–255) over its `duration` and applies it to everything composited below it:
 
-| Type | `from`/`to` meaning | Identity |
+| `animates` | `from`/`to` meaning | Identity |
 |---|---|---|
-| `MOD_DIM` | brightness scale down toward black (255 = full) | 255 |
-| `MOD_DESATURATE` | saturation scale down toward grey (255 = unchanged) | 255 |
-| `MOD_HUE_SHIFT` | hue rotation (0…255 = full turn) | 0 |
-| `MOD_INVERT` | cross-fade toward RGB-inverted colour (255 = fully inverted) | 0 |
-| `MOD_BRIGHTEN` | push brightness up toward white (255 = white) | 0 |
-| `MOD_SATURATE` | push saturation up toward fully saturated (255 = max) | 0 |
+| `dim` | brightness scale down toward black (255 = full) | 255 |
+| `desaturate` | saturation scale down toward grey (255 = unchanged) | 255 |
+| `hue` | hue rotation (0…255 = full turn) | 0 |
+| `invert` | cross-fade toward RGB-inverted colour (255 = fully inverted) | 0 |
+| `brighten` | push brightness up toward white (255 = white) | 0 |
+| `saturate` | push saturation up toward fully saturated (255 = max) | 0 |
 
 A finished modifier **holds** its final value (consistent with the "finished layer holds last
 frame" model), so a saturate-down that ends keeps applying. To release it, end the modifier with a

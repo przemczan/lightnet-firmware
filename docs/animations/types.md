@@ -23,6 +23,8 @@ All panel-local animations run entirely on the ATmega with **zero per-frame I²C
 | `loop` | bool | Loop this individual step indefinitely (FLAG_LOOP). |
 | `pingpong` | bool | Reverse direction at end instead of looping (FLAG_PINGPONG). |
 | `params` | array, ≤2 × 0–255 | Type-specific parameters (see each type). The parser accepts up to 4 entries for forward-compatibility, but the panel firmware currently uses only `params[0]` and `params[1]`. |
+| `animates` | string | What this animation modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate`. See [Modifier targets](#modifier-targets-animates). |
+| `from` / `to` | 0–255 | Scalar ramp endpoints, used instead of `colorFrom`/`colorTo` when `animates` is not `color`. |
 
 ---
 
@@ -202,38 +204,49 @@ Triggers are sent via WebSocket — see [API → WebSocket Triggers](api.md#webs
 
 ---
 
-## Modifier Layers
+## Modifier targets (`animates`)
 
-Modifier steps transform the colour composited **below** them rather than producing their own (see
-[Concepts → Layer compositing](concepts.md#layer-compositing)). They animate a scalar `from` → `to`
-(0–255) over `duration`, and a finished modifier **holds** its final value. Place a modifier layer
-*after* (above) the layers it should affect.
-
-### MOD_DIM / MOD_DESATURATE / MOD_HUE_SHIFT / MOD_INVERT / MOD_BRIGHTEN / MOD_SATURATE
+Every panel-local animation type (except `HUE_CYCLE`) can either produce its own colour (the
+default, `animates: "color"`) or transform the colour composited **below** it (see
+[Concepts → Layer compositing](concepts.md#layer-compositing)). The *shape* of the animation
+(`SOLID`/`FADE`/`BREATHE`/`PULSE`/`BLINK`/`STROBE`/`REACTIVE`) is unchanged — only the thing being
+ramped changes: `colorFrom`/`colorTo` (color) vs. `from`/`to` (a 0–255 scalar). A finished,
+non-looping modifier **holds** its final value. Place a modifier layer *after* (above) the layers
+it should affect.
 
 ```json
 {
-  "type": "MOD_DIM",
+  "type": "BREATHE",
+  "animates": "dim",
   "from": 255,
   "to": 64,
-  "duration": 2000
+  "duration": 2000,
+  "loop": true
 }
 ```
 
-| Type | `from`/`to` | Identity (no-op) |
+| `animates` | Effect | Identity (no-op) |
 |---|---|---|
-| `MOD_DIM` | brightness scale down toward black, 255 = full | 255 |
-| `MOD_DESATURATE` | saturation scale down toward grey, 255 = unchanged | 255 |
-| `MOD_HUE_SHIFT` | hue rotation, 0…255 = a full turn | 0 |
-| `MOD_INVERT` | cross-fade toward RGB-inverted (`255-r,255-g,255-b`); 255 = fully inverted | 0 |
-| `MOD_BRIGHTEN` | push brightness up toward white, 255 = white | 0 |
-| `MOD_SATURATE` | push saturation up toward fully saturated, 255 = max | 0 |
+| `dim` | brightness scale down toward black, 255 = full | 255 |
+| `desaturate` | saturation scale down toward grey, 255 = unchanged | 255 |
+| `hue` | hue rotation, 0…255 = a full turn | 0 |
+| `invert` | cross-fade toward RGB-inverted (`255-r,255-g,255-b`); 255 = fully inverted | 0 |
+| `brighten` | push brightness up toward white, 255 = white | 0 |
+| `saturate` | push saturation up toward fully saturated, 255 = max | 0 |
 
-`MOD_DIM`/`MOD_BRIGHTEN` and `MOD_INVERT` are exact (RGB multiply / lerp); desaturate/saturate/hue
-variants use an integer HSV approximation on the panel (small, deterministic colour drift, bypassed
-at the identity value). Use `MOD_BRIGHTEN`/`MOD_SATURATE` when you want a sweep to *increase*
-brightness/saturation rather than suppress it — e.g. a wave that flares a dim background brighter,
-or pushes a muted colour toward full saturation.
+`dim`/`brighten` and `invert` are exact (RGB multiply / lerp); `desaturate`/`saturate`/`hue` use an
+integer HSV approximation on the panel (small, deterministic colour drift, bypassed at the identity
+value). Use `brighten`/`saturate` when you want a sweep to *increase* brightness/saturation rather
+than suppress it — e.g. a wave that flares a dim background brighter, or pushes a muted colour
+toward full saturation.
+
+**Exceptions:**
+
+- `HUE_CYCLE` is colour-only — `animates` must be `color` (or omitted).
+- `SOLID` only reads `from` (a constant value); `to` is ignored.
+- `invert` ignores `from`/`to` entirely — it's a fixed full-strength modifier; the animation's
+  envelope (e.g. `BREATHE`'s oscillation) still drives *when* the invert is applied, just not its
+  strength.
 
 ---
 
@@ -261,19 +274,19 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | `repeat` | bool | WAVE/RIPPLE/CHASE: a continuous train of evenly-spaced sweeps instead of a single pass, see below. Ignored by BOUNCE/RAIN/SPARKLE. |
 | `repeatCount` / `waves` | 1–255 | With `repeat:true` (WAVE/RIPPLE/CHASE/WHEEL): number of sweeps in flight at once. For **RAIN/SPARKLE/MATRIX** (particle spawners) `waves` is instead the **spawn rate** — drops/flashes per **second**. `params[5]`. Default 1. |
 | `speed` | ms | **RAIN/MATRIX only.** The constant drop **fall-time** (one drop's trip down the field); `duration` is the play *window*, not the rate. SPARKLE ignores it (its flashes don't move). `0`/absent ⇒ a 1000 ms default. |
-| `animates` | string | What the sweep modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate` |
+| `animates` | string | What the sweep modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate`. See [Modifier targets](#modifier-targets-animates). |
 | `amount` | 0–255 | Peak intensity for non-`color` targets (also settable as `params[4]`); ignored when `animates:color` |
-| `shape` | string | Envelope shape for non-`color` sweeps: `fall` (peak→identity, default), `rise` (identity→peak), or `bell` (identity→peak→identity). Ignored when `animates:color`, and when `repeat:true` (repeating modifier sweeps always use `bell`, see below). |
 
-**What the sweep animates.** By default a runner sweeps `color` — each panel snaps a `PULSE`
-between `color` and the layer's background. Setting `animates` to `dim`, `desaturate`, `hue`,
-`invert`, `brighten`, or `saturate` instead drives the matching `MOD_*` modifier on each panel as
-the sweep passes through it: the panel snaps to `amount` at onset and **decays back to that
-property's identity** over the lit window, so the effect modulates — rather than replaces —
-whatever colour is composited below it (e.g. a dimming wave over an ambient background, a hue
-sweep rotating it, or a `brighten`/`saturate` wave flaring it brighter or more vivid, as it
-passes). The identity value is 255 for `dim`/`desaturate` (suppress toward black/grey), 0 for
-`hue`/`invert`, and 0 for `brighten`/`saturate` (boost toward white/full saturation).
+**What the sweep animates.** By default a runner sweeps `color` — each panel runs a `PULSE`
+between `color` and the layer's background as the sweep passes through it. Setting `animates` to
+`dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate` instead compiles the **same**
+`PULSE` (same `risePct`/`fallPct` envelope as the colour sweep would use), but ramps `valueFrom`/
+`valueTo` between that property's identity value and `amount` (peak) instead of `colorFrom`/
+`colorTo` — so the effect modulates, rather than replaces, whatever colour is composited below it
+(e.g. a dimming wave over an ambient background, a hue sweep rotating it, or a `brighten`/
+`saturate` wave flaring it brighter or more vivid, as it passes). The identity value is 255 for
+`dim`/`desaturate` (suppress toward black/grey) and 0 for `hue`/`invert`/`brighten`/`saturate`
+(boost toward white/full saturation/full rotation/full invert).
 
 ```json
 {
@@ -289,38 +302,21 @@ passes). The identity value is 255 for `dim`/`desaturate` (suppress toward black
 | `animates` | Drives | `amount` meaning |
 |---|---|---|
 | `color` (default) | per-panel colour `PULSE` between `color` and background | n/a — `color` is used instead |
-| `dim` | `MOD_DIM` sweep | peak dimming: `0` = blackout, `255` = no change |
-| `desaturate` | `MOD_DESATURATE` sweep | peak desaturation: `0` = full grey, `255` = no change |
-| `hue` | `MOD_HUE_SHIFT` sweep | peak hue rotation: `0…255` = a full turn |
-| `invert` | `MOD_INVERT` sweep | peak invert blend: `0` = no change, `255` = fully inverted |
-| `brighten` | `MOD_BRIGHTEN` sweep | peak brightening: `0` = no change, `255` = white |
-| `saturate` | `MOD_SATURATE` sweep | peak saturation boost: `0` = no change, `255` = fully saturated |
-
-**Envelope shape (`shape`).** For non-`color` sweeps the shape of the modifier envelope within
-each panel's lit window is configurable:
-
-| `shape` | Envelope | Effect |
-|---|---|---|
-| `fall` *(default)* | peak → identity | burst that decays (e.g. brightness flare that fades) |
-| `rise` | identity → peak | swell that builds (e.g. brightness that brightens as the wave passes) |
-| `bell` | identity → peak → identity | symmetric pulse — bright in the middle, soft on both edges |
-
-No protocol change: this reuses the existing modifier `PREPARE` with `param1 = amount` (peak) and
-`param2` = the property's identity value, and the panel's existing linear modifier ramp.
+| `dim` | dim modifier sweep | peak dimming: `0` = blackout, `255` = no change |
+| `desaturate` | desaturate modifier sweep | peak desaturation: `0` = full grey, `255` = no change |
+| `hue` | hue-shift modifier sweep | peak hue rotation: `0…255` = a full turn |
+| `invert` | invert modifier sweep | peak invert blend: `0` = no change, `255` = fully inverted |
+| `brighten` | brighten modifier sweep | peak brightening: `0` = no change, `255` = white |
+| `saturate` | saturate modifier sweep | peak saturation boost: `0` = no change, `255` = fully saturated |
 
 **Repeating sweeps (`repeat`).** WAVE, RIPPLE, and CHASE normally play one pass over `duration`
 and stop. Setting `"repeat": true` instead turns `duration` into the time for **one lap** and
 loops the sweep forever — a continuous train of evenly-spaced rings/bands/blips, several in
 flight at once.
 
-- `animates:color` (default): each pass is a true dark gap between passes (the swapped-colour
-  trick — departing → dark → approaching).
-- Any other `animates` (`dim`/`desaturate`/`hue`/`invert`/`brighten`/`saturate`): each pass is a
-  `bell` envelope (identity → `amount` → identity), regardless of the step's `shape`. A
-  rise/fall envelope can't loop without a discontinuity (it would jump from `amount` straight
-  back to identity at the seam), so repeating modifier sweeps always use `bell`, which already
-  starts and ends at identity and therefore loops cleanly — the same trick used for the WHEEL
-  modifier blade.
+For both `animates:color` and any other `animates`, each pass uses the same swapped-endpoints
+trick — departing → dark/identity → approaching — on `colorFrom`/`colorTo` for `color` or
+`valueFrom`/`valueTo` for the other targets. The same trick is used for the WHEEL blade.
 
 Needs `schemaVersion: 5`.
 
@@ -481,8 +477,9 @@ is the time for one full rotation.
 | `animates` | What each blade modulates (same options as other runners; default `color`) | `color` |
 | `amount` | Peak intensity for non-`color` targets (0–255) | — |
 
-`angle` and `waveWidth`/`rippleWidth` are N/A. When `animates` is not `color`, the blade automatically
-uses a `bell` envelope (soft on both edges) since WHEEL always loops — `shape` has no effect on WHEEL.
+`angle` and `waveWidth`/`rippleWidth` are N/A. WHEEL always loops, so each blade uses the same
+swapped-endpoints trick as a repeating WAVE/RIPPLE/CHASE (departing → dark/identity → approaching),
+regardless of `animates`.
 Needs `schemaVersion: 5`.
 
 ---
@@ -532,7 +529,7 @@ in-flight drops simply finish (a soft, seamless boundary).
 - `speed` is the constant **drop fall-time** — how long one drop takes to cross its path.
 - `waves` is the **spawn rate** in drops per second.
 - `width` is the **tail length** in rings (hops behind the head that fade out).
-- `reverse` makes drops rise (leaf→root). `animates` (+ `amount`/`shape`) work as for any runner
+- `reverse` makes drops rise (leaf→root). `animates` (+ `amount`) work as for any runner
   (e.g. `animates:dim` → dimming raindrops); `colorFrom` is the colour the tail fades to (default
   black), `color` the head colour.
 - **Directionality.** By default drops fall **down the tree** (root→leaf). With
@@ -576,7 +573,7 @@ the play window ends, in-flight fades simply finish.
 - `duration` is the **play window** (use `0` on the last step to twinkle indefinitely).
 - `waves` is the **spawn rate** in flashes per second.
 - `width` is the **fade-out duration** (`0`–`255`, longer = slower fade).
-- `animates` (+ `amount`/`shape`) and `colorFrom`→`color` work as for any runner. SPARKLE ignores
+- `animates` (+ `amount`) and `colorFrom`→`color` work as for any runner. SPARKLE ignores
   `speed`.
 
 ```json

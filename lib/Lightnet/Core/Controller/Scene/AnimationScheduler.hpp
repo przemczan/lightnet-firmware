@@ -56,7 +56,8 @@ namespace Lightnet {
                 const uint8_t * panelAddresses,
                 uint8_t         panelCount,
                 uint8_t         composeMode  = COMPOSE_OPAQUE,
-                uint8_t         composeOrder = 0
+                uint8_t         composeOrder = 0,
+                uint8_t         animates     = TARGET_COLOR
             );
 
             // Convenience overload — wraps RGB values in inline ColorRefs
@@ -72,7 +73,8 @@ namespace Lightnet {
                 const uint8_t *           panelAddresses,
                 uint8_t                   panelCount,
                 uint8_t                   composeMode  = COMPOSE_OPAQUE,
-                uint8_t                   composeOrder = 0
+                uint8_t                   composeOrder = 0,
+                uint8_t                   animates     = TARGET_COLOR
             );
 
             // Runner-compiler primitives: a spatial runner is compiled into one PREPARE per
@@ -90,7 +92,8 @@ namespace Lightnet {
                 uint8_t         param2,
                 uint8_t         composeMode,
                 uint8_t         composeOrder,
-                uint16_t        startDelayMs
+                uint16_t        startDelayMs,
+                uint8_t         animates = TARGET_COLOR
             );
 
             // General-call START for a group (2× retry, shared seq_id). Call after a burst

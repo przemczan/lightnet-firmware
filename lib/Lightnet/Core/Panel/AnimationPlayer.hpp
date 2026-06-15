@@ -53,8 +53,19 @@ namespace Lightnet {
 
             // Current composited colour + change flag. The platform mirrors this to the LED:
             //   player.tick(now); if (player.takeDirty()) led->write(player.currentColor());
-            ::Protocol::ColorRGB currentColor() const { return lastOutput; }
-            bool takeDirty() { bool d = outputDirty; outputDirty = false; return d; }
+            ::Protocol::ColorRGB currentColor() const
+            {
+                return lastOutput;
+            }
+
+            bool takeDirty()
+            {
+                bool d = outputDirty;
+
+                outputDirty = false;
+
+                return d;
+            }
 
             // Status reporting
             void fillStatus(::Protocol::PacketAnimationStatus *out, uint16_t now);
@@ -85,6 +96,7 @@ namespace Lightnet {
                 uint16_t                 reactiveTriggerMs;
 
                 ::Protocol::ColorRGB     outColor; // last computed source colour (held while paused)
+                uint8_t                  outValue; // last computed modifier scalar (animates != TARGET_COLOR)
             };
 
             Slot slots[MAX_ANIM_SLOTS];
@@ -112,20 +124,29 @@ namespace Lightnet {
             // ---- Frame evaluation ----
             void composite();
             void setOutput(const ::Protocol::ColorRGB& c);  // gated: updates lastOutput + dirty only on change
-            void computeSlotColor(Slot& s, uint16_t elapsed);  // → s.outColor (source layers)
-            uint8_t modifierValue(const Slot& s, uint16_t elapsed) const;
+            void computeSlotOutput(Slot& s, uint16_t elapsed);  // → s.outColor (TARGET_COLOR) or s.outValue (modifier)
 
             ::Protocol::ColorRGB resolveColorRef(const ColorRef& ref) const;
             void resolveColors(const AnimationState& a, ::Protocol::ColorRGB *outFrom, ::Protocol::ColorRGB *outTo) const;
 
-            // Type-specific handlers (write s.outColor)
-            void tickFade(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
-            void tickBreathe(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
-            void tickPulse(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
-            void tickBlink(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
+            // valueFrom/valueTo (0-255) for non-COLOR `animates` — read from colorFrom.raw[0]/
+            // colorTo.raw[0], except TARGET_INVERT which ignores them (fixed 0->255 range so the
+            // animType's envelope alone drives a full identity->inverted sweep).
+            uint8_t getValueFrom(const AnimationState& a) const;
+            uint8_t getValueTo(const AnimationState& a) const;
+
+            // Lerp colorFrom/colorTo (TARGET_COLOR) or valueFrom/valueTo (modifier) by
+            // progress_q8 into s.outColor / s.outValue.
+            void applyProgress(const AnimationState& a, uint8_t progress_q8, Slot& s) const;
+
+            // Type-specific handlers (write s.outColor or s.outValue via applyProgress)
+            void tickFade(const AnimationState& a, uint16_t elapsed, Slot& s) const;
+            void tickBreathe(const AnimationState& a, uint16_t elapsed, Slot& s) const;
+            void tickPulse(const AnimationState& a, uint16_t elapsed, Slot& s) const;
+            void tickBlink(const AnimationState& a, uint16_t elapsed, Slot& s) const;
             void tickHueCycle(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
-            void tickStrobe(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
-            void tickReactive(Slot& s, ::Protocol::ColorRGB& out) const;
+            void tickStrobe(const AnimationState& a, uint16_t elapsed, Slot& s) const;
+            void tickReactive(Slot& s) const;
 
             // Utilities
             uint8_t lerp8(uint8_t a, uint8_t b, uint8_t frac_q8) const;

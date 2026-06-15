@@ -212,6 +212,7 @@ namespace Lightnet {
         a.composeMode  = pkt->composeMode;
         a.composeOrder = pkt->composeOrder;
         a.startDelayMs = pkt->startDelayMs;
+        a.animates     = pkt->animates;
 
         s->flags |= Slot::HAS_PENDING;
     }
@@ -387,18 +388,18 @@ namespace Lightnet {
 
             c.composeOrder = s.cur.composeOrder;
 
-            if (isModifierType(s.cur.animType)) {
+            computeSlotOutput(s, animElapsed);
+
+            if (s.cur.animates != TARGET_COLOR) {
                 c.isModifier = true;
-                c.value      = modifierValue(s, animElapsed);
-                c.op         = (s.cur.animType == ANIM_MOD_DESATURATE) ? MO_DESATURATE
-                             : (s.cur.animType == ANIM_MOD_HUE_SHIFT)  ? MO_HUE
-                             : (s.cur.animType == ANIM_MOD_INVERT)     ? MO_INVERT
-                             : (s.cur.animType == ANIM_MOD_BRIGHTEN)   ? MO_BRIGHTEN
-                             : (s.cur.animType == ANIM_MOD_SATURATE)   ? MO_SATURATE
+                c.value      = s.outValue;
+                c.op         = (s.cur.animates == TARGET_DESATURATE) ? MO_DESATURATE
+                             : (s.cur.animates == TARGET_HUE)         ? MO_HUE
+                             : (s.cur.animates == TARGET_INVERT)      ? MO_INVERT
+                             : (s.cur.animates == TARGET_BRIGHTEN)    ? MO_BRIGHTEN
+                             : (s.cur.animates == TARGET_SATURATE)    ? MO_SATURATE
                              : MO_DIM;
             } else {
-                computeSlotColor(s, animElapsed);
-
                 c.isModifier = false;
                 c.op         = s.cur.composeMode;
                 c.color      = { s.outColor.r, s.outColor.g, s.outColor.b };
@@ -440,66 +441,71 @@ namespace Lightnet {
     // Per-slot colour computation
     // ============================================================================
 
-    void AnimationPlayer::computeSlotColor(Slot& s, uint16_t elapsed)
+    void AnimationPlayer::computeSlotOutput(Slot& s, uint16_t elapsed)
     {
         const AnimationState& a = s.cur;
 
         switch (a.animType) {
-            case ANIM_SOLID:     s.outColor = resolveColorRef(a.colorTo);
+            case ANIM_SOLID:
+
+                if (a.animates == TARGET_COLOR) {
+                    s.outColor = resolveColorRef(a.colorTo);
+                } else {
+                    s.outValue = getValueFrom(a); // valueTo ignored — SOLID holds a constant
+                }
+
                 break;
-            case ANIM_FADE:      tickFade(a, elapsed, s.outColor);
+            case ANIM_FADE:      tickFade(a, elapsed, s);
                 break;
-            case ANIM_TRANSITION: tickFade(a, elapsed, s.outColor);
+            case ANIM_TRANSITION: tickFade(a, elapsed, s);
                 break;
-            case ANIM_BREATHE:   tickBreathe(a, elapsed, s.outColor);
+            case ANIM_BREATHE:   tickBreathe(a, elapsed, s);
                 break;
-            case ANIM_PULSE:     tickPulse(a, elapsed, s.outColor);
+            case ANIM_PULSE:     tickPulse(a, elapsed, s);
                 break;
-            case ANIM_BLINK:     tickBlink(a, elapsed, s.outColor);
+            case ANIM_BLINK:     tickBlink(a, elapsed, s);
                 break;
-            case ANIM_HUE_CYCLE: tickHueCycle(a, elapsed, s.outColor);
+            case ANIM_HUE_CYCLE: tickHueCycle(a, elapsed, s.outColor); // COLOR-only (rejected at parse time otherwise)
                 break;
-            case ANIM_STROBE:    tickStrobe(a, elapsed, s.outColor);
+            case ANIM_STROBE:    tickStrobe(a, elapsed, s);
                 break;
-            case ANIM_REACTIVE:  tickReactive(s, s.outColor);
+            case ANIM_REACTIVE:  tickReactive(s);
                 break;
-            default: break; // GAP / modifiers never reach here as source
+            default: break; // GAP never reaches here
         }
     }
 
-    uint8_t AnimationPlayer::modifierValue(const Slot& s, uint16_t elapsed) const
+    uint8_t AnimationPlayer::getValueFrom(const AnimationState& a) const
     {
-        const AnimationState& a = s.cur;
+        if (a.animates == TARGET_INVERT) return 0; // ignore stored value — full identity->inverted range
 
-        if (a.durationMs == 0) {
-            return a.param2; // infinite modifier holds its target (identity)
+        return a.colorFrom.raw[0];
+    }
+
+    uint8_t AnimationPlayer::getValueTo(const AnimationState& a) const
+    {
+        if (a.animates == TARGET_INVERT) return 255; // ignore stored value — full identity->inverted range
+
+        return a.colorTo.raw[0];
+    }
+
+    void AnimationPlayer::applyProgress(const AnimationState& a, uint8_t progress_q8, Slot& s) const
+    {
+        if (a.animates == TARGET_COLOR) {
+            ::Protocol::ColorRGB cFrom, cTo;
+
+            resolveColors(a, &cFrom, &cTo);
+            rgbLerp(cFrom, cTo, progress_q8, &s.outColor);
+        } else {
+            s.outValue = lerp8(getValueFrom(a), getValueTo(a), progress_q8);
         }
-
-        uint32_t prog = (uint32_t)elapsed * 256 / a.durationMs;
-        uint8_t q8   = (prog > 255) ? 255 : (uint8_t)prog;
-
-        if (a.flags & FLAG_MOD_BELL) {
-            // Symmetric triangle: identity → peak → identity
-            uint16_t bprog = (q8 < 128) ? (uint16_t)q8 * 2 : (uint16_t)(255 - q8) * 2;
-            uint8_t q8b   = (bprog > 255) ? 255 : (uint8_t)bprog;
-
-            return lerp8(a.param2, a.param1, q8b);
-        }
-
-        if (a.flags & FLAG_MOD_RISE) {
-            // identity → peak
-            return lerp8(a.param2, a.param1, q8);
-        }
-
-        // Default: fall — peak → identity
-        return lerp8(a.param1, a.param2, q8);
     }
 
     // ============================================================================
     // Animation type handlers
     // ============================================================================
 
-    void AnimationPlayer::tickFade(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const
+    void AnimationPlayer::tickFade(const AnimationState& a, uint16_t elapsed, Slot& s) const
     {
         uint8_t progress_q8;
 
@@ -511,12 +517,10 @@ namespace Lightnet {
             progress_q8 = 255;
         }
 
-        ::Protocol::ColorRGB cFrom, cTo;
-        resolveColors(a, &cFrom, &cTo);
-        rgbLerp(cFrom, cTo, progress_q8, &out);
+        applyProgress(a, progress_q8, s);
     }
 
-    void AnimationPlayer::tickBreathe(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const
+    void AnimationPlayer::tickBreathe(const AnimationState& a, uint16_t elapsed, Slot& s) const
     {
         if (a.durationMs == 0) return;
 
@@ -533,13 +537,10 @@ namespace Lightnet {
         uint8_t inv_sq = (uint8_t)(((uint16_t)inv * inv) >> 8);
         uint8_t ease   = (uint8_t)(255 - inv_sq);
 
-        ::Protocol::ColorRGB cFrom, cTo;
-
-        resolveColors(a, &cFrom, &cTo);
-        rgbLerp(cFrom, cTo, ease, &out);
+        applyProgress(a, ease, s);
     }
 
-    void AnimationPlayer::tickPulse(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const
+    void AnimationPlayer::tickPulse(const AnimationState& a, uint16_t elapsed, Slot& s) const
     {
         uint8_t rise_pct = a.param1; // 0-255
         uint8_t fall_pct = a.param2; // 0-255
@@ -568,12 +569,10 @@ namespace Lightnet {
             progress_q8 = 255 - (uint8_t)((uint32_t)fall_elapsed * 256 / (fall_duration + 1));
         }
 
-        ::Protocol::ColorRGB cFrom, cTo;
-        resolveColors(a, &cFrom, &cTo);
-        rgbLerp(cFrom, cTo, progress_q8, &out);
+        applyProgress(a, progress_q8, s);
     }
 
-    void AnimationPlayer::tickBlink(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const
+    void AnimationPlayer::tickBlink(const AnimationState& a, uint16_t elapsed, Slot& s) const
     {
         uint8_t period_ms = a.param1;
 
@@ -582,10 +581,7 @@ namespace Lightnet {
         uint16_t phase = elapsed % (period_ms * 2);
         bool on = (phase < period_ms);
 
-        ::Protocol::ColorRGB cFrom, cTo;
-
-        resolveColors(a, &cFrom, &cTo);
-        out = on ? cTo : cFrom;
+        applyProgress(a, on ? (uint8_t)255 : (uint8_t)0, s);
     }
 
     void AnimationPlayer::tickHueCycle(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const
@@ -631,7 +627,7 @@ namespace Lightnet {
         out = { r, g, b };
     }
 
-    void AnimationPlayer::tickStrobe(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const
+    void AnimationPlayer::tickStrobe(const AnimationState& a, uint16_t elapsed, Slot& s) const
     {
         uint8_t hz = a.param1;
 
@@ -640,12 +636,17 @@ namespace Lightnet {
         uint16_t period_ms = 1000 / hz;
         bool on = (elapsed % period_ms) < (period_ms / 2);
 
-        ::Protocol::ColorRGB cTo = resolveColorRef(a.colorTo);
+        if (a.animates == TARGET_COLOR) {
+            ::Protocol::ColorRGB cTo = resolveColorRef(a.colorTo);
 
-        out = on ? cTo : ::Protocol::ColorRGB{ 0, 0, 0 };
+            s.outColor = on ? cTo : ::Protocol::ColorRGB{ 0, 0, 0 };
+        } else {
+            // No "black" equivalent for a scalar — alternate valueTo/valueFrom.
+            s.outValue = on ? getValueTo(a) : getValueFrom(a);
+        }
     }
 
-    void AnimationPlayer::tickReactive(Slot& s, ::Protocol::ColorRGB& out) const
+    void AnimationPlayer::tickReactive(Slot& s) const
     {
         if (s.reactiveLevel > 0) {
             uint16_t since_trigger = (uint16_t)(nowMs - s.reactiveTriggerMs);
@@ -654,9 +655,7 @@ namespace Lightnet {
             s.reactiveLevel = (decay_amount >= s.reactiveLevel) ? 0 : (uint8_t)(s.reactiveLevel - decay_amount);
         }
 
-        ::Protocol::ColorRGB cFrom, cTo;
-        resolveColors(s.cur, &cFrom, &cTo);
-        rgbLerp(cFrom, cTo, s.reactiveLevel, &out);
+        applyProgress(s.cur, s.reactiveLevel, s);
     }
 
     // ============================================================================

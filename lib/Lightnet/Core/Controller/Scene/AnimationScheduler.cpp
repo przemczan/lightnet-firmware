@@ -35,7 +35,8 @@ namespace Lightnet {
         uint8_t         param2,
         uint8_t         composeMode,
         uint8_t         composeOrder,
-        uint16_t        startDelayMs
+        uint16_t        startDelayMs,
+        uint8_t         animates
     )
     {
         Protocol::PacketAnimationPrepare prepare;
@@ -53,10 +54,11 @@ namespace Lightnet {
         prepare.composeMode  = composeMode;
         prepare.composeOrder = composeOrder;
         prepare.startDelayMs = startDelayMs;
+        prepare.animates     = animates;
 
         // Acknowledged send; the controller sink retries on bus glitches so a single
         // failure doesn't leave a panel with no animation queued.
-        sink.send(panelAddress, Protocol::PACKET_ANIMATION_PREPARE, &prepare, sizeof(prepare), /*wantAck=*/true);
+        sink.send(panelAddress, Protocol::PACKET_ANIMATION_PREPARE, &prepare, sizeof(prepare), /*wantAck=*/ true);
 
         if (panelAddress < maxPanels) {
             panelStates[panelAddress].animType     = animType;
@@ -83,7 +85,7 @@ namespace Lightnet {
         // General Call has no ack — send twice (shared seq_id) for reliability, pacing
         // between so panels settle. Off-device sinks make pace() a no-op.
         for (uint8_t retry = 0; retry < 2; retry++) {
-            sink.send(0x00, Protocol::PACKET_ANIMATION_START, &startPkt, sizeof(startPkt), /*wantAck=*/false);
+            sink.send(0x00, Protocol::PACKET_ANIMATION_START, &startPkt, sizeof(startPkt), /*wantAck=*/ false);
             sink.pace(200);
         }
     }
@@ -100,14 +102,15 @@ namespace Lightnet {
         const uint8_t * panelAddresses,
         uint8_t         panelCount,
         uint8_t         composeMode,
-        uint8_t         composeOrder
+        uint8_t         composeOrder,
+        uint8_t         animates
     )
     {
         // Same PREPARE to every panel (uniform startDelay = 0), then one general-call START.
         for (uint8_t i = 0; i < panelCount; i++) {
             sendPrepareToPanel(panelAddresses[i], group_id, animType, flags, durationMs,
                                colorFrom, colorTo, param1, param2,
-                               composeMode, composeOrder, /*startDelayMs=*/ 0);
+                               composeMode, composeOrder, /*startDelayMs=*/ 0, animates);
         }
 
         // Give panels time to process their PREPARE before START arrives.
@@ -128,7 +131,7 @@ namespace Lightnet {
 
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_COLOR);
         pkt.color.rgb = { 0, 0, 0 };
-        sink.send(0x00, Protocol::PACKET_SET_COLOR, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_SET_COLOR, &pkt, sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::broadcastStop()
@@ -138,7 +141,7 @@ namespace Lightnet {
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
         pkt.cmd      = Lightnet::ANIM_CTRL_STOP;
         pkt.group_id = 0; // all slots
-        sink.send(0x00, Protocol::PACKET_ANIMATION_CONTROL, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_ANIMATION_CONTROL, &pkt, sizeof(pkt), /*wantAck=*/ false);
 
         // Mark runners cancelled rather than deleting them here.  This method may be
         // called from the HTTP task while tick() is iterating activeRunners on the main
@@ -160,7 +163,7 @@ namespace Lightnet {
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
         pkt.cmd      = Lightnet::ANIM_CTRL_CLEAR_QUEUE;
         pkt.group_id = 0; // all slots
-        sink.send(0x00, Protocol::PACKET_ANIMATION_CONTROL, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_ANIMATION_CONTROL, &pkt, sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::pauseGroup(uint8_t group_id)
@@ -245,7 +248,7 @@ namespace Lightnet {
         start.group_id = group_id;
 
         // Send to General Call address (0x00)
-        sink.send(0x00, Protocol::PACKET_ANIMATION_START, &start, sizeof(start), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_ANIMATION_START, &start, sizeof(start), /*wantAck=*/ false);
 
         nextSeqId++;
 
@@ -264,7 +267,7 @@ namespace Lightnet {
         params.transitionMs = 10; // TODO: make configurable
 
         // Send to General Call address (0x00)
-        sink.send(0x00, Protocol::PACKET_ANIMATION_UPDATE_PARAMS, &params, sizeof(params), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_ANIMATION_UPDATE_PARAMS, &params, sizeof(params), /*wantAck=*/ false);
 
         nextSeqId++;
 
@@ -280,7 +283,7 @@ namespace Lightnet {
         control.group_id = group_id;
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::PACKET_ANIMATION_CONTROL, &control, sizeof(control), /*wantAck=*/true);
+            sink.send(panelAddresses[i], Protocol::PACKET_ANIMATION_CONTROL, &control, sizeof(control), /*wantAck=*/ true);
         }
     }
 
@@ -300,14 +303,15 @@ namespace Lightnet {
         const uint8_t *           panelAddresses,
         uint8_t                   panelCount,
         uint8_t                   composeMode,
-        uint8_t                   composeOrder
+        uint8_t                   composeOrder,
+        uint8_t                   animates
     )
     {
         ColorRef from = ColorRef_rgb(colorFrom.r, colorFrom.g, colorFrom.b);
         ColorRef to   = ColorRef_rgb(colorTo.r, colorTo.g, colorTo.b);
 
         playOnPanels(group_id, animType, flags, durationMs, from, to,
-                     param1, param2, panelAddresses, panelCount, composeMode, composeOrder);
+                     param1, param2, panelAddresses, panelCount, composeMode, composeOrder, animates);
     }
 
     // ============================================================================
@@ -331,7 +335,7 @@ namespace Lightnet {
         }
 
         // General Call — all panels apply simultaneously.
-        sink.send(0x00, Protocol::PACKET_SET_PALETTE, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_SET_PALETTE, &pkt, sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::unicastPaletteToPanels(
@@ -356,7 +360,7 @@ namespace Lightnet {
         }
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::PACKET_SET_PALETTE, &pkt, sizeof(pkt), /*wantAck=*/true);
+            sink.send(panelAddresses[i], Protocol::PACKET_SET_PALETTE, &pkt, sizeof(pkt), /*wantAck=*/ true);
         }
     }
 
@@ -368,7 +372,7 @@ namespace Lightnet {
         pkt.on = 1;
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::PACKET_TURN_ON_OFF, &pkt, sizeof(pkt), /*wantAck=*/false);
+            sink.send(panelAddresses[i], Protocol::PACKET_TURN_ON_OFF, &pkt, sizeof(pkt), /*wantAck=*/ false);
         }
     }
 
@@ -382,7 +386,7 @@ namespace Lightnet {
             pkt.colors[i] = colors[i];
         }
 
-        sink.send(0x00, Protocol::PACKET_SET_BASE_COLORS, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_SET_BASE_COLORS, &pkt, sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::broadcastGlobalBrightness(uint8_t value)
@@ -391,7 +395,7 @@ namespace Lightnet {
 
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
         pkt.value = value;
-        sink.send(0x00, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS, &pkt, sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::broadcastBackground(const Protocol::ColorRGB& color)
@@ -400,6 +404,6 @@ namespace Lightnet {
 
         Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_BACKGROUND);
         pkt.color = color;
-        sink.send(0x00, Protocol::PACKET_SET_BACKGROUND, &pkt, sizeof(pkt), /*wantAck=*/false);
+        sink.send(0x00, Protocol::PACKET_SET_BACKGROUND, &pkt, sizeof(pkt), /*wantAck=*/ false);
     }
 }  // namespace Lightnet

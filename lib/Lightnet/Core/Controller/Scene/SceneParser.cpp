@@ -157,19 +157,6 @@ namespace Lightnet {
 
             if (strcmp(s, "REACTIVE") == 0)  return ANIM_REACTIVE;
 
-            // Modifier layers — transform the colour composited below them.
-            if (strcmp(s, "MOD_DIM") == 0)        return ANIM_MOD_DIM;
-
-            if (strcmp(s, "MOD_DESATURATE") == 0) return ANIM_MOD_DESATURATE;
-
-            if (strcmp(s, "MOD_HUE_SHIFT") == 0)  return ANIM_MOD_HUE_SHIFT;
-
-            if (strcmp(s, "MOD_INVERT") == 0)     return ANIM_MOD_INVERT;
-
-            if (strcmp(s, "MOD_BRIGHTEN") == 0)   return ANIM_MOD_BRIGHTEN;
-
-            if (strcmp(s, "MOD_SATURATE") == 0)   return ANIM_MOD_SATURATE;
-
             return 0xFF;
         }
 
@@ -329,7 +316,7 @@ namespace Lightnet {
                     step.params[pi++] = (uint8_t)v;
                 }
             } else if (strcmp(key, "from") == 0) {
-                // Modifier scalar (0-255): MOD_* layers animate params[0] → params[1].
+                // Non-colour `animates` (0-255): the scalar ramp start.
                 long v;
 
                 if (!jsonReadUInt(p, end, &v) || v > 255) {
@@ -338,7 +325,7 @@ namespace Lightnet {
                     return false;
                 }
 
-                step.params[0] = (uint8_t)v;
+                step.valueFrom = (uint8_t)v;
             } else if (strcmp(key, "to") == 0) {
                 long v;
 
@@ -348,7 +335,7 @@ namespace Lightnet {
                     return false;
                 }
 
-                step.params[1] = (uint8_t)v;
+                step.valueTo = (uint8_t)v;
             } else if (strcmp(key, "waveWidth") == 0 || strcmp(key, "rippleWidth") == 0 || strcmp(key, "width") == 0) {
                 // `width` is the generic form: BOUNCE (band width, rings, like waveWidth),
                 // RAIN (tail length, rings), SPARKLE (fade-out duration, 0-255 -> 0-100% of
@@ -509,8 +496,9 @@ namespace Lightnet {
                 step.params[RUNNER_PARAM_SRC_KIND] = SRC_PANEL;
                 step.params[RUNNER_PARAM_SRC_ARG]  = (uint8_t)v;
             } else if (strcmp(key, "animates") == 0) {
-                // What the sweep modulates: "color" (default — a colour PULSE, as before)
-                // or a property to modulate via a MOD_* sweep instead (see `amount`).
+                // What this animation modulates: "color" (default) lerps colorFrom/colorTo
+                // and contributes as a normal SOURCE layer; the others lerp `from`/`to`
+                // (0-255) and contribute as a MODIFIER layer (see AnimateTarget).
                 char s[16];
 
                 if (!jsonReadString(p, end, s, sizeof(s))) {
@@ -521,22 +509,22 @@ namespace Lightnet {
 
                 uint8_t target;
 
-                if (strcmp(s, "color") == 0)           target = RUNNER_TARGET_COLOR;
-                else if (strcmp(s, "dim") == 0)        target = RUNNER_TARGET_DIM;
-                else if (strcmp(s, "desaturate") == 0) target = RUNNER_TARGET_DESATURATE;
-                else if (strcmp(s, "hue") == 0)        target = RUNNER_TARGET_HUE;
-                else if (strcmp(s, "invert") == 0)     target = RUNNER_TARGET_INVERT;
-                else if (strcmp(s, "brighten") == 0)   target = RUNNER_TARGET_BRIGHTEN;
-                else if (strcmp(s, "saturate") == 0)   target = RUNNER_TARGET_SATURATE;
+                if (strcmp(s, "color") == 0)           target = TARGET_COLOR;
+                else if (strcmp(s, "dim") == 0)        target = TARGET_DIM;
+                else if (strcmp(s, "desaturate") == 0) target = TARGET_DESATURATE;
+                else if (strcmp(s, "hue") == 0)        target = TARGET_HUE;
+                else if (strcmp(s, "invert") == 0)     target = TARGET_INVERT;
+                else if (strcmp(s, "brighten") == 0)   target = TARGET_BRIGHTEN;
+                else if (strcmp(s, "saturate") == 0)   target = TARGET_SATURATE;
                 else {
                     snprintf(errMsg, errLen, "step.animates: unknown (%s)", s);
 
                     return false;
                 }
 
-                step.params[RUNNER_PARAM_FLAGS] = packRunnerTarget(step.params[RUNNER_PARAM_FLAGS], target);
+                step.animates = target;
             } else if (strcmp(key, "amount") == 0) {
-                // Peak intensity (0-255) for a non-colour `animates` target — e.g. how
+                // Runner peak intensity (0-255) for a non-colour `animates` target — e.g. how
                 // far brightness/saturation dips, how far hue rotates, how strongly the
                 // colour inverts at the centre of the sweep. Ignored for `animates:"color"`.
                 long v;
@@ -548,26 +536,6 @@ namespace Lightnet {
                 }
 
                 step.params[RUNNER_PARAM_AMOUNT] = (uint8_t)v;
-            } else if (strcmp(key, "shape") == 0) {
-                // Modifier envelope shape for non-colour `animates` runners.
-                // "fall" (default): peak → identity. "rise": identity → peak.
-                // "bell": identity → peak → identity (symmetric triangle).
-                char s[8];
-
-                if (!jsonReadString(p, end, s, sizeof(s))) {
-                    strncpy(errMsg, "step.shape: not a string", errLen);
-
-                    return false;
-                }
-
-                step.params[RUNNER_PARAM_FLAGS] &= (uint8_t) ~(RUNNER_FLAG_MOD_RISE | RUNNER_FLAG_MOD_BELL);
-
-                if (strcmp(s, "rise") == 0)
-                    step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_MOD_RISE;
-                else if (strcmp(s, "bell") == 0)
-                    step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_MOD_BELL;
-
-                // "fall" or unknown → no bits set (default)
             } else {
                 jsonSkipValue(p, end);
             }
@@ -581,8 +549,15 @@ namespace Lightnet {
 
         // `stepId` (if non-null) receives the step's optional "id" string (empty if absent),
         // used by the caller to resolve other layers' `startAfter: "group:stepId"` references.
-        static bool parseStep(const char *& p, const char *end, SceneStep& step,
-                               char *stepId, size_t stepIdLen, char *errMsg, size_t errLen)
+        static bool parseStep(
+            const char *& p,
+            const char *  end,
+            SceneStep&    step,
+            char *        stepId,
+            size_t        stepIdLen,
+            char *        errMsg,
+            size_t        errLen
+        )
         {
             memset(&step, 0, sizeof(step));
             step.animType = ANIM_SOLID;
@@ -617,6 +592,24 @@ namespace Lightnet {
             // delays the layer for its duration (panels hold their current state).
             if (!hasType) step.animType = ANIM_GAP;
 
+            // HUE_CYCLE is COLOR-only — it has no scalar output to drive a modifier.
+            if (step.animType == ANIM_HUE_CYCLE && step.animates != TARGET_COLOR) {
+                strncpy(errMsg, "HUE_CYCLE: animates must be \"color\"", errLen);
+
+                return false;
+            }
+
+            // INVERT is a fixed full-strength modifier — `from`/`to` don't apply, ignore silently.
+            if (step.animates == TARGET_INVERT) {
+                step.valueFrom = 0;
+                step.valueTo = 0;
+            }
+
+            // SOLID holds a constant value — `to` is meaningless, ignore silently.
+            if (step.animType == ANIM_SOLID && step.animates != TARGET_COLOR) {
+                step.valueTo = 0;
+            }
+
             return true;
         }
 
@@ -642,8 +635,8 @@ namespace Lightnet {
             NameTable&    names,
             char (&startAfterName)[START_AFTER_LEN],
             char (&stepIds)[SCENE_MAX_STEPS][STEP_NAME_LEN],
-            char *        errMsg,
-            size_t        errLen
+            char * errMsg,
+            size_t errLen
         )
         {
             memset(&layer, 0, sizeof(layer));
@@ -789,7 +782,7 @@ namespace Lightnet {
                         }
 
                         if (!parseStep(p, end, layer.steps[layer.stepCount],
-                                        stepIds[layer.stepCount], STEP_NAME_LEN, errMsg, errLen)) return false;
+                                       stepIds[layer.stepCount], STEP_NAME_LEN, errMsg, errLen)) return false;
 
                         if (stepIds[layer.stepCount][0] != '\0') {
                             for (uint8_t s = 0; s < layer.stepCount; s++) {
