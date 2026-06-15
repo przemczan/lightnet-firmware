@@ -40,15 +40,16 @@ namespace Lightnet {
 
     void StateServer::handleGetState(AsyncWebServerRequest *req)
     {
-        char buf[128];
+        char buf[192];
 
         snprintf(buf, sizeof(buf),
                  "{\"isOn\":%s,\"lastPlayedScene\":\"%s\",\"lastPlayedSceneIsStored\":%s,"
-                 "\"playing\":%s,\"speed\":%.1f}",
+                 "\"playing\":%s,\"speed\":%.1f,\"controllerFirmware\":\"%s\"}",
                  appState.isOn() ? "true" : "false", appState.lastPlayedScene(),
                  appState.lastPlayedSceneIsStored() ? "true" : "false",
                  animService.isPlaying() ? "true" : "false",
-                 (double)animService.getSpeed());
+                 (double)animService.getSpeed(),
+                 FW_VERSION);
         Http::sendOkJson(req, buf);
     }
 
