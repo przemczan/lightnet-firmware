@@ -348,6 +348,11 @@ void scene_set_speed(scene_handle h, float speed)
     if (h) self(h)->player.setSpeed(speed);
 }
 
+void scene_reresolve_palettes(scene_handle h, const char *palette, const uint8_t *baseColors)
+{
+    if (h) self(h)->player.reresolvePalettes(palette, baseColors);
+}
+
 int scene_is_playing(scene_handle h)
 {
     return h && self(h)->player.isPlaying() ? 1 : 0;

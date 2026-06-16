@@ -88,6 +88,11 @@ void scene_stop(scene_handle h, uint32_t now);
 /* Playback speed multiplier [0.1, 10.0]; takes effect on the next step. */
 void scene_set_speed(scene_handle h, float speed);
 
+/* Re-resolve layer palettes while a scene is playing (mirrors ScenePlayer::reresolvePalettes).
+ * Pass NULL / empty palette or NULL baseColors to leave that aspect unchanged. baseColors, when
+ * set, is 9 bytes: primary/secondary/tertiary RGB. */
+void scene_reresolve_palettes(scene_handle h, const char *palette, const uint8_t *baseColors);
+
 int  scene_is_playing(scene_handle h);
 
 /* Human-readable message from the last failed scene_load_and_play (empty if none). */

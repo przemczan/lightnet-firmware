@@ -25,6 +25,11 @@ namespace {
     constexpr float SPAWN_DEG2RAD            = 0.017453293f;
     constexpr uint8_t MATRIX_HEAD_RISE         = 48;   // matrix: soft leading-edge onset (0-255 of the pulse)
     constexpr float MATRIX_LINE_HALFWIDTH_K  = 2.0f;    // matrix line virtual half-width = K · panel radius (antialiased)
+
+    inline bool isSweepRunner(uint8_t animType)
+    {
+        return animType == Lightnet::RUN_WAVE || animType == Lightnet::RUN_RIPPLE || animType == Lightnet::RUN_CHASE;
+    }
 }
 
 #if DEBUG_SCENE
@@ -163,20 +168,30 @@ namespace Lightnet {
 
             const SceneStep& step = layers[i].steps[currentStep[i]];
 
-            // RAIN/SPARKLE/MATRIX and WAVE/RIPPLE/CHASE spawners do their work over time:
-            // emit any drops/sweeps due this tick.
-            if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX
-                || step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
-                serviceSpawner(i, nowMs);
-            }
+            if (step.durationMs == 0) {
+                // Infinite spawner steps run until explicitly stopped.
+                if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX
+                    || step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
+                    serviceSpawner(i, nowMs);
+                }
 
-            if (step.durationMs == 0) continue; // infinite last step — holds, never completes
+                continue;
+            }
 
             uint32_t elapsed = (uint32_t)(nowMs - stepStartMs[i]);
             uint32_t threshold = (speed == 1.0f) ? (uint32_t)step.durationMs
                                  : (uint32_t)((float)step.durationMs / speed);
 
-            if (elapsed < threshold) continue;
+            if (elapsed < threshold) {
+                // Service only while the step is still inside its play window. At the boundary,
+                // transition first so a density=0 WAVE/RIPPLE does not spawn an extra sweep.
+                if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX
+                    || step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
+                    serviceSpawner(i, nowMs);
+                }
+
+                continue;
+            }
 
             uint8_t nextStep = currentStep[i] + 1;
 
@@ -582,10 +597,20 @@ namespace Lightnet {
             // leave nextSpawnMs/cursor as they were — the schedule continues on the same
             // absolute-time grid across the loop seam, so the wrap-around gap matches every
             // other gap instead of depending on durationMs being a multiple of the interval.
+            // (Pool cursor never resets — resetting it would reuse a group_id while a prior
+            // sweep is still draining.)
             if (prevInterval == 0 || prevInterval != sst.sweepIntervalMs) {
                 sst.nextSpawnMs = nowMs;
-                sst.cursor      = 0;
+            } else if (nowMs > sst.nextSpawnMs) {
+                // Stale grid slots accumulated while this layer was on a non-sweep step.
+                // Drop the backlog — density=0 must stay single-file; higher densities
+                // should not dump a multi-sweep burst on re-entry either.
+                sst.nextSpawnMs = nowMs;
             }
+
+            // Emit the first sweep immediately (tick() also services the schedule, but
+            // fireStep can run without a preceding service pass — e.g. loadAndPlay).
+            serviceSweepSpawner(layerIdx, nowMs);
         } else if (step.animates == TARGET_COLOR) {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
@@ -790,11 +815,6 @@ namespace Lightnet {
 
         if (st.sweepPanelCount == 0 || st.sweepIntervalMs == 0) return;
 
-        // No "near the end of the step" cutoff: the spawn cadence runs on a continuous
-        // absolute-time grid (see fireStep) that carries across loop restarts of this
-        // step, so a sweep due near the boundary simply continues into the next cycle
-        // with its full travel time — keeping the gap between the last sweep of one
-        // cycle and the first of the next equal to every other gap.
         if (nowMs < st.nextSpawnMs) return;
 
         // Resolve appearance once per due batch (same as fireStep's runner colour/target).
@@ -807,9 +827,11 @@ namespace Lightnet {
         ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
         uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
 
-        uint8_t spawned = 0;
+        uint8_t density  = step.params[RUNNER_PARAM_DENSITY];
+        uint8_t maxBurst = (density == 0) ? 1 : MAX_CONCURRENT_SWEEPS;
+        uint8_t spawned  = 0;
 
-        while (nowMs >= st.nextSpawnMs && spawned < MAX_CONCURRENT_SWEEPS) {
+        while (nowMs >= st.nextSpawnMs && spawned < maxBurst) {
             uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
 
             for (uint8_t i = 0; i < st.sweepPanelCount; i++) {
@@ -852,7 +874,11 @@ namespace Lightnet {
             scheduler.pace(300);
             scheduler.sendGroupStart(group);
 
-            st.nextSpawnMs += st.sweepIntervalMs;
+            // density=0: one sweep in flight — schedule the next from *now*, never replay
+            // missed grid slots (which would stack multiple visible waves/ripples).
+            st.nextSpawnMs = (density == 0)
+                ? (nowMs + (uint32_t)st.sweepIntervalMs)
+                : (st.nextSpawnMs + (uint32_t)st.sweepIntervalMs);
             spawned++;
         }
     }
@@ -1289,6 +1315,19 @@ namespace Lightnet {
         }
 
         return { 255, 255, 255 };
+    }
+
+    void ScenePlayer::reresolvePalettes(const char *newPal, const uint8_t *baseColorBytes)
+    {
+        Protocol::ColorRGB rgb[BASE_COLORS_COUNT];
+        if (baseColorBytes) {
+            for (uint8_t i = 0; i < BASE_COLORS_COUNT; i++) {
+                rgb[i].r = baseColorBytes[i * 3 + 0];
+                rgb[i].g = baseColorBytes[i * 3 + 1];
+                rgb[i].b = baseColorBytes[i * 3 + 2];
+            }
+        }
+        reresolvePalettes(newPal, baseColorBytes ? rgb : nullptr);
     }
 
     void ScenePlayer::reresolvePalettes(const char *newPal, const Protocol::ColorRGB *newColors)

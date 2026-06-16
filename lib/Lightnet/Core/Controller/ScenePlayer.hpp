@@ -137,6 +137,7 @@ namespace Lightnet {
             // using the new palette/colors. Pass nullptr for either argument to leave it unchanged.
             // Called when the active appearance palette or base colors change while a scene is playing.
             void reresolvePalettes(const char *newPal, const Protocol::ColorRGB *newColors);
+            void reresolvePalettes(const char *newPal, const uint8_t *baseColorBytes);
 
             // Change playback speed of the current scene. Takes effect on next step.
             void setSpeed(float s)
@@ -242,6 +243,8 @@ namespace Lightnet {
             // contributing to the composite — used when a layer hits a GAP step or finishes
             // its sequence, so a held last frame doesn't permanently cover lower layers.
             void stopLayerGroup(uint8_t layerIdx);
+            // Halt WAVE/RIPPLE/CHASE pooled sweeps on this layer's panels and clear the cache.
+            void stopSpawnSweeps(uint8_t layerIdx);
             // RUN_RAIN / RUN_SPARKLE / RUN_MATRIX / RUN_WAVE / RUN_RIPPLE / RUN_CHASE: emit
             // drops/sweeps due this tick (rate-gated). Called from tick() while the spawner
             // step is the layer's current RUNNING step.
