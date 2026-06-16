@@ -66,9 +66,9 @@ All firmware code lives under `lib/Lightnet/`.
 | `LightnetPanelEdge` | Per-edge state machine: `IDLE → WELCOME_SENT → BOOTING → READY`. `updateEdgeState()` is ISR-safe (enqueues to ring buffer); `processEdgeState()` drains in main loop |
 | `LightnetPinger` | GPIO ping pulses. `HANDSHAKE` = 500 µs, `DONE` = 2000 µs. Owns an 8-entry ring buffer. |
 | `Protocol` | All I²C packet structs (`__packed__`), CRC validation, `setPacketMeta()` |
-| `LightnetConfig` | Cross-cutting constants: `LIGHTNET_MAX_PANELS=100`, `PALETTE_STOPS=16`, `BASE_COLORS_COUNT=3` |
-| `ColorRef` | 4-byte tagged union: `kind=0` inline RGB, `kind=1` palette position, `kind=2` base-color slot |
-| `Palette` | `GradientStop` struct (pos+RGB, 4 B) and `samplePalette()` linear interpolation. No FastLED dependency |
+| `LightnetConfig` | Cross-cutting constants in `Core/Common/LightnetConfig.hpp`: `LIGHTNET_MAX_PANELS` (100 on ESP32, 32 on ESP8266), `PALETTE_STOPS=16`, `BASE_COLORS_COUNT=3` |
+| `ColorRef` | 4-byte tagged union in `Core/Common/ColorRef.hpp`: `kind=0` inline RGB, `kind=1` palette position, `kind=2` base-color slot |
+| `Palette` | `GradientStop` struct (pos+RGB, 4 B) and `samplePalette()` in `Core/Common/Palette.hpp` |
 
 !!! note "`busIsDisabled` is a static shared flag"
     `LightnetPinger::busIsDisabled` is **static** — shared across all pinger instances. It is set during any ping so all pingers ignore ISR samples while a pulse is being driven. Do not instantiate multiple pingers that need independent bus control.
@@ -83,22 +83,29 @@ All firmware code lives under `lib/Lightnet/`.
 | `PanelsController` | Unicast commands to panels: color, on/off, configuration, enter-bootloader |
 | `Panel` / `Edge` | In-memory data model of discovered topology |
 
-**Animations/**
+**Animations/** (device glue — demos only)
 
 | File | Purpose |
 |---|---|
-| `AnimationScheduler` | `playOnPanels()` PREPARE+START sequence; `sendPrepareToPanel()`/`sendGroupStart()` for compiled runners; `tick()` drives any streaming demo runners |
-| `AnimationRunner` | Base class for the streaming runner classes (`WaveRunner`/`RippleRunner`/`ChaseRunner`) — used by demos; scenes compile runners to per-panel pulses instead |
-| `RunnerCompile.hpp` | Inverts the runner envelopes to a per-panel local PULSE (onset + shape) |
+| `AnimationRunner` | Base class for the streaming runner classes (`WaveRunner`/`RippleRunner`/`ChaseRunner`) — used by built-in demos only; scenes compile runners instead |
 
-**Scenes/**
+**Scenes/** (device glue)
+
+| File | Purpose |
+|---|---|
+| `SceneStore` | Filesystem persistence for scene files at `/scenes/<name>.json` |
+| `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
+
+### Core/Controller/ — portable scene engine (ESP + native + mobile C ABI)
 
 | File | Purpose |
 |---|---|
 | `ScenePlayer` | Loads and ticks multi-layer scenes; resolves palettes, fires steps |
 | `SceneParser` | Parses scene JSON into `SceneLayer[]` structs |
-| `SceneStore` | Filesystem persistence for scene files at `/scenes/<name>.json` |
-| `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
+| `AnimationScheduler` | `playOnPanels()` PREPARE+START sequence; `sendPrepareToPanel()`/`sendGroupStart()` for compiled runners; `tick()` drives any streaming demo runners |
+| `RunnerCompile.hpp` | Inverts runner envelopes to a per-panel local PULSE (onset + shape) |
+| `PanelSelector` / `PanelSelectorParser` | Panel targeting grammar → RPN → resolved indices |
+| `TopologyIndex` / `PanelGraph` / `PanelGeometry` / `PanelField` | Topology views, geometric layout, runner directionality |
 
 **Palettes/**
 
@@ -121,6 +128,9 @@ All firmware code lives under `lib/Lightnet/`.
 | `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `TopologyServer` | `GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags` | Logical root + panel tags (backed by `TopologyConfigStore`) |
+| `PanelServer` | `GET /api/panels`, `GET /api/panels/edges`, `PUT /api/panels/*` | Per-panel on/color control |
+| `StateServer` | `GET /api/state`, `POST /api/state/power` | Runtime power state + scene playback status |
+| `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Persistent boot behaviour (`powerStateOnBoot`) |
 
 !!! note "Mutating endpoints defer to the main loop (§8)"
     Every handler that emits I²C packets (scene play/stop/speed, one-shot/trigger, appearance,
@@ -144,7 +154,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|
 | `LightnetPanel` | Main panel state machine; handles I²C packets, drives edge registration |
 | `RGBController` | FastLED wrapper for the single WS2812 LED on PD5. `globalBrightness` multiplier on all output |
-| `AnimationPlayer` | Layer compositor: `slots[4]` composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
+| `AnimationPlayer` | Layer compositor: `slots[MAX_ANIM_SLOTS]` (18) composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
 | `BootloaderBridge` | Writes EEPROM boot-magic `0xB007` then software-jumps to twiboot |
 
 ### Controller/API/websocket/ — WebSocket (controller only)
@@ -218,8 +228,9 @@ I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). 
 
 ### AnimationPlayer (panel side) — layer compositor, shared with mobile
 
-`lib/Lightnet/Core/Anim/AnimationPlayer.{hpp,cpp}` (+ its pure deps `AnimationTypes`, `ColorCompose`,
-`ColorRef`, `Palette`, `LightnetConfig`, `ProtocolTypes`) is **portable, host-compilable C++** — no
+`lib/Lightnet/Core/Panel/AnimationPlayer.{hpp,cpp}` (+ its pure deps in `Core/Common/`:
+`AnimationTypes`, `ColorRef`, `Palette`, `LightnetConfig`, `ProtocolTypes`, and
+`Core/Panel/ColorCompose.hpp`) is **portable, host-compilable C++** — no
 Arduino/FastLED, time passed as `uint16_t now`, output pulled via `currentColor()`/`takeDirty()`.
 It is the **single implementation** of panel-local animation math, compiled into:
 
@@ -247,7 +258,7 @@ It is the **single implementation** of panel-local animation math, compiled into
   slots hold their last value.
 - `PACKET_SET_BACKGROUND` sets the compositor base (default black; idle panels display it).
 - Progress interpolation: `progress_q8 = (elapsed * 256) / durationMs` (q8 fixed-point). The pure
-  compose/HSV/fold math lives in `Core/Anim/ColorCompose.hpp` (natively tested, shared with mobile
+  compose/HSV/fold math lives in `Core/Panel/ColorCompose.hpp` (natively tested, shared with mobile
   via `Core/CApi`).
 - `resolveColorRef()` called every tick — palette/colour changes take effect next frame with no re-prepare.
 
@@ -278,7 +289,7 @@ traffic that previously grew with panel count.
 `compile*` geometry feeds `compileRepeating()`, which **swaps `colorFrom`/`colorTo`** (lit↔dark) so
 the rise→hold→fall envelope reads departing→dark-hold→approaching with `FLAG_LOOP` — true dark gaps
 using only the existing PULSE/loop mechanism. WHEEL always uses this engine (`compileWheel` via
-`compileRepeatingAsym`). `SCENE_SCHEMA_VERSION` is 7.
+`compileRepeatingAsym`). `SCENE_SCHEMA_VERSION` is 8.
 
 The streaming `WaveRunner`/`RippleRunner`/`ChaseRunner` classes remain for the built-in demos.
 
@@ -307,7 +318,7 @@ natively tested in `test_runner_spawn`; the stateful real-time behaviour is veri
 |---|---|
 | N panels, all panel-local (BREATHE etc.) | **0 µs/frame** during animation |
 | 30 panels, REACTIVE, 120 BPM | **~140 µs per beat** (0 µs between beats) |
-| 3-wide WaveRunner | **≤ 600 µs/frame** |
+| 3-wide WaveRunner (demo streaming path only) | **≤ 600 µs/frame** |
 | Setup: PREPARE × 30 panels + 2 General Calls | **~6.2 ms** one-time |
 
 ---
@@ -339,7 +350,7 @@ The Panel ISR calls `LNPanel.updateEdgesStates((PINB >> 1) & 0x07, TCNT1)` direc
 1. `PanelsInitializer::start()` — initialises I²C as master, attaches CHANGE interrupt on the edge GPIO
 2. `PanelsInitializer::boot()` runs every main-loop iteration:
    - Drives `LightnetPanelEdge` state machines
-   - While a panel is in `STATE_BOOTING`, pulls address `0x78` every 25 ms
+   - While a panel is in `STATE_BOOTING`, pulls address `0x78` every 20 ms
 3. Panel: detects HANDSHAKE → replies HANDSHAKE → enters `STATE_REGISTER_EDGES` → calls `LNBus.begin(0x78)`
 4. Controller pull delivers `PACKET_INITIALIZATION_PULL`; panel responds with `PacketRegisterEdge` (panel index + edge index)
 5. Panel repeats steps 3–4 for each non-parent edge, then sends DONE to its parent

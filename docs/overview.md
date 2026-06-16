@@ -4,7 +4,7 @@ icon: material/information-outline
 
 # Firmware Overview
 
-Lightnet is embedded firmware for a tree network of addressable-LED panels. One ESP8266/ESP32 **controller** discovers and drives up to **100 ATmega panels** (the firmware cap; the I²C address space allows more) over I²C. The controller exposes Wi-Fi APIs; panels run animations locally after a single setup packet.
+Lightnet is embedded firmware for a tree network of addressable-LED panels. One ESP8266/ESP32 **controller** discovers and drives up to **100 ATmega panels** on ESP32 (**32** on ESP8266 — the firmware cap; the I²C address space allows more) over I²C. The controller exposes Wi-Fi APIs; panels run animations locally after a single setup packet.
 
 !!! info "New to Lightnet?"
     Start with the **[Get Started](../getting-started/index.md)** guide on the hub — it walks you through hardware, toolchain, and the first flash before you dive into these reference pages.

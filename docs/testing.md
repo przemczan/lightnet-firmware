@@ -51,13 +51,13 @@ pio test -e native -vvv                  # verbose (compiler output)
 | `test_runner_compile` | [`test/test_runner_compile/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_runner_compile/test_main.cpp) | `RunnerCompile` — WAVE/CHASE/RIPPLE/REPEATING/WHEEL/BOUNCE onset/peak/end timing and lit-coord, zero-width/zero-period edge cases |
 | `test_runner_spawn` | [`test/test_runner_spawn/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_runner_spawn/test_main.cpp) | `RunnerSpawn` — deterministic RNG, due-count rate/burst-cap, sweep spawn schedule (`count`), pool round-robin, path building, SPARKLE/RAIN spawn timing |
 | `test_compositor` | [`test/test_compositor/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_compositor/test_main.cpp) | `Core/Panel/ColorCompose` — blend modes (opaque/add/multiply/screen/darken/overlay/difference/subtract/max), HSV roundtrip, dim/desaturate/brighten/saturate/hue-shift/invert modifiers, layer fold |
-| `test_panel_anim` | [`test/test_panel_anim/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_anim/test_main.cpp) | Portable `Core/Anim/AnimationPlayer` — time-as-parameter (deterministic FADE), `setColorDirect` ungated (delta-gate regression), `FLAG_CURRENT_COLOR_*` reads current output, SOLID hold |
+| `test_panel_anim` | [`test/test_panel_anim/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_panel_anim/test_main.cpp) | Portable `Core/Panel/AnimationPlayer` — time-as-parameter (deterministic FADE), `setColorDirect` ungated (delta-gate regression), `FLAG_CURRENT_COLOR_*` reads current output, SOLID hold |
 | `test_spsc_queue` | [`test/test_spsc_queue/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_spsc_queue/test_main.cpp) | Lock-free `Core/Common/SpscByteQueue` — FIFO order, full/empty edges, wrap-boundary straddle integrity, panel-sized (70 B) max record, 200k-iteration fuzz vs. a reference model |
 | `test_main_loop_queue` | [`test/test_main_loop_queue/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_main_loop_queue/test_main.cpp) | `Utils/MainLoopQueue` — FIFO post/drain, POD arg round-trip, zero-length args, null-fn and oversized-args rejection, full-queue recovery |
 | `test_scene_player` | [`test/test_scene_player/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_player/test_main.cpp) | `ScenePlayer` end-to-end via a mock `IPacketSink` — SOLID scene emits PREPARE+START, `stop()` emits control packet and clears playing state |
 | `test_scene_capi` | [`test/test_scene_capi/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_capi/test_main.cpp) | Scene C ABI (`Core/CApi/controller_core_c.h`) — load+play emits packets, bad-JSON rejection, stop emits control, mirror-batch drain |
 
-257 tests total, ~9 s wall time.
+255 tests total, ~11 s wall time.
 
 ---
 

@@ -4,7 +4,7 @@ icon: material/shimmer
 
 # Animations & Scenes
 
-Lightnet's animation system lets you compose multi-layer light shows in JSON and play them across any number of panels. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Controller runners are computed on the ESP each frame and stream color values over I²C.
+Lightnet's animation system lets you compose multi-layer light shows in JSON and play them across any number of panels. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Most controller runners compile to per-panel local pulses (one setup burst); RAIN, SPARKLE, and MATRIX spawn stochastic drops over the step window.
 
 ---
 
@@ -15,7 +15,7 @@ Scene
 └── Layer (group ID, panel target, optional palette)
     └── Step  →  Step  →  Step …
         ├── Panel-local  (BREATHE, PULSE, WAVE …)  runs on ATmega
-        └── Controller runner  (WAVE, RIPPLE, CHASE, WHEEL, BOUNCE, RAIN, SPARKLE, MATRIX)  on ESP
+        └── Controller runner  (WAVE, RIPPLE, CHASE, WHEEL, BOUNCE, RAIN, SPARKLE, MATRIX)  compiled/spawned on ESP
 ```
 
 Multiple layers within a scene run in parallel. Each layer targets its own set of panels and belongs to a **group ID** so the controller can start them simultaneously with a single I²C broadcast.
@@ -40,13 +40,16 @@ Run entirely on the ATmega. The controller sends one setup packet; the panel han
 
 ## Controller runners
 
-Computed on the ESP each frame. Scaled color values are streamed over I²C.
+Most runners compile to one local PULSE per panel at step start (zero per-frame I²C). RAIN, SPARKLE, and MATRIX are particle spawners that emit drop packets over the step window.
 
 | Runner | What it does |
 |---|---|
 | `WAVE` | Triangular colour envelope sweeps across the panel list |
 | `RIPPLE` | Colour ring expands outward from an origin panel |
 | `CHASE` | A single lit panel travels through the panel list |
+| `WHEEL` | Rotating-blade sweep from a pivot |
+| `BOUNCE` | Wave band whose peak reflects at field edges |
+| `RAIN` / `SPARKLE` / `MATRIX` | Stochastic particle spawners (drops/flashes/matrix rain) |
 
 ---
 

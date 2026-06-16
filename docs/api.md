@@ -310,7 +310,7 @@ Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
 | `POST` | `/api/scenes/stop` | — | `202 {}` |
 | `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `202 {"ok":true,"speed":2.0}` |
 
-Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (§2.5).
+Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (§2.9).
 
 ---
 
@@ -471,7 +471,7 @@ Values outside `0–2` return `422`.
 
 Runtime app state — power state, scene playback status, and the most recently played scene's
 name. Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial
-`isOn` value on boot is derived from `powerStateOnBoot` (see §2.7); `lastPlayedScene` /
+`isOn` value on boot is derived from `powerStateOnBoot` (see §2.8); `lastPlayedScene` /
 `lastPlayedSceneIsStored` are set whenever a scene is played via `POST /api/scenes/play/one-shot`
 or `POST /api/scenes/:name/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` is `false` when
 `lastPlayedScene` refers to the hidden `@one-shot` scene rather than a device-stored scene.
@@ -510,4 +510,4 @@ or `POST /api/scenes/:name/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` i
     1. `protocolVersion` is `0x0001`
     2. Header CRC covers the first 7 bytes (`type` + `protocolVersion` + `nonce`)
     3. Payload CRC covers only the payload bytes (not `PacketMeta`)
-    4. Panel address is a valid panel index (0-based, returned by GET_PANELS_STATES)
+    4. Panel address is a valid panel index (1-based, as returned by GET_PANELS_STATES / `GET /api/panels`)

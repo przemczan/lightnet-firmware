@@ -8,7 +8,7 @@ Serial debug macros, common user-facing symptoms, and how to inspect panel state
 
 ## Serial debugging
 
-`DEBUG=1` is set globally in `common_env_data.build_flags`, so the firmware is verbose by default. All debug macros compile to **no-ops** when `DEBUG=0`, so there is no cost in production builds.
+`DEBUG=0` by default in `src/controller.config.hpp` / `src/panel.config.hpp` (copied from the `*.example` files). Set `#define DEBUG 1` in your config header to enable verbose serial output. All debug macros compile to **no-ops** when `DEBUG=0`, so there is no cost in production builds.
 
 | Macro | Expands to (DEBUG=1) | Use |
 |---|---|---|
@@ -24,7 +24,7 @@ pio device monitor -e controller_wemos
 
 ### Per-frame panel LED log
 
-For per-frame LED output logging on the panel, set `RGBC_DEBUG 1` in `Panel/RGBController.cpp`. ATmega only; adds ~200 bytes of flash.
+For per-frame LED output logging on the panel, set `RGBC_DEBUG 1` in `lib/Lightnet/Panel/RGBController.cpp`. ATmega only; adds ~200 bytes of flash.
 
 ### Inspecting panel state from a client
 

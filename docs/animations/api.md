@@ -54,19 +54,13 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 | Method | Path | Body / Response |
 |---|---|---|
 | `GET` | `/api/appearance` | `{"brightness":N,"baseColors":["#..","#..","#.."],"palette":"..."}` |
-| `PUT` | `/api/appearance` | Same shape, any subset of fields |
-| `GET` | `/api/appearance/brightness` | `{"value":N}` |
-| `PUT` | `/api/appearance/brightness` | `{"value":N}` — N: 0–255 |
-| `GET` | `/api/appearance/colors` | `{"primary":"#..","secondary":"#..","tertiary":"#.."}` |
-| `PUT` | `/api/appearance/colors` | Any subset of `primary`/`secondary`/`tertiary` |
-| `GET` | `/api/appearance/palette` | `{"palette":"lava"}` |
-| `PUT` | `/api/appearance/palette` | `{"palette":"lava"}` — must be a known palette name |
+| `PATCH` | `/api/appearance` | Any subset of `brightness`, `baseColors`, `palette` — returns `202 {}` (broadcast applied on the main loop) |
 
 ### Palettes (library management)
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `GET` | `/api/palettes` | `["rainbow","lava",...]` |
+| `GET` | `/api/palettes` | `{"rainbow":{...},"lava":{...},...}` — map of name → Palette JSON |
 | `GET` | `/api/palettes/:name` | Palette JSON |
 | `POST` | `/api/palettes` | Palette JSON body |
 | `DELETE` | `/api/palettes/:name` | 403 for built-ins |
@@ -76,7 +70,7 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 | Method | Path | Body / Response |
 |---|---|---|
 | `POST` | `/api/scenes` | Scene JSON body — saves to `/scenes/<name>.json` |
-| `GET` | `/api/scenes` | `[{"name":"sunset"},...]` |
+| `GET` | `/api/scenes` | `[{"name":"sunset","size":412},...]` |
 | `GET` | `/api/scenes/:name` | Scene JSON (raw file passthrough) |
 | `DELETE` | `/api/scenes/:name` | — |
 
@@ -186,7 +180,7 @@ For chained steps on a notification (e.g. pulse → fade), use a short scene via
 }
 ```
 
-Change colour mid-flight: `PUT /api/appearance/colors {"primary":"#0044FF"}` — the breathe immediately shifts to blue on the next frame.
+Change colour mid-flight: `PATCH /api/appearance {"baseColors":["#0044FF","#FF8800","#000000"]}` — the breathe immediately shifts to blue on the next frame.
 
 ---
 
@@ -271,7 +265,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
   "layers": [
     {
       "group": 1,
-      "panels": [0, 1, 2, 3, 4],
+      "panels": [1, 2, 3, 4, 5],
       "palette": "ocean",
       "sequence": [
         {
@@ -284,7 +278,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
     },
     {
       "group": 2,
-      "panels": [5, 6, 7, 8, 9],
+      "panels": [6, 7, 8, 9, 10],
       "palette": "lava",
       "sequence": [
         {
@@ -300,7 +294,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
 }
 ```
 
-Panels 0–4 cycle through ocean hues. Panels 5–9 breathe lava orange. Spatial palette override is valid because the two panel sets don't overlap.
+Panels 1–5 cycle through ocean hues. Panels 6–10 breathe lava orange. Spatial palette override is valid because the two panel sets don't overlap.
 
 ---
 
@@ -455,7 +449,7 @@ These apply to `POST /api/scenes` and `POST /api/scenes/play/one-shot`. All viol
 | `group` | Name (string) or number 1–254; unique within the scene |
 | Step `id` | Optional, `[a-zA-Z0-9_-]` (no `:`), unique within the layer's sequence (`schemaVersion: 8`+) |
 | `startAfter` | `"group"` or `"group:stepId"` (`schemaVersion: 8`+); must name an existing group (and step, if given); no self-reference, no dependency cycles |
-| `async` | Bool; loops the layer independently of the barrier. No effect when `startAfter` is set |
+| `async` | Bool, `"loop"`, or `"free"`; loops the layer independently of the barrier (`"free"` opts out entirely). No effect when `startAfter` is set |
 | `type` + `runner` | Mutually exclusive — cannot both be set |
 | Step with neither `type` nor `runner` | Treated as a **gap** (timed no-op); only `duration` is used |
 | `type` value | Must be a known animation type string |

@@ -4,7 +4,7 @@ icon: material/book-open-outline
 
 # Concepts
 
-The Lightnet animation system lets you define multi-layer, palette-driven light shows in JSON and send them to panels over HTTP. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Controller runners are computed on the ESP and stream per-panel color values each frame.
+The Lightnet animation system lets you define multi-layer, palette-driven light shows in JSON and send them to panels over HTTP. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Most controller runners compile to per-panel local pulses at step start; RAIN, SPARKLE, and MATRIX spawn stochastic drops over the step window.
 
 The palette and scene model draws inspiration from the [WLED](https://github.com/Aircoookie/WLED) project.
 
@@ -19,8 +19,8 @@ A **scene** is the top-level playback unit. It groups one or more layers that ru
 ```mermaid
 graph TD
   S[Scene] --> L1["Layer 1\ngroup 1 · all panels"]
-  S --> L2["Layer 2\ngroup 2 · panels 0–5"]
-  S --> L3["Layer 3\ngroup 3 · panels 6–11"]
+  S --> L2["Layer 2\ngroup 2 · panels 1–6"]
+  S --> L3["Layer 3\ngroup 3 · panels 7–12"]
   L1 --> S1[Step: TRANSITION]
   L1 --> S2[Step: BREATHE loop]
   L2 --> S3[Step: WAVE runner]
@@ -81,7 +81,7 @@ step (the named step, or the sequence's last step if none is named) is infinite
 A **step** is a single animation segment within a layer's sequence. Steps are executed in order, advancing automatically when `durationMs` elapses. A step can be:
 
 - A **panel-local animation** (`"type": "BREATHE"`, etc.) — runs entirely on the ATmega with zero per-frame I²C traffic
-- A **controller runner** (`"runner": "WAVE"`, etc.) — computed on the ESP each frame, sends per-panel color values over I²C
+- A **controller runner** (`"runner": "WAVE"`, etc.) — compiled to per-panel local pulses (WAVE/RIPPLE/CHASE/WHEEL/BOUNCE) or driven as a particle spawner over the step window (RAIN/SPARKLE/MATRIX)
 - A **gap** (no `type` and no `runner`, only `duration`) — a timed no-op used to offset a layer's start or pause between animations
 
 ### Gap steps
@@ -160,7 +160,7 @@ A modifier is a panel-local step (any `type` except `HUE_CYCLE`) with `animates`
 | `dim` | brightness scale down toward black (255 = full) | 255 |
 | `desaturate` | saturation scale down toward grey (255 = unchanged) | 255 |
 | `hue` | hue rotation (0…255 = full turn) | 0 |
-| `invert` | cross-fade toward RGB-inverted colour (255 = fully inverted) | 0 |
+| `invert` | cross-fade toward RGB-inverted colour (always ramps 0→255; `from`/`to` ignored) | 0 |
 | `brighten` | push brightness up toward white (255 = white) | 0 |
 | `saturate` | push saturation up toward fully saturated (255 = max) | 0 |
 
@@ -240,7 +240,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 ```json
 {
   "group": 2,
-  "panels": [0, 1, 2],
+  "panels": [1, 2, 3],
   "palette": "ocean",
   "sequence": [...]
 }
@@ -326,7 +326,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 | `blend` | No | `opaque` (runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
 | `palette` | No | scene default | Per-layer palette override. |
 | `startAfter` | No | — | Group name of the layer this one waits for, optionally `:stepId` for a specific step (`schemaVersion: 8`+); unset ⇒ starts at scene start. |
-| `async` | No | `false` | When `true`, the layer loops on its own, independent of the scene-cycle barrier (see below). Ignored if `startAfter` is set. |
+| `async` | No | `false` | When `true` or `"loop"`, the layer loops on its own, independent of the scene-cycle barrier (see below). `"free"` opts the layer out of the barrier entirely. Ignored if `startAfter` is set. |
 | `sequence` | Yes | — | Ordered array of steps (1–12). |
 
 ### Panel targeting
@@ -376,7 +376,7 @@ Samples the active palette (the one pushed to the panel for this layer) at posit
 "color": {"useColor": 2}   // tertiary
 ```
 
-References one of the three scene (or global) base colours. The panel resolves against its current `baseColors` state. Updating base colours via `PUT /api/appearance/colors` while an animation using `useColor` is running will change the displayed colour on the next frame. This is `ColorRef{kind=2}`.
+References one of the three scene (or global) base colours. The panel resolves against its current `baseColors` state. Updating base colours via `PATCH /api/appearance` while an animation using `useColor` is running will change the displayed colour on the next frame. This is `ColorRef{kind=2}`.
 
 ---
 
@@ -425,17 +425,22 @@ duration, then the sequence advances).
 
 ### Async layers
 
-A layer marked `"async": true` opts **out** of the barrier and loops on its own
-cadence — restarting its sequence the moment it finishes, regardless of what the
-other groups are doing. Use it for an independent background effect alongside a
-choreographed foreground.
+A layer's `async` field controls how it interacts with the scene-cycle barrier:
 
-- The barrier is governed only by the **synchronous** (non-async) layers. Async
-  layers neither block it nor get reset by it.
-- A scene that contains an async layer keeps playing until explicitly stopped
-  (the async layer never "finishes"). With `loop:false`, the synchronous layers
+| Value | Behaviour |
+|---|---|
+| `false` / absent (default) | Participates in the barrier normally |
+| `true` / `"loop"` | Loops on its own cadence — restarting its sequence the moment it finishes, regardless of other groups |
+| `"free"` | Completely independent — the scene neither waits for it nor resets it at the barrier |
+
+Use `"loop"` for an independent background effect alongside a choreographed foreground. Use
+`"free"` when a layer should run forever regardless of scene stop/loop (see
+[Scene Authoring → Async modes](scene-authoring.md#3-how-playback-works--timing--choreography)).
+
+- The barrier is governed only by **synchronous** layers (those without async, or with async other than `"free"`). Async layers neither block it nor get reset by it (except `"free"` layers, which the barrier ignores entirely).
+- A scene that contains a looping async layer keeps playing until explicitly stopped
+  (that layer never "finishes"). With `loop:false`, the synchronous layers
   play once and hold while the async layer keeps looping.
-- A scene where **every** layer is async simply free-runs all of them forever.
 - `async` is ignored on a layer that also sets `startAfter` — a gated layer is
   part of the dependency graph, not independent.
 

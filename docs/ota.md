@@ -29,7 +29,7 @@ pio run -e atmega328p_bootloader
 # Hex file is in `.pio/build/atmega328pb_bootloader/firmware.hex`
 ```
 
-- Lives in the **4 KB boot section** at `0x7C00` (ATmega328PB/P)
+- Lives in the **4 KB boot section** at `0x7000` (ATmega328PB/P)
 - TWI address: `0x29` (compiled in via `-DTWI_ADDRESS=0x29`)
 - Stays in bootloader only when EEPROM byte 510 contains `0xB007` (cleared after first read)
 
@@ -39,13 +39,13 @@ pio run -e atmega328p_bootloader
 sequenceDiagram
   participant C as Controller
   participant P as Panel App
-  participant BL as twiboot (0x7C00)
+  participant BL as twiboot (0x7000)
 
   C->>P: PACKET_ENTER_BOOTLOADER (type 201, token 0xB0)
   P->>P: Write 0xB007 to EEPROM[510]
   P->>P: Disable TWI + PCINT interrupts
   P->>P: Zero SRAM 0x0100–0x04FF
-  P->>BL: Software jump to 0x7C00
+  P->>BL: Software jump to 0x7000
   BL->>BL: Read EEPROM[510] == 0xB007 → stay resident, clear magic
   C->>BL: CMD_WAIT (0x00) — verify presence
   loop per 128-byte page

@@ -20,7 +20,7 @@ graph TD
   D --> E[Panel E — edge 0]
 ```
 
-The firmware caps a single controller at **100 panels** (`LIGHTNET_MAX_PANELS` in `LightnetConfig.hpp`). The I²C 7-bit address space allows up to 254 in theory; the cap leaves headroom in SRAM and on the bus.
+The firmware caps a single controller at **100 panels** on ESP32 (`LIGHTNET_MAX_PANELS` in `lib/Lightnet/Core/Common/LightnetConfig.hpp`; **32 on ESP8266** to fit heap/stack budgets). The I²C 7-bit address space allows up to 254 in theory; the cap leaves headroom in SRAM and on the bus.
 
 ---
 
@@ -37,7 +37,7 @@ The firmware caps a single controller at **100 panels** (`LIGHTNET_MAX_PANELS` i
     | I²C SCL | GPIO 5 | GPIO 5 |
     | Panel power enable | GPIO 14 | GPIO 21 |
 
-    Defined in `src/controller/main.cpp`.
+    Defaults in `src/controller/config.hpp` (override in `src/controller.config.hpp`).
 
 === "Panel (ATmega)"
 
@@ -56,7 +56,7 @@ The firmware caps a single controller at **100 panels** (`LIGHTNET_MAX_PANELS` i
 
 The ATmega328P/PB has **2048 B SRAM total**, shared statically between everything below — there
 is no separate heap budget worth relying on. `MAX_ANIM_SLOTS`
-(`lib/Lightnet/Core/Anim/AnimationTypes.hpp`) is the one constant most likely to push the panel
+(`lib/Lightnet/Core/Common/AnimationTypes.hpp`) is the one constant most likely to push the panel
 over that limit, because it's the only one that scales with a number the firmware author picks
 freely.
 

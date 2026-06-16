@@ -86,9 +86,9 @@ All environments are defined in `platformio.ini`.
 
     | Environment | Board | Uploader | Bootloader | Notes |
     |---|---|---|---|---|
-    | `panel_nanoatmega328` | Arduino Nano (ATmega328) | Arduino serial | Arduino | Via controller serial bridge |
-    | `panel_atmega328pb` | ATmega328PB | USBasp | twiboot at `0x7C00` | `-D` flag preserves bootloader on erase |
-    | `panel_atmega328p` | ATmega328P | USBasp | twiboot at `0x7C00` | Same binary as 328PB |
+    | `panel_atmega328p_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
+    | `panel_atmega328pb` | ATmega328PB | USBasp | twiboot at `0x7000` | `-D` flag preserves bootloader on erase |
+    | `panel_atmega328p` | ATmega328P | USBasp | twiboot at `0x7000` | Same binary as 328PB |
 
 === "Bootloader (one-time)"
 
@@ -106,7 +106,7 @@ All environments are defined in `platformio.ini`.
 
 ```
 lfuse = 0xF7  — 16 MHz external full-swing crystal
-hfuse = 0xD0  — SPIEN, EESAVE, BOOTRST (boot from twiboot)
+hfuse = 0xD8  — SPIEN, EESAVE, BOOTRST (4 KB boot section at 0x7000)
 efuse = 0xFC  — BOD 4.3 V
 ```
 

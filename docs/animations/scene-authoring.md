@@ -679,7 +679,7 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 | Rule | Limit |
 |---|---|
 | Scene `name` | `[a-zA-Z0-9_-]`, 1–18 chars; required to save |
-| `schemaVersion` | ≤ firmware version (currently `7`) — else `409 schema_too_new` |
+| `schemaVersion` | ≤ firmware version (currently `8`) — else `409 schema_too_new` |
 | `speed` | clamped to 0.1–10.0 |
 | Layers per scene | 1–8 |
 | `group` | unique across layers; name or 1–254 (don't mix) |
