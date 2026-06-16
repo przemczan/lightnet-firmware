@@ -211,7 +211,7 @@ namespace Lightnet {
                 // RUN_WAVE/RUN_RIPPLE/RUN_CHASE spawner state: the directionality field and
                 // step params are computed once in fireStep and cached here; serviceSpawner
                 // fires one-shot sweeps (compileWave/compileChase/compileRipple) on a fixed
-                // schedule derived from `density` (RUNNER_PARAM_DENSITY).
+                // schedule derived from `count` (RUNNER_PARAM_COUNT).
                 uint8_t  sweepPanels[SCENE_MAX_RESOLVED_PANELS];
                 uint8_t  sweepCoord[SCENE_MAX_RESOLVED_PANELS];
                 uint8_t  sweepCoordFar[SCENE_MAX_RESOLVED_PANELS]; // geometric ripple only
@@ -220,7 +220,7 @@ namespace Lightnet {
                 bool     sweepHaveFar;
                 uint8_t  sweepWidth;
                 uint16_t sweepDurationMs; // each sweep's travel time == effectiveDurationMs of the step
-                uint16_t sweepIntervalMs; // ms between successive sweep spawns
+                uint8_t  sweepSpawnIndex; // how many spawns fired this step window (0..count)
                 uint32_t nextSpawnMs;     // absolute time of the next due sweep
             };
             LayerSpawnState spawnState[SCENE_MAX_LAYERS];
@@ -250,7 +250,7 @@ namespace Lightnet {
             // step is the layer's current RUNNING step.
             void serviceSpawner(uint8_t layerIdx, uint32_t nowMs);
             // RUN_WAVE / RUN_RIPPLE / RUN_CHASE: fire one-shot sweeps on the schedule cached
-            // in spawnState by fireStep (sweepIntervalMs/nextSpawnMs). Split out of
+            // in spawnState by fireStep (nextSpawnMs/sweepSpawnIndex). Split out of
             // serviceSpawner for readability — the RAIN/SPARKLE/MATRIX particle model and the
             // sweep model share only the group_id pool.
             void serviceSweepSpawner(uint8_t layerIdx, uint32_t nowMs);

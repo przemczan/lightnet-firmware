@@ -435,19 +435,18 @@ namespace Lightnet {
                 }
 
                 if (b) step.params[RUNNER_PARAM_FLAGS] |= RUNNER_FLAG_REVERSE;
-            } else if (strcmp(key, "density") == 0) {
-                // WAVE/RIPPLE/CHASE: spawn density 0-255 (fill-rate). 0 = one sweep per
-                // duration (gapless single-file train); 255 = MAX_CONCURRENT_SWEEPS in
-                // flight. See ScenePlayer::serviceSpawner.
+            } else if (strcmp(key, "count") == 0) {
+                // WAVE/RIPPLE/CHASE: sweeps per step window, 1-30. Spawn at
+                // duration/count * spawnIndex (zero-based). See ScenePlayer::serviceSweepSpawner.
                 long v;
 
-                if (!jsonReadUInt(p, end, &v) || v > 255) {
-                    strncpy(errMsg, "step.density: out of range", errLen);
+                if (!jsonReadUInt(p, end, &v) || v < 1 || v > 30) {
+                    strncpy(errMsg, "step.count: out of range", errLen);
 
                     return false;
                 }
 
-                step.params[RUNNER_PARAM_DENSITY] = (uint8_t)v;
+                step.params[RUNNER_PARAM_COUNT] = (uint8_t)v;
             } else if (strcmp(key, "repeatCount") == 0 || strcmp(key, "waves") == 0) {
                 // RAIN/SPARKLE/MATRIX: drops/flickers per second (0 or 1 = one per duration).
                 long v;
@@ -458,7 +457,7 @@ namespace Lightnet {
                     return false;
                 }
 
-                step.params[RUNNER_PARAM_DENSITY] = (uint8_t)v;
+                step.params[RUNNER_PARAM_WAVES] = (uint8_t)v;
             } else if (strcmp(key, "speed") == 0) {
                 // RAIN/SPARKLE only: drop-fall / flash period in ms (0-65535). When set, `duration`
                 // becomes the play window and this is the constant rate (snapped in fireStep to

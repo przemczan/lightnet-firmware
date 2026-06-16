@@ -63,22 +63,23 @@ namespace Lightnet {
         return count;
     }
 
-    // ---- WAVE/RIPPLE/CHASE sweep-spawn interval -----------------------------------------------
-    // `density` (0-255) is a "fill rate": 0 → one sweep per `durationMs` (gapless single-file
-    // train, the next sweep starts as the previous one finishes); 255 → floors at
-    // `durationMs / maxConcurrent` (maxConcurrent sweeps in flight). Linear in between.
-    inline uint16_t spawnSweepIntervalMs(uint16_t durationMs, uint8_t density, uint8_t maxConcurrent)
+    // ---- WAVE/RIPPLE/CHASE sweep-spawn schedule -----------------------------------------------
+    // `count` (1-30) is how many sweeps fire during the step window. Spawn times are evenly
+    // spaced: `durationMs / count * spawnIndex` (spawnIndex zero-based). Default/absent → 1.
+    inline uint8_t sweepSpawnCount(uint8_t countParam)
     {
-        if (durationMs == 0 || maxConcurrent == 0) return 0;
+        if (countParam == 0) return 1;
 
-        float interval = (float)durationMs * (1.0f - (float)density / 255.0f);
-        float floorMs  = (float)durationMs / (float)maxConcurrent;
+        return (countParam > 30) ? 30 : countParam;
+    }
 
-        if (interval < floorMs) interval = floorMs;
+    inline uint32_t spawnSweepStartMs(uint16_t durationMs, uint8_t count, uint8_t spawnIndex)
+    {
+        count = sweepSpawnCount(count);
 
-        uint16_t result = (uint16_t)(interval + 0.5f);
+        if (spawnIndex >= count) return durationMs;
 
-        return result ? result : 1;
+        return (uint32_t)durationMs * (uint32_t)spawnIndex / (uint32_t)count;
     }
 
     // ---- Group-id pool: round-robin a contiguous block [base, base+size). Cursor persists -----

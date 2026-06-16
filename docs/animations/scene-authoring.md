@@ -451,14 +451,14 @@ ignored) and no `speed`. See
 }
 ```
 
-**Repeating sweeps — `density`.** WAVE/RIPPLE/CHASE are always a continuous train of passes:
-each pass is a full one-shot sweep from the field's origin to its far edge, travelling over
-`duration`, and a new pass starts on a schedule controlled by `"density"` (0-255, default 0):
+**Repeating sweeps — `count`.** WAVE/RIPPLE/CHASE fire a fixed number of passes during the
+step window. Each pass is a full one-shot sweep from the field's origin to its far edge,
+travelling over `duration`. Passes are scheduled at evenly spaced offsets:
 
-- `density: 0` — one pass in flight at a time, gapless (the next starts as the previous finishes).
-- `density: 128` — roughly two passes in flight at once.
-- `density: 255` — as many passes in flight as the implementation allows (capped, see
-  [`types.md`](types.md)).
+`startMs = duration / count * spawnIndex` (spawnIndex zero-based, count 1–30, default 1).
+
+- `count: 1` — one sweep at the start of the step.
+- `count: 3` with `duration: 1000` — sweeps at 0 ms, 333 ms, and 666 ms.
 
 ```json
 {
@@ -466,7 +466,7 @@ each pass is a full one-shot sweep from the field's origin to its far edge, trav
   "source": "root",
   "color": { "palette": 96 },
   "rippleWidth": 1,
-  "density": 128,
+  "count": 3,
   "duration": 1500
 }
 ```

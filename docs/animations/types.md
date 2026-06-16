@@ -271,7 +271,7 @@ to the `max` blend so its dark phase is transparent over the background/layers b
 | `angle` | 0–359 | Geometric **axis** direction in degrees (`directionality:geometric` WAVE/CHASE/BOUNCE/RAIN, and always-geometric **MATRIX** — the direction drops fall; default 0). 2° resolution. Ignored by RIPPLE/SPARKLE. |
 | `reverse` | bool | Reverse the travel direction (RAIN: drops rise instead of fall). Ignored by SPARKLE. |
 | `waveWidth` / `rippleWidth` / `width` | 0–255 | Band / ring / tail / fade width (also settable as `params[0]`) — see each runner's table for what `width` means for it |
-| `density` | 0–255 | WAVE/RIPPLE/CHASE: spawn density of the continuous sweep train (`params[5]`, default 0). `0` = one sweep in flight at a time, gapless; `255` = up to `MAX_CONCURRENT_SWEEPS` sweeps in flight. Linear in between (`spawnSweepIntervalMs` in `RunnerSpawn.hpp`). Ignored by BOUNCE/WHEEL/RAIN/SPARKLE/MATRIX. |
+| `count` | 1–30 | WAVE/RIPPLE/CHASE: how many sweeps fire during the step window (`params[5]`, default 1). Spawn at `duration / count * spawnIndex` (zero-based). Ignored by BOUNCE/WHEEL/RAIN/SPARKLE/MATRIX. |
 | `repeatCount` / `waves` | 1–255 | **RAIN/SPARKLE/MATRIX** (particle spawners): the **spawn rate** — drops/flashes per **second**. `params[5]`. Default 1. |
 | `speed` | ms | **RAIN/MATRIX only.** The constant drop **fall-time** (one drop's trip down the field); `duration` is the play *window*, not the rate. SPARKLE ignores it (its flashes don't move). `0`/absent ⇒ a 1000 ms default. |
 | `animates` | string | What the sweep modulates: `color` (default), `dim`, `desaturate`, `hue`, `invert`, `brighten`, or `saturate`. See [Modifier targets](#modifier-targets-animates). |

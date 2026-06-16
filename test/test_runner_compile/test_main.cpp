@@ -153,7 +153,7 @@ void test_repeating_zero_period_unlit()
 // NB: WAVE/RIPPLE/CHASE no longer have a `repeat`/repeatCount-multiplied repeating
 // compile — they are always spawner-driven (ScenePlayer::serviceSweepSpawner), firing
 // the one-shot compileWave/compileChase/compileRipple above repeatedly on a schedule
-// derived from `density`. The spawn-interval formula is unit-tested in test_runner_spawn.
+// derived from `count`. The spawn-time formula is unit-tested in test_runner_spawn.
 
 // ---- WHEEL ------------------------------------------------------------------
 

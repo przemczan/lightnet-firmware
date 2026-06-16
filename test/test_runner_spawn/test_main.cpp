@@ -79,36 +79,30 @@ void test_due_count_zero_waves_never_spawns()
     TEST_ASSERT_EQUAL_UINT8(0, spawnDueCount(acc, 5000, 0, 16));
 }
 
-// ---- WAVE/RIPPLE/CHASE sweep-spawn interval --------------------------------
+// ---- WAVE/RIPPLE/CHASE sweep-spawn schedule --------------------------------
 
-void test_sweep_interval_zero_density_is_one_per_duration()
+void test_sweep_spawn_count_defaults_and_clamps()
 {
-    // density=0 → gapless single-file train: one sweep per full duration.
-    TEST_ASSERT_EQUAL_UINT16(1000, spawnSweepIntervalMs(1000, 0, 8));
+    TEST_ASSERT_EQUAL_UINT8(1, sweepSpawnCount(0));
+    TEST_ASSERT_EQUAL_UINT8(1, sweepSpawnCount(1));
+    TEST_ASSERT_EQUAL_UINT8(15, sweepSpawnCount(15));
+    TEST_ASSERT_EQUAL_UINT8(30, sweepSpawnCount(30));
+    TEST_ASSERT_EQUAL_UINT8(30, sweepSpawnCount(255));
 }
 
-void test_sweep_interval_mid_density_is_about_half()
+void test_sweep_start_ms_evenly_spaces_spawns()
 {
-    // density=128 (~50%) → interval ≈ duration * (1 - 128/255) ≈ 498ms.
-    TEST_ASSERT_EQUAL_UINT16(498, spawnSweepIntervalMs(1000, 128, 8));
+    // count=1 → only at 0
+    TEST_ASSERT_EQUAL_UINT32(0, spawnSweepStartMs(1000, 1, 0));
+    // count=3 → 0, 333, 666
+    TEST_ASSERT_EQUAL_UINT32(0, spawnSweepStartMs(1000, 3, 0));
+    TEST_ASSERT_EQUAL_UINT32(333, spawnSweepStartMs(1000, 3, 1));
+    TEST_ASSERT_EQUAL_UINT32(666, spawnSweepStartMs(1000, 3, 2));
 }
 
-void test_sweep_interval_max_density_floors_at_max_concurrent()
+void test_sweep_start_ms_past_count_returns_duration()
 {
-    // density=255 → floors at duration / maxConcurrent (8) = 125ms.
-    TEST_ASSERT_EQUAL_UINT16(125, spawnSweepIntervalMs(1000, 255, 8));
-}
-
-void test_sweep_interval_zero_duration_or_max_concurrent_is_zero()
-{
-    TEST_ASSERT_EQUAL_UINT16(0, spawnSweepIntervalMs(0, 128, 8));
-    TEST_ASSERT_EQUAL_UINT16(0, spawnSweepIntervalMs(1000, 128, 0));
-}
-
-void test_sweep_interval_never_zero_for_nonzero_inputs()
-{
-    // Even a tiny duration/high density combo floors at 1ms, never 0 (would spin forever).
-    TEST_ASSERT_EQUAL_UINT16(1, spawnSweepIntervalMs(1, 255, 8));
+    TEST_ASSERT_EQUAL_UINT32(1000, spawnSweepStartMs(1000, 3, 3));
 }
 
 // ---- Group-id pool --------------------------------------------------------
@@ -234,11 +228,9 @@ int main(int, char **)
     RUN_TEST(test_due_count_burst_capped_and_no_backlog_spiral);
     RUN_TEST(test_due_count_zero_waves_never_spawns);
 
-    RUN_TEST(test_sweep_interval_zero_density_is_one_per_duration);
-    RUN_TEST(test_sweep_interval_mid_density_is_about_half);
-    RUN_TEST(test_sweep_interval_max_density_floors_at_max_concurrent);
-    RUN_TEST(test_sweep_interval_zero_duration_or_max_concurrent_is_zero);
-    RUN_TEST(test_sweep_interval_never_zero_for_nonzero_inputs);
+    RUN_TEST(test_sweep_spawn_count_defaults_and_clamps);
+    RUN_TEST(test_sweep_start_ms_evenly_spaces_spawns);
+    RUN_TEST(test_sweep_start_ms_past_count_returns_duration);
 
     RUN_TEST(test_pool_round_robins_and_persists_cursor);
 
