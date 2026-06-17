@@ -159,7 +159,7 @@ namespace Lightnet {
         }
 
         if (!palettes.save(name, stops, count)) {
-            Http::sendError(req, 500, "spiffs_write_failed");
+            Http::sendError(req, 500, "fs_write_failed");
 
             return;
         }

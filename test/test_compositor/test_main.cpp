@@ -3,6 +3,7 @@
 
 #include <unity.h>
 #include "Core/Panel/ColorCompose.hpp"
+#include "Core/Common/AnimationTypes.hpp"
 
 using namespace Lightnet;
 
@@ -338,6 +339,14 @@ void test_fold_order_matters_for_modifier()
     assertRGB(foldLayers(ls, 2, BLACK), 200, 100, 50);
 }
 
+void test_resolve_compose_mode_defaults()
+{
+    TEST_ASSERT_EQUAL_UINT8(COMPOSE_OPAQUE, resolveComposeMode(COMPOSE_DEFAULT, false));
+    TEST_ASSERT_EQUAL_UINT8(COMPOSE_MAX, resolveComposeMode(COMPOSE_DEFAULT, true));
+    TEST_ASSERT_EQUAL_UINT8(COMPOSE_OPAQUE, resolveComposeMode(COMPOSE_OPAQUE, true));
+    TEST_ASSERT_EQUAL_UINT8(COMPOSE_MAX, resolveComposeMode(COMPOSE_MAX, false));
+}
+
 void setUp(void)
 {
 }
@@ -360,6 +369,7 @@ int main(int, char **)
     RUN_TEST(test_compose_overlay);
     RUN_TEST(test_compose_difference);
     RUN_TEST(test_compose_subtract_clamps_to_zero);
+    RUN_TEST(test_resolve_compose_mode_defaults);
 
     RUN_TEST(test_hsv_primaries_roundtrip);
     RUN_TEST(test_grey_has_zero_saturation);

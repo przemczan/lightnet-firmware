@@ -27,6 +27,13 @@ Or if you already cloned without submodules:
 git submodule update --init --recursive
 ```
 
+Copy the example config files before your first build (defaults work out of the box):
+
+```bash
+cp src/controller.config.hpp.example src/controller.config.hpp
+cp src/panel.config.hpp.example       src/panel.config.hpp
+```
+
 ---
 
 ## Quick start
@@ -43,6 +50,9 @@ pio run -e controller_wemos -t upload --upload-port lightnet-XXXX.local
 
 # Build panel firmware (ATmega328PB)
 pio run -e panel_atmega328pb
+
+# Build + upload panel via USBasp
+pio run -e panel_atmega328pb -t upload
 
 # Serial monitor (57600 baud)
 pio device monitor -e controller_wemos
@@ -68,23 +78,27 @@ See [docs/ota.md](docs/ota.md) for full bootloader setup and panel OTA process.
 
 | Document | Contents |
 |---|---|
+| [docs/getting-started.md](docs/getting-started.md) | PlatformIO environments, config files, build/upload commands |
+| [docs/hardware.md](docs/hardware.md) | Pin assignments for controllers and panels, topology rules, fuses |
 | [docs/architecture.md](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
 | [docs/ota.md](docs/ota.md) | Panel OTA (twiboot bootloader — precompiled + compilation), serial firmware upload, update flow |
 | [docs/api.md](docs/api.md) | WebSocket binary protocol + full HTTP API reference (appearance, palettes, scenes, animations, firmware) |
-| [docs/animations.md](docs/animations.md) | Scene structure, animation types, palettes, color references, sequencing, HTTP API usage, examples |
+| [docs/animations/index.md](docs/animations/index.md) | Animation system overview — panel-local types, controller runners, scene model |
+| [docs/animations/scene-authoring.md](docs/animations/scene-authoring.md) | Scene authoring guide — layers, steps, panel selectors, directionality, palettes, examples |
 | [docs/testing.md](docs/testing.md) | Native host-side unit tests, what's covered, how to add new suites, MinGW setup |
 
 ---
 
 ## Panel SRAM constraints (ATmega328P/PB)
 
-The ATmega328P/PB has **2 KB SRAM**. Three build-time constants share that budget and must be sized together:
+The ATmega328P/PB has **2 KB SRAM**. These compile-time constants share that budget and must be sized together:
 
 | Constant | Location | Controls |
 |---|---|---|
 | `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the 4 Wire/TWI static buffers |
 | `RX_QUEUE_BYTES` | `LightnetPanel.hpp` | Size of the single lock-free RX packet ring (`SpscByteQueue`) |
-| `Protocol::MAX_PACKET_SIZE` | `Protocol.hpp` | Largest packet in the protocol; sets the minimum safe `TWI_BUFFER_SIZE` |
+| `Protocol::MAX_PACKET_SIZE` | `Common/Protocol.hpp` | Largest packet in the protocol; sets the minimum safe `TWI_BUFFER_SIZE` |
+| `MAX_ANIM_SLOTS` | `Core/Common/AnimationTypes.hpp` | Concurrent animation layers per panel (currently 18) |
 
 **Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE` (currently 80).**  
 A packet larger than `TWI_BUFFER_SIZE` is silently truncated — the CRC still validates, so the corrupted payload reaches the handler and corrupts state. Keep them equal.
@@ -104,7 +118,7 @@ A packet larger than `TWI_BUFFER_SIZE` is silently truncated — the CRC still v
 | Stack + heap metadata | ~200 B |
 
 The packet RX path is a single lock-free single-producer/single-consumer ring
-([`Core/Util/SpscByteQueue`](lib/Lightnet/Core/Util/SpscByteQueue.hpp)) — the I²C ISR pushes,
+([`Core/Common/SpscByteQueue`](lib/Lightnet/Core/Common/SpscByteQueue.hpp)) — the I²C ISR pushes,
 the main loop pops into an 80 B stack scratch buffer in `handleIncomingPackets()`. It replaced
 the old double-buffered `CircularQueue` pair, where **both** buffers (plus per-object/heap
 overhead, ~190 B total) were permanently heap-allocated for the program's lifetime. The new

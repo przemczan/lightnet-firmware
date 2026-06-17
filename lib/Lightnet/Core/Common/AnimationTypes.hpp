@@ -62,17 +62,29 @@ namespace Lightnet {
     static const uint8_t MAX_ANIM_SLOTS = 18;
 
     // Blend modes for SOURCE layers. Values must match ColorCompose.hpp ComposeOp.
+    // COMPOSE_DEFAULT is scene-authoring only (absent `"blend"` in JSON); resolve via
+    // resolveComposeMode() before sending composeMode on the wire to a panel.
     enum ComposeMode : uint8_t {
-        COMPOSE_OPAQUE   = 0,// opaque top-wins (default — reproduces legacy last-write)
-        COMPOSE_ADD      = 1,
-        COMPOSE_MAX      = 2,
-        COMPOSE_MULTIPLY = 3,
-        COMPOSE_SCREEN   = 4,
+        COMPOSE_DEFAULT    = 0,// scene default — opaque for normal layers, max for runners
+        COMPOSE_OPAQUE     = 1,// top wins
+        COMPOSE_ADD        = 2,
+        COMPOSE_MAX        = 3,
+        COMPOSE_MULTIPLY   = 4,
+        COMPOSE_SCREEN     = 5,
         COMPOSE_DARKEN     = 6,
         COMPOSE_OVERLAY    = 7,
         COMPOSE_DIFFERENCE = 8,
         COMPOSE_SUBTRACT   = 9,
     };
+
+    // Map a parsed scene-layer blend to a wire/panel ComposeMode.
+    static inline uint8_t resolveComposeMode(uint8_t blend, bool runnerDefaultMax)
+    {
+        if (blend == COMPOSE_DEFAULT)
+            return runnerDefaultMax ? COMPOSE_MAX : COMPOSE_OPAQUE;
+
+        return blend;
+    }
 
     // ============================================================================
     // Animation Flags (bitfield)

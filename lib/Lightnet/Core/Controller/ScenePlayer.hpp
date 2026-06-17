@@ -64,7 +64,7 @@ namespace Lightnet {
         uint8_t       startAfterStepIndex;                // SCENE_NO_STEP_INDEX = wait for the whole sequence; else wait for this step (0-based) of startAfterGroupId's layer
         uint8_t       async;                             // bitmask: 0x01 = loop independently, 0x02 = non-blocking free-running (scene ignores this layer)
         uint8_t       stepCount;
-        uint8_t       blend;                             // ComposeMode — how this layer composites on the panel
+        uint8_t       blend;                             // ComposeMode — COMPOSE_DEFAULT when absent from JSON
         bool          disabled;                          // true = layer is skipped entirely during playback
         char          groupName[16];                     // original string name, empty for numeric-only groups
         char          palette[16];                       // empty = use scene default

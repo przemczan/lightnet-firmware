@@ -135,7 +135,8 @@ The accumulator starts from the scene [`background`](#scene-background) (black b
 
 | Mode | Effect (`below` ⊕ `layer`) |
 |---|---|
-| `opaque` (default) | the layer's colour replaces what's below |
+| *(absent `blend`)* | firmware default — `opaque` for normal layers, `max` for runners |
+| `opaque` | the layer's colour replaces what's below |
 | `add` | `below + layer` (clamped) — light accumulates |
 | `max` | per-channel `max` — non-destructive lighten; **black is transparent** |
 | `multiply` | `below × layer / 255` — darken / mask |
@@ -146,8 +147,8 @@ The accumulator starts from the scene [`background`](#scene-background) (black b
 | `subtract` | `below − layer`, clamped to `0` — punches the layer's colour out of what's below |
 
 `max`/`add`/`screen` treat black as transparent, so they layer an accent over a background without
-clobbering it. **Runner layers default to `max`** for exactly this reason (a runner's off-phase is
-black); a standalone runner over a black background looks identical to before.
+clobbering it. **Omit `blend` on runner layers** to get `max` (a runner's off-phase is black and
+shows layers below); set `"blend": "opaque"` explicitly to force top-wins even on runners.
 
 ### Modifier layers
 
@@ -323,7 +324,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 |---|---|---|---|
 | `group` | Yes | — | Group name (string) or number (1–254). Unique within the scene. |
 | `panels` | No | `"all"` | Panel targeting — see below. |
-| `blend` | No | `opaque` (runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
+| `blend` | No | firmware default (`opaque`; runners: `max`) | How this layer composites with the layers below it (see [Layer compositing](#layer-compositing)). |
 | `palette` | No | scene default | Per-layer palette override. |
 | `startAfter` | No | — | Group name of the layer this one waits for, optionally `:stepId` for a specific step (`schemaVersion: 8`+); unset ⇒ starts at scene start. |
 | `async` | No | `false` | When `true` or `"loop"`, the layer loops on its own, independent of the scene-cycle barrier (see below). `"free"` opts the layer out of the barrier entirely. Ignored if `startAfter` is set. |

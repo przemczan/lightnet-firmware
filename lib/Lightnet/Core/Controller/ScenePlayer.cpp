@@ -472,7 +472,7 @@ namespace Lightnet {
 
                 ColorRef black = ColorRef_rgb(0, 0, 0);
                 ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
-                uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+                uint8_t runnerBlend = resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ true);
 
                 for (uint8_t i = 0; i < panelCount; i++) {
                     CompiledPulse cp = compileWheel(turns[i], lines, thicknessDeg, effectiveDurationMs);
@@ -492,11 +492,19 @@ namespace Lightnet {
                         ColorRef fromVal = ColorRef_rgb(peak, 0, 0);
                         ColorRef toVal   = ColorRef_rgb(identity, 0, 0);
 
-                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
-                                                     cp.durationMs, fromVal, toVal,
-                                                     cp.risePct, cp.fallPct,
-                                                     layer.blend, /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs, target);
+                        scheduler.sendPrepareToPanel(panels[i],
+                                                     layer.groupId,
+                                                     ANIM_PULSE,
+                                                     FLAG_LOOP,
+                                                     cp.durationMs,
+                                                     fromVal,
+                                                     toVal,
+                                                     cp.risePct,
+                                                     cp.fallPct,
+                                                     resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),
+                                                     /*composeOrder=*/ layerIdx,
+                                                     cp.startDelayMs,
+                                                     target);
                     }
                 }
 
@@ -546,9 +554,9 @@ namespace Lightnet {
 
             // A runner's dark phase should be transparent over whatever is below it, so a
             // runner layered on a background/other layer reads as an accent rather than
-            // clobbering it with black. Default to MAX (identical to NORMAL over a black
-            // base, i.e. a standalone runner); honour an explicit non-default blend.
-            uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+            // clobbering it with black. Default (absent `"blend"`) resolves to MAX; an
+            // explicit `"opaque"` stays top-wins.
+            uint8_t runnerBlend = resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ true);
 
             if (step.animType == RUN_BOUNCE) {
                 // Single band whose peak reflects at the field edges (center sweeps [0,
@@ -570,11 +578,19 @@ namespace Lightnet {
                         ColorRef fromVal = ColorRef_rgb(identity, 0, 0);
                         ColorRef toVal   = ColorRef_rgb(peak, 0, 0);
 
-                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, 0,
-                                                     cp.durationMs, fromVal, toVal,
-                                                     cp.risePct, cp.fallPct,
-                                                     layer.blend, /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs, target);
+                        scheduler.sendPrepareToPanel(panels[i],
+                                                     layer.groupId,
+                                                     ANIM_PULSE,
+                                                     0,
+                                                     cp.durationMs,
+                                                     fromVal,
+                                                     toVal,
+                                                     cp.risePct,
+                                                     cp.fallPct,
+                                                     resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),
+                                                     /*composeOrder=*/ layerIdx,
+                                                     cp.startDelayMs,
+                                                     target);
                     }
                 }
 
@@ -611,7 +627,7 @@ namespace Lightnet {
                                    step.colorFrom, step.colorTo,
                                    step.params[0], step.params[1],
                                    panels, panelCount,
-                                   layer.blend, /*composeOrder=*/ layerIdx);
+                                   resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx);
         } else {
             // Non-colour `animates`: valueFrom/valueTo travel in colorFrom.raw[0]/colorTo.raw[0].
             ColorRef from = ColorRef_rgb(step.valueFrom, 0, 0);
@@ -622,7 +638,7 @@ namespace Lightnet {
                                    from, to,
                                    step.params[0], step.params[1],
                                    panels, panelCount,
-                                   layer.blend, /*composeOrder=*/ layerIdx,
+                                   resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx,
                                    step.animates);
         }
     }
@@ -819,7 +835,7 @@ namespace Lightnet {
             Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
             ColorRef black = ColorRef_rgb(0, 0, 0);
             ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
-            uint8_t runnerBlend = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+            uint8_t runnerBlend = resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ true);
 
             uint8_t group = spawnPoolNext(st.cursor, st.poolBase, st.poolSize);
 
@@ -855,7 +871,7 @@ namespace Lightnet {
                     scheduler.sendPrepareToPanel(st.sweepPanels[i], group, ANIM_PULSE, FLAG_REAP_ON_DONE,
                                                  cp.durationMs, fromVal, toVal,
                                                  cp.risePct, cp.fallPct,
-                                                 layer.blend, /*composeOrder=*/ layerIdx,
+                                                 resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx,
                                                  cp.startDelayMs, target);
                 }
             }
@@ -916,7 +932,7 @@ namespace Lightnet {
 
         ds.litRgb  = cTo;
         ds.fromRgb = cFrom;
-        ds.blend   = (layer.blend == COMPOSE_OPAQUE) ? COMPOSE_MAX : layer.blend;
+        ds.blend   = resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ true);
 
         float spd = (speed < 0.1f) ? 0.1f : speed; // global speed scales drop time
 

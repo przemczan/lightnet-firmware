@@ -21,7 +21,7 @@ int main()
     pkt.durationMs  = 1000;
     pkt.colorFrom   = Lightnet::ColorRef_rgb(0, 0, 0);
     pkt.colorTo     = Lightnet::ColorRef_rgb(255, 255, 255);
-    pkt.composeMode = 0;  // COMPOSE_OPAQUE
+    pkt.composeMode = 1;  // COMPOSE_OPAQUE
 
     anim_prepare(h, reinterpret_cast<const uint8_t *>(&pkt), (int)sizeof(pkt));
     anim_start(h, /*seq*/ 1, /*group*/ 1, /*now*/ 0);

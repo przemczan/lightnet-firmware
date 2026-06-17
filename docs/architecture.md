@@ -23,7 +23,7 @@ Internal design reference for the Lightnet controller and panel firmware. Covers
 
 ## 1. Physical Topology
 
-Panels form a **tree structure** rooted at the controller. Each panel has up to 3 edges (physical connectors); edges carry both power and a single-wire ping line. The controller discovers the network by sequentially pinging each edge via GPIO, triggering PCINT interrupts on the receiving ATmega.
+Panels form a **tree structure** rooted at the controller. Each panel has up to 5 edges (physical connectors); edges carry both power and a single-wire ping line. The controller discovers the network by sequentially pinging each edge via GPIO, triggering PCINT interrupts on the receiving ATmega.
 
 ```mermaid
 graph TD

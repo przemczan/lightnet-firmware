@@ -25,11 +25,12 @@ namespace Lightnet {
 
     // ---- Blend modes for SOURCE layers (matches ComposeMode in AnimationTypes.hpp) ----
     enum ComposeOp : uint8_t {
-        CO_OPAQUE   = 0,  // opaque: top wins (default — reproduces legacy last-write)
-        CO_ADD      = 1,  // additive, clamped
-        CO_MAX      = 2,  // per-channel lighten
-        CO_MULTIPLY = 3,  // darken / mask
-        CO_SCREEN   = 4,  // soft lighten
+        CO_DEFAULT    = 0,  // scene-only — must not reach the panel compositor
+        CO_OPAQUE     = 1,  // opaque: top wins
+        CO_ADD        = 2,  // additive, clamped
+        CO_MAX        = 3,  // per-channel lighten
+        CO_MULTIPLY   = 4,  // darken / mask
+        CO_SCREEN     = 5,  // soft lighten
         CO_DARKEN     = 6,  // per-channel darken (min)
         CO_OVERLAY    = 7,  // multiply shadows, screen highlights (contrast boost)
         CO_DIFFERENCE = 8,  // per-channel absolute difference
@@ -101,8 +102,10 @@ namespace Lightnet {
             case CO_SUBTRACT:
                 return { cc_sub(acc.r, src.r), cc_sub(acc.g, src.g), cc_sub(acc.b, src.b) };
             case CO_OPAQUE:
-            default:
                 return src;
+            case CO_DEFAULT:
+            default:
+                return src;  // DEFAULT must not be sent on the wire; opaque is the safe fallback
         }
     }
 

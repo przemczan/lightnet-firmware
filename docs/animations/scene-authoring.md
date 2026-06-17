@@ -198,7 +198,7 @@ Each entry in `layers`:
 |---|---|---|---|
 | `group` | yes | — | A name (`"ambient"`) or number (1–254). **Unique** within the scene. |
 | `panels` | no | `"all"` | Which panels this layer drives — see §6. |
-| `blend` | no | `opaque` (runners: `max`) | How this layer composites with the layers below it — see §5.1. |
+| `blend` | no | firmware default (`opaque`; runners: `max`) | How this layer composites with the layers below it — see §5.1. |
 | `sequence` | yes | — | 1–12 steps, played in order — see §7. |
 | `startAfter` | no | — | Group **name** to wait for (`"ambient"`), or a specific step of it (`"ambient:intro"`, requires `schemaVersion: 8`) — until it finishes this layer is dark. |
 | `async` | no | `false` | Layer looping mode: `false`/absent = sync, `true`/`"loop"` = loop independently (blocks scene), `"free"` = loop independently (scene ignores it). Ignored if `startAfter` is set. |
@@ -246,9 +246,10 @@ Each layer is either a **source** (combines its colour with what's below via `bl
 
 | `blend` | Effect | Notes |
 |---|---|---|
-| `opaque` | top wins | default for non-runner layers |
+| *(absent)* | firmware default | `opaque` for normal layers; `max` for runners |
+| `opaque` | top wins | explicit top-wins, including on runners |
 | `add` | additive light | black is transparent |
-| `max` | per-channel lighten | black is transparent; **runner default** |
+| `max` | per-channel lighten | black is transparent |
 | `multiply` | darken / mask | |
 | `screen` | soft lighten | black is transparent |
 | `darken` | per-channel `min` | non-destructive darken; white is transparent |
@@ -256,9 +257,10 @@ Each layer is either a **source** (combines its colour with what's below via `bl
 | `difference` | per-channel `\|below − layer\|` | inverts toward the layer's colour |
 | `subtract` | `below − layer`, clamped to `0` | punches the layer's colour out of what's below |
 
-**Runner layers default to `max`** so a runner's dark phase shows the background/layers below
-(a standalone runner over a black base is unchanged). To layer any source over a background, give
-it `add`/`max`/`screen`.
+**Omit `blend` on runner layers** to get `max` so a runner's dark phase shows the background/layers
+below (a standalone runner over a black base is unchanged). To layer any source over a background,
+give it `add`/`max`/`screen`. Use explicit `"opaque"` when a runner should cover what's below during
+its dark phase too.
 
 **Modifier layers** are panel-local steps (any `type` except `HUE_CYCLE`) with `animates` set to
 something other than `color` — `dim` / `desaturate` / `hue` / `invert` / `brighten` / `saturate`.
