@@ -12,8 +12,8 @@
         public:
             SimPanelManager();
 
-            void dispatch(uint8_t address, const void *data, uint8_t size);
-            void dispatchAll(const void *data, uint8_t size);
+            void dispatch(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
+            void dispatchAll(const Protocol::PacketMeta *packet, uint8_t size);
             bool getState(uint8_t address, Protocol::PanelState *state) const;
             void tick();
 

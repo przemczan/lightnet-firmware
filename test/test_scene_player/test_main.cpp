@@ -33,12 +33,10 @@ struct MockSink : public IPacketSink {
     CapturedPacket   pkts[MAX];
     int              count = 0;
 
-    void send(uint8_t address, Protocol::packetType_t type, const void *packet, uint8_t size, bool wantAck) override
+    void send(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size, bool wantAck) override
     {
-        (void)packet;
-
         if (count < MAX) {
-            pkts[count] = { address, (uint8_t)type, size, wantAck };
+            pkts[count] = { address, (uint8_t)packet->header.type, size, wantAck };
             count++;
         }
     }

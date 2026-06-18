@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 
+#include "../Common/MirrorBatch.h"
+
 #ifdef __cplusplus
     extern "C" {
 #endif
@@ -45,8 +47,8 @@ typedef void (*scene_packet_cb)(void *user, uint8_t address, uint8_t type, const
 void scene_set_sink(scene_handle h, scene_packet_cb cb, void *user);
 
 /* Copy the packets emitted since the last drain into `out` as a MIRROR_BATCH payload
- * (u32 millis = the `now` of the last load/tick/stop, u16 count, then count records of
- * {u8 address, u8 type, u8 size, u8[size]}) and clear the buffer. Returns the payload length.
+ * (MirrorBatchHeader + count × MirrorRecordHeader + wire packets) and clear the buffer.
+ * See Core/Common/MirrorBatch.h. Returns the payload length.
  * If `out` is null or `maxlen` is too small, writes nothing and leaves the buffer intact — call
  * scene_drain(h, NULL, 0) first to size the buffer. This is the same layout decodeMirrorBatch parses,
  * so offline preview reuses the live-preview decode + per-panel render path verbatim. */
@@ -57,13 +59,13 @@ int  scene_drain(scene_handle h, uint8_t *out, int maxlen);
  * `links` is `link_count` * 4 bytes: {panelA, edgeA, panelB, edgeB}. `logical_root` is the
  * 1-based panel the rooted view is built from (0 -> physical root). */
 void scene_set_topology(
-    scene_handle    h,
-    const uint8_t * indices,
-    uint8_t         count,
-    const uint8_t * links,
-    uint8_t         link_count,
-    const uint8_t * edge_counts,
-    uint8_t         logical_root
+    scene_handle   h,
+    const uint8_t *indices,
+    uint8_t        count,
+    const uint8_t *links,
+    uint8_t        link_count,
+    const uint8_t *edge_counts,
+    uint8_t        logical_root
 );
 
 /* Register a named palette. `stops` is `count` * 4 bytes: {pos, r, g, b}. Replaces a palette

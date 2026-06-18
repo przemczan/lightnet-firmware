@@ -129,9 +129,8 @@ namespace Lightnet {
             ::Protocol::ColorRGB resolveColorRef(const ColorRef& ref) const;
             void resolveColors(const AnimationState& a, ::Protocol::ColorRGB *outFrom, ::Protocol::ColorRGB *outTo) const;
 
-            // valueFrom/valueTo (0-255) for non-COLOR `animates` — read from colorFrom.raw[0]/
-            // colorTo.raw[0], except TARGET_INVERT which ignores them (fixed 0->255 range so the
-            // animType's envelope alone drives a full identity->inverted sweep).
+            // valueFrom/valueTo (0-255) for non-COLOR `animates` — see ColorRef_scalar / ColorRef_scalarValue.
+            // TARGET_INVERT ignores them (fixed 0->255 range; the animType envelope drives the sweep).
             uint8_t getValueFrom(const AnimationState& a) const;
             uint8_t getValueTo(const AnimationState& a) const;
 

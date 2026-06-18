@@ -9,21 +9,21 @@ SimPanelManager::SimPanelManager()
     }
 }
 
-void SimPanelManager::dispatch(uint8_t address, const void *data, uint8_t size)
+void SimPanelManager::dispatch(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
 {
     for (uint8_t i = 0; i < SIM_PANELS_COUNT; i++) {
         if (panels[i].getIndex() == address) {
-            panels[i].handlePacket(data, size);
+            panels[i].handlePacket(packet, size);
 
             return;
         }
     }
 }
 
-void SimPanelManager::dispatchAll(const void *data, uint8_t size)
+void SimPanelManager::dispatchAll(const Protocol::PacketMeta *packet, uint8_t size)
 {
     for (uint8_t i = 0; i < SIM_PANELS_COUNT; i++) {
-        panels[i].handlePacket(data, size);
+        panels[i].handlePacket(packet, size);
     }
 }
 

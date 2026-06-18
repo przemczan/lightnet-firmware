@@ -71,4 +71,16 @@ namespace Lightnet {
 
         return c;
     }
+
+    // Non-colour `animates` targets store valueFrom/valueTo in the first payload byte
+    // of colorFrom/colorTo on the wire (see AnimationTypes.hpp).
+    static inline ColorRef ColorRef_scalar(uint8_t value)
+    {
+        return ColorRef_rgb(value, 0, 0);
+    }
+
+    static inline uint8_t ColorRef_scalarValue(const ColorRef& c)
+    {
+        return c.raw[0];
+    }
 }  // namespace Lightnet

@@ -1,0 +1,8 @@
+[
+    {
+        "command": "C:\\Users\\przem\\.platformio\\packages\\toolchain-atmelavr\\bin\\avr-gcc.exe -o .pio\\build\\atmega328p_bootloader\\twiboot\\main.o -c -std=gnu11 -fno-fat-lto-objects -mmcu=atmega328p -Os -Wall -ffunction-sections -fdata-sections -flto -Os -Wno-cpp -fdata-sections -ffunction-sections -Wall -nostartfiles -DF_CPU=16000000L -DPLATFORMIO=60119 -DARDUINO_AVR_ATmega328P -DBOOTLOADER_START=0x7000 -DTWI_ADDRESS=0x29 -Dfalse=0 -Dtrue=1 -Isrc twiboot\\main.c",
+        "directory": "D:\\Projects\\Lightnet\\lightnet-firmware",
+        "file": "twiboot\\main.c",
+        "output": ".pio\\build\\atmega328p_bootloader\\twiboot\\main.o"
+    }
+]

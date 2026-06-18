@@ -8,6 +8,7 @@
 // controller/panel call sites (`Protocol::setPacketMeta`, `Protocol::VERSION`) are
 // unchanged.
 
+#include <stddef.h>
 #include <stdint.h>
 #include "ProtocolTypes.hpp"
 
@@ -17,9 +18,47 @@ namespace Protocol {
     const uint16_t VERSION = 6;
 
     // Stamp a packet's PacketMeta header in place: type + protocolVersion + headerCrc.
-    void setPacketMeta(void *packet, packetType_t type);
+    void setPacketMeta(PacketMeta *meta, packetType_t type);
+
+    // Meta-only wire packets (FETCH_STATE request, RESET, ACK, …).
+    inline PacketMeta makeMeta(packetType_t type)
+    {
+        PacketMeta meta = {};
+
+        setPacketMeta(&meta, type);
+
+        return meta;
+    }
+
+    // Full packet structs (meta is the first member). Zero-initializes payload fields.
+    template<typename PacketT>
+    inline PacketT makePacket(packetType_t type)
+    {
+        PacketT pkt = {};
+
+        setPacketMeta(packetMeta(pkt), type);
+
+        return pkt;
+    }
+
+    // All wire packets are standard-layout structs with PacketMeta at offset 0.
+    template<typename PacketT>
+    inline const PacketMeta *packetMeta(const PacketT &pkt)
+    {
+        static_assert(offsetof(PacketT, meta) == 0, "packet struct must start with PacketMeta");
+
+        return &pkt.meta;
+    }
+
+    template<typename PacketT>
+    inline PacketMeta *packetMeta(PacketT &pkt)
+    {
+        static_assert(offsetof(PacketT, meta) == 0, "packet struct must start with PacketMeta");
+
+        return &pkt.meta;
+    }
 
     // Validate a received packet's header. 0 = ok; 1 = too short; 2 = bad header CRC;
     // 3 = protocol-version mismatch.
-    uint8_t validatePacket(void *packet, uint8_t size, bool validateProtocolVersion = true);
+    uint8_t validatePacket(const PacketMeta *packet, uint8_t size, bool validateProtocolVersion = true);
 }  // namespace Protocol

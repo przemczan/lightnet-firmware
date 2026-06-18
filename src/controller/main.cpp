@@ -14,10 +14,10 @@ Lightnet::MainLoopQueue *mainLoopQueue = nullptr;
 
 // LightnetBus::onPacketSent is a plain function pointer, so it can't capture.
 // Forward captured packets to the (global) mirror once it exists.
-static void mirrorOutboundPacket(uint8_t address, const void *packet, uint8_t size, uint8_t type)
+static void mirrorOutboundPacket(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
 {
     if (packetMirror) {
-        packetMirror->capture(address, packet, size, type);
+        packetMirror->capture(address, packet, size);
     }
 }
 
@@ -386,9 +386,15 @@ void loop()
                 appearanceServer->begin();
                 paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
                 paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore, *appearance, *mainLoopQueue);
+                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore, *appearance,
+                                                        *mainLoopQueue);
                 sceneServer->begin();
-                animServer = new Lightnet::AnimationServer(*webServer, *animService, *animScheduler, *appearance, *appStateStore, *mainLoopQueue);
+                animServer = new Lightnet::AnimationServer(*webServer,
+                                                           *animService,
+                                                           *animScheduler,
+                                                           *appearance,
+                                                           *appStateStore,
+                                                           *mainLoopQueue);
                 animServer->begin();
                 panelServer = new Lightnet::PanelServer(*webServer, *panelsController, *mainLoopQueue);
                 panelServer->begin();

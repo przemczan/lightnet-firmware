@@ -36,6 +36,8 @@ node_modules
 
 .claude
 
+compile_commands.json
+
 # Per-device configuration (copy from *.example)
 src/controller.config.hpp
 src/panel.config.hpp

@@ -9,26 +9,32 @@
 // host-side and on mobile with no Arduino dependency.
 
 #include <stdint.h>
-#include "../Common/ProtocolTypes.hpp"  // Protocol::packetType_t
+#include "../Common/ProtocolTypes.hpp"  // Protocol::PacketMeta, packetType_t
 
 namespace Lightnet {
-    class IPacketSink {
+    class IPacketSink
+    {
         public:
-            virtual ~IPacketSink() {}
+            virtual ~IPacketSink()
+            {
+            }
 
-            // Send one fully-built packet (PacketMeta header already stamped) to `address`.
-            // address 0 = general call (all panels). `wantAck` requests an acknowledged
-            // transfer on a real bus; sinks without a bus ignore it.
+            // Send one fully-built packet to `address`. Use makePacket()/makeMeta() so the
+            // header is stamped; the sink reads header.type from the buffer. address 0 = general
+            // call (all panels). `wantAck` requests an acknowledged transfer on a real bus;
+            // sinks without a bus ignore it.
             virtual void send(
-                uint8_t                address,
-                Protocol::packetType_t type,
-                const void *           packet,
-                uint8_t                size,
-                bool                   wantAck
+                uint8_t                     address,
+                const Protocol::PacketMeta *packet,
+                uint8_t                     size,
+                bool                        wantAck
             ) = 0;
 
             // Bus settle delay between packets (lets panels process before the next send).
             // No-op off-device; the controller impl maps it to delayMicroseconds().
-            virtual void pace(uint16_t microseconds) { (void)microseconds; }
+            virtual void pace(uint16_t microseconds)
+            {
+                (void)microseconds;
+            }
     };
 }  // namespace Lightnet

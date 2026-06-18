@@ -11,6 +11,7 @@
 #include <string.h>
 #include <vector>
 
+#include "../Common/MirrorBatch.h"
 #include "../Controller/ScenePlayer.hpp"
 #include "../Controller/SceneParser.hpp"
 #include "../Controller/AnimationScheduler.hpp"
@@ -34,17 +35,23 @@ namespace {
         scene_packet_cb       cb    = nullptr;
         void *                user  = nullptr;
 
-        void send(uint8_t address, Protocol::packetType_t type, const void *packet, uint8_t size, bool wantAck) override
+        void send(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size, bool wantAck) override
         {
             (void)wantAck;
+            const uint8_t type = (uint8_t)packet->header.type;
             const uint8_t *b = (const uint8_t *)packet;
-            buf->push_back(address);
-            buf->push_back((uint8_t)type);
-            buf->push_back(size);
+            MirrorRecordHeader rec;
+
+            rec.address = address;
+            rec.type    = type;
+            rec.size    = size;
+            const uint8_t *recBytes = (const uint8_t *)&rec;
+
+            buf->insert(buf->end(), recBytes, recBytes + sizeof rec);
             buf->insert(buf->end(), b, b + size);
             (*count)++;
 
-            if (cb) cb(user, address, (uint8_t)type, b, size);
+            if (cb) cb(user, address, type, b, size);
         }
     };
 
@@ -324,18 +331,19 @@ int scene_drain(scene_handle h, uint8_t *out, int maxlen)
 
     SceneCore *c = self(h);
 
-    int len = 6 + (int)c->outbuf.size(); // u32 millis + u16 count + records
+    int len = MIRROR_BATCH_HEADER_SIZE + (int)c->outbuf.size();
 
-    if (!out || maxlen < len) return len; // report size; leave the buffer intact
+    if (!out || maxlen < len) return len;
 
-    out[0] = (uint8_t)(c->lastNow);
-    out[1] = (uint8_t)(c->lastNow >> 8);
-    out[2] = (uint8_t)(c->lastNow >> 16);
-    out[3] = (uint8_t)(c->lastNow >> 24);
-    out[4] = (uint8_t)(c->outCount);
-    out[5] = (uint8_t)(c->outCount >> 8);
+    MirrorBatchHeader hdr;
 
-    if (!c->outbuf.empty()) memcpy(out + 6, c->outbuf.data(), c->outbuf.size());
+    hdr.controllerMillis = c->lastNow;
+    hdr.count            = c->outCount;
+    memcpy(out, &hdr, sizeof hdr);
+
+    if (!c->outbuf.empty()) {
+        memcpy(out + MIRROR_BATCH_HEADER_SIZE, c->outbuf.data(), c->outbuf.size());
+    }
 
     c->outbuf.clear();
     c->outCount = 0;

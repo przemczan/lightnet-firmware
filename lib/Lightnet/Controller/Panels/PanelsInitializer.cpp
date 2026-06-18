@@ -70,17 +70,17 @@ void PanelsInitializer::updateEdgeState()
 
 void PanelsInitializer::pull()
 {
-    Protocol::PacketInitializationPull pullPacket;
+    Protocol::PacketInitializationPull pullPacket =
+        Protocol::makePacket<Protocol::PacketInitializationPull>(Protocol::PACKET_INITIALIZATION_PULL);
 
     pullPacket.panelIndex = this->currentPanelIndex;
     D_PRINTLN("[PULL] pulling panel", pullPacket.panelIndex);
 
     uint8_t error = LNBus.sendPacketWithResponse(
         Protocol::PULLING_ADDRESS,
-        &pullPacket,
+        Protocol::packetMeta(pullPacket),
         sizeof(pullPacket),
-        Protocol::PACKET_INITIALIZATION_PULL,
-        this->pullBuffer,
+        (Protocol::PacketMeta *)this->pullBuffer,
         sizeof(Protocol::PacketRegisterEdge)
     );
 
@@ -146,13 +146,12 @@ void PanelsInitializer::onPacketResponded(Protocol::PacketMeta *packetMeta)
 
 void PanelsInitializer::sendRegisterAck()
 {
-    Protocol::PacketMeta ackPacket;
+    Protocol::PacketMeta ackPacket = Protocol::makeMeta(Protocol::PACKET_REGISTER_EDGE_ACK);
 
     LNBus.sendPacket(
         Protocol::PULLING_ADDRESS,
         &ackPacket,
         sizeof(ackPacket),
-        Protocol::PACKET_REGISTER_EDGE_ACK,
         true
     );
 }

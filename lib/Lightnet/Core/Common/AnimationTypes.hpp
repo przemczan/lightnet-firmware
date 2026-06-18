@@ -141,8 +141,8 @@ namespace Lightnet {
         uint16_t durationMs; // animation duration (0=infinite for looping)
         uint16_t startMs;    // millis() snapshot at start
         ColorRef colorFrom;  // 4 B — resolved at frame time against panel's palette/base colors.
-                             // When animates != TARGET_COLOR, colorFrom.raw[0] is valueFrom (0-255) instead.
-        ColorRef colorTo;    // 4 B — when animates != TARGET_COLOR, colorTo.raw[0] is valueTo (0-255) instead.
+                             // When animates != TARGET_COLOR, ColorRef_scalarValue(colorFrom) is valueFrom.
+        ColorRef colorTo;    // 4 B — when animates != TARGET_COLOR, ColorRef_scalarValue(colorTo) is valueTo.
         uint8_t  param1;     // type-specific: blink period, decay rate, hue speed, etc.
         uint8_t  param2;     // type-specific
         uint8_t  composeMode;  // ComposeMode — how this SOURCE layer blends (unused for modifiers)

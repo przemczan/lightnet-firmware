@@ -101,48 +101,45 @@ void LightnetBus::end()
     #endif
 }
 
-uint8_t LightnetBus::sendPacket(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type, bool end)
+uint8_t LightnetBus::sendPacket(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size, bool end)
 {
-    Protocol::setPacketMeta(packet, type);
-
     if (this->onPacketSentCallback) {
-        this->onPacketSentCallback(address, packet, size, type);
+        this->onPacketSentCallback(address, packet, size);
     }
 
     return this->sendData(address, packet, size, end);
 }
 
-uint8_t LightnetBus::sendData(uint8_t address, void *data, uint8_t size, bool end)
+uint8_t LightnetBus::sendData(uint8_t address, const Protocol::PacketMeta *data, uint8_t size, bool end)
 {
     delayMicroseconds(3);
     Wire.beginTransmission(address);
-    Wire.write((uint8_t *)data, size);
+    Wire.write((const uint8_t *)data, size);
 
     return Wire.endTransmission(end);
 }
 
-uint8_t LightnetBus::sendPacketAck(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
+uint8_t LightnetBus::sendPacketAck(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
 {
     Protocol::PacketMeta ack;
 
-    return this->sendPacketWithResponse(address, packet, size, type, &ack, sizeof(ack));
+    return this->sendPacketWithResponse(address, packet, size, &ack, sizeof(ack));
 }
 
-uint8_t LightnetBus::sendPacketNack(uint8_t address, void *packet, uint8_t size, Protocol::packetType_t type)
+uint8_t LightnetBus::sendPacketNack(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
 {
-    return this->sendPacket(address, packet, size, type, true);
+    return this->sendPacket(address, packet, size, true);
 }
 
 uint8_t LightnetBus::sendPacketWithResponse(
-    uint8_t                address,
-    void *                 packet,
-    uint8_t                packetSize,
-    Protocol::packetType_t packetType,
-    void *                 responseBuffer,
-    uint8_t                responseSize
+    uint8_t                     address,
+    const Protocol::PacketMeta *packet,
+    uint8_t                     packetSize,
+    Protocol::PacketMeta *      responseBuffer,
+    uint8_t                     responseSize
 )
 {
-    uint8_t writeErr = this->sendPacket(address, packet, packetSize, packetType, false);
+    uint8_t writeErr = this->sendPacket(address, packet, packetSize, false);
 
     if (writeErr != 0) {
         DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] write err=%d addr=0x%02X\n", writeErr, address));
@@ -163,16 +160,14 @@ uint8_t LightnetBus::sendPacketWithResponse(
     return 0;
 }
 
-uint8_t LightnetBus::sendResponsePacket(void *packet, uint8_t size, Protocol::packetType_t type)
+uint8_t LightnetBus::sendResponsePacket(Protocol::PacketMeta *packet, uint8_t size)
 {
-    Protocol::setPacketMeta(packet, type);
-
-    return Wire.write((uint8_t *)packet, size);
+    return Wire.write((const uint8_t *)packet, size);
 }
 
-uint8_t LightnetBus::sendResponseData(void *data, uint8_t size)
+uint8_t LightnetBus::sendResponseData(const Protocol::PacketMeta *data, uint8_t size)
 {
-    return Wire.write((uint8_t *)data, size);
+    return Wire.write((const uint8_t *)data, size);
 }
 
 uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
@@ -185,7 +180,7 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
         return 1;
     }
 
-    uint8_t vErr = Protocol::validatePacket(buffer, receivedSize);
+    uint8_t vErr = Protocol::validatePacket(static_cast<const Protocol::PacketMeta *>(buffer), receivedSize);
 
     if (vErr == 0) {
         return 0;

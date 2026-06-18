@@ -1,10 +1,5 @@
 #pragma once
 
-// ControllerPacketSink — the device-side IPacketSink. Drives the physical I2C bus,
-// keeping the ack-retry and inter-packet pacing that used to live in AnimationScheduler.
-// This is the controller half of the bus seam; the shared scene engine only ever sees
-// the abstract IPacketSink.
-
 #include <Arduino.h>
 #include "../../Core/Controller/IPacketSink.hpp"
 #include "../../Common/LightnetBus.hpp"
@@ -18,28 +13,22 @@ namespace Lightnet {
             }
 
             void send(
-            uint8_t                address,
-            Protocol::packetType_t type,
-            const void *           packet,
-            uint8_t                size,
-            bool                   wantAck
+            uint8_t                     address,
+            const Protocol::PacketMeta *packet,
+            uint8_t                     size,
+            bool                        wantAck
             ) override
             {
-                // LNBus takes a non-const pointer but does not mutate the packet.
-                void *p = const_cast<void *>(packet);
-
                 if (wantAck) {
-                    // Retry on failure so a single bus glitch doesn't leave a panel with no
-                    // animation queued (matches the previous AnimationScheduler behaviour).
                     uint8_t err = 1;
 
                     for (uint8_t attempt = 0; attempt < 3 && err != 0; attempt++) {
                         if (attempt > 0) delayMicroseconds(100);
 
-                        err = bus.sendPacketAck(address, p, size, type);
+                        err = bus.sendPacketAck(address, packet, size);
                     }
                 } else {
-                    bus.sendPacketNack(address, p, size, type);
+                    bus.sendPacketNack(address, packet, size);
                 }
             }
 

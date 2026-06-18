@@ -1,5 +1,6 @@
 #include "AnimationScheduler.hpp"
 #include "AnimationRunner.hpp"
+#include "../Common/ProtocolMeta.hpp"
 #include <string.h>
 
 namespace Lightnet {
@@ -39,9 +40,9 @@ namespace Lightnet {
         uint8_t         animates
     )
     {
-        Protocol::PacketAnimationPrepare prepare;
+        Protocol::PacketAnimationPrepare prepare =
+            Protocol::makePacket<Protocol::PacketAnimationPrepare>(Protocol::PACKET_ANIMATION_PREPARE);
 
-        Protocol::setPacketMeta(&prepare.meta, Protocol::PACKET_ANIMATION_PREPARE);
         prepare.animType     = animType;
         prepare.group_id     = group_id;
         prepare.flags        = flags;
@@ -58,7 +59,7 @@ namespace Lightnet {
 
         // Acknowledged send; the controller sink retries on bus glitches so a single
         // failure doesn't leave a panel with no animation queued.
-        sink.send(panelAddress, Protocol::PACKET_ANIMATION_PREPARE, &prepare, sizeof(prepare), /*wantAck=*/ true);
+        sink.send(panelAddress, Protocol::packetMeta(prepare), sizeof(prepare), /*wantAck=*/ true);
 
         if (panelAddress < maxPanels) {
             panelStates[panelAddress].animType     = animType;
@@ -73,9 +74,9 @@ namespace Lightnet {
     {
         // Send General Call START twice for reliability. Both share one seq_id so the
         // panel's duplicate guard runs exactly one execution and absorbs the redundant copy.
-        Protocol::PacketAnimationStart startPkt;
+        Protocol::PacketAnimationStart startPkt =
+            Protocol::makePacket<Protocol::PacketAnimationStart>(Protocol::PACKET_ANIMATION_START);
 
-        Protocol::setPacketMeta(&startPkt.meta, Protocol::PACKET_ANIMATION_START);
         startPkt.seq_id   = nextSeqId;
         startPkt.group_id = group_id;
         nextSeqId++;
@@ -85,7 +86,7 @@ namespace Lightnet {
         // General Call has no ack — send twice (shared seq_id) for reliability, pacing
         // between so panels settle. Off-device sinks make pace() a no-op.
         for (uint8_t retry = 0; retry < 2; retry++) {
-            sink.send(0x00, Protocol::PACKET_ANIMATION_START, &startPkt, sizeof(startPkt), /*wantAck=*/ false);
+            sink.send(0x00, Protocol::packetMeta(startPkt), sizeof(startPkt), /*wantAck=*/ false);
             sink.pace(200);
         }
     }
@@ -127,21 +128,20 @@ namespace Lightnet {
 
     void AnimationScheduler::broadcastBlack()
     {
-        Protocol::PacketSetColor pkt;
+        Protocol::PacketSetColor pkt = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_COLOR);
         pkt.color.rgb = { 0, 0, 0 };
-        sink.send(0x00, Protocol::PACKET_SET_COLOR, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::broadcastStop()
     {
-        Protocol::PacketAnimationControl pkt;
+        Protocol::PacketAnimationControl pkt =
+            Protocol::makePacket<Protocol::PacketAnimationControl>(Protocol::PACKET_ANIMATION_CONTROL);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
         pkt.cmd      = Lightnet::ANIM_CTRL_STOP;
         pkt.group_id = 0; // all slots
-        sink.send(0x00, Protocol::PACKET_ANIMATION_CONTROL, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
 
         // Mark runners cancelled rather than deleting them here.  This method may be
         // called from the HTTP task while tick() is iterating activeRunners on the main
@@ -158,12 +158,12 @@ namespace Lightnet {
 
     void AnimationScheduler::clearAllPanelQueues()
     {
-        Protocol::PacketAnimationControl pkt;
+        Protocol::PacketAnimationControl pkt =
+            Protocol::makePacket<Protocol::PacketAnimationControl>(Protocol::PACKET_ANIMATION_CONTROL);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_ANIMATION_CONTROL);
         pkt.cmd      = Lightnet::ANIM_CTRL_CLEAR_QUEUE;
         pkt.group_id = 0; // all slots
-        sink.send(0x00, Protocol::PACKET_ANIMATION_CONTROL, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::pauseGroup(uint8_t group_id)
@@ -241,14 +241,14 @@ namespace Lightnet {
 
     void AnimationScheduler::sendGeneralCallStart(uint8_t group_id)
     {
-        Protocol::PacketAnimationStart start;
+        Protocol::PacketAnimationStart start =
+            Protocol::makePacket<Protocol::PacketAnimationStart>(Protocol::PACKET_ANIMATION_START);
 
-        Protocol::setPacketMeta(&start.meta, Protocol::PACKET_ANIMATION_START);
         start.seq_id = nextSeqId;
         start.group_id = group_id;
 
         // Send to General Call address (0x00)
-        sink.send(0x00, Protocol::PACKET_ANIMATION_START, &start, sizeof(start), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(start), sizeof(start), /*wantAck=*/ false);
 
         nextSeqId++;
 
@@ -257,9 +257,9 @@ namespace Lightnet {
 
     void AnimationScheduler::sendGeneralCallUpdateParams(uint8_t group_id, uint8_t param_type, uint8_t value)
     {
-        Protocol::PacketAnimationUpdateParams params;
+        Protocol::PacketAnimationUpdateParams params =
+            Protocol::makePacket<Protocol::PacketAnimationUpdateParams>(Protocol::PACKET_ANIMATION_UPDATE_PARAMS);
 
-        Protocol::setPacketMeta(&params.meta, Protocol::PACKET_ANIMATION_UPDATE_PARAMS);
         params.seq_id = nextSeqId;
         params.group_id = group_id;
         params.param_type = param_type;
@@ -267,7 +267,7 @@ namespace Lightnet {
         params.transitionMs = 10; // TODO: make configurable
 
         // Send to General Call address (0x00)
-        sink.send(0x00, Protocol::PACKET_ANIMATION_UPDATE_PARAMS, &params, sizeof(params), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(params), sizeof(params), /*wantAck=*/ false);
 
         nextSeqId++;
 
@@ -276,14 +276,14 @@ namespace Lightnet {
 
     void AnimationScheduler::sendControlToPanels(uint8_t group_id, uint8_t cmd, const uint8_t *panelAddresses, uint8_t panelCount)
     {
-        Protocol::PacketAnimationControl control;
+        Protocol::PacketAnimationControl control =
+            Protocol::makePacket<Protocol::PacketAnimationControl>(Protocol::PACKET_ANIMATION_CONTROL);
 
-        Protocol::setPacketMeta(&control.meta, Protocol::PACKET_ANIMATION_CONTROL);
         control.cmd      = cmd;
         control.group_id = group_id;
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::PACKET_ANIMATION_CONTROL, &control, sizeof(control), /*wantAck=*/ true);
+            sink.send(panelAddresses[i], Protocol::packetMeta(control), sizeof(control), /*wantAck=*/ true);
         }
     }
 
@@ -324,9 +324,8 @@ namespace Lightnet {
 
         if (count > PALETTE_STOPS) count = PALETTE_STOPS;
 
-        Protocol::PacketSetPalette pkt;
+        Protocol::PacketSetPalette pkt = Protocol::makePacket<Protocol::PacketSetPalette>(Protocol::PACKET_SET_PALETTE);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_PALETTE);
         pkt.count = count;
         memset(pkt.stops, 0, sizeof(pkt.stops));
 
@@ -335,7 +334,7 @@ namespace Lightnet {
         }
 
         // General Call — all panels apply simultaneously.
-        sink.send(0x00, Protocol::PACKET_SET_PALETTE, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::unicastPaletteToPanels(
@@ -349,9 +348,8 @@ namespace Lightnet {
 
         if (count > PALETTE_STOPS) count = PALETTE_STOPS;
 
-        Protocol::PacketSetPalette pkt;
+        Protocol::PacketSetPalette pkt = Protocol::makePacket<Protocol::PacketSetPalette>(Protocol::PACKET_SET_PALETTE);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_PALETTE);
         pkt.count = count;
         memset(pkt.stops, 0, sizeof(pkt.stops));
 
@@ -360,50 +358,48 @@ namespace Lightnet {
         }
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::PACKET_SET_PALETTE, &pkt, sizeof(pkt), /*wantAck=*/ true);
+            sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ true);
         }
     }
 
     void AnimationScheduler::turnOnPanels(const uint8_t *panelAddresses, uint8_t panelCount)
     {
-        Protocol::PacketTurnOnOff pkt;
+        Protocol::PacketTurnOnOff pkt = Protocol::makePacket<Protocol::PacketTurnOnOff>(Protocol::PACKET_TURN_ON_OFF);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_TURN_ON_OFF);
         pkt.on = 1;
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::PACKET_TURN_ON_OFF, &pkt, sizeof(pkt), /*wantAck=*/ false);
+            sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
         }
     }
 
     void AnimationScheduler::broadcastBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT])
     {
-        Protocol::PacketSetBaseColors pkt;
-
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_BASE_COLORS);
+        Protocol::PacketSetBaseColors pkt =
+            Protocol::makePacket<Protocol::PacketSetBaseColors>(Protocol::PACKET_SET_BASE_COLORS);
 
         for (uint8_t i = 0; i < BASE_COLORS_COUNT; i++) {
             pkt.colors[i] = colors[i];
         }
 
-        sink.send(0x00, Protocol::PACKET_SET_BASE_COLORS, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::broadcastGlobalBrightness(uint8_t value)
     {
-        Protocol::PacketSetGlobalBrightness pkt;
+        Protocol::PacketSetGlobalBrightness pkt =
+            Protocol::makePacket<Protocol::PacketSetGlobalBrightness>(Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS);
         pkt.value = value;
-        sink.send(0x00, Protocol::PACKET_SET_GLOBAL_BRIGHTNESS, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 
     void AnimationScheduler::broadcastBackground(const Protocol::ColorRGB& color)
     {
-        Protocol::PacketSetBackground pkt;
+        Protocol::PacketSetBackground pkt =
+            Protocol::makePacket<Protocol::PacketSetBackground>(Protocol::PACKET_SET_BACKGROUND);
 
-        Protocol::setPacketMeta(&pkt.meta, Protocol::PACKET_SET_BACKGROUND);
         pkt.color = color;
-        sink.send(0x00, Protocol::PACKET_SET_BACKGROUND, &pkt, sizeof(pkt), /*wantAck=*/ false);
+        sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 }  // namespace Lightnet

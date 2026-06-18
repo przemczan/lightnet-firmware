@@ -5,7 +5,7 @@
 #include "SimPanelManager.hpp"
 #include <Arduino.h>
 
-static void logPacket(uint8_t addr, const void *data, uint8_t size)
+static void logPacket(uint8_t addr, const Protocol::PacketMeta *packet, uint8_t size)
 {
     DEBUG_IF(
         DEBUG_LIGHTNET_BUS,
@@ -14,7 +14,7 @@ static void logPacket(uint8_t addr, const void *data, uint8_t size)
         char buf[8 + 12 + Protocol::MAX_PACKET_SIZE * 3 + 2];
         int n = snprintf(buf, sizeof(buf), "[SIM:SEND] %lu %u", millis(), addr);
 
-        const uint8_t *b = (const uint8_t *)data;
+        const uint8_t *b = (const uint8_t *)packet;
 
         for (uint8_t i = 0; i < size && n + 4 < (int)sizeof(buf); i++) {
         buf[n++] = ' ';
@@ -71,7 +71,7 @@ void LightnetBus::setOnPacketRequested(onPacketRequested_t cb)
     onPacketRequestedCallback = cb;
 }
 
-uint8_t LightnetBus::sendData(uint8_t address, void *data, uint8_t size, bool)
+uint8_t LightnetBus::sendData(uint8_t address, const Protocol::PacketMeta *data, uint8_t size, bool)
 {
     // Route to sim panels first, then log
     if (address == 0x00) {
@@ -86,54 +86,48 @@ uint8_t LightnetBus::sendData(uint8_t address, void *data, uint8_t size, bool)
 }
 
 uint8_t LightnetBus::sendPacket(
-    uint8_t                address,
-    void *                 packet,
-    uint8_t                size,
-    Protocol::packetType_t type,
-    bool                   end
+    uint8_t                     address,
+    const Protocol::PacketMeta *packet,
+    uint8_t                     size,
+    bool                        end
 )
 {
-    Protocol::setPacketMeta(packet, type);
-
     if (onPacketSentCallback) {
-        onPacketSentCallback(address, packet, size, type);
+        onPacketSentCallback(address, packet, size);
     }
 
     return sendData(address, packet, size, end);
 }
 
 uint8_t LightnetBus::sendPacketNack(
-    uint8_t                addr,
-    void *                 pkt,
-    uint8_t                size,
-    Protocol::packetType_t t
+    uint8_t                     addr,
+    const Protocol::PacketMeta *pkt,
+    uint8_t                     size
 )
 {
-    return sendPacket(addr, pkt, size, t, true);
+    return sendPacket(addr, pkt, size, true);
 }
 
 uint8_t LightnetBus::sendPacketAck(
-    uint8_t                addr,
-    void *                 pkt,
-    uint8_t                size,
-    Protocol::packetType_t t
+    uint8_t                     addr,
+    const Protocol::PacketMeta *pkt,
+    uint8_t                     size
 )
 {
-    sendPacket(addr, pkt, size, t, false);
+    sendPacket(addr, pkt, size, false);
 
     return 0;
 }
 
 uint8_t LightnetBus::sendPacketWithResponse(
-    uint8_t                addr,
-    void *                 pkt,
-    uint8_t                pktSize,
-    Protocol::packetType_t type,
-    void *                 respBuf,
-    uint8_t                respSize
+    uint8_t                     addr,
+    const Protocol::PacketMeta *pkt,
+    uint8_t                     pktSize,
+    Protocol::PacketMeta *      respBuf,
+    uint8_t                     respSize
 )
 {
-    sendPacket(addr, pkt, pktSize, type, false);
+    sendPacket(addr, pkt, pktSize, false);
 
     if (!respBuf || respSize < sizeof(Protocol::PacketMeta)) {
         return 0;
@@ -141,11 +135,11 @@ uint8_t LightnetBus::sendPacketWithResponse(
 
     memset(respBuf, 0, respSize);
 
-    if (type == Protocol::PACKET_FETCH_STATE &&
+    if (pkt->header.type == Protocol::PACKET_FETCH_STATE &&
         respSize >= sizeof(Protocol::PacketPanelState)) {
         Protocol::PacketPanelState *rsp = (Protocol::PacketPanelState *)respBuf;
 
-        Protocol::setPacketMeta(rsp, Protocol::PACKET_FETCH_STATE);
+        Protocol::setPacketMeta(Protocol::packetMeta(*rsp), Protocol::PACKET_FETCH_STATE);
         SimPanels.getState(addr, &rsp->panelState);
     } else {
         Protocol::setPacketMeta(respBuf, Protocol::PACKET_ACK);
@@ -154,12 +148,12 @@ uint8_t LightnetBus::sendPacketWithResponse(
     return 0;
 }
 
-uint8_t LightnetBus::sendResponsePacket(void *, uint8_t, Protocol::packetType_t)
+uint8_t LightnetBus::sendResponsePacket(Protocol::PacketMeta *, uint8_t)
 {
     return 0;
 }
 
-uint8_t LightnetBus::sendResponseData(void *, uint8_t)
+uint8_t LightnetBus::sendResponseData(const Protocol::PacketMeta *, uint8_t)
 {
     return 0;
 }

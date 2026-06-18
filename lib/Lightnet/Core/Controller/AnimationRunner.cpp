@@ -1,4 +1,5 @@
 #include "AnimationRunner.hpp"
+#include "../Common/ProtocolMeta.hpp"
 #include "RunnerMath.hpp"
 
 namespace Lightnet {
@@ -7,15 +8,14 @@ namespace Lightnet {
     {
         if (!sink) return;
 
-        Protocol::PacketSetColor colorPkt;
+        Protocol::PacketSetColor colorPkt = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
 
-        Protocol::setPacketMeta(&colorPkt.meta, Protocol::PACKET_SET_COLOR);
         colorPkt.color.rgb = {
             (uint8_t)((uint16_t)color.r * brightness / 255),
             (uint8_t)((uint16_t)color.g * brightness / 255),
             (uint8_t)((uint16_t)color.b * brightness / 255)
         };
-        sink->send(address, Protocol::PACKET_SET_COLOR, &colorPkt, sizeof(colorPkt), false);
+        sink->send(address, Protocol::packetMeta(colorPkt), sizeof(colorPkt), false);
     }
 
     // ============================================================================

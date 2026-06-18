@@ -479,14 +479,14 @@ namespace Lightnet {
     {
         if (a.animates == TARGET_INVERT) return 0; // ignore stored value — full identity->inverted range
 
-        return a.colorFrom.raw[0];
+        return ColorRef_scalarValue(a.colorFrom);
     }
 
     uint8_t AnimationPlayer::getValueTo(const AnimationState& a) const
     {
         if (a.animates == TARGET_INVERT) return 255; // ignore stored value — full identity->inverted range
 
-        return a.colorTo.raw[0];
+        return ColorRef_scalarValue(a.colorTo);
     }
 
     void AnimationPlayer::applyProgress(const AnimationState& a, uint8_t progress_q8, Slot& s) const

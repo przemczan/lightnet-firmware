@@ -625,18 +625,18 @@ namespace Lightnet {
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
                                    step.colorFrom, step.colorTo,
-                                   step.params[0], step.params[1],
+                                   step.params[STEP_PARAM_PREPARE_1], step.params[STEP_PARAM_PREPARE_2],
                                    panels, panelCount,
                                    resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx);
         } else {
-            // Non-colour `animates`: valueFrom/valueTo travel in colorFrom.raw[0]/colorTo.raw[0].
-            ColorRef from = ColorRef_rgb(step.valueFrom, 0, 0);
-            ColorRef to   = ColorRef_rgb(step.valueTo, 0, 0);
+            // Non-colour `animates`: valueFrom/valueTo travel as ColorRef scalars on the wire.
+            ColorRef from = ColorRef_scalar(step.valueFrom);
+            ColorRef to   = ColorRef_scalar(step.valueTo);
 
             scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
                                    effectiveDurationMs,
                                    from, to,
-                                   step.params[0], step.params[1],
+                                   step.params[STEP_PARAM_PREPARE_1], step.params[STEP_PARAM_PREPARE_2],
                                    panels, panelCount,
                                    resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx,
                                    step.animates);

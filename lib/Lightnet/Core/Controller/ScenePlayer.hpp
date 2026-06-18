@@ -41,13 +41,17 @@ namespace Lightnet {
     // SceneStep — 22 bytes, generic params + ColorRef
     // ============================================================================
 
+    // Indices into SceneStep::params forwarded as PacketAnimationPrepare.param1/param2.
+    static const uint8_t STEP_PARAM_PREPARE_1 = 0;
+    static const uint8_t STEP_PARAM_PREPARE_2 = 1;
+
     struct __attribute__((__packed__)) SceneStep {
         uint8_t  animType;   // AnimationType (0-31) or RUN_* (64+)
         uint8_t  flags;      // AnimationFlags bitfield
         uint16_t durationMs; // 0 = infinite (only valid on last step of looping scene)
         ColorRef colorFrom;  // 4 bytes
         ColorRef colorTo;    // 4 bytes
-        uint8_t  params[6];  // type-specific, params[0..1] sent via PREPARE; params[4] = RUNNER_PARAM_AMOUNT, params[5] = RUNNER_PARAM_LINES
+        uint8_t  params[6];  // type-specific; STEP_PARAM_PREPARE_* → PREPARE; runner slots → PanelField.hpp
         uint16_t speedMs;    // RAIN/SPARKLE only: drop-fall / flash period (ms). 0 = derive the rate from `durationMs` (legacy); >0 makes `durationMs` the play window instead.
         uint8_t  animates;   // AnimateTarget — what this animation modulates (default TARGET_COLOR)
         uint8_t  valueFrom;  // animates != TARGET_COLOR: scalar (0-255) ramp start ("from")

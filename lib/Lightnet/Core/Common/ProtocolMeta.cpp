@@ -2,28 +2,24 @@
 #include "../../Utils/Crc.hpp"
 
 namespace Protocol {
-    void setPacketMeta(void *packet, packetType_t type)
+    void setPacketMeta(PacketMeta *meta, packetType_t type)
     {
-        PacketMeta *meta = (PacketMeta *)packet;
-
         meta->header.type            = type;
         meta->header.protocolVersion = VERSION;
         meta->headerCrc              = crc16(&meta->header, sizeof(PacketHeader));
     }
 
-    uint8_t validatePacket(void *packet, uint8_t size, bool validateProtocolVersion)
+    uint8_t validatePacket(const PacketMeta *packet, uint8_t size, bool validateProtocolVersion)
     {
         if (size < sizeof(PacketMeta)) {
             return 1;
         }
 
-        PacketMeta *meta = (PacketMeta *)packet;
-
-        if (crc16(packet, sizeof(PacketHeader)) != meta->headerCrc) {
+        if (crc16(const_cast<PacketHeader *>(&packet->header), sizeof(PacketHeader)) != packet->headerCrc) {
             return 2;
         }
 
-        if (validateProtocolVersion && meta->header.protocolVersion != Protocol::VERSION) {
+        if (validateProtocolVersion && packet->header.protocolVersion != Protocol::VERSION) {
             return 3;
         }
 

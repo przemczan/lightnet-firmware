@@ -13,6 +13,19 @@ Lightnet is embedded firmware for a tree network of addressable-LED panels. A si
 
 Two distinct binaries are compiled from one source tree. `LIGHTNET_TARGET_CONTROLLER` (set in `platformio.ini`) selects the target; the preprocessor eliminates the unused half entirely.
 
+### lightnet-mobile (sibling repo)
+
+The **Android/iOS client** lives in a separate checkout beside this repo — typically `../lightnet-mobile` (e.g. `D:/Projects/Lightnet/lightnet-mobile` next to `lightnet-firmware`). It is not vendored inside this tree unless added as `third_party/lightnet-firmware` from the mobile side.
+
+| Where to look | Contents |
+|---|---|
+| `composeApp/src/commonMain/` | WebSocket protocol, `LightnetDevice`, UI, scene editor, live preview |
+| `composeApp/src/commonMain/.../LightnetHttpClient.kt` | HTTP client for controller REST API — update when adding/changing endpoints |
+| `composeApp/src/androidMain/cpp/` | NDK `liblightnet_anim.so` — JNI over `lib/Lightnet/Core/CApi` (`panel_core` + `controller_core`) |
+| `composeApp/build.gradle.kts` | Resolves firmware path: `-PlightnetFirmwareDir`, submodule `third_party/lightnet-firmware`, or sibling `../lightnet-firmware` |
+
+Build the mobile app from that repo: `.\gradlew.bat :composeApp:assembleDebug`. See `lib/Lightnet/Core/CApi/README.md` for how the portable core is consumed cross-repo.
+
 ---
 
 ## Docs

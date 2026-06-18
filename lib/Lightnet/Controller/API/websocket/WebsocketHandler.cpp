@@ -108,20 +108,19 @@ uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint1
 
 uint8_t WebsocketHandler::cmdToggle(WebsocketApi::Cmd::Toggle *command)
 {
-    Protocol::PacketTurnOnOff packet;
+    Protocol::PacketTurnOnOff packet = Protocol::makePacket<Protocol::PacketTurnOnOff>(Protocol::PACKET_TURN_ON_OFF);
 
     packet.on = command->state;
 
     return LNBus.sendPacketNack(
         command->address,
-        &packet,
-        sizeof(packet),
-        Protocol::PACKET_TURN_ON_OFF);
+        Protocol::packetMeta(packet),
+        sizeof(packet));
 }
 
 uint8_t WebsocketHandler::cmdSetColor(WebsocketApi::Cmd::SetColor *command)
 {
-    Protocol::PacketSetColor packet;
+    Protocol::PacketSetColor packet = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
 
     packet.color.rgb.r = command->color.r;
     packet.color.rgb.g = command->color.g;
@@ -129,9 +128,8 @@ uint8_t WebsocketHandler::cmdSetColor(WebsocketApi::Cmd::SetColor *command)
 
     return LNBus.sendPacketNack(
         command->address,
-        &packet,
-        sizeof(packet),
-        Protocol::PACKET_SET_COLOR);
+        Protocol::packetMeta(packet),
+        sizeof(packet));
 }
 
 uint8_t WebsocketHandler::cmdGetPanelsStates(uint32_t clientId)

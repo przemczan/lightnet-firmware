@@ -43,85 +43,86 @@ bool PacketMirror::isSnapshotted(uint8_t type)
     }
 }
 
-void PacketMirror::updateSnapshot(uint8_t address, const void *packet, uint8_t size, uint8_t type)
+void PacketMirror::updateSnapshot(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
 {
-    uint8_t key = 0;
-
-    // group_id sits at byte 6 in both PREPARE (meta + animType) and START (meta +
-    // seq_id). Keying on it keeps per-group entries distinct, so a panel running
-    // several concurrent animation groups replays every one of them, not just the last.
-    if ((type == Protocol::PACKET_ANIMATION_PREPARE ||
-         type == Protocol::PACKET_ANIMATION_START) && size >= 7) {
-        key = ((const uint8_t *)packet)[6];
+    if (size < sizeof(Protocol::PacketMeta)) {
+        return;
     }
 
-    // Upsert: find existing entry for (address, type, key) and overwrite in place.
+    const uint8_t type = (uint8_t)packet->header.type;
+    uint8_t key = 0;
+
+    switch (packet->header.type) {
+        case Protocol::PACKET_ANIMATION_PREPARE:
+
+            if (size >= sizeof(Protocol::PacketAnimationPrepare)) {
+                key = ((const Protocol::PacketAnimationPrepare *)packet)->group_id;
+            }
+
+            break;
+        case Protocol::PACKET_ANIMATION_START:
+
+            if (size >= sizeof(Protocol::PacketAnimationStart)) {
+                key = ((const Protocol::PacketAnimationStart *)packet)->group_id;
+            }
+
+            break;
+        default:
+            break;
+    }
+
     for (uint16_t i = 0; i < snapshotEntryCount; i++) {
         SnapshotEntry &e = snapshotIndex[i];
 
         if (e.address == address && e.type == type && e.key == key) {
-            // All packets of the same type have the same fixed size, so overwrite is safe.
-            memcpy(snapshotRecords() + e.offset + RECORD_HEADER, packet, size);
+            Lightnet::mirrorRecordWrite((MirrorRecordHeader *)(snapshotRecords() + e.offset), address, type, size, packet);
 
             return;
         }
     }
 
-    // New entry — check capacity guards.
     if (snapshotEntryCount >= SNAPSHOT_MAX_ENTRIES ||
-        (uint16_t)(snapshotRecordsLen + RECORD_HEADER + size) > SNAPSHOT_RECORDS_CAP) {
+        (uint16_t)(snapshotRecordsLen + MIRROR_RECORD_HEADER_SIZE + size) > SNAPSHOT_RECORDS_CAP) {
         snapshotDroppedCount++;
 
         return;
     }
 
-    uint8_t *rec = snapshotRecords() + snapshotRecordsLen;
+    MirrorRecordHeader *rec = (MirrorRecordHeader *)(snapshotRecords() + snapshotRecordsLen);
 
-    rec[0] = address;
-    rec[1] = type;
-    rec[2] = size;
-    memcpy(&rec[RECORD_HEADER], packet, size);
+    Lightnet::mirrorRecordWrite(rec, address, type, size, packet);
 
     snapshotIndex[snapshotEntryCount] = { address, type, key, snapshotRecordsLen, size };
     snapshotEntryCount++;
-    snapshotRecordsLen += RECORD_HEADER + size;
+    snapshotRecordsLen += MIRROR_RECORD_HEADER_SIZE + size;
 }
 
-// PACKET_ANIMATION_CONTROL is mirrored live but not snapshotted (see isSnapshotted), so a
-// STOP that clears a slot on the real panel would otherwise leave that slot's PREPARE/START
-// entries in the snapshot forever — replayed as phantom "residue" layers to any client that
-// joins/re-enables mirroring afterwards. Drop them here so the snapshot tracks STOPped slots.
 void PacketMirror::invalidateSnapshot(uint8_t address, uint8_t group_id)
 {
     for (uint16_t i = 0; i < snapshotEntryCount; ) {
         SnapshotEntry &e = snapshotIndex[i];
 
-        // address/group_id == 0 are General Call / "all slots" — match every snapshot
-        // entry's address/key respectively, the same way AnimationPlayer::control() does.
         bool matches = ((address == 0) || (e.address == address)) &&
-                       ((group_id == 0) || (e.key == group_id) ) &&
-                       ((e.type == Protocol::PACKET_ANIMATION_PREPARE) || (e.type == Protocol::PACKET_ANIMATION_START) );
+                       ((group_id == 0) || (e.key == group_id)) &&
+                       ((e.type == Protocol::PACKET_ANIMATION_PREPARE) || (e.type == Protocol::PACKET_ANIMATION_START));
 
         if (!matches) {
             i++;
             continue;
         }
 
-        uint16_t recSize = RECORD_HEADER + e.size;
+        uint16_t recSize = MIRROR_RECORD_HEADER_SIZE + e.size;
         uint8_t *base = snapshotRecords();
 
-        // Shift remaining record bytes left over the removed entry.
         memmove(base + e.offset, base + e.offset + recSize, snapshotRecordsLen - e.offset - recSize);
         snapshotRecordsLen -= recSize;
 
-        // Fix up offsets of entries that pointed past the removed region.
         for (uint16_t j = 0; j < snapshotEntryCount; j++) {
             if (snapshotIndex[j].offset > e.offset) {
                 snapshotIndex[j].offset -= recSize;
             }
         }
 
-        // Remove this entry from the index — shift the tail left, re-check position i.
         for (uint16_t j = i; j < snapshotEntryCount - 1; j++) {
             snapshotIndex[j] = snapshotIndex[j + 1];
         }
@@ -130,79 +131,67 @@ void PacketMirror::invalidateSnapshot(uint8_t address, uint8_t group_id)
     }
 }
 
-void PacketMirror::capture(uint8_t address, const void *packet, uint8_t size, uint8_t type)
+void PacketMirror::capture(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
 {
+    if (size < sizeof(Protocol::PacketMeta)) {
+        return;
+    }
+
+    const uint8_t type = (uint8_t)packet->header.type;
+
     if (!isMirrored(type)) {
         return;
     }
 
-    // A STOP clears the matching slot(s) on the real panel; mirror the same invalidation
-    // onto the snapshot so a late-joining/re-mirroring client doesn't replay stale entries.
-    if (type == Protocol::PACKET_ANIMATION_CONTROL && size >= 7) {
-        const uint8_t *p = (const uint8_t *)packet;
+    if (packet->header.type == Protocol::PACKET_ANIMATION_CONTROL &&
+        size >= sizeof(Protocol::PacketAnimationControl)) {
+        const Protocol::PacketAnimationControl *ctrl = (const Protocol::PacketAnimationControl *)packet;
 
-        if (p[5] == Lightnet::ANIM_CTRL_STOP) {
-            invalidateSnapshot(address, p[6]);
+        if (ctrl->cmd == Lightnet::ANIM_CTRL_STOP) {
+            invalidateSnapshot(address, ctrl->group_id);
         }
     }
 
-    // Snapshot first: it has its own buffer, so a full live-stream ring must never
-    // block recording the latest state a late-joining client needs to replay.
     if (isSnapshotted(type)) {
-        updateSnapshot(address, packet, size, type);
+        updateSnapshot(address, packet, size);
     }
 
-    // Coalesce SET_COLOR: the preview flushes at ~30fps, so only the latest colour per
-    // panel in this window matters. Overwrite an existing record for the same panel rather
-    // than appending — bounds the ring even if a runner streams per-panel colours.
     if (type == Protocol::PACKET_SET_COLOR) {
         uint16_t off = 0;
 
         while (off < recordsLen) {
-            uint8_t *r   = records() + off;
-            uint8_t rsz = r[2];
+            const MirrorRecordHeader *rec = (const MirrorRecordHeader *)(records() + off);
 
-            if (r[0] == address && r[1] == type && rsz == size) {
-                memcpy(&r[RECORD_HEADER], packet, size);
+            if (rec->address == address && rec->type == type && rec->size == size) {
+                memcpy(Lightnet::mirrorRecordPayload((MirrorRecordHeader *)rec), packet, size);
 
                 return;
             }
 
-            off = (uint16_t)(off + RECORD_HEADER + rsz);
+            off = (uint16_t)(off + Lightnet::mirrorRecordTotalSize(rec));
         }
     }
 
-    if ((uint16_t)(recordsLen + RECORD_HEADER + size) > RECORDS_CAP) {
-        // Flush early instead of dropping. Safe because every caller runs on the
-        // main-loop task (HTTP packet emission is deferred via MainLoopQueue), so this
-        // cannot race the periodic flushTo() in serviceMirror(). After the flush the
-        // ring is empty and the append below proceeds, so no record is ever lost.
+    if ((uint16_t)(recordsLen + MIRROR_RECORD_HEADER_SIZE + size) > RECORDS_CAP) {
         if (server) {
             flushTo(server);
         } else {
-            droppedCount++;   // pre-init fallback only (no server wired yet)
+            droppedCount++;
 
             return;
         }
     }
 
-    // Record the capture time. Use the earliest capture time for the whole batch
-    // so the MIRROR_BATCH 'controllerMillis' reflects when the first packet was
-    // sent, reducing skew between PREPARE and START when the mirror coalesces
-    // multiple packets into one flush.
     uint32_t now = millis();
 
     if (firstRecordMs == 0) firstRecordMs = now;
     else if (now < firstRecordMs) firstRecordMs = now;
 
-    uint8_t *rec = records() + recordsLen;
+    MirrorRecordHeader *rec = (MirrorRecordHeader *)(records() + recordsLen);
 
-    rec[0] = address;
-    rec[1] = type;
-    rec[2] = size;
-    memcpy(&rec[RECORD_HEADER], packet, size);
+    Lightnet::mirrorRecordWrite(rec, address, type, size, packet);
 
-    recordsLen += RECORD_HEADER + size;
+    recordsLen += MIRROR_RECORD_HEADER_SIZE + size;
     recordCount++;
 }
 
@@ -212,18 +201,11 @@ bool PacketMirror::flushTo(WebsocketServer *server)
         return false;
     }
 
-    // Use the earliest captured record timestamp if available; otherwise use
-    // current millis(). This keeps the preview timing closer to the controller's
-    // actual send times when multiple packets are coalesced.
     uint32_t now = (firstRecordMs != 0) ? firstRecordMs : millis();
-    uint8_t *p = payload();
 
-    // memcpy: payload lands at an odd offset (sizeof(PacketMeta)==13), so direct
-    // multi-byte stores would be unaligned and fault on ESP8266.
-    memcpy(&p[0], &now, sizeof(now));
-    memcpy(&p[4], &recordCount, sizeof(recordCount));
+    Lightnet::mirrorBatchWriteHeader(payload(), now, recordCount);
 
-    uint16_t payloadSize = PAYLOAD_HEADER + recordsLen;
+    uint16_t payloadSize = MIRROR_BATCH_HEADER_SIZE + recordsLen;
 
     WebsocketApi::updatePacketMeta(
         (WebsocketApi::PacketMeta *)frame,
@@ -241,9 +223,9 @@ bool PacketMirror::flushTo(WebsocketServer *server)
         }
     });
 
-    recordsLen   = 0;
-    recordCount  = 0;
-    droppedCount = 0;
+    recordsLen    = 0;
+    recordCount   = 0;
+    droppedCount  = 0;
     firstRecordMs = 0;
 
     return true;
@@ -256,13 +238,10 @@ void PacketMirror::flushSnapshotTo(WebsocketServer *server, uint32_t clientId)
     }
 
     uint32_t now = millis();
-    uint8_t *p = snapshotPayload();
 
-    // memcpy for unaligned-safe writes (payload is at an odd offset on ESP8266).
-    memcpy(&p[0], &now, sizeof(now));
-    memcpy(&p[4], &snapshotEntryCount, sizeof(snapshotEntryCount));
+    Lightnet::mirrorBatchWriteHeader(snapshotPayload(), now, snapshotEntryCount);
 
-    uint16_t payloadSize = PAYLOAD_HEADER + snapshotRecordsLen;
+    uint16_t payloadSize = MIRROR_BATCH_HEADER_SIZE + snapshotRecordsLen;
 
     WebsocketApi::updatePacketMeta(
         (WebsocketApi::PacketMeta *)snapshotFrame,

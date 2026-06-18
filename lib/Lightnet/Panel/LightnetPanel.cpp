@@ -4,7 +4,7 @@
 LightnetPanel::LightnetPanel()
 {
     this->edges = new List<LightnetPanelEdge *>();
-    Protocol::setPacketMeta(&this->ackPacket, Protocol::PACKET_ACK);
+    this->ackPacket = Protocol::makeMeta(Protocol::PACKET_ACK);
 }
 
 LightnetPanel::~LightnetPanel()
@@ -437,34 +437,39 @@ void LightnetPanel::onPacketRequested()
 
     switch (this->lastPacketType) {
         case Protocol::PACKET_INITIALIZATION_PULL:
-            Protocol::PacketRegisterEdge packetRegisterEdge;
+        {
+            Protocol::PacketRegisterEdge packetRegisterEdge =
+                Protocol::makePacket<Protocol::PacketRegisterEdge>(Protocol::PACKET_REGISTER_EDGE);
 
             packetRegisterEdge.panelIndex = this->index;
             packetRegisterEdge.edgeIndex = this->nextEdgeToRegister;
 
             LNBus.sendResponsePacket(
-                &packetRegisterEdge,
-                sizeof(packetRegisterEdge),
-                Protocol::PACKET_REGISTER_EDGE);
+                Protocol::packetMeta(packetRegisterEdge),
+                sizeof(packetRegisterEdge));
             break;
+        }
 
         case Protocol::PACKET_FETCH_STATE:
-            Protocol::PacketPanelState packet;
+        {
+            Protocol::PacketPanelState packet =
+                Protocol::makePacket<Protocol::PacketPanelState>(Protocol::PACKET_FETCH_STATE);
 
             packet.panelState.panelIndex = this->index;
             packet.panelState.state = this->rgbController->on();
             packet.panelState.color = this->rgbController->color();
 
-            LNBus.sendResponsePacket(&packet, sizeof(packet), Protocol::PACKET_FETCH_STATE);
+            LNBus.sendResponsePacket(Protocol::packetMeta(packet), sizeof(packet));
             break;
+        }
 
         case Protocol::PACKET_FETCH_ANIM_STATE:
         {
-            Protocol::PacketAnimationStatus status;
+            Protocol::PacketAnimationStatus status =
+                Protocol::makePacket<Protocol::PacketAnimationStatus>(Protocol::PACKET_FETCH_ANIM_STATE);
 
-            Protocol::setPacketMeta(&status.meta, Protocol::PACKET_FETCH_ANIM_STATE);
             this->animPlayer.fillStatus(&status, (uint16_t)millis());
-            LNBus.sendResponseData(&status, sizeof(status));
+            LNBus.sendResponseData(Protocol::packetMeta(status), sizeof(status));
             break;
         }
 
