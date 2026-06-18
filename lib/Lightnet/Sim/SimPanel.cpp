@@ -2,6 +2,21 @@
 
 #include "SimPanel.hpp"
 
+SimPanel::SimPanel()
+{
+}
+
+void SimPanel::setIndex(uint8_t idx)
+{
+    panelIndex = idx;
+    rgb.setPanelIndex(idx);
+}
+
+uint8_t SimPanel::getIndex() const
+{
+    return panelIndex;
+}
+
 void SimPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t size)
 {
     if (size < sizeof(Protocol::PacketMeta)) return;

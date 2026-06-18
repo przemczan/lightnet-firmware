@@ -8,6 +8,38 @@ PacketMirror::PacketMirror()
 {
 }
 
+void PacketMirror::setServer(WebsocketServer *s)
+{
+    server = s;
+}
+
+void PacketMirror::clearSnapshot()
+{
+    snapshotEntryCount   = 0;
+    snapshotRecordsLen   = 0;
+    snapshotDroppedCount = 0;
+}
+
+uint8_t *PacketMirror::payload()
+{
+    return frame + sizeof(WebsocketApi::PacketMeta);
+}
+
+uint8_t *PacketMirror::records()
+{
+    return payload() + MIRROR_BATCH_HEADER_SIZE;
+}
+
+uint8_t *PacketMirror::snapshotPayload()
+{
+    return snapshotFrame + sizeof(WebsocketApi::PacketMeta);
+}
+
+uint8_t *PacketMirror::snapshotRecords()
+{
+    return snapshotPayload() + MIRROR_BATCH_HEADER_SIZE;
+}
+
 bool PacketMirror::isMirrored(uint8_t type)
 {
     switch (type) {

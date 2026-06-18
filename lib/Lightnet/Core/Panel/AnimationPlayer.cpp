@@ -28,6 +28,20 @@ namespace Lightnet {
         baseColors[2] = { 0x00, 0x00, 0x00 };
     }
 
+    ::Protocol::ColorRGB AnimationPlayer::currentColor() const
+    {
+        return lastOutput;
+    }
+
+    bool AnimationPlayer::takeDirty()
+    {
+        bool d = outputDirty;
+
+        outputDirty = false;
+
+        return d;
+    }
+
     // ============================================================================
     // Palette / base colors
     // ============================================================================

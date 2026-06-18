@@ -21,14 +21,7 @@ namespace Protocol {
     void setPacketMeta(PacketMeta *meta, packetType_t type);
 
     // Meta-only wire packets (FETCH_STATE request, RESET, ACK, …).
-    inline PacketMeta makeMeta(packetType_t type)
-    {
-        PacketMeta meta = {};
-
-        setPacketMeta(&meta, type);
-
-        return meta;
-    }
+    PacketMeta makeMeta(packetType_t type);
 
     // Full packet structs (meta is the first member). Zero-initializes payload fields.
     template<typename PacketT>

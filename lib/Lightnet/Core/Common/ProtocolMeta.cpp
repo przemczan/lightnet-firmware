@@ -9,6 +9,15 @@ namespace Protocol {
         meta->headerCrc              = crc16(&meta->header, sizeof(PacketHeader));
     }
 
+    PacketMeta makeMeta(packetType_t type)
+    {
+        PacketMeta meta = {};
+
+        setPacketMeta(&meta, type);
+
+        return meta;
+    }
+
     uint8_t validatePacket(const PacketMeta *packet, uint8_t size, bool validateProtocolVersion)
     {
         if (size < sizeof(PacketMeta)) {

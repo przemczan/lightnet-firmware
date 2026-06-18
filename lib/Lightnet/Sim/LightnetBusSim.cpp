@@ -71,6 +71,11 @@ void LightnetBus::setOnPacketRequested(onPacketRequested_t cb)
     onPacketRequestedCallback = cb;
 }
 
+void LightnetBus::setOnPacketSent(onPacketSent_t cb)
+{
+    onPacketSentCallback = cb;
+}
+
 uint8_t LightnetBus::sendData(uint8_t address, const Protocol::PacketMeta *data, uint8_t size, bool)
 {
     // Route to sim panels first, then log

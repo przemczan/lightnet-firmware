@@ -53,19 +53,9 @@ namespace Lightnet {
 
             // Current composited colour + change flag. The platform mirrors this to the LED:
             //   player.tick(now); if (player.takeDirty()) led->write(player.currentColor());
-            ::Protocol::ColorRGB currentColor() const
-            {
-                return lastOutput;
-            }
+            ::Protocol::ColorRGB currentColor() const;
 
-            bool takeDirty()
-            {
-                bool d = outputDirty;
-
-                outputDirty = false;
-
-                return d;
-            }
+            bool takeDirty();
 
             // Status reporting
             void fillStatus(::Protocol::PacketAnimationStatus *out, uint16_t now);

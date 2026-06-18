@@ -50,6 +50,11 @@ void LightnetBus::setOnPacketRequested(onPacketRequested_t callback)
     this->onPacketRequestedCallback = callback;
 }
 
+void LightnetBus::setOnPacketSent(onPacketSent_t callback)
+{
+    onPacketSentCallback = callback;
+}
+
 void LightnetBus::begin(uint8_t address)
 {
     Wire.begin(address);

@@ -9,20 +9,11 @@
     class SimPanel
     {
         public:
-            SimPanel()
-            {
-            }
+            SimPanel();
 
-            void setIndex(uint8_t idx)
-            {
-                panelIndex = idx;
-                rgb.setPanelIndex(idx);
-            }
+            void setIndex(uint8_t idx);
 
-            uint8_t getIndex() const
-            {
-                return panelIndex;
-            }
+            uint8_t getIndex() const;
 
             void handlePacket(const Protocol::PacketMeta *packet, uint8_t size);
             void getState(Protocol::PanelState *state) const;

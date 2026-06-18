@@ -115,25 +115,16 @@ namespace Lightnet {
             void resume(uint32_t nowMs);
 
             // Set the device tag map used to resolve `tag:` selectors. Null = tags resolve empty.
-            void setTagResolver(const ITagResolver *resolver)
-            {
-                sceneTopo.setTagResolver(resolver);
-            }
+            void setTagResolver(const ITagResolver *resolver);
 
             // Designate the logical root panel (§4.1): rebuilds the topology view and, if a scene
             // is playing, restarts it so the new rooting takes effect immediately.
             void setLogicalRoot(uint8_t panelIndex, uint32_t nowMs);
 
-            uint8_t getLogicalRoot() const
-            {
-                return sceneTopo.logicalRoot();
-            }
+            uint8_t getLogicalRoot() const;
 
             // True when a scene is loaded in memory (may or may not be playing).
-            bool hasScene() const
-            {
-                return lCount > 0;
-            }
+            bool hasScene() const;
 
             void tick(uint32_t nowMs);
 
@@ -144,42 +135,20 @@ namespace Lightnet {
             void reresolvePalettes(const char *newPal, const uint8_t *baseColorBytes);
 
             // Change playback speed of the current scene. Takes effect on next step.
-            void setSpeed(float s)
-            {
-                if (s < 0.1f) s = 0.1f;
+            void setSpeed(float s);
 
-                if (s > 10.0f) s = 10.0f;
-
-                speed = s;
-            }
-
-            float getSpeed() const
-            {
-                return speed;
-            }
+            float getSpeed() const;
 
             // Numeric groupId for the layer with the given string name, or 0 if not found.
             uint8_t groupIdForName(const char *name) const;
 
-            bool        isPlaying()   const
-            {
-                return playing;
-            }
+            bool        isPlaying()   const;
 
-            const char * sceneName()   const
-            {
-                return playing ? name : "";
-            }
+            const char * sceneName()   const;
 
-            bool        sceneLoop()   const
-            {
-                return loop;
-            }
+            bool        sceneLoop()   const;
 
-            uint8_t     layerCount()  const
-            {
-                return lCount;
-            }
+            uint8_t     layerCount()  const;
 
         private:
             AnimationScheduler& scheduler;
@@ -275,10 +244,7 @@ namespace Lightnet {
             void promoteReadyLayers(uint32_t nowMs);
             // True when the layer loops on its own, independent of the scene-cycle barrier.
             // async has no effect while startAfter gates the layer.
-            bool isAsyncLayer(uint8_t i) const
-            {
-                return (layers[i].async & LAYER_ASYNC_LOOP) && (layers[i].startAfterGroupId == 0);
-            }
+            bool isAsyncLayer(uint8_t i) const;
 
             void sendPalettesToPanels();
             // Resolve a ColorRef to an actual RGB using the layer's palette + scene base colors.

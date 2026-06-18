@@ -46,10 +46,7 @@ class LightnetBus
         uint8_t requestPacket(uint8_t address, void *buffer, uint8_t size);
         void setOnPacketReceived(onPacketReceived_t callback);
         void setOnPacketRequested(onPacketRequested_t callback);
-        void setOnPacketSent(onPacketSent_t callback)
-        {
-            onPacketSentCallback = callback;
-        }
+        void setOnPacketSent(onPacketSent_t callback);
 
         void flush();
 

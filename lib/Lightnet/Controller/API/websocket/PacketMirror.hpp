@@ -22,10 +22,7 @@ class PacketMirror
         // Wire the WebSocket server used for the flush-on-overflow safety valve in
         // capture(). Must be set once at init. Until it is set, capture() falls back
         // to dropping on overflow.
-        void setServer(WebsocketServer *s)
-        {
-            server = s;
-        }
+        void setServer(WebsocketServer *s);
 
         // Filtered append. Only animation/color/palette/brightness/on-off packets are
         // kept; everything else (discovery, fetch, bootloader, reset) is ignored.
@@ -46,12 +43,7 @@ class PacketMirror
 
         // Discard all snapshot entries. Call when the controller turns off so stale
         // animation state is not replayed to clients that connect while it is off.
-        void clearSnapshot()
-        {
-            snapshotEntryCount  = 0;
-            snapshotRecordsLen  = 0;
-            snapshotDroppedCount = 0;
-        }
+        void clearSnapshot();
 
     private:
         // The live ring no longer has to hold an entire scene-start PREPARE storm:
@@ -105,23 +97,11 @@ class PacketMirror
         void        updateSnapshot(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
         void        invalidateSnapshot(uint8_t address, uint8_t group_id);
 
-        uint8_t *payload()
-        {
-            return frame + sizeof(WebsocketApi::PacketMeta);
-        }
+        uint8_t *payload();
 
-        uint8_t *records()
-        {
-            return payload() + MIRROR_BATCH_HEADER_SIZE;
-        }
+        uint8_t *records();
 
-        uint8_t *snapshotPayload()
-        {
-            return snapshotFrame + sizeof(WebsocketApi::PacketMeta);
-        }
+        uint8_t *snapshotPayload();
 
-        uint8_t *snapshotRecords()
-        {
-            return snapshotPayload() + MIRROR_BATCH_HEADER_SIZE;
-        }
+        uint8_t *snapshotRecords();
 };

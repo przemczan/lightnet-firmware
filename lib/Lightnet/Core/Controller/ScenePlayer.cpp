@@ -95,6 +95,60 @@ namespace Lightnet {
         memset(spawnState, 0, sizeof(spawnState));
     }
 
+    void ScenePlayer::setTagResolver(const ITagResolver *resolver)
+    {
+        sceneTopo.setTagResolver(resolver);
+    }
+
+    uint8_t ScenePlayer::getLogicalRoot() const
+    {
+        return sceneTopo.logicalRoot();
+    }
+
+    bool ScenePlayer::hasScene() const
+    {
+        return lCount > 0;
+    }
+
+    void ScenePlayer::setSpeed(float s)
+    {
+        if (s < 0.1f) s = 0.1f;
+
+        if (s > 10.0f) s = 10.0f;
+
+        speed = s;
+    }
+
+    float ScenePlayer::getSpeed() const
+    {
+        return speed;
+    }
+
+    bool ScenePlayer::isPlaying() const
+    {
+        return playing;
+    }
+
+    const char *ScenePlayer::sceneName() const
+    {
+        return playing ? name : "";
+    }
+
+    bool ScenePlayer::sceneLoop() const
+    {
+        return loop;
+    }
+
+    uint8_t ScenePlayer::layerCount() const
+    {
+        return lCount;
+    }
+
+    bool ScenePlayer::isAsyncLayer(uint8_t i) const
+    {
+        return (layers[i].async & LAYER_ASYNC_LOOP) && (layers[i].startAfterGroupId == 0);
+    }
+
     void ScenePlayer::loadAndPlay(
         const SceneLayer *       newLayers,
         uint8_t                  newCount,
