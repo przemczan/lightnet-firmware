@@ -1,57 +1,44 @@
 #pragma once
 // AnimationService is the reusable, HTTP-agnostic service layer for scene
-// orchestration. It coordinates SceneStore + SceneParser + ScenePlayer:
-//
-//   saveScene       — parse/validate → write to SceneStore
-//   playSceneByName — load from SceneStore → parse → play
-//   playSceneInline — validate inline body → store as "@one-shot" → playSceneByName
-//   playOneShot     — parse flat one-shot body → play
-//   stopScene       — stop the running scene
-//
-// AnimationService never calls AppearanceStore directly.
-// Callers that need to persist appearance state after play (e.g. the HTTP
-// handler) use the SceneResult::sceneColors / scenePalette fields and
-// call AppearanceStore directly.
-//
-// Error reporting uses a semantic enum so callers outside HTTP can interpret
-// results without knowing HTTP status codes.
+// orchestration. It coordinates ISceneRepository + SceneParser + ScenePlayer.
 
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include "../../Core/Controller/ScenePlayer.hpp"
-#include "SceneStore.hpp"
+#include "ISceneRepository.hpp"
 #include "../../Core/Controller/SceneParser.hpp"
-#include "../../Common/Protocol.hpp"  // Protocol::ColorRGB for playOneShot defaults
-#include "../../Core/Common/LightnetConfig.hpp"
+#include "../../Common/Protocol.hpp"
+#include "../../Utils/EntryId.hpp"
 
 namespace Lightnet {
-    // ============================================================================
-    // Result type
-    // ============================================================================
-
     enum class SceneError : uint8_t {
-        None,     // success
-        Invalid,  // malformed / validation failure
-        NotFound, // referenced scene doesn't exist
-        SchemaTooNew, // scene was written by a newer firmware
-        IoFailure, // filesystem read/write failed
+        None,
+        Invalid,
+        NotFound,
+        SchemaTooNew,
+        IoFailure,
+        IdMismatch,
     };
 
     struct SceneResult {
         SceneError err;
         char       msg[64];
+        char       savedId[ENTRY_ID_MAX + 1];
 
         bool ok() const
         {
             return err == SceneError::None;
         }
 
-        static SceneResult success()
+        static SceneResult success(const char *id = nullptr)
         {
             SceneResult r;
             r.err = SceneError::None;
             r.msg[0] = '\0';
+            r.savedId[0] = '\0';
+
+            if (id) strncpy(r.savedId, id, sizeof(r.savedId) - 1);
 
             return r;
         }
@@ -60,6 +47,7 @@ namespace Lightnet {
         {
             SceneResult r;
             r.err = e;
+            r.savedId[0] = '\0';
             strncpy(r.msg, message ? message : "", sizeof(r.msg) - 1);
             r.msg[sizeof(r.msg) - 1] = '\0';
 
@@ -67,31 +55,19 @@ namespace Lightnet {
         }
     };
 
-    // ============================================================================
-    // AnimationService
-    // ============================================================================
-
     class AnimationService
     {
         public:
-            AnimationService(SceneStore& scenes, ScenePlayer& player);
+            AnimationService(ISceneRepository& scenes, ScenePlayer& player);
 
-            // Validate `body` via parseScene, then write raw bytes to SceneStore.
             SceneResult saveScene(const char *body, size_t len);
 
-            // Load a stored scene by name, parse it, and start playing.
-            // defaultPalette and defaultColors are used when the scene JSON does not
-            // specify its own palette / colors (pass AppearanceStore values to inherit
-            // the active appearance; pass nullptr/null to fall back to "userColors").
-            SceneResult playSceneByName(
-                const char *             name,
+            SceneResult playSceneById(
+                const char *             id,
                 const char *             defaultPalette = nullptr,
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT] = nullptr
             );
 
-            // Parse and validate an inline scene body, persist it under
-            // SceneStore::oneShotName() ("@one-shot"), then play it by
-            // name — there is no separate inline-play code path.
             SceneResult playSceneInline(
                 const char *             body,
                 size_t                   len,
@@ -99,10 +75,6 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT] = nullptr
             );
 
-            // Parse a flat one-shot body {"group":N,"panels":...,...step fields...}
-            // and play it via ScenePlayer with loop=false.
-            // defaultPalette and defaultColors are used when the body doesn't specify
-            // its own (typically the current AppearanceStore values, passed by caller).
             SceneResult playOneShot(
                 const char *             body,
                 size_t                   len,
@@ -110,27 +82,11 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
 
-            // --- Deferred-play split ------------------------------------------------
-            // HTTP handlers run on the AsyncTCP task, but scene playback emits I2C
-            // packets that must originate on the main-loop task (see MainLoopQueue and
-            // PacketMirror's flush-on-overflow). So the work is split: prepare* (parse /
-            // validate / persist — pure, safe on AsyncTCP) runs in the handler and
-            // surfaces errors synchronously; playParsed* (emits packets) is deferred
-            // onto the main loop. The non-split play* methods above remain for callers
-            // that already run on the main loop (e.g. demos).
-
-            // Parse + validate an inline body and persist it under the reserved name,
-            // WITHOUT playing. Caller plays `out` later via playParsed (on the main loop).
             SceneResult prepareInline(const char *body, size_t len, SceneParseResult& out);
+            SceneResult prepareById(const char *id, SceneParseResult& out);
 
-            // Load a stored scene by name and parse it, WITHOUT playing.
-            SceneResult prepareByName(const char *name, SceneParseResult& out);
-
-            // Parse a one-shot body into a single layer, WITHOUT playing.
             SceneResult prepareOneShot(const char *body, size_t len, SceneLayer& out);
 
-            // Play an already-parsed scene / one-shot layer. Emits I2C packets — call
-            // only from the main loop.
             SceneResult playParsed(
                 SceneParseResult&        parsed,
                 const char *             defaultPalette,
@@ -142,44 +98,26 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
 
-            // Stop the currently playing scene. Scene data is kept in memory so
-            // resumeScene() can restart it later (e.g. after power-on).
             void stopScene();
-
-            // Restart the last-loaded scene from the beginning, if any.
-            // Intended for power-on: stops are issued first via stopScene(), then
-            // power-on calls this to bring the animation back.
             void resumeScene(uint32_t nowMs);
-
-            // Change the playback speed of the currently playing scene [0.1, 10.0].
-            // Takes effect at the start of the next step.
             void setSceneSpeed(float speed);
 
-            // Resolve a layer's string name to its numeric groupId in the playing scene.
-            // Returns 0 if no scene is playing or the name is not found.
             uint8_t groupIdForName(const char *name) const;
-
-            // Pass-throughs for /api/state.
             bool isPlaying() const;
             float getSpeed() const;
 
-            // Call when the active appearance palette or base colors change. Re-resolves
-            // the playing scene's palettes for layers that use the appearance defaults
-            // (i.e., the scene JSON did not set its own palette / colors).
             void onAppearanceChanged(
                 const char *             palette,
                 const Protocol::ColorRGB colors[BASE_COLORS_COUNT]
             );
 
         private:
-            SceneStore& scenes;
+            ISceneRepository& scenes;
             ScenePlayer& player;
 
             bool sceneHasOwnPalette = false;
             bool sceneHasOwnColors  = false;
 
-            // Start playing a validated parse result. defaultPalette/defaultColors are
-            // used when the scene did not explicitly set palette/colors.
             SceneResult startPlay(
                 SceneParseResult&        parsed,
                 const char *             defaultPalette,

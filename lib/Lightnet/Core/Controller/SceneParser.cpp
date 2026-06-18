@@ -925,7 +925,7 @@ namespace Lightnet {
         out.schemaVersion = 1;
         out.loop = false;
         out.speed = 1.0f;
-        strncpy(out.palette, "userColors", sizeof(out.palette) - 1);
+        strncpy(out.palette, userColorsId(), sizeof(out.palette) - 1);
         out.hasPalette = false;
         out.hasColors  = false;
         out.baseColors[0] = { 0xFF, 0xFF, 0xFF };
@@ -1066,20 +1066,11 @@ namespace Lightnet {
             return false;
         }
 
-        // Validate name characters and length.
-        size_t nameLen = 0;
+        // Validate display name length (names are not filesystem keys).
+        size_t nameLen = strlen(out.name);
 
-        for (const char *c = out.name; *c; c++, nameLen++) {
-            if (!((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') ||
-                  (*c >= '0' && *c <= '9') || *c == '_' || *c == '-')) {
-                strncpy(out.errMsg, "name: only [a-zA-Z0-9_-] allowed", sizeof(out.errMsg));
-
-                return false;
-            }
-        }
-
-        if (nameLen > 18) {
-            strncpy(out.errMsg, "name: max 18 characters", sizeof(out.errMsg));
+        if (nameLen > 64) {
+            strncpy(out.errMsg, "name: max 64 characters", sizeof(out.errMsg));
 
             return false;
         }

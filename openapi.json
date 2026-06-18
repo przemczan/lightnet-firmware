@@ -103,12 +103,12 @@
         }
       }
     },
-    "/api/palettes/{{paletteName}}": {
+    "/api/palettes/{{id}}": {
       "get": {
-        "summary": "Get Palette By Name",
+        "summary": "Get Palette By Id",
         "parameters": [
           {
-            "name": "{paletteName",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -123,10 +123,10 @@
         }
       },
       "delete": {
-        "summary": "Delete Palette By Name",
+        "summary": "Delete Palette By Id",
         "parameters": [
           {
-            "name": "{paletteName",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -176,12 +176,12 @@
         }
       }
     },
-    "/api/scenes/{{sceneName}}": {
+    "/api/scenes/{{id}}": {
       "get": {
-        "summary": "Get Scene By Name",
+        "summary": "Get Scene By Id",
         "parameters": [
           {
-            "name": "{sceneName",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -199,7 +199,7 @@
         "summary": "Delete Scene By Name",
         "parameters": [
           {
-            "name": "{sceneName",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -260,12 +260,12 @@
         }
       }
     },
-    "/api/scenes/{{sceneName}}/play": {
+    "/api/scenes/{{id}}/play": {
       "post": {
         "summary": "Play Stored Scene By Name",
         "parameters": [
           {
-            "name": "{sceneName",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -633,7 +633,7 @@
               "application/json": {
                 "example": {
                   "isOn": true,
-                  "lastPlayedScene": "sunset",
+                  "lastPlayedSceneId": "abcd1234",
                   "lastPlayedSceneIsStored": true,
                   "playing": true,
                   "speed": 1.0

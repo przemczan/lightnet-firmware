@@ -106,7 +106,7 @@ namespace Lightnet {
 
         f.close();
 
-        Fs::remove(CONFIG_PATH);
+        Fs::deleteFile(CONFIG_PATH);
         Fs::rename(CONFIG_TMP_PATH, CONFIG_PATH);
     }
 }  // namespace Lightnet

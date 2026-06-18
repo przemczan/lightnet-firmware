@@ -93,7 +93,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `SceneStore` | Filesystem persistence for scene files at `/scenes/<name>.json` |
+| `LittleFsSceneRepository` | Scene persistence at `/scenes/<id>.json` + `/scenes/<id>.meta.json` |
 | `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
 
 ### Core/Controller/ — portable scene engine (ESP + native + mobile C ABI)
@@ -111,7 +111,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `PaletteStore` | Built-in palettes compiled in; `resolve(name)` → `GradientStop[]` |
+| `LittleFsPaletteRepository` | Built-in palettes seeded on boot; `resolve(id)` → `GradientStop[]` |
 
 **Appearance/**
 
@@ -366,7 +366,7 @@ Sequence after `LNPanelsInitializer.isReady() == true`:
 flowchart TD
   A[Mount LittleFS] --> B[sendConfiguration — gamma/color temp to all panels]
   B --> C[selfTest — fade-in/out on every panel]
-  C --> D[PaletteStore::seedBuiltInsIfMissing]
+  C --> D[LittleFsPaletteRepository::ensureSeeded]
   D --> E[AppearanceStore::loadAndApply\nbrightness + colors + palette broadcast]
   E --> F[AnimationScheduler init]
   F --> G[setupWiFi — AsyncWiFiManager\nauto-connect or open captive portal]
@@ -377,7 +377,7 @@ flowchart TD
 ```
 
 !!! info "LittleFS mounted before WiFi"
-    `Fs::begin()` is hoisted before WiFi so `PaletteStore` and `AppearanceStore` can read `/palettes/` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
+    `Fs::begin()` is hoisted before WiFi so `LittleFsPaletteRepository` and `AppearanceStore` can read `/palettes/` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
 
 Main loop (`case 1`), when no panel flash is in progress:
 ```cpp
@@ -532,7 +532,7 @@ loop (the demos).
 |---|---|
 | All `GET`s | read-only |
 | `POST /api/scenes`, `DELETE /api/scenes/:name` | filesystem only |
-| `POST /api/palettes`, `DELETE /api/palettes/:name` | filesystem only |
+| `POST /api/palettes`, `DELETE /api/palettes/:id` | filesystem only |
 | `PATCH /api/configuration`, `PUT /api/panel-tags` | config/tag store only — no packets, no `ScenePlayer` |
 
 ### 8.5 PacketMirror flush-on-overflow

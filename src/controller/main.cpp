@@ -54,9 +54,9 @@ Lightnet::ControllerPacketSink controllerPacketSink(LNBus);
 Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
 
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
-Lightnet::PaletteStore *paletteStore     = nullptr;
+Lightnet::LittleFsPaletteRepository *paletteStore = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
-Lightnet::SceneStore *sceneStore       = nullptr;
+Lightnet::LittleFsSceneRepository *sceneStore       = nullptr;
 Lightnet::ScenePlayer *scenePlayer      = nullptr;
 Lightnet::AnimationService *animService      = nullptr;
 Lightnet::AppearanceServer *appearanceServer = nullptr;
@@ -340,11 +340,12 @@ void loop()
                 // a fresh filesystem every /config/*.json write would fail without this. Idempotent.
                 Lightnet::Fs::mkdir("/config");
 
-                paletteStore = new Lightnet::PaletteStore();
+                paletteStore = new Lightnet::LittleFsPaletteRepository();
+                paletteStore->ensureSeeded();
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
-                appearance->loadAndApply();   // broadcasts brightness, base colors, palette to panels
+                appearance->loadAndApply();
 
-                sceneStore  = new Lightnet::SceneStore();
+                sceneStore  = new Lightnet::LittleFsSceneRepository();
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
                 animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
 
@@ -386,7 +387,7 @@ void loop()
                 appearanceServer->begin();
                 paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
                 paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(*webServer, *scenePlayer, *animService, *appStateStore, *appearance,
+                sceneServer = new Lightnet::SceneServer(*webServer, *sceneStore, *scenePlayer, *animService, *appStateStore, *appearance,
                                                         *mainLoopQueue);
                 sceneServer->begin();
                 animServer = new Lightnet::AnimationServer(*webServer,

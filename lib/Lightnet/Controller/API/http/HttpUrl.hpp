@@ -8,6 +8,22 @@
 
 namespace Lightnet {
     namespace Http {
+        // Returns true if `id` is a safe store key: 8–10 chars, [a-z0-9] only.
+        inline bool isSafeId(const char *id)
+        {
+            if (!id) return false;
+
+            size_t len = strlen(id);
+
+            if (len < 8 || len > 10) return false;
+
+            for (const char *c = id; *c; c++) {
+                if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9'))) return false;
+            }
+
+            return true;
+        }
+
         // Returns true if `name` is a safe filesystem identifier:
         //   - non-empty, max 18 characters
         //   - only [a-zA-Z0-9_-]
@@ -25,7 +41,6 @@ namespace Lightnet {
 
         // Extracts the segment immediately after `prefix` (up to next '/' or end)
         // into `out`. Returns false on prefix mismatch, empty segment, or overflow.
-        //   e.g. nameFromUrl("/api/palettes/foo/bar", "/api/palettes/", out, ...) → "foo"
         inline bool nameFromUrl(const char *url, const char *prefix, char *out, size_t outLen)
         {
             if (!url || !prefix || !out || outLen == 0) return false;
@@ -44,6 +59,12 @@ namespace Lightnet {
             out[len] = '\0';
 
             return true;
+        }
+
+        // Alias for palette/scene id path segments.
+        inline bool idFromUrl(const char *url, const char *prefix, char *out, size_t outLen)
+        {
+            return nameFromUrl(url, prefix, out, outLen);
         }
     } // namespace Http
 }  // namespace Lightnet

@@ -12,7 +12,7 @@ namespace Lightnet {
         static bool   begin();
         static bool   exists(const char *path);
         static File   open(const char *path, const char *mode = "r");
-        static bool   remove(const char *path);
+        static bool   deleteFile(const char *path);
         static bool   rename(const char *from, const char *to);
         static bool   mkdir(const char *path);
 

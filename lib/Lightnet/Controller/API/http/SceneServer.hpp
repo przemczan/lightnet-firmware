@@ -3,6 +3,8 @@
 #include <ESPAsyncWebServer.h>
 #include "../../../Core/Controller/ScenePlayer.hpp"
 #include "../../Scenes/AnimationService.hpp"
+#include "../../Scenes/ISceneRepository.hpp"
+#include "../../Scenes/LittleFsSceneRepository.hpp"
 #include "../../AppState/AppStateStore.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
@@ -13,6 +15,7 @@ namespace Lightnet {
         public:
             SceneServer(
                 AsyncWebServer&   server,
+                ISceneRepository& scenes,
                 ScenePlayer&      player,
                 AnimationService& animService,
                 AppStateStore&    appState,
@@ -24,6 +27,7 @@ namespace Lightnet {
 
         private:
             AsyncWebServer& server;
+            ISceneRepository& scenes;
             ScenePlayer& player;
             AnimationService& animService;
             AppStateStore& appState;
@@ -31,18 +35,15 @@ namespace Lightnet {
             MainLoopQueue& queue;
 
             void registerRoutes();
-
-            // Queue an already-parsed scene to be played on the main loop. Takes
-            // ownership of `parsed` (freed by the task, or here if the queue is full).
             void deferPlay(AsyncWebServerRequest *req, SceneParseResult *parsed);
 
             void handleListScenes(AsyncWebServerRequest *req);
-            void handleGetSceneByName(AsyncWebServerRequest *req);
+            void handleGetSceneById(AsyncWebServerRequest *req);
             void handleDeleteScene(AsyncWebServerRequest *req);
             void handlePostSaveScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePostPlayOneShotScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePostPlayLastScene(AsyncWebServerRequest *req);
-            void handlePostPlaySceneByName(AsyncWebServerRequest *req);
+            void handlePostPlaySceneById(AsyncWebServerRequest *req);
             void handlePostStopScene(AsyncWebServerRequest *req);
             void handlePostSetSpeed(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
 

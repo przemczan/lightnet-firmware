@@ -84,7 +84,7 @@ namespace Lightnet {
 
             memcpy(&x, a, sizeof(x));
             x.self->animService.playParsedOneShot(*x.layer,
-                                                  x.self->appearance.paletteName(),
+                                                  x.self->appearance.paletteId(),
                                                   x.self->appearance.baseColors());
             delete x.layer;
         }, &args, sizeof(args));

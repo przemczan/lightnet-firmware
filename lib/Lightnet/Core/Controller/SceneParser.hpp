@@ -4,6 +4,7 @@
 #include "../Common/ProtocolTypes.hpp"
 #include "../Common/LightnetConfig.hpp"
 #include "ScenePlayer.hpp"
+#include "../../Utils/EntryId.hpp"
 
 namespace Lightnet {
     // Result of parsing a scene JSON body. Stack-allocated in route handlers (~2.2 KB).
@@ -13,7 +14,7 @@ namespace Lightnet {
 
         // Scene fields
         uint8_t            schemaVersion;
-        char               name[20];
+        char               name[65];
         bool               loop;
         char               palette[16]; // scene-level default palette name
         bool               hasPalette;  // true if scene JSON explicitly set "palette"

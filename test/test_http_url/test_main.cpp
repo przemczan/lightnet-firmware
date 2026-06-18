@@ -41,8 +41,30 @@ void test_isSafeName_rejects_special_chars()
 
 void test_isSafeName_enforces_max_length_18()
 {
-    TEST_ASSERT_TRUE(isSafeName("abcdefghijklmnopqr"));   // 18 chars
-    TEST_ASSERT_FALSE(isSafeName("abcdefghijklmnopqrs")); // 19 chars
+    TEST_ASSERT_TRUE(isSafeName("abcdefghijklmnopqr"));
+    TEST_ASSERT_FALSE(isSafeName("abcdefghijklmnopqrs"));
+}
+
+void test_isSafeId_accepts_lowercase_alnum()
+{
+    TEST_ASSERT_TRUE(isSafeId("abcd1234"));
+    TEST_ASSERT_TRUE(isSafeId("1234567890"));
+}
+
+void test_isSafeId_rejects_invalid()
+{
+    TEST_ASSERT_FALSE(isSafeId("ABCDEFGH"));
+    TEST_ASSERT_FALSE(isSafeId("abc"));
+    TEST_ASSERT_FALSE(isSafeId("abcd-1234"));
+    TEST_ASSERT_FALSE(isSafeId(nullptr));
+}
+
+void test_idFromUrl_alias()
+{
+    char out[24];
+
+    TEST_ASSERT_TRUE(idFromUrl("/api/palettes/abcd1234", "/api/palettes/", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("abcd1234", out);
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +142,9 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_isSafeName_rejects_path_traversal);
     RUN_TEST(test_isSafeName_rejects_special_chars);
     RUN_TEST(test_isSafeName_enforces_max_length_18);
+    RUN_TEST(test_isSafeId_accepts_lowercase_alnum);
+    RUN_TEST(test_isSafeId_rejects_invalid);
+    RUN_TEST(test_idFromUrl_alias);
 
     RUN_TEST(test_nameFromUrl_extracts_simple_segment);
     RUN_TEST(test_nameFromUrl_extracts_segment_before_slash);

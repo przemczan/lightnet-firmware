@@ -35,15 +35,15 @@ namespace Lightnet {
         return true;
     }
 
-    bool AppStateStore::setLastPlayedScene(const char *name, bool isStored)
+    bool AppStateStore::setLastPlayedSceneId(const char *id, bool isStored)
     {
-        if (!name) name = "";
+        if (!id) id = "";
 
-        if (strncmp(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1) == 0 &&
+        if (strncmp(_lastPlayedSceneId, id, sizeof(_lastPlayedSceneId) - 1) == 0 &&
             _lastPlayedSceneIsStored == isStored) return false;
 
-        strncpy(_lastPlayedScene, name, sizeof(_lastPlayedScene) - 1);
-        _lastPlayedScene[sizeof(_lastPlayedScene) - 1] = '\0';
+        strncpy(_lastPlayedSceneId, id, sizeof(_lastPlayedSceneId) - 1);
+        _lastPlayedSceneId[sizeof(_lastPlayedSceneId) - 1] = '\0';
         _lastPlayedSceneIsStored = isStored;
         writer.markDirty(millis());
 
@@ -102,7 +102,9 @@ namespace Lightnet {
             }
         }
 
-        j.getString("lastPlayedScene", _lastPlayedScene, sizeof(_lastPlayedScene));
+        if (!j.getString("lastPlayedSceneId", _lastPlayedSceneId, sizeof(_lastPlayedSceneId))) {
+            _lastPlayedSceneId[0] = '\0';
+        }
 
         const char *isStoredVal = j.rawValue("lastPlayedSceneIsStored");
 
@@ -115,7 +117,6 @@ namespace Lightnet {
                 _lastPlayedSceneIsStored = v;
             }
         } else {
-            // Missing in pre-existing files; treat lastPlayedScene as a stored name.
             _lastPlayedSceneIsStored = true;
         }
 
@@ -132,19 +133,19 @@ namespace Lightnet {
             return;
         }
 
-        char buf[128];
+        char buf[160];
         int len = snprintf(buf, sizeof(buf),
-                           "{\"schemaVersion\":%u,\"isOn\":%s,\"lastPlayedScene\":\"%s\",\"lastPlayedSceneIsStored\":%s}\n",
+                           "{\"schemaVersion\":%u,\"isOn\":%s,\"lastPlayedSceneId\":\"%s\",\"lastPlayedSceneIsStored\":%s}\n",
                            (unsigned)APP_STATE_SCHEMA,
                            _isOn ? "true" : "false",
-                           _lastPlayedScene,
+                           _lastPlayedSceneId,
                            _lastPlayedSceneIsStored ? "true" : "false");
 
         if (len > 0) f.write((const uint8_t *)buf, (size_t)len);
 
         f.close();
 
-        Fs::remove(APP_STATE_PATH);
+        Fs::deleteFile(APP_STATE_PATH);
         Fs::rename(APP_STATE_TMP_PATH, APP_STATE_PATH);
     }
 }  // namespace Lightnet

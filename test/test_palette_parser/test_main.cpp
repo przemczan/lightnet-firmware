@@ -163,6 +163,14 @@ void test_caps_at_palette_stops_max()
 // Test runner
 // ---------------------------------------------------------------------------
 
+void test_accepts_display_name_with_spaces()
+{
+    const char *json = "{\"name\":\"My Cool Palette!\",\"stops\":[[0,\"#000000\"],[255,\"#FFFFFF\"]]}";
+
+    TEST_ASSERT_TRUE(parsePaletteJson(json, strlen(json), stops, count, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_STRING("My Cool Palette!", name);
+}
+
 void setUp(void)
 {
     count = 0;
@@ -192,6 +200,7 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_rejects_stop_pair_with_extra_element);
     RUN_TEST(test_rejects_missing_name_when_requested);
     RUN_TEST(test_accepts_missing_name_when_not_requested);
+    RUN_TEST(test_accepts_display_name_with_spaces);
     RUN_TEST(test_caps_at_palette_stops_max);
 
     return UNITY_END();

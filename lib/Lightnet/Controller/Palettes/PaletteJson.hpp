@@ -10,6 +10,13 @@
 #include "../../Utils/SimpleJson.hpp"
 
 namespace Lightnet {
+    inline bool isValidDisplayName(const char *name)
+    {
+        if (!name || !name[0]) return false;
+
+        return strlen(name) <= 64;
+    }
+
     // Parse a palette JSON body of the form:
     //   {"schemaVersion":1,"name":"foo","stops":[[pos,"#RRGGBB"],...]}
     //
@@ -77,6 +84,8 @@ namespace Lightnet {
         if (outCount < 1) return false;
 
         if (outName && outNameLen > 0 && outName[0] == '\0') return false;
+
+        if (outName && outNameLen > 0 && !isValidDisplayName(outName)) return false;
 
         return true;
     }

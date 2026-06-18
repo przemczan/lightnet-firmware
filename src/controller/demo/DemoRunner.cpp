@@ -13,7 +13,7 @@
 
         DemoRunner::DemoRunner(
             AnimationService&   _animService,
-            SceneStore&         _sceneStore,
+            ISceneRepository&   _sceneStore,
             ScenePlayer&        _scenePlayer,
             AnimationScheduler& _scheduler,
             PanelsController&   _panels,
@@ -113,18 +113,39 @@
 
         void DemoRunner::seedScene(const char *name, const char *json)
         {
-            if (!sceneStore.exists(name)) {
-                auto r = animService.saveScene(json, strlen(json));
+            char seed[40];
+            char id[ENTRY_ID_MAX + 1];
 
-                if (!r.ok()) {
-                    DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed failed for %s: %s\n", name, r.msg));
-                }
+            snprintf(seed, sizeof(seed), "demo:%s", name);
+            deterministicId(seed, id, sizeof(id));
+
+            if (sceneStore.exists(id)) return;
+
+            char patched[ISceneRepository::MAX_SCENE_BYTES + 64];
+            int patchedLen = jsonUpsertStringField(json, strlen(json), "id", id, patched, sizeof(patched));
+
+            if (patchedLen < 0) {
+                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed patch failed for %s\n", name));
+
+                return;
+            }
+
+            auto r = animService.saveScene(patched, (size_t)patchedLen);
+
+            if (!r.ok()) {
+                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed failed for %s: %s\n", name, r.msg));
             }
         }
 
         void DemoRunner::playScene(const char *name, uint32_t durationMs)
         {
-            auto r = animService.playSceneByName(name);
+            char seed[40];
+            char id[ENTRY_ID_MAX + 1];
+
+            snprintf(seed, sizeof(seed), "demo:%s", name);
+            deterministicId(seed, id, sizeof(id));
+
+            auto r = animService.playSceneById(id);
 
             if (!r.ok()) {
                 DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] play failed for %s: %s\n", name, r.msg));

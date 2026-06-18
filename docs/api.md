@@ -267,16 +267,19 @@ Persists to `/config/appearance.json` atomically and broadcasts the updated valu
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/palettes` | — | `{"rainbow":{...},"lava":{...},...}` — map of name → Palette JSON |
-| `GET` | `/api/palettes/:name` | — | Palette JSON |
-| `POST` | `/api/palettes` | Palette JSON | `{}` |
-| `DELETE` | `/api/palettes/:name` | — | `403` if built-in |
+| `GET` | `/api/palettes` | — | Meta array: `[{"schemaVersion":1,"id":"…","name":"…","builtin":true?},…]` |
+| `GET` | `/api/palettes/:id` | — | Palette JSON (includes `"id"`); `userColors` id returns synthesized stops from appearance base colors |
+| `POST` | `/api/palettes` | Palette JSON; optional `"id"` for update | `{"id":"…"}` |
+| `DELETE` | `/api/palettes/:id` | — | `403` if built-in or userColors |
+
+Path `id`: 8–10 chars, lowercase `[a-z0-9]`. Display `name` in JSON may be up to 64 chars (any printable text).
 
 Palette JSON format:
 ```json
 {
   "schemaVersion": 1,
-  "name": "my-palette",
+  "id": "abcd1234",
+  "name": "My Cool Palette!",
   "stops": [
     [0, "#000000"],
     [128, "#FF4400"],
@@ -293,20 +296,20 @@ Palette JSON format:
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes` | Scene JSON | `{}` — saves to `/scenes/<name>.json` |
-| `GET` | `/api/scenes` | — | `[{"name":"sunset","size":412},...]` |
-| `GET` | `/api/scenes/:name` | — | Scene JSON (file passthrough) |
-| `DELETE` | `/api/scenes/:name` | — | `{}` |
+| `POST` | `/api/scenes` | Scene JSON; optional `"id"` for update | `{"id":"…"}` |
+| `GET` | `/api/scenes` | — | `[{"schemaVersion":1,"id":"…","name":"…","layersNum":2,"duration":15000},…]` |
+| `GET` | `/api/scenes/:id` | — | Scene JSON (chunked stream; includes embedded `"id"`) |
+| `DELETE` | `/api/scenes/:id` | — | `{}` |
 
-Scene names: 1–18 chars, `[a-zA-Z0-9_-]`.
+Scene path `id`: 8–10 chars, lowercase `[a-z0-9]`. Display `name` in JSON may be up to 64 chars. Scene `palette` fields reference palette **ids**.
 
 #### Playback
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes/play/one-shot` | Full scene JSON body — stored under the hidden name `@one-shot`, then played by name | `202 {}` (parsed/validated synchronously; played on the main loop) |
-| `POST` | `/api/scenes/play` | — (replays `lastPlayedScene`: by name if it was a stored scene, or `@one-shot` if it was a one-shot play) | `202 {}`, or `404 no_last_played_scene` |
-| `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) | `202 {}` |
+| `POST` | `/api/scenes/play/one-shot` | Full scene JSON — stored under internal one-shot id, then played | `202 {}` |
+| `POST` | `/api/scenes/play` | — (replays `lastPlayedSceneId`: stored id, or one-shot id when `lastPlayedSceneIsStored` is false) | `202 {}`, or `404 no_last_played_scene` |
+| `POST` | `/api/scenes/:id/play` | — (plays stored scene by id) | `202 {}` |
 | `POST` | `/api/scenes/stop` | — | `202 {}` |
 | `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `202 {"ok":true,"speed":2.0}` |
 
@@ -469,16 +472,16 @@ Values outside `0–2` return `422`.
 
 ### 2.9 State
 
-Runtime app state — power state, scene playback status, and the most recently played scene's
-name. Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial
-`isOn` value on boot is derived from `powerStateOnBoot` (see §2.8); `lastPlayedScene` /
+Runtime app state — power state, scene playback status, and the most recently played scene id.
+Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial
+`isOn` value on boot is derived from `powerStateOnBoot` (see §2.8); `lastPlayedSceneId` /
 `lastPlayedSceneIsStored` are set whenever a scene is played via `POST /api/scenes/play/one-shot`
-or `POST /api/scenes/:name/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` is `false` when
-`lastPlayedScene` refers to the hidden `@one-shot` scene rather than a device-stored scene.
+or `POST /api/scenes/:id/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` is `false` when
+the replay target is the internal one-shot scene id rather than a catalogued scene.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedScene":"sunset","lastPlayedSceneIsStored":true,"playing":true,"speed":1.0}` |
+| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedSceneId":"abcd1234","lastPlayedSceneIsStored":true,"playing":true,"speed":1.0}` |
 | `POST` | `/api/state/power` | `{"isOn":bool}` | `202 {"isOn":bool}` (panel effects applied on the main loop) |
 
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.

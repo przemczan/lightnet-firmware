@@ -300,7 +300,7 @@ namespace Lightnet {
         f.close();
         free(buf);
 
-        Fs::remove(TOPO_PATH);
+        Fs::deleteFile(TOPO_PATH);
         Fs::rename(TOPO_TMP_PATH, TOPO_PATH);
     }
 }  // namespace Lightnet

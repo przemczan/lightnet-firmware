@@ -43,9 +43,9 @@ namespace Lightnet {
         char buf[192];
 
         snprintf(buf, sizeof(buf),
-                 "{\"isOn\":%s,\"lastPlayedScene\":\"%s\",\"lastPlayedSceneIsStored\":%s,"
+                 "{\"isOn\":%s,\"lastPlayedSceneId\":\"%s\",\"lastPlayedSceneIsStored\":%s,"
                  "\"playing\":%s,\"speed\":%.1f,\"controllerFirmware\":\"%s\"}",
-                 appState.isOn() ? "true" : "false", appState.lastPlayedScene(),
+                 appState.isOn() ? "true" : "false", appState.lastPlayedSceneId(),
                  appState.lastPlayedSceneIsStored() ? "true" : "false",
                  animService.isPlaying() ? "true" : "false",
                  (double)animService.getSpeed(),

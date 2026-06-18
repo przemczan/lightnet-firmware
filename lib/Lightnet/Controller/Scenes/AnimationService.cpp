@@ -1,18 +1,17 @@
 #include "AnimationService.hpp"
 #include "Controller/SceneParser.hpp"
+#include "../../Core/Controller/SceneDuration.hpp"
+#include "../../Utils/JsonInject.hpp"
+#include "../../Utils/EntryId.hpp"
 #include <stdlib.h>
 #include <string.h>
 #include <Arduino.h>
 
 namespace Lightnet {
-    AnimationService::AnimationService(SceneStore& _scenes, ScenePlayer& _player)
+    AnimationService::AnimationService(ISceneRepository& _scenes, ScenePlayer& _player)
         : scenes(_scenes), player(_player)
     {
     }
-
-    // ---------------------------------------------------------------------------
-    // Save
-    // ---------------------------------------------------------------------------
 
     SceneResult AnimationService::saveScene(const char *body, size_t len)
     {
@@ -24,25 +23,46 @@ namespace Lightnet {
             return SceneResult::error(e, parsed.errMsg);
         }
 
-        if (SceneStore::isHiddenName(parsed.name)) {
-            return SceneResult::error(SceneError::Invalid, "name: reserved");
+        char bodyId[ENTRY_ID_MAX + 1] = { 0 };
+        bool hasBodyId = jsonReadTopLevelString(body, len, "id", bodyId, sizeof(bodyId));
+
+        bool updating = hasBodyId && scenes.exists(bodyId);
+
+        char id[ENTRY_ID_MAX + 1] = { 0 };
+
+        if (updating) {
+            strncpy(id, bodyId, sizeof(id) - 1);
+        } else if (hasBodyId && isValidId(bodyId) && !scenes.exists(bodyId)) {
+            strncpy(id, bodyId, sizeof(id) - 1);
+        } else if (!scenes.allocateId(id, sizeof(id))) {
+            return SceneResult::error(SceneError::IoFailure, "id generation failed");
         }
 
-        if (!scenes.save(parsed.name, body, len)) {
+        char patched[ISceneRepository::MAX_SCENE_BYTES + 64];
+        int patchedLen = jsonUpsertStringField(body, len, "id", id, patched, sizeof(patched));
+
+        if (patchedLen < 0) {
+            return SceneResult::error(SceneError::Invalid, "scene body too large");
+        }
+
+        SceneMeta meta = {};
+
+        strncpy(meta.id, id, sizeof(meta.id) - 1);
+        strncpy(meta.name, parsed.name, sizeof(meta.name) - 1);
+        meta.layersNum = parsed.layerCount;
+        meta.duration  = computeSceneDurationMs(parsed);
+
+        if (!scenes.save(id, patched, (size_t)patchedLen, meta)) {
             return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
         }
 
-        return SceneResult::success();
+        return SceneResult::success(id);
     }
 
-    // ---------------------------------------------------------------------------
-    // Play
-    // ---------------------------------------------------------------------------
-
-    SceneResult AnimationService::prepareByName(const char *name, SceneParseResult& out)
+    SceneResult AnimationService::prepareById(const char *id, SceneParseResult& out)
     {
         size_t n = 0;
-        char *buf = scenes.load(name, n);
+        char *buf = scenes.loadContent(id, n);
 
         if (!buf) return SceneResult::error(SceneError::NotFound, "scene not found");
 
@@ -67,10 +87,17 @@ namespace Lightnet {
             return SceneResult::error(e, out.errMsg);
         }
 
-        // Persist under the "@one-shot" name so the inline scene survives a
-        // cold boot the same way a named scene would (reloaded as the last-played
-        // scene; resumeScene() itself replays from in-memory state, not from this).
-        if (!scenes.save(SceneStore::oneShotName(), body, len)) {
+        const char *id = scenes.oneShotId();
+        char patched[ISceneRepository::MAX_SCENE_BYTES + 64];
+        int patchedLen = jsonUpsertStringField(body, len, "id", id, patched, sizeof(patched));
+
+        if (patchedLen < 0) {
+            return SceneResult::error(SceneError::Invalid, "scene body too large");
+        }
+
+        SceneMeta meta = {};
+
+        if (!scenes.save(id, patched, (size_t)patchedLen, meta)) {
             return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
         }
 
@@ -86,14 +113,14 @@ namespace Lightnet {
         return startPlay(parsed, defaultPalette, defaultColors);
     }
 
-    SceneResult AnimationService::playSceneByName(
-        const char *             name,
+    SceneResult AnimationService::playSceneById(
+        const char *             id,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
     {
         SceneParseResult parsed;
-        SceneResult r = prepareByName(name, parsed);
+        SceneResult r = prepareById(id, parsed);
 
         if (!r.ok()) return r;
 
@@ -114,10 +141,6 @@ namespace Lightnet {
 
         return startPlay(parsed, defaultPalette, defaultColors);
     }
-
-    // ---------------------------------------------------------------------------
-    // One-shot
-    // ---------------------------------------------------------------------------
 
     SceneResult AnimationService::prepareOneShot(const char *body, size_t len, SceneLayer& out)
     {
@@ -156,10 +179,6 @@ namespace Lightnet {
         return playParsedOneShot(layer, defaultPalette, defaultColors);
     }
 
-    // ---------------------------------------------------------------------------
-    // Stop
-    // ---------------------------------------------------------------------------
-
     void AnimationService::stopScene()
     {
         player.stop();
@@ -169,10 +188,6 @@ namespace Lightnet {
     {
         player.resume(nowMs);
     }
-
-    // ---------------------------------------------------------------------------
-    // Group name lookup
-    // ---------------------------------------------------------------------------
 
     uint8_t AnimationService::groupIdForName(const char *name) const
     {
@@ -189,18 +204,10 @@ namespace Lightnet {
         return player.getSpeed();
     }
 
-    // ---------------------------------------------------------------------------
-    // Speed
-    // ---------------------------------------------------------------------------
-
     void AnimationService::setSceneSpeed(float speed)
     {
         player.setSpeed(speed);
     }
-
-    // ---------------------------------------------------------------------------
-    // Internal
-    // ---------------------------------------------------------------------------
 
     SceneResult AnimationService::startPlay(
         SceneParseResult&        parsed,
@@ -214,7 +221,7 @@ namespace Lightnet {
 
         const char *palName = parsed.hasPalette
             ? parsed.palette
-            : (defaultPalette && defaultPalette[0] ? defaultPalette : "userColors");
+            : (defaultPalette && defaultPalette[0] ? defaultPalette : userColorsId());
 
         const Protocol::ColorRGB *colors = parsed.hasColors
             ? parsed.baseColors

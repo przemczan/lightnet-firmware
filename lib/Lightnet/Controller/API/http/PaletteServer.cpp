@@ -1,17 +1,20 @@
 #include "PaletteServer.hpp"
 #include "HttpHelpers.hpp"
+#include "../../../Utils/EntryId.hpp"
 #include "../../Palettes/PaletteJson.hpp"
+#include "../../Palettes/LittleFsPaletteRepository.hpp"
+#include "../../Store/StoreStreamResponse.hpp"
 #include "../../../Utils/SimpleJson.hpp"
+#include "../../../Utils/JsonInject.hpp"
 #include <Arduino.h>
-#include "../../../Utils/Fs/Fs.hpp"
 #include <string.h>
 #include <stdio.h>
 
 namespace Lightnet {
     PaletteServer::PaletteServer(
-        AsyncWebServer&  _server,
-        PaletteStore&    _palettes,
-        AppearanceStore& _appearance
+        AsyncWebServer&     _server,
+        IPaletteRepository& _palettes,
+        AppearanceStore&    _appearance
     )
         : server(_server), palettes(_palettes), appearance(_appearance)
     {
@@ -25,7 +28,7 @@ namespace Lightnet {
     void PaletteServer::registerRoutes()
     {
         server.on("/api/palettes/*", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetPaletteByName(r);
+            handleGetPaletteById(r);
         });
         server.on("/api/palettes/*", HTTP_DELETE, [this](AsyncWebServerRequest *r) {
             handleDeletePalette(r);
@@ -37,128 +40,159 @@ namespace Lightnet {
                      this, &PaletteServer::handlePostPalette);
     }
 
+    namespace {
+        struct ListCtx {
+            AsyncResponseStream *res;
+            bool                 first;
+        };
+
+        void appendPaletteMeta(const PaletteMeta& meta, void *ctx)
+        {
+            auto *c = static_cast<ListCtx *>(ctx);
+            char buf[160];
+
+            if (meta.builtin) {
+                snprintf(buf, sizeof(buf),
+                         "%s{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\",\"builtin\":true}",
+                         c->first ? "" : ",", meta.id, meta.name);
+            } else {
+                snprintf(buf, sizeof(buf),
+                         "%s{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\"}",
+                         c->first ? "" : ",", meta.id, meta.name);
+            }
+
+            c->res->print(buf);
+            c->first = false;
+        }
+    } // anonymous namespace
+
     void PaletteServer::handleListPalettes(AsyncWebServerRequest *req)
     {
+        auto *repo = static_cast<LittleFsPaletteRepository *>(&palettes);
+
+        repo->lock().acquire();
+
         AsyncResponseStream *res = req->beginResponseStream("application/json");
-        GradientStop stops[PALETTE_STOPS];
-        uint8_t count;
-        bool first = true;
-        char buf[128];
+        ListCtx ctx { res, true };
 
-        auto writeEntry = [&](const char *name) {
-                              if (!first) res->print(",");
+        res->print("[");
+        repo->listMetasUnlocked(appendPaletteMeta, &ctx);
+        res->print("]");
 
-                              first = false;
-                              snprintf(buf, sizeof(buf), "\"%s\":{\"schemaVersion\":1,\"name\":\"%s\",\"stops\":[", name, name);
-                              res->print(buf);
+        StoreLock *lockPtr = &repo->lock();
 
-                              for (uint8_t i = 0; i < count; i++) {
-                                  char hex[8];
-                                  jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
-                                  snprintf(buf, sizeof(buf), "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
-                                  res->print(buf);
-                              }
+        req->onDisconnect([lockPtr]() {
+            lockPtr->release();
+        });
 
-                              res->print("]}");
-                          };
-
-        res->print("{");
-
-        count = 0;
-        PaletteStore::buildUserColors(appearance.baseColors(), stops, count);
-        writeEntry("userColors");
-
-        for (uint8_t i = 0; i < palettes.builtInCount(); i++) {
-            const char *name = palettes.builtInName(i);
-
-            count = 0;
-
-            if (palettes.resolve(name, stops, count)) writeEntry(name);
-        }
-
-        FsDir d("/palettes/");
-
-        while (d.next()) {
-            String fn = d.fileName();
-            const char *base = fn.c_str();
-
-            if (strncmp(base, "/palettes/", 10) == 0) base += 10;
-
-            size_t blen = strlen(base);
-
-            if (blen > 5 && strcmp(base + blen - 5, ".json") == 0) {
-                char name[24] = { 0 };
-                size_t nlen = blen - 5;
-
-                if (nlen < sizeof(name) && !palettes.isBuiltIn(name)) {
-                    memcpy(name, base, nlen);
-                    count = 0;
-
-                    if (palettes.resolve(name, stops, count)) writeEntry(name);
-                }
-            }
-        }
-
-        res->print("}");
         req->send(res);
     }
 
-    void PaletteServer::handleGetPaletteByName(AsyncWebServerRequest *req)
+    void PaletteServer::handleGetPaletteById(AsyncWebServerRequest *req)
     {
-        char name[24];
+        char id[ENTRY_ID_MAX + 1];
 
-        if (!Http::nameFromUrl(req->url().c_str(), "/api/palettes/", name, sizeof(name)) ||
-            !Http::isSafeName(name)) {
-            Http::sendError(req, 400, "invalid_name");
+        if (!Http::idFromUrl(req->url().c_str(), "/api/palettes/", id, sizeof(id)) ||
+            !Http::isSafeId(id)) {
+            Http::sendError(req, 400, "invalid_id");
 
             return;
         }
 
-        GradientStop stops[PALETTE_STOPS];
-        uint8_t count = 0;
-
-        if (strcmp(name, "userColors") == 0) {
-            PaletteStore::buildUserColors(appearance.baseColors(), stops, count);
-        } else if (!palettes.resolve(name, stops, count)) {
+        if (!palettes.exists(id)) {
             Http::sendError(req, 404, "not_found");
 
             return;
         }
 
-        char buf[512];
-        int n = snprintf(buf, sizeof(buf), "{\"schemaVersion\":1,\"name\":\"%s\",\"stops\":[", name);
+        if (palettes.isUserColors(id)) {
+            GradientStop stops[PALETTE_STOPS];
+            uint8_t count = 0;
 
-        for (uint8_t i = 0; i < count && n + 32 < (int)sizeof(buf); i++) {
-            char hex[8];
+            IPaletteRepository::buildUserColors(appearance.baseColors(), stops, count);
 
-            jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
-            n += snprintf(buf + n, sizeof(buf) - n, "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
+            PaletteMeta meta = {};
+
+            if (!palettes.loadMeta(id, meta)) {
+                strncpy(meta.id, id, sizeof(meta.id) - 1);
+                strncpy(meta.name, "Base colors", sizeof(meta.name) - 1);
+            }
+
+            char buf[512];
+            int n = snprintf(buf, sizeof(buf),
+                             "{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\",\"stops\":[",
+                             meta.id, meta.name);
+
+            for (uint8_t i = 0; i < count && n + 32 < (int)sizeof(buf); i++) {
+                char hex[8];
+
+                jsonFormatHex(stops[i].r, stops[i].g, stops[i].b, hex);
+                n += snprintf(buf + n, sizeof(buf) - n, "%s[%u,\"%s\"]", i ? "," : "", (unsigned)stops[i].pos, hex);
+            }
+
+            snprintf(buf + n, sizeof(buf) - n, "]}");
+            Http::sendOkJson(req, buf);
+
+            return;
         }
 
-        snprintf(buf + n, sizeof(buf) - n, "]}");
-        Http::sendOkJson(req, buf);
+        auto *repo = static_cast<LittleFsPaletteRepository *>(&palettes);
+
+        repo->lock().acquire();
+
+        IContentReader *reader = palettes.openContent(id);
+
+        if (!reader) {
+            repo->lock().release();
+            Http::sendError(req, 404, "not_found");
+
+            return;
+        }
+
+        sendLockedContent(req, repo->lock(), reader);
     }
 
     void PaletteServer::handlePostPalette(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
         GradientStop stops[PALETTE_STOPS];
         uint8_t count = 0;
-        char name[20] = { 0 };
+        char name[65] = { 0 };
+        char bodyId[ENTRY_ID_MAX + 1] = { 0 };
 
         if (!parsePaletteJson((const char *)body, len, stops, count, name, sizeof(name)) ||
-            !Http::isSafeName(name)) {
+            !isValidDisplayName(name)) {
             Http::sendError(req, 422, "invalid_palette_json");
 
             return;
         }
 
-        if (palettes.isBuiltIn(name) || strcmp(name, "userColors") == 0) {
-            Http::sendError(req, 403, "cannot_overwrite_builtin");
+        bool hasId = jsonReadTopLevelString((const char *)body, len, "id", bodyId, sizeof(bodyId));
+        bool updating = hasId && Http::isSafeId(bodyId) && palettes.exists(bodyId);
+
+        if (updating) {
+            if (palettes.isBuiltIn(bodyId) || palettes.isUserColors(bodyId)) {
+                Http::sendError(req, 403, "cannot_overwrite_builtin");
+
+                return;
+            }
+
+            if (!palettes.update(bodyId, name, stops, count)) {
+                Http::sendError(req, 500, "fs_write_failed");
+
+                return;
+            }
+
+            char resp[48];
+
+            snprintf(resp, sizeof(resp), "{\"id\":\"%s\"}", bodyId);
+            Http::sendOkJson(req, resp);
 
             return;
         }
 
-        if (!palettes.save(name, stops, count)) {
+        char newId[ENTRY_ID_MAX + 1] = { 0 };
+
+        if (!palettes.saveNew(name, stops, count, newId, sizeof(newId))) {
             Http::sendError(req, 500, "fs_write_failed");
 
             return;
@@ -166,28 +200,28 @@ namespace Lightnet {
 
         char resp[48];
 
-        snprintf(resp, sizeof(resp), "{\"saved\":\"%s\"}", name);
+        snprintf(resp, sizeof(resp), "{\"id\":\"%s\"}", newId);
         Http::sendOkJson(req, resp);
     }
 
     void PaletteServer::handleDeletePalette(AsyncWebServerRequest *req)
     {
-        char name[24];
+        char id[ENTRY_ID_MAX + 1];
 
-        if (!Http::nameFromUrl(req->url().c_str(), "/api/palettes/", name, sizeof(name)) ||
-            !Http::isSafeName(name)) {
-            Http::sendError(req, 400, "invalid_name");
+        if (!Http::idFromUrl(req->url().c_str(), "/api/palettes/", id, sizeof(id)) ||
+            !Http::isSafeId(id)) {
+            Http::sendError(req, 400, "invalid_id");
 
             return;
         }
 
-        if (palettes.isBuiltIn(name) || strcmp(name, "userColors") == 0) {
+        if (palettes.isBuiltIn(id) || palettes.isUserColors(id)) {
             Http::sendError(req, 403, "cannot_delete_builtin");
 
             return;
         }
 
-        if (!palettes.deleteUserPalette(name)) {
+        if (!palettes.deleteEntry(id)) {
             Http::sendError(req, 404, "not_found");
 
             return;

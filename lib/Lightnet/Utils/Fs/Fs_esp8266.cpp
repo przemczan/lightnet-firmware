@@ -18,7 +18,7 @@ namespace Lightnet {
         return LittleFS.open(path, mode);
     }
 
-    bool Fs::remove(const char *path)
+    bool Fs::deleteFile(const char *path)
     {
         return LittleFS.remove(path);
     }

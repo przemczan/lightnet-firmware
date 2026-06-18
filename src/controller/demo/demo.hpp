@@ -10,7 +10,7 @@
         // Call once in case 0, after the filesystem.begin() and service construction.
         void initDemos(
             Lightnet::AnimationService&   animService,
-            Lightnet::SceneStore&         sceneStore,
+            Lightnet::ISceneRepository&   sceneStore,
             Lightnet::ScenePlayer&        scenePlayer,
             Lightnet::AnimationScheduler& scheduler,
             PanelsController&             panels,

@@ -11,6 +11,7 @@
 
     #include "DemoRunner.hpp"
     #include "../../../lib/Lightnet/Utils/Debug.hpp"
+    #include "../../../lib/Lightnet/Utils/EntryId.hpp"
     #include <Arduino.h>
     #include <string.h>
 
@@ -152,7 +153,13 @@
 
             // Play the reactive scene, then manually fire beat triggers so the demo
             // works without a WebSocket client. ~100 BPM for 8 seconds.
-            auto r = animService.playSceneByName("demo_fire_react");
+            char seed[40];
+            char id[ENTRY_ID_MAX + 1];
+
+            snprintf(seed, sizeof(seed), "demo:%s", "demo_fire_react");
+            deterministicId(seed, id, sizeof(id));
+
+            auto r = animService.playSceneById(id);
 
             if (!r.ok()) {
                 DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] fire_react play failed: %s\n", r.msg));

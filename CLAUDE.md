@@ -5,6 +5,13 @@ Guidance for Claude Code working in this repository.
 **This code is still in heavy development**. At this point anything can be changed, backwards compatibility is not a concern.
 **Never** suggest in comments that something has been changed or how the code was working previously, always treat the current code as the only known version.
 
+## Coding preferences
+
+* Put implementation in cpp files instead of hpp - unless necessary functionality requires it to be in hpp.
+* For large changes (or plan execution) in the code:
+  * Always test build different targets (one build for each board type is enough).
+  * Always test build at least one SIM target.
+
 ---
 
 ## What this project is
