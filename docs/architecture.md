@@ -93,8 +93,8 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `LittleFsSceneRepository` | Scene persistence at `/scenes/<id>.json` + `/scenes/<id>.meta.json` |
-| `ScenesService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
+| `SceneStore` | Scene persistence in `/data/scenes.db` (`SceneRecord` binary records via `Database`) |
+| `ScenesService` | Orchestrates save / play-by-id / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
 
 ### Core/Controller/ — portable scene engine (ESP + native + mobile C ABI)
 
@@ -126,7 +126,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|---|
 | `AppearanceServer` | `GET /api/appearance`, `PATCH /api/appearance` | Appearance read/write |
 | `PaletteServer` | `GET/POST /api/palettes`, `GET/PUT/DELETE /api/palettes/*` | Palette CRUD |
-| `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
+| `SceneServer` | `GET/POST/PATCH /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `TopologyServer` | `GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags` | Logical root + panel tags (backed by `TopologyConfigStore`) |
 | `PanelServer` | `GET /api/panels`, `GET /api/panels/edges`, `PUT /api/panels/*` | Per-panel on/color control |
@@ -532,7 +532,7 @@ loop (the demos).
 | Synchronous → `200` | Reason |
 |---|---|
 | All `GET`s | read-only |
-| `POST /api/scenes`, `DELETE /api/scenes/:name` | filesystem only |
+| `POST /api/scenes`, `PATCH /api/scenes`, `DELETE /api/scenes/:id` | database only |
 | `POST /api/palettes`, `PUT /api/palettes/:name`, `DELETE /api/palettes/:name` | filesystem only |
 | `PATCH /api/configuration`, `PUT /api/panel-tags` | config/tag store only — no packets, no `ScenePlayer` |
 

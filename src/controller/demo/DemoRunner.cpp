@@ -13,7 +13,7 @@
 
         DemoRunner::DemoRunner(
             ScenesService&      _animService,
-            ISceneRepository&   _sceneStore,
+            SceneStore&         _sceneStore,
             ScenePlayer&        _scenePlayer,
             AnimationScheduler& _scheduler,
             PanelsController&   _panels,
@@ -121,19 +121,21 @@
 
             if (sceneStore.exists(id)) return;
 
-            char patched[ISceneRepository::MAX_SCENE_BYTES + 64];
-            int patchedLen = jsonUpsertStringField(json, strlen(json), "id", id, patched, sizeof(patched));
+            SceneRecord parsed = {};
+            char errMsg[64];
 
-            if (patchedLen < 0) {
-                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed patch failed for %s\n", name));
+            if (!parseScene(json, strlen(json), parsed, errMsg, sizeof(errMsg))) {
+                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed parse failed for %s: %s\n", name, errMsg));
 
                 return;
             }
 
-            auto r = animService.saveScene(patched, (size_t)patchedLen);
+            strncpy(parsed.id, id, sizeof(parsed.id) - 1);
+            parsed.duration = computeSceneDurationMs(parsed);
+            parsed.hidden   = 0;
 
-            if (!r.ok()) {
-                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed failed for %s: %s\n", name, r.msg));
+            if (sceneStore.create(parsed) != SCENE_STORE_OK) {
+                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed failed for %s\n", name));
             }
         }
 

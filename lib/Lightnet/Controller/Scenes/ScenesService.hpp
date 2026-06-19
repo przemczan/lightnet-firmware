@@ -1,13 +1,14 @@
 #pragma once
 // ScenesService is the reusable, HTTP-agnostic service layer for scene
-// orchestration. It coordinates ISceneRepository + SceneParser + ScenePlayer.
+// orchestration. It coordinates SceneStore + SceneParser + ScenePlayer.
 
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include "../../Core/Controller/ScenePlayer.hpp"
-#include "ISceneRepository.hpp"
+#include "Store/SceneStore.hpp"
 #include "../../Core/Controller/SceneParser.hpp"
+#include "../../Core/Controller/SceneDuration.hpp"
 #include "../../Common/Protocol.hpp"
 #include "../../Utils/EntryId.hpp"
 
@@ -58,9 +59,10 @@ namespace Lightnet {
     class ScenesService
     {
         public:
-            ScenesService(ISceneRepository& scenes, ScenePlayer& player);
+            ScenesService(SceneStore& scenes, ScenePlayer& player);
 
-            SceneResult saveScene(const char *body, size_t len);
+            SceneResult createScene(const char *body, size_t len);
+            SceneResult updateScene(const char *body, size_t len);
 
             SceneResult playSceneById(
                 const char *             id,
@@ -82,13 +84,13 @@ namespace Lightnet {
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
 
-            SceneResult prepareInline(const char *body, size_t len, SceneParseResult& out);
-            SceneResult prepareById(const char *id, SceneParseResult& out);
+            SceneResult prepareInline(const char *body, size_t len, SceneRecord& out);
+            SceneResult prepareById(const char *id, SceneRecord& out);
 
             SceneResult prepareOneShot(const char *body, size_t len, SceneLayer& out);
 
             SceneResult playParsed(
-                SceneParseResult&        parsed,
+                SceneRecord&             parsed,
                 const char *             defaultPalette,
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
@@ -112,17 +114,22 @@ namespace Lightnet {
             );
 
         private:
-            ISceneRepository& scenes;
+            SceneStore& scenes;
             ScenePlayer& player;
 
             bool sceneHasOwnPalette = false;
             bool sceneHasOwnColors  = false;
 
+            // Main-loop play reload buffer — SceneRecord is ~3 KB; keep it off loopTask stack.
+            SceneRecord playLoadRecord;
+
             SceneResult startPlay(
-                SceneParseResult&        parsed,
+                SceneRecord&             parsed,
                 const char *             defaultPalette,
                 const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
             );
+
+            SceneResult parseAndFillRecord(const char *body, size_t len, SceneRecord& parsed);
 
             static bool isSchemaTooNew(const char *msg)
             {

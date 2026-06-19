@@ -10,7 +10,7 @@ namespace Lightnet {
 
         _core.reset();
 
-        DatabaseResult openResult = _core.ensureOpen(PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        DatabaseResult openResult = _core.ensureOpen();
 
         _core.reset();
 
@@ -21,7 +21,7 @@ namespace Lightnet {
     {
         if (!records || count == 0) return PALETTE_STORE_NULL_ARG;
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return PALETTE_STORE_DB;
 
@@ -49,7 +49,7 @@ namespace Lightnet {
     {
         if (!isValidPaletteName(name)) return false;
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return false;
 
@@ -64,7 +64,7 @@ namespace Lightnet {
 
         if (!isValidPaletteName(name)) return PALETTE_STORE_INVALID_NAME;
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return PALETTE_STORE_DB;
 
@@ -89,7 +89,7 @@ namespace Lightnet {
             return PALETTE_STORE_CODEC;
         }
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return PALETTE_STORE_DB;
 
@@ -120,7 +120,7 @@ namespace Lightnet {
             return PALETTE_STORE_CODEC;
         }
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return PALETTE_STORE_DB;
 
@@ -142,7 +142,7 @@ namespace Lightnet {
 
         if (!isValidPaletteName(name)) return PALETTE_STORE_INVALID_NAME;
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return PALETTE_STORE_DB;
 
@@ -161,7 +161,7 @@ namespace Lightnet {
     {
         if (!callback) return PALETTE_STORE_NULL_ARG;
 
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return PALETTE_STORE_DB;
 
@@ -195,7 +195,7 @@ namespace Lightnet {
 
     uint16_t PaletteStore::count() const
     {
-        Session session(_core, PALETTE_DATABASE_PATH, PALETTE_DATA_DIR);
+        Session session(_core);
 
         if (!session.isReady()) return 0;
 

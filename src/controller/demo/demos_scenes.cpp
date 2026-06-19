@@ -18,7 +18,7 @@
     namespace Lightnet {
         // ============================================================================
         // Scene JSON definitions
-        // Each must parse cleanly through parseScene() — validated by saveScene().
+        // Each must parse cleanly through parseScene() — validated at seed time.
         // ============================================================================
 
         // Single-layer slow breathe. embers palette, palette pos 200 ≈ bright orange.

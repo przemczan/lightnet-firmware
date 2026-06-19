@@ -35,7 +35,9 @@ namespace Lightnet {
             static constexpr const char *PALETTE_DATABASE_PATH = "/data/palettes.db";
             static constexpr const char *PALETTE_DATA_DIR      = "/data";
 
-            mutable FsStoreCore<PaletteCodec> _core;
+            mutable FsStoreCore<PaletteCodec> _core{
+                PALETTE_DATABASE_PATH, PALETTE_DATA_DIR
+            };
 
             PaletteStoreResult findByName(const char *name, RecordRef& recordRef) const;
             static PaletteStoreResult mapDatabaseResult(DatabaseResult databaseResult);

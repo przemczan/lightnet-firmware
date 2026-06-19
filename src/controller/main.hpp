@@ -39,7 +39,7 @@
     #include "../../lib/Lightnet/Core/Controller/ScenePlayer.hpp"
     #include "Scenes/PanelsTopologyProvider.hpp"
     #include "../../lib/Lightnet/Core/Controller/SceneParser.hpp"
-    #include "Scenes/LittleFsSceneRepository.hpp"
+    #include "Scenes/Store/SceneStore.hpp"
     #include "Scenes/ScenesService.hpp"
     #include "OTA/TwibootClient.hpp"
     #include "OTA/PanelFlasher.hpp"

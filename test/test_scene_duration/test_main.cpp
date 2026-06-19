@@ -5,9 +5,9 @@
 
 using namespace Lightnet;
 
-static SceneParseResult makeScene(uint16_t d0, uint16_t d1 = 0)
+static SceneRecord makeScene(uint16_t d0, uint16_t d1 = 0)
 {
-    SceneParseResult out = {};
+    SceneRecord out = {};
 
     out.layerCount = 1;
     out.layers[0].stepCount = d1 ? 2 : 1;
@@ -20,14 +20,14 @@ static SceneParseResult makeScene(uint16_t d0, uint16_t d1 = 0)
 
 void test_single_layer_sum()
 {
-    SceneParseResult s = makeScene(1000, 500);
+    SceneRecord s = makeScene(1000, 500);
 
     TEST_ASSERT_EQUAL_UINT32(1500, computeSceneDurationMs(s));
 }
 
 void test_multi_layer_max()
 {
-    SceneParseResult s = makeScene(1000);
+    SceneRecord s = makeScene(1000);
 
     s.layerCount = 2;
     s.layers[1].stepCount = 1;
@@ -38,7 +38,7 @@ void test_multi_layer_max()
 
 void test_zero_duration_steps()
 {
-    SceneParseResult s = makeScene(0, 0);
+    SceneRecord s = makeScene(0, 0);
 
     TEST_ASSERT_EQUAL_UINT32(0, computeSceneDurationMs(s));
 }

@@ -84,7 +84,6 @@ namespace Lightnet {
         sceneTopo(_topoProvider),
         lCount(0), loop(false), playing(false), speed(1.0f)
     {
-        memset(name, 0, sizeof(name));
         memset(defaultPalette, 0, sizeof(defaultPalette));
         memset(baseColors, 0, sizeof(baseColors));
         background = { 0, 0, 0 };
@@ -129,11 +128,6 @@ namespace Lightnet {
         return playing;
     }
 
-    const char *ScenePlayer::sceneName() const
-    {
-        return playing ? name : "";
-    }
-
     bool ScenePlayer::sceneLoop() const
     {
         return loop;
@@ -153,7 +147,6 @@ namespace Lightnet {
         const SceneLayer *       newLayers,
         uint8_t                  newCount,
         bool                     newLoop,
-        const char *             newName,
         const char *             paletteDefault,
         const Protocol::ColorRGB newBaseColors[BASE_COLORS_COUNT],
         uint32_t                 nowMs,
@@ -174,9 +167,6 @@ namespace Lightnet {
         allocSpawnPools(); // reserve group_id pools for RAIN/SPARKLE spawner layers
         loop = newLoop;
         speed = (newSpeed < 0.1f) ? 0.1f : (newSpeed > 10.0f) ? 10.0f : newSpeed;
-
-        strncpy(name, newName ? newName : "", sizeof(name) - 1);
-        name[sizeof(name) - 1] = '\0';
 
         const char *pal = (paletteDefault && paletteDefault[0]) ? paletteDefault : "userColors";
 
@@ -204,8 +194,8 @@ namespace Lightnet {
 
         playing = true;
 
-        DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] play \"%s\" layers=%u loop=%s speed=%.1f\n",
-                                       name, (unsigned)lCount, loop ? "true" : "false", (double)speed));
+        DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] play layers=%u loop=%s speed=%.1f\n",
+                                       (unsigned)lCount, loop ? "true" : "false", (double)speed));
 
         // Arm layer gating and fire the layers that start immediately (async included).
         armLayers(nowMs, true);
@@ -223,7 +213,7 @@ namespace Lightnet {
     {
         if (lCount == 0) return;
 
-        loadAndPlay(layers, lCount, loop, name, defaultPalette, baseColors, nowMs, speed, background);
+        loadAndPlay(layers, lCount, loop, defaultPalette, baseColors, nowMs, speed, background);
     }
 
     void ScenePlayer::tick(uint32_t nowMs)

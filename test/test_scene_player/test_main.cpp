@@ -111,11 +111,11 @@ static const char *SOLID_SCENE =
 // A whole scene parses, plays, and emits packets through the sink with no hardware.
 void test_solid_scene_emits_prepare_and_start()
 {
-    SceneParseResult res;
-    bool ok = parseScene(SOLID_SCENE, strlen(SOLID_SCENE), res);
+    SceneRecord res = {};
+    char errMsg[64];
+    bool ok = parseScene(SOLID_SCENE, strlen(SOLID_SCENE), res, errMsg, sizeof(errMsg));
 
-    TEST_ASSERT_TRUE_MESSAGE(ok, res.errMsg);
-    TEST_ASSERT_TRUE(res.valid);
+    TEST_ASSERT_TRUE_MESSAGE(ok, errMsg);
     TEST_ASSERT_EQUAL_UINT8(1, res.layerCount);
 
     MockSink sink;
@@ -125,7 +125,7 @@ void test_solid_scene_emits_prepare_and_start()
     AnimationScheduler scheduler(sink);
     ScenePlayer player(scheduler, palette, topo);
 
-    player.loadAndPlay(res.layers, res.layerCount, res.loop, res.name,
+    player.loadAndPlay(res.layers, res.layerCount, res.loop,
                        res.palette, res.baseColors, /*nowMs=*/ 0, res.speed, res.background);
 
     // "all" resolves to the 3 mock panels → one PREPARE each. The general-call START is
@@ -140,9 +140,10 @@ void test_solid_scene_emits_prepare_and_start()
 // stop() broadcasts a general-call ANIM_CTRL_STOP and clears the playing flag.
 void test_stop_emits_control_and_clears_playing()
 {
-    SceneParseResult res;
+    SceneRecord res = {};
+    char errMsg[64];
 
-    parseScene(SOLID_SCENE, strlen(SOLID_SCENE), res);
+    parseScene(SOLID_SCENE, strlen(SOLID_SCENE), res, errMsg, sizeof(errMsg));
 
     MockSink sink;
     MockPalette palette;
@@ -150,7 +151,7 @@ void test_stop_emits_control_and_clears_playing()
     AnimationScheduler scheduler(sink);
     ScenePlayer player(scheduler, palette, topo);
 
-    player.loadAndPlay(res.layers, res.layerCount, res.loop, res.name,
+    player.loadAndPlay(res.layers, res.layerCount, res.loop,
                        res.palette, res.baseColors, 0, res.speed, res.background);
 
     int before = sink.count;

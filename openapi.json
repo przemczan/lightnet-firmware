@@ -214,12 +214,16 @@
       }
     },
     "/api/scenes": {
+      "description": "Scene library stored in /data/scenes.db (SceneStore). HTTP bodies use scene JSON; list entries return id, name, layerCount, duration.",
       "post": {
         "summary": "Create Scene",
         "parameters": [],
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "422": {
+            "description": "id: not allowed"
           }
         },
         "requestBody": {
@@ -229,6 +233,37 @@
                 "type": "object",
                 "example": {
                   "schemaVersion": 1,
+                  "name": "sunset",
+                  "loop": true,
+                  "layers": []
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Scene",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "not_found"
+          },
+          "422": {
+            "description": "id: required"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "schemaVersion": 1,
+                  "id": "abcd1234",
                   "name": "sunset",
                   "loop": true,
                   "layers": []

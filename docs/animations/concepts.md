@@ -27,7 +27,7 @@ graph TD
   L3 --> S4[Step: SOLID]
 ```
 
-Scenes are stored as JSON files on the controller's filesystem (LittleFS) at `/scenes/<name>.json`. The HTTP body and the stored file share the same JSON format.
+Scenes are stored in a binary database on the controller at `/data/scenes.db` (`SceneStore`). HTTP bodies use the same scene JSON format; the controller parses on save and serializes on `GET /api/scenes/:id`.
 
 ---
 

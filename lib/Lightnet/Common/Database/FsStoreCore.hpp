@@ -16,6 +16,11 @@
         // lock window.
         template<typename Codec>
         struct FsStoreCore {
+            FsStoreCore(const char *filePath, const char *dirToCreate = nullptr)
+                : _filePath(filePath), _dirToCreate(dirToCreate)
+            {
+            }
+
             mutable StoreLock             lock;
             mutable FsRandomAccessStorage storage;
             mutable Database<Codec>       database;
@@ -29,16 +34,15 @@
             }
 
             // Open (or create) the database file. Skips if already open.
-            // If dirToCreate is provided, the directory is created first.
             // Returns DB_OK on success, DB_STORAGE_OPEN_FAILED if the file
             // cannot be opened, or a DatabaseResult describing the failure.
-            DatabaseResult ensureOpen(const char *filePath, const char *dirToCreate = nullptr) const
+            DatabaseResult ensureOpen() const
             {
                 if (storage.isOpen()) return DB_OK;
 
-                if (dirToCreate) Fs::mkdir(dirToCreate);
+                if (_dirToCreate) Fs::mkdir(_dirToCreate);
 
-                if (storage.open(filePath, true) != FS_STORAGE_OK) {
+                if (storage.open(_filePath, true) != FS_STORAGE_OK) {
                     return DB_STORAGE_OPEN_FAILED;
                 }
 
@@ -75,11 +79,10 @@
             class Session
             {
                 public:
-                    Session(FsStoreCore& core, const char *filePath, const char *dirToCreate = nullptr)
-                        : _core(core), _isReady(false)
+                    explicit Session(FsStoreCore& core) : _core(core), _isReady(false)
                     {
                         _core.lock.acquire();
-                        _isReady = (_core.ensureOpen(filePath, dirToCreate) == DB_OK);
+                        _isReady = (_core.ensureOpen() == DB_OK);
                     }
 
                     ~Session()
@@ -107,6 +110,10 @@
                     FsStoreCore& _core;
                     bool _isReady;
             };
+
+            private:
+                const char *_filePath;
+                const char *_dirToCreate;
         };
     } // namespace Lightnet
 

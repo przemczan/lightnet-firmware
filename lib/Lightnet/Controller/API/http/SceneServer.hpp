@@ -3,8 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include "../../../Core/Controller/ScenePlayer.hpp"
 #include "../../Scenes/ScenesService.hpp"
-#include "../../Scenes/ISceneRepository.hpp"
-#include "../../Scenes/LittleFsSceneRepository.hpp"
+#include "../../Scenes/Store/SceneStore.hpp"
 #include "../../AppState/AppStateStore.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
@@ -14,20 +13,20 @@ namespace Lightnet {
     {
         public:
             SceneServer(
-                AsyncWebServer&   server,
-                ISceneRepository& scenes,
-                ScenePlayer&      player,
-                ScenesService&    animService,
-                AppStateStore&    appState,
-                AppearanceStore&  appearance,
-                MainLoopQueue&    queue
+                AsyncWebServer&  server,
+                SceneStore&      scenes,
+                ScenePlayer&     player,
+                ScenesService&   animService,
+                AppStateStore&   appState,
+                AppearanceStore& appearance,
+                MainLoopQueue&   queue
             );
 
             void begin();
 
         private:
             AsyncWebServer& server;
-            ISceneRepository& scenes;
+            SceneStore& scenes;
             ScenePlayer& player;
             ScenesService& animService;
             AppStateStore& appState;
@@ -35,12 +34,13 @@ namespace Lightnet {
             MainLoopQueue& queue;
 
             void registerRoutes();
-            void deferPlay(AsyncWebServerRequest *req, SceneParseResult *parsed);
+            void deferPlayById(AsyncWebServerRequest *req, const char *id);
 
             void handleListScenes(AsyncWebServerRequest *req);
             void handleGetSceneById(AsyncWebServerRequest *req);
             void handleDeleteScene(AsyncWebServerRequest *req);
-            void handlePostSaveScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
+            void handlePostCreateScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
+            void handlePatchUpdateScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePostPlayOneShotScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePostPlayLastScene(AsyncWebServerRequest *req);
             void handlePostPlaySceneById(AsyncWebServerRequest *req);

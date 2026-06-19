@@ -177,7 +177,7 @@ namespace {
         RegTopology          topo;
         AnimationScheduler   scheduler;
         ScenePlayer          player;
-        SceneParseResult     parse; // transient parse buffer
+        SceneRecord          parse; // transient parse buffer
         char                 err[64];
 
         std::vector<uint8_t> outbuf;  // accumulated MIRROR_BATCH records since the last drain
@@ -292,17 +292,14 @@ int scene_load_and_play(scene_handle h, const char *json, int len, uint32_t now)
 
     SceneCore *c = self(h);
 
-    if (!parseScene(json, (size_t)len, c->parse) || !c->parse.valid) {
-        strncpy(c->err, c->parse.errMsg, sizeof(c->err) - 1);
-        c->err[sizeof(c->err) - 1] = '\0';
-
+    if (!parseScene(json, (size_t)len, c->parse, c->err, sizeof(c->err))) {
         return 0;
     }
 
     c->err[0] = '\0';
     c->resetBatch(now);
     c->player.loadAndPlay(
-        c->parse.layers, c->parse.layerCount, c->parse.loop, c->parse.name,
+        c->parse.layers, c->parse.layerCount, c->parse.loop,
         c->parse.palette, c->parse.baseColors, now, c->parse.speed, c->parse.background
     );
 

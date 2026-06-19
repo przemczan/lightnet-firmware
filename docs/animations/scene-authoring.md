@@ -180,7 +180,7 @@ The top-level object:
 }
 ```
 
-- **`name`** is required to *save* a scene (`POST /api/scenes`); inline play tolerates it but
+- **`name`** is required to save a scene (`POST /api/scenes` or `PATCH /api/scenes`); inline play tolerates it but
   keep it set. Only `[a-zA-Z0-9_-]`, max 18.
 - **`loop`** governs the *whole scene*. To loop a single effect forever instead, use a
   one-layer scene whose last step is infinite or `loop`ed (see §7).

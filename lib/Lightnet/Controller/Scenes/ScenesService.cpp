@@ -1,111 +1,135 @@
 #include "ScenesService.hpp"
-#include "Controller/SceneParser.hpp"
-#include "../../Core/Controller/SceneDuration.hpp"
 #include "../../Core/Common/UserColors.hpp"
 #include "../../Utils/JsonInject.hpp"
-#include <stdlib.h>
 #include <string.h>
 #include <Arduino.h>
 
 namespace Lightnet {
-    ScenesService::ScenesService(ISceneRepository& _scenes, ScenePlayer& _player)
+    ScenesService::ScenesService(SceneStore& _scenes, ScenePlayer& _player)
         : scenes(_scenes), player(_player)
     {
     }
 
-    SceneResult ScenesService::saveScene(const char *body, size_t len)
+    SceneResult ScenesService::parseAndFillRecord(const char *body, size_t len, SceneRecord& parsed)
     {
-        SceneParseResult parsed;
+        char errMsg[64];
 
-        if (!parseScene(body, len, parsed)) {
-            SceneError e = isSchemaTooNew(parsed.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+        if (!parseScene(body, len, parsed, errMsg, sizeof(errMsg))) {
+            SceneError e = isSchemaTooNew(errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
 
-            return SceneResult::error(e, parsed.errMsg);
+            return SceneResult::error(e, errMsg);
         }
 
-        char bodyId[ENTRY_ID_MAX + 1] = { 0 };
-        bool hasBodyId = jsonReadTopLevelString(body, len, "id", bodyId, sizeof(bodyId));
+        parsed.duration = computeSceneDurationMs(parsed);
+        parsed.hidden   = 0;
 
-        bool updating = hasBodyId && scenes.exists(bodyId);
+        return SceneResult::success();
+    }
+
+    SceneResult ScenesService::createScene(const char *body, size_t len)
+    {
+        if (jsonFindKey(body, len, "id")) {
+            return SceneResult::error(SceneError::Invalid, "id: not allowed");
+        }
+
+        SceneRecord parsed = {};
+        SceneResult r = parseAndFillRecord(body, len, parsed);
+
+        if (!r.ok()) return r;
 
         char id[ENTRY_ID_MAX + 1] = { 0 };
 
-        if (updating) {
-            strncpy(id, bodyId, sizeof(id) - 1);
-        } else if (hasBodyId && isValidId(bodyId) && !scenes.exists(bodyId)) {
-            strncpy(id, bodyId, sizeof(id) - 1);
-        } else if (!scenes.allocateId(id, sizeof(id))) {
+        if (!scenes.allocateId(id, sizeof(id))) {
             return SceneResult::error(SceneError::IoFailure, "id generation failed");
         }
 
-        char patched[ISceneRepository::MAX_SCENE_BYTES + 64];
-        int patchedLen = jsonUpsertStringField(body, len, "id", id, patched, sizeof(patched));
+        strncpy(parsed.id, id, sizeof(parsed.id) - 1);
 
-        if (patchedLen < 0) {
-            return SceneResult::error(SceneError::Invalid, "scene body too large");
-        }
+        SceneStoreResult sr = scenes.create(parsed);
 
-        SceneMeta meta = {};
+        if (sr != SCENE_STORE_OK) {
+            if (sr == SCENE_STORE_HIDDEN) {
+                return SceneResult::error(SceneError::Invalid, "reserved_id");
+            }
 
-        strncpy(meta.id, id, sizeof(meta.id) - 1);
-        strncpy(meta.name, parsed.name, sizeof(meta.name) - 1);
-        meta.layersNum = parsed.layerCount;
-        meta.duration  = computeSceneDurationMs(parsed);
-
-        if (!scenes.save(id, patched, (size_t)patchedLen, meta)) {
-            return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
+            return SceneResult::error(SceneError::IoFailure, "scene store write failed");
         }
 
         return SceneResult::success(id);
     }
 
-    SceneResult ScenesService::prepareById(const char *id, SceneParseResult& out)
+    SceneResult ScenesService::updateScene(const char *body, size_t len)
     {
-        size_t n = 0;
-        char *buf = scenes.loadContent(id, n);
+        char bodyId[ENTRY_ID_MAX + 1] = { 0 };
 
-        if (!buf) return SceneResult::error(SceneError::NotFound, "scene not found");
+        if (!jsonReadTopLevelString(body, len, "id", bodyId, sizeof(bodyId)) || bodyId[0] == '\0') {
+            return SceneResult::error(SceneError::Invalid, "id: required");
+        }
 
-        bool ok = parseScene(buf, n, out);
+        if (scenes.isHiddenId(bodyId)) {
+            return SceneResult::error(SceneError::Invalid, "reserved_id");
+        }
 
-        free(buf);
+        if (!isValidId(bodyId)) {
+            return SceneResult::error(SceneError::Invalid, "invalid_id");
+        }
 
-        if (!ok) {
-            SceneError e = isSchemaTooNew(out.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+        if (!scenes.exists(bodyId)) {
+            return SceneResult::error(SceneError::NotFound, "scene not found");
+        }
 
-            return SceneResult::error(e, out.errMsg);
+        SceneRecord parsed = {};
+        SceneResult r = parseAndFillRecord(body, len, parsed);
+
+        if (!r.ok()) return r;
+
+        strncpy(parsed.id, bodyId, sizeof(parsed.id) - 1);
+
+        SceneStoreResult sr = scenes.update(bodyId, parsed);
+
+        if (sr != SCENE_STORE_OK) {
+            return SceneResult::error(SceneError::IoFailure, "scene store write failed");
+        }
+
+        return SceneResult::success(bodyId);
+    }
+
+    SceneResult ScenesService::prepareById(const char *id, SceneRecord& out)
+    {
+        if (scenes.get(id, out) != SCENE_STORE_OK) {
+            return SceneResult::error(SceneError::NotFound, "scene not found");
         }
 
         return SceneResult::success();
     }
 
-    SceneResult ScenesService::prepareInline(const char *body, size_t len, SceneParseResult& out)
+    SceneResult ScenesService::prepareInline(const char *body, size_t len, SceneRecord& out)
     {
-        if (!parseScene(body, len, out)) {
-            SceneError e = isSchemaTooNew(out.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+        char errMsg[64];
 
-            return SceneResult::error(e, out.errMsg);
+        if (!parseScene(body, len, out, errMsg, sizeof(errMsg))) {
+            SceneError e = isSchemaTooNew(errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
+
+            return SceneResult::error(e, errMsg);
         }
 
         const char *id = scenes.oneShotId();
-        char patched[ISceneRepository::MAX_SCENE_BYTES + 64];
-        int patchedLen = jsonUpsertStringField(body, len, "id", id, patched, sizeof(patched));
 
-        if (patchedLen < 0) {
-            return SceneResult::error(SceneError::Invalid, "scene body too large");
-        }
+        strncpy(out.id, id, sizeof(out.id) - 1);
+        out.duration  = computeSceneDurationMs(out);
+        out.hidden    = 1;
 
-        SceneMeta meta = {};
+        SceneStoreResult sr = scenes.exists(id) ? scenes.update(id, out) : scenes.create(out);
 
-        if (!scenes.save(id, patched, (size_t)patchedLen, meta)) {
-            return SceneResult::error(SceneError::IoFailure, "filesystem write failed");
+        if (sr != SCENE_STORE_OK) {
+            return SceneResult::error(SceneError::IoFailure, "scene store write failed");
         }
 
         return SceneResult::success();
     }
 
     SceneResult ScenesService::playParsed(
-        SceneParseResult&        parsed,
+        SceneRecord&             parsed,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
@@ -119,12 +143,13 @@ namespace Lightnet {
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
     {
-        SceneParseResult parsed;
-        SceneResult r = prepareById(id, parsed);
+        playLoadRecord = {};
+
+        SceneResult r = prepareById(id, playLoadRecord);
 
         if (!r.ok()) return r;
 
-        return startPlay(parsed, defaultPalette, defaultColors);
+        return startPlay(playLoadRecord, defaultPalette, defaultColors);
     }
 
     SceneResult ScenesService::playSceneInline(
@@ -134,7 +159,7 @@ namespace Lightnet {
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
     {
-        SceneParseResult parsed;
+        SceneRecord parsed = {};
         SceneResult r = prepareInline(body, len, parsed);
 
         if (!r.ok()) return r;
@@ -159,7 +184,7 @@ namespace Lightnet {
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
     {
-        player.loadAndPlay(&layer, 1, false, "oneshot", defaultPalette, defaultColors, millis());
+        player.loadAndPlay(&layer, 1, false, defaultPalette, defaultColors, millis());
 
         return SceneResult::success();
     }
@@ -210,7 +235,7 @@ namespace Lightnet {
     }
 
     SceneResult ScenesService::startPlay(
-        SceneParseResult&        parsed,
+        SceneRecord&             parsed,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
@@ -228,8 +253,7 @@ namespace Lightnet {
             : (defaultColors ? defaultColors : kDefaultColors);
 
         player.loadAndPlay(parsed.layers, parsed.layerCount,
-                           parsed.loop, parsed.name,
-                           palName, colors,
+                           parsed.loop, palName, colors,
                            millis(), parsed.speed, parsed.background);
 
         sceneHasOwnPalette = parsed.hasPalette;

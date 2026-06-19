@@ -56,7 +56,7 @@ Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
 Lightnet::PaletteRepository *paletteStore = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
-Lightnet::LittleFsSceneRepository *sceneStore       = nullptr;
+Lightnet::SceneStore *sceneStore       = nullptr;
 Lightnet::ScenePlayer *scenePlayer      = nullptr;
 Lightnet::ScenesService *animService      = nullptr;
 Lightnet::AppearanceServer *appearanceServer = nullptr;
@@ -345,7 +345,7 @@ void loop()
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
                 appearance->loadAndApply();
 
-                sceneStore  = new Lightnet::LittleFsSceneRepository();
+                sceneStore  = new Lightnet::SceneStore();
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
                 animService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
 

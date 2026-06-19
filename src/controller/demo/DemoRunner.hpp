@@ -3,9 +3,8 @@
     #if DEMO_MODE
 
         #include "../../../lib/Lightnet/Controller/Scenes/ScenesService.hpp"
-        #include "../../../lib/Lightnet/Controller/Scenes/ISceneRepository.hpp"
+        #include "../../../lib/Lightnet/Controller/Scenes/Store/SceneStore.hpp"
         #include "../../../lib/Lightnet/Utils/EntryId.hpp"
-        #include "../../../lib/Lightnet/Utils/JsonInject.hpp"
         #include "../../../lib/Lightnet/Core/Controller/ScenePlayer.hpp"
         #include "../../../lib/Lightnet/Core/Controller/AnimationScheduler.hpp"
         #include "../../../lib/Lightnet/Core/Controller/AnimationRunner.hpp"
@@ -53,7 +52,7 @@
                 public:
                     DemoRunner(
                         ScenesService&      animService,
-                        ISceneRepository&   sceneStore,
+                        SceneStore&         sceneStore,
                         ScenePlayer&        scenePlayer,
                         AnimationScheduler& scheduler,
                         PanelsController&   panels,
@@ -69,7 +68,7 @@
 
                 private:
                     ScenesService& animService;
-                    ISceneRepository& sceneStore;
+                    SceneStore& sceneStore;
                     ScenePlayer& scenePlayer;
                     AnimationScheduler& scheduler;
                     PanelsController& panels;

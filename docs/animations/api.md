@@ -70,20 +70,23 @@ Path segment is URL-encoded (e.g. `Base%20colors`). Names are case-sensitive, ma
 
 ### Scenes (scene library)
 
+Stored in `/data/scenes.db` via `SceneStore`. See [`docs/api.md`](../api.md#23-scenes) for the canonical endpoint table.
+
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/scenes` | Scene JSON body — saves to `/scenes/<name>.json` |
-| `GET` | `/api/scenes` | `[{"name":"sunset","size":412},...]` |
-| `GET` | `/api/scenes/:name` | Scene JSON (raw file passthrough) |
-| `DELETE` | `/api/scenes/:name` | — |
+| `POST` | `/api/scenes` | Scene JSON body (no `"id"`) — returns `{"id":"…"}` |
+| `PATCH` | `/api/scenes` | Scene JSON body with required `"id"` — returns `{"id":"…"}` |
+| `GET` | `/api/scenes` | `[{"schemaVersion":1,"id":"…","name":"…","layerCount":2,"duration":15000},…]` |
+| `GET` | `/api/scenes/:id` | Scene JSON (serialized from stored record) |
+| `DELETE` | `/api/scenes/:id` | — |
 
 ### Scene playback
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `POST` | `/api/scenes/play/one-shot` | Full scene JSON body — stored under the hidden name `@one-shot`, then played by name (so it survives resume / power-cycle like a named scene; names starting with `@` are hidden from `GET /api/scenes` and cannot be used as a saved-scene name) |
-| `POST` | `/api/scenes/play` | — replays `lastPlayedScene` from `GET /api/state` (by name if it was a stored scene, or `@one-shot` if it was a one-shot play); `404` if nothing has been played yet |
-| `POST` | `/api/scenes/:name/play` | — (plays stored scene by name) |
+| `POST` | `/api/scenes/play/one-shot` | Full scene JSON — stored under a fixed hidden one-shot id, then played |
+| `POST` | `/api/scenes/play` | — replays `lastPlayedSceneId` from `GET /api/state` |
+| `POST` | `/api/scenes/:id/play` | — (plays stored scene by id) |
 | `POST` | `/api/scenes/stop` | — |
 | `POST` | `/api/scenes/speed` | `{"speed":<float>}` — change playback speed [0.1, 10.0] while playing |
 
@@ -442,11 +445,12 @@ gantt
 
 ## Appendix: Validation Rules
 
-These apply to `POST /api/scenes` and `POST /api/scenes/play/one-shot`. All violations return `HTTP 422`.
+These apply to `POST /api/scenes`, `PATCH /api/scenes`, and `POST /api/scenes/play/one-shot`. All violations return `HTTP 422`.
 
 | Field | Rule |
 |---|---|
-| Scene name | `[a-zA-Z0-9_-]`, 1–18 chars; names cannot start with `@` (reserved for internal scenes such as `@one-shot`, used by `POST /api/scenes/play/one-shot`) |
+| Scene `name` (display) | 1–64 chars |
+| Scene `id` (when present) | 8–10 chars, lowercase `[a-z0-9]` |
 | Layer count | 1–8 |
 | Steps per layer | 1–12 |
 | `group` | Name (string) or number 1–254; unique within the scene |

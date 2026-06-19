@@ -22,8 +22,8 @@
 //
 // Args contract:
 //   Args are copied into the ring by value, so they must be self-contained POD with
-//   no pointers into request-scoped memory. To defer something large (e.g. a parsed
-//   scene), heap-allocate it and pass the pointer in the args — the task frees it.
+//   no pointers into request-scoped memory. Scene play defers by scene id; the main
+//   loop reloads from SceneStore before emitting packets.
 
 #include <stdint.h>
 #include <string.h>
@@ -60,7 +60,9 @@ namespace Lightnet {
                 }
 
                 lock();
+
                 bool ok = ring.push(blob, (uint16_t)(sizeof(TaskFn) + argLen));
+
                 unlock();
 
                 return ok;
@@ -75,7 +77,9 @@ namespace Lightnet {
 
                 for (;;) {
                     lock();
+
                     uint16_t n = ring.pop(blob, sizeof(blob));
+
                     unlock();
 
                     if (n == 0) {

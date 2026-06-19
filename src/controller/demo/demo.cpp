@@ -8,7 +8,7 @@
 
     void initDemos(
     Lightnet::ScenesService&      animService,
-    Lightnet::ISceneRepository&   sceneStore,
+    Lightnet::SceneStore&         sceneStore,
     Lightnet::ScenePlayer&        scenePlayer,
     Lightnet::AnimationScheduler& scheduler,
     PanelsController&             panels,

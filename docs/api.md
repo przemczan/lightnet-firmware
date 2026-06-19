@@ -296,12 +296,15 @@ Palette JSON format:
 
 ### 2.3 Scenes
 
+Scenes are stored in a binary database at `/data/scenes.db` (via `SceneStore`). Each scene is keyed by its **id** (8–10 chars, lowercase `[a-z0-9]`). List metadata (`name`, `layerCount`, `duration`) is stored in the record alongside the parsed scene body. The one-shot play slot uses a fixed hidden id (not listed by `GET /api/scenes`). HTTP request/response bodies remain scene JSON.
+
 #### Scene library
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/scenes` | Scene JSON; optional `"id"` for update | `{"id":"…"}` |
-| `GET` | `/api/scenes` | — | `[{"schemaVersion":1,"id":"…","name":"…","layersNum":2,"duration":15000},…]` |
+| `POST` | `/api/scenes` | Scene JSON (no `id`) | `{"id":"…"}` |
+| `PATCH` | `/api/scenes` | Scene JSON with `"id"` | `{"id":"…"}` |
+| `GET` | `/api/scenes` | — | `[{"schemaVersion":1,"id":"…","name":"…","layerCount":2,"duration":15000},…]` |
 | `GET` | `/api/scenes/:id` | — | Scene JSON (chunked stream; includes embedded `"id"`) |
 | `DELETE` | `/api/scenes/:id` | — | `{}` |
 

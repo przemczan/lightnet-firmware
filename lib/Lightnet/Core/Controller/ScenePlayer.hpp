@@ -98,7 +98,6 @@ namespace Lightnet {
                 const SceneLayer *layers,
                 uint8_t layerCount,
                 bool loop,
-                const char *name,
                 const char *paletteDefault,
                 const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
                 uint32_t nowMs,
@@ -143,8 +142,6 @@ namespace Lightnet {
             uint8_t groupIdForName(const char *name) const;
 
             bool        isPlaying()   const;
-
-            const char * sceneName()   const;
 
             bool        sceneLoop()   const;
 
@@ -202,7 +199,6 @@ namespace Lightnet {
             bool loop;
             bool playing;
             float speed;
-            char name[20];
             char defaultPalette[16];
             Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
             Protocol::ColorRGB background; // compositor base sent to panels at play start

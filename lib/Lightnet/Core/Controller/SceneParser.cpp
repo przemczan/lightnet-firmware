@@ -920,8 +920,10 @@ namespace Lightnet {
         return true;
     }
 
-    bool parseScene(const char *json, size_t len, SceneParseResult& out)
+    bool parseScene(const char *json, size_t len, SceneRecord& out, char *errMsg, size_t errLen)
     {
+        if (!errMsg || errLen == 0) return false;
+
         memset(&out, 0, sizeof(out));
         out.schemaVersion = 1;
         out.loop = false;
@@ -951,7 +953,7 @@ namespace Lightnet {
         const char *end = json + len;
 
         if (!jsonEnterObject(p, end)) {
-            strncpy(out.errMsg, "scene: expected {", sizeof(out.errMsg));
+            strncpy(errMsg, "scene: expected {", errLen);
 
             return false;
         }
@@ -963,7 +965,7 @@ namespace Lightnet {
                 long v;
 
                 if (!jsonReadUInt(p, end, &v)) {
-                    strncpy(out.errMsg, "schemaVersion: not uint", sizeof(out.errMsg));
+                    strncpy(errMsg, "schemaVersion: not uint", errLen);
 
                     return false;
                 }
@@ -971,43 +973,47 @@ namespace Lightnet {
                 out.schemaVersion = (uint8_t)v;
             } else if (strcmp(key, "name") == 0) {
                 if (!jsonReadString(p, end, out.name, sizeof(out.name))) {
-                    strncpy(out.errMsg, "name: not a string", sizeof(out.errMsg));
+                    strncpy(errMsg, "name: not a string", errLen);
 
                     return false;
                 }
             } else if (strcmp(key, "loop") == 0) {
                 if (!jsonReadBool(p, end, &out.loop)) {
-                    strncpy(out.errMsg, "loop: not bool", sizeof(out.errMsg));
+                    strncpy(errMsg, "loop: not bool", errLen);
 
                     return false;
                 }
             } else if (strcmp(key, "speed") == 0) {
-                if (!jsonReadFloat(p, end, &out.speed)) {
-                    strncpy(out.errMsg, "speed: not a number", sizeof(out.errMsg));
+                float speedVal = out.speed;
+
+                if (!jsonReadFloat(p, end, &speedVal)) {
+                    strncpy(errMsg, "speed: not a number", errLen);
 
                     return false;
                 }
 
-                if (out.speed < 0.1f) out.speed = 0.1f;
+                if (speedVal < 0.1f) speedVal = 0.1f;
 
-                if (out.speed > 10.0f) out.speed = 10.0f;
+                if (speedVal > 10.0f) speedVal = 10.0f;
+
+                out.speed = speedVal;
             } else if (strcmp(key, "palette") == 0) {
                 if (!jsonReadString(p, end, out.palette, sizeof(out.palette))) {
-                    strncpy(out.errMsg, "palette: not a string", sizeof(out.errMsg));
+                    strncpy(errMsg, "palette: not a string", errLen);
 
                     return false;
                 }
 
                 out.hasPalette = true;
             } else if (strcmp(key, "colors") == 0) {
-                if (!parseColors(p, end, out.baseColors, out.errMsg, sizeof(out.errMsg))) return false;
+                if (!parseColors(p, end, out.baseColors, errMsg, errLen)) return false;
 
                 out.hasColors = true;
             } else if (strcmp(key, "background") == 0) {
                 ColorRef bg;
 
                 if (!parseColorRef(p, end, bg) || bg.kind != COLORREF_RGB) {
-                    strncpy(out.errMsg, "background: must be an inline RGB colour", sizeof(out.errMsg));
+                    strncpy(errMsg, "background: must be an inline RGB colour", errLen);
 
                     return false;
                 }
@@ -1015,20 +1021,20 @@ namespace Lightnet {
                 out.background = { bg.rgb.r, bg.rgb.g, bg.rgb.b };
             } else if (strcmp(key, "layers") == 0) {
                 if (!jsonEnterArray(p, end)) {
-                    strncpy(out.errMsg, "layers: expected array", sizeof(out.errMsg));
+                    strncpy(errMsg, "layers: expected array", errLen);
 
                     return false;
                 }
 
                 while (jsonNextElement(p, end)) {
                     if (!jsonEnterObject(p, end)) {
-                        strncpy(out.errMsg, "layers[]: expected object", sizeof(out.errMsg));
+                        strncpy(errMsg, "layers[]: expected object", errLen);
 
                         return false;
                     }
 
                     if (out.layerCount >= SCENE_MAX_LAYERS) {
-                        strncpy(out.errMsg, "too many layers", sizeof(out.errMsg));
+                        strncpy(errMsg, "too many layers", errLen);
 
                         return false;
                     }
@@ -1036,7 +1042,7 @@ namespace Lightnet {
                     if (!parseLayer(p, end, out.layers[out.layerCount], names,
                                     startAfterNames[out.layerCount],
                                     stepIds[out.layerCount],
-                                    out.errMsg, sizeof(out.errMsg))) return false;
+                                    errMsg, errLen)) return false;
 
                     out.layerCount++;
                 }
@@ -1048,7 +1054,7 @@ namespace Lightnet {
         // --- Validation ---
 
         if (out.schemaVersion > SCENE_SCHEMA_VERSION) {
-            snprintf(out.errMsg, sizeof(out.errMsg),
+            snprintf(errMsg, errLen,
                      "schema_too_new: scene=%u firmware=%u",
                      (unsigned)out.schemaVersion, (unsigned)SCENE_SCHEMA_VERSION);
 
@@ -1056,22 +1062,19 @@ namespace Lightnet {
         }
 
         if (out.name[0] == '\0') {
-            strncpy(out.errMsg, "name is required", sizeof(out.errMsg));
+            strncpy(errMsg, "name is required", errLen);
 
             return false;
         }
 
         if (out.layerCount == 0) {
-            strncpy(out.errMsg, "at least one layer required", sizeof(out.errMsg));
+            strncpy(errMsg, "at least one layer required", errLen);
 
             return false;
         }
 
-        // Validate display name length (names are not filesystem keys).
-        size_t nameLen = strlen(out.name);
-
-        if (nameLen > 64) {
-            strncpy(out.errMsg, "name: max 64 characters", sizeof(out.errMsg));
+        if (!isValidSceneName(out.name)) {
+            snprintf(errMsg, errLen, "name: max %u characters", (unsigned)SCENE_NAME_MAX);
 
             return false;
         }
@@ -1079,7 +1082,7 @@ namespace Lightnet {
         for (uint8_t i = 0; i < out.layerCount; i++) {
             for (uint8_t j = i + 1; j < out.layerCount; j++) {
                 if (out.layers[i].groupId == out.layers[j].groupId) {
-                    strncpy(out.errMsg, "duplicate group id across layers", sizeof(out.errMsg));
+                    strncpy(errMsg, "duplicate group id across layers", errLen);
 
                     return false;
                 }
@@ -1092,7 +1095,7 @@ namespace Lightnet {
 
             for (uint8_t s = 0; s < layer.stepCount; s++) {
                 if (layer.steps[s].durationMs == 0 && s < (uint8_t)(layer.stepCount - 1)) {
-                    strncpy(out.errMsg, "infinite step (duration=0) only allowed as last step", sizeof(out.errMsg));
+                    strncpy(errMsg, "infinite step (duration=0) only allowed as last step", errLen);
 
                     return false;
                 }
@@ -1124,7 +1127,7 @@ namespace Lightnet {
                 stepName[STEP_NAME_LEN - 1] = '\0';
 
                 if (stepName[0] == '\0') {
-                    strncpy(out.errMsg, "startAfter: empty step id after \":\"", sizeof(out.errMsg));
+                    strncpy(errMsg, "startAfter: empty step id after \":\"", errLen);
 
                     return false;
                 }
@@ -1136,14 +1139,14 @@ namespace Lightnet {
             uint8_t id = names.find(groupName);
 
             if (id == 0) {
-                snprintf(out.errMsg, sizeof(out.errMsg),
+                snprintf(errMsg, errLen,
                          "startAfter: unknown group \"%s\"", groupName);
 
                 return false;
             }
 
             if (id == out.layers[i].groupId) {
-                strncpy(out.errMsg, "startAfter: layer cannot wait for itself", sizeof(out.errMsg));
+                strncpy(errMsg, "startAfter: layer cannot wait for itself", errLen);
 
                 return false;
             }
@@ -1168,7 +1171,7 @@ namespace Lightnet {
                 }
 
                 if (found < 0) {
-                    snprintf(out.errMsg, sizeof(out.errMsg),
+                    snprintf(errMsg, errLen,
                              "startAfter: unknown step \"%s\" in group \"%s\"", stepName, groupName);
 
                     return false;
@@ -1195,7 +1198,7 @@ namespace Lightnet {
                                       : out.layers[i].startAfterStepIndex;
 
                 if (t.stepCount > 0 && t.steps[lastIdx].durationMs == 0 && lastIdx == (uint8_t)(t.stepCount - 1)) {
-                    strncpy(out.errMsg, "startAfter: target step never ends (infinite last step)", sizeof(out.errMsg));
+                    strncpy(errMsg, "startAfter: target step never ends (infinite last step)", errLen);
 
                     return false;
                 }
@@ -1225,14 +1228,12 @@ namespace Lightnet {
                 cur = (uint8_t)next;
 
                 if (++hops > out.layerCount) {
-                    strncpy(out.errMsg, "startAfter: dependency cycle", sizeof(out.errMsg));
+                    strncpy(errMsg, "startAfter: dependency cycle", errLen);
 
                     return false;
                 }
             }
         }
-
-        out.valid = true;
 
         return true;
     }

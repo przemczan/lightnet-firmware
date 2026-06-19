@@ -1,36 +1,13 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
-#include "../Common/ProtocolTypes.hpp"
-#include "../Common/LightnetConfig.hpp"
-#include "ScenePlayer.hpp"
-#include "../../Utils/EntryId.hpp"
+#include "SceneRecord.hpp"
 
 namespace Lightnet {
-    // Result of parsing a scene JSON body. Stack-allocated in route handlers (~2.2 KB).
-    struct SceneParseResult {
-        bool               valid;
-        char               errMsg[64];
-
-        // Scene fields
-        uint8_t            schemaVersion;
-        char               name[65];
-        bool               loop;
-        char               palette[16]; // scene-level default palette name
-        bool               hasPalette;  // true if scene JSON explicitly set "palette"
-        bool               hasColors;   // true if scene JSON explicitly set "colors"
-        Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
-
-        Protocol::ColorRGB background;   // compositor base colour (default black)
-
-        float              speed; // playback speed multiplier [0.1, 10.0], default 1.0
-        uint8_t            layerCount;
-        SceneLayer         layers[SCENE_MAX_LAYERS];
-    };
-
     // Parse `len` bytes of scene JSON from `json` into `out`.
-    // Returns true on success; on failure out.valid is false and out.errMsg is set.
-    bool parseScene(const char *json, size_t len, SceneParseResult& out);
+    // On failure returns false and writes a message into `errMsg` (if provided).
+    bool parseScene(const char *json, size_t len, SceneRecord& out, char *errMsg, size_t errLen);
 
     // Parse a flat one-shot body {"group":N,"panels":...,...step fields...} into a
     // single-layer SceneLayer. Returns false + errMsg on validation failure.
