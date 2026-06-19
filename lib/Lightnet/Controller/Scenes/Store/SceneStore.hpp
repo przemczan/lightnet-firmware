@@ -22,14 +22,14 @@ namespace Lightnet {
         public:
             static constexpr size_t MAX_SCENE_BYTES = 4096;
 
-            typedef void (*RecordCallback)(const SceneRecord& record, void *userContext);
+            typedef void (*MetaCallback)(const SceneMeta& meta, void *userContext);
 
             bool               exists(const char *id) const;
             SceneStoreResult   get(const char *id, SceneRecord& out) const;
             SceneStoreResult   create(const SceneRecord& record);
             SceneStoreResult   update(const char *id, const SceneRecord& record);
             SceneStoreResult   remove(const char *id);
-            SceneStoreResult   foreachRecord(RecordCallback callback, void *userContext) const;
+            SceneStoreResult   foreachMeta(MetaCallback callback, void *userContext) const;
             uint16_t           count() const;
             bool               allocateId(char *out, size_t outLen) const;
 
@@ -49,7 +49,7 @@ namespace Lightnet {
             SceneStoreResult createImpl(const SceneRecord& record);
             SceneStoreResult updateImpl(const char *id, const SceneRecord& record);
             SceneStoreResult removeImpl(const char *id);
-            SceneStoreResult foreachRecordImpl(RecordCallback callback, void *userContext) const;
+            SceneStoreResult foreachMetaImpl(MetaCallback callback, void *userContext) const;
             uint16_t         countImpl() const;
 
             SceneStoreResult findById(const char *id, RecordRef& recordRef) const;

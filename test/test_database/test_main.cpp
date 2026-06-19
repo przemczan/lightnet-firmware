@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstring>
 #include "Common/Database/Database.hpp"
+#include "Common/Database/IRandomAccessStorage.hpp"
 #include "MemoryRandomAccessStorage.hpp"
 
 using namespace Lightnet;
@@ -111,10 +112,14 @@ void test_insert_foreach_and_replace()
     std::vector<TestModel> seenRecords;
 
     TEST_ASSERT_EQUAL_UINT8(DB_OK, database.foreachLive(
-                                [&](RecordRef, const uint8_t *recordBuffer) {
+                                [&](RecordRef, IRandomAccessStorage& storage, size_t /*payloadOffset*/, size_t payloadSize) {
+        uint8_t buf[TestCodec::RECORD_SIZE] = {};
+
+        if (storage.read(buf, payloadSize) != payloadSize) return DB_READ_FAILED;
+
         TestModel record = {};
 
-        TestCodec::deserialize(recordBuffer, TestCodec::RECORD_SIZE, record);
+        TestCodec::deserialize(buf, payloadSize, record);
         seenRecords.push_back(record);
 
         return DB_OK;

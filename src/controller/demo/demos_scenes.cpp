@@ -154,7 +154,7 @@
             // Play the reactive scene, then manually fire beat triggers so the demo
             // works without a WebSocket client. ~100 BPM for 8 seconds.
             char seed[40];
-            char id[ENTRY_ID_MAX + 1];
+            char id[sizeof(SceneMeta::id)];
 
             snprintf(seed, sizeof(seed), "demo:%s", "demo_fire_react");
             deterministicId(seed, id, sizeof(id));

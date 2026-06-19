@@ -117,6 +117,12 @@ namespace Lightnet {
                 return DB_OK;
             }
 
+            // Iterates live (non-deleted) records without buffering payloads.
+            // For each live record, seeks the backing storage to payloadOffset
+            // and invokes callback(RecordRef, IRandomAccessStorage&, payloadOffset, payloadSize).
+            // The storage cursor is positioned at payloadOffset when the callback fires.
+            // payloadSize equals Codec::RECORD_SIZE. Callback must complete all reads
+            // before returning. Returns DB_FOREACH_ABORTED if callback returns non-DB_OK.
             template <typename Callback>
             DatabaseResult foreachLive(Callback callback) const
             {
@@ -138,15 +144,14 @@ namespace Lightnet {
 
                     if (slotFlags & FLAG_DELETED) continue;
 
-                    uint8_t recordBuffer[Codec::RECORD_SIZE];
+                    const size_t payloadOffset = slotOffset + 1;
+                    RecordRef recordRef     = { (uint32_t)slotOffset };
 
-                    readResult = readRecordPayloadAt(slotOffset, recordBuffer);
+                    if (_backingStorage->seek(payloadOffset) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                    if (readResult != DB_OK) return readResult;
-
-                    RecordRef recordRef = { (uint32_t)slotOffset };
-
-                    if (callback(recordRef, recordBuffer) != DB_OK) return DB_FOREACH_ABORTED;
+                    if (callback(recordRef, *_backingStorage, payloadOffset, Codec::RECORD_SIZE) != DB_OK) {
+                        return DB_FOREACH_ABORTED;
+                    }
                 }
 
                 return DB_OK;

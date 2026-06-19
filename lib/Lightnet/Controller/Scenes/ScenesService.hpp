@@ -25,7 +25,7 @@ namespace Lightnet {
     struct SceneResult {
         SceneError err;
         char       msg[64];
-        char       savedId[ENTRY_ID_MAX + 1];
+        char       savedId[sizeof(SceneMeta::id)];
 
         bool ok() const
         {

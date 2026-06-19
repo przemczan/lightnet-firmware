@@ -4,28 +4,26 @@
 #include <string.h>
 
 namespace Lightnet {
-    namespace {
-        bool isValidRecord(const SceneRecord& record)
-        {
-            if (!record.hidden && !isValidId(record.id)) return false;
+    bool SceneCodec::isValid(const SceneRecord& record)
+    {
+        if (!record.hidden && !isValidId(record.id)) return false;
 
-            if (record.hidden && strcmp(record.id, oneShotId()) != 0) return false;
+        if (record.hidden && strcmp(record.id, oneShotId()) != 0) return false;
 
-            if (!isValidSceneName(record.name)) return false;
+        if (!isValidSceneName(record.name)) return false;
 
-            if (record.layerCount == 0 || record.layerCount > SCENE_MAX_LAYERS) return false;
+        if (record.layerCount == 0 || record.layerCount > SCENE_MAX_LAYERS) return false;
 
-            if (record.schemaVersion > SCENE_SCHEMA_VERSION) return false;
+        if (record.schemaVersion > SCENE_SCHEMA_VERSION) return false;
 
-            return true;
-        }
-    } // anonymous namespace
+        return true;
+    }
 
     uint8_t SceneCodec::serialize(const SceneRecord& record, uint8_t *buffer, size_t capacity)
     {
         if (capacity < RECORD_SIZE) return SCENE_CODEC_BUF_TOO_SMALL;
 
-        if (!isValidRecord(record)) return SCENE_CODEC_INVALID;
+        if (!isValid(record)) return SCENE_CODEC_INVALID;
 
         memset(buffer, 0, capacity);
         memcpy(buffer, &record, RECORD_SIZE);
@@ -42,7 +40,7 @@ namespace Lightnet {
         out.name[sizeof(out.name) - 1] = '\0';
         out.palette[sizeof(out.palette) - 1] = '\0';
 
-        if (!isValidRecord(out)) {
+        if (!isValid(out)) {
             if (!out.hidden && !isValidId(out.id)) return SCENE_CODEC_INVALID_ID;
 
             return SCENE_CODEC_INVALID;
@@ -53,11 +51,11 @@ namespace Lightnet {
 
     bool SceneCodec::recordIdMatches(const uint8_t *buffer, size_t length, const char *id)
     {
-        if (!buffer || !id || length < ENTRY_ID_MAX + 1) return false;
+        if (!buffer || !id || length < sizeof(SceneMeta::id)) return false;
 
-        char storedId[ENTRY_ID_MAX + 1];
+        char storedId[sizeof(SceneMeta::id)];
 
-        memcpy(storedId, buffer, ENTRY_ID_MAX + 1);
+        memcpy(storedId, buffer, sizeof(SceneMeta::id));
         storedId[ENTRY_ID_MAX] = '\0';
 
         return strcmp(storedId, id) == 0;

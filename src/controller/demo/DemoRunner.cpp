@@ -114,7 +114,7 @@
         void DemoRunner::seedScene(const char *name, const char *json)
         {
             char seed[40];
-            char id[ENTRY_ID_MAX + 1];
+            char id[sizeof(SceneMeta::id)];
 
             snprintf(seed, sizeof(seed), "demo:%s", name);
             deterministicId(seed, id, sizeof(id));
@@ -142,7 +142,7 @@
         void DemoRunner::playScene(const char *name, uint32_t durationMs)
         {
             char seed[40];
-            char id[ENTRY_ID_MAX + 1];
+            char id[sizeof(SceneMeta::id)];
 
             snprintf(seed, sizeof(seed), "demo:%s", name);
             deterministicId(seed, id, sizeof(id));

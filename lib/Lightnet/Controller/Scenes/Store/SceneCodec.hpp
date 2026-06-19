@@ -21,6 +21,10 @@ namespace Lightnet {
         static uint8_t serialize(const SceneRecord& record, uint8_t *buffer, size_t capacity);
         static uint8_t deserialize(const uint8_t *buffer, size_t length, SceneRecord& out);
 
+        // Validate a SceneRecord that was read directly into memory (e.g. via StorageSliceReader)
+        // without going through deserialize. Callers must null-terminate string fields first.
+        static bool isValid(const SceneRecord& record);
+
         // Id is the first field in the serialized record — compare without deserializing
         // the full ~3 KB model (avoids nested SceneRecord frames on small task stacks).
         static bool recordIdMatches(const uint8_t *buffer, size_t length, const char *id);

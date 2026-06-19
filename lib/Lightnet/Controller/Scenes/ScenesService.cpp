@@ -37,7 +37,7 @@ namespace Lightnet {
 
         if (!r.ok()) return r;
 
-        char id[ENTRY_ID_MAX + 1] = { 0 };
+        char id[sizeof(SceneMeta::id)] = { 0 };
 
         if (!scenes.allocateId(id, sizeof(id))) {
             return SceneResult::error(SceneError::IoFailure, "id generation failed");
@@ -60,7 +60,7 @@ namespace Lightnet {
 
     SceneResult ScenesService::updateScene(const char *body, size_t len)
     {
-        char bodyId[ENTRY_ID_MAX + 1] = { 0 };
+        char bodyId[sizeof(SceneMeta::id)] = { 0 };
 
         if (!jsonReadTopLevelString(body, len, "id", bodyId, sizeof(bodyId)) || bodyId[0] == '\0') {
             return SceneResult::error(SceneError::Invalid, "id: required");

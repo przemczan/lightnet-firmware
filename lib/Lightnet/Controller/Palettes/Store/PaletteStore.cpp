@@ -1,4 +1,5 @@
 #include "PaletteStore.hpp"
+#include "../../Store/StorageSliceReader.hpp"
 #include <string.h>
 
 namespace Lightnet {
@@ -173,11 +174,19 @@ namespace Lightnet {
         } state = { callback, userContext, {}, PALETTE_STORE_OK };
 
         DatabaseResult foreachResult = session.database().foreachLive(
-            [&](RecordRef recordRef, const uint8_t *payload) {
+            [&](RecordRef recordRef, IRandomAccessStorage& storage, size_t payloadOffset, size_t payloadSize) {
             (void)recordRef;
 
-            if (PaletteCodec::deserialize(payload, PaletteCodec::RECORD_SIZE, state.record) !=
-                PALETTE_CODEC_OK) {
+            uint8_t buf[PaletteCodec::RECORD_SIZE];
+            StorageSliceReader slice(storage, payloadOffset, payloadSize);
+
+            if (slice.read(buf, payloadSize) != (int)payloadSize) {
+                state.storeResult = PALETTE_STORE_CODEC;
+
+                return DB_FOREACH_ABORTED;
+            }
+
+            if (PaletteCodec::deserialize(buf, payloadSize, state.record) != PALETTE_CODEC_OK) {
                 state.storeResult = PALETTE_STORE_CODEC;
 
                 return DB_FOREACH_ABORTED;
@@ -211,17 +220,19 @@ namespace Lightnet {
         } lookup = { name, &recordRef, false };
 
         DatabaseResult foreachResult = _core.database.foreachLive(
-            [&](RecordRef candidateRef, const uint8_t *payload) {
+            [&](RecordRef candidateRef, IRandomAccessStorage& storage, size_t payloadOffset, size_t payloadSize) {
+            uint8_t buf[PaletteCodec::RECORD_SIZE];
+            StorageSliceReader slice(storage, payloadOffset, payloadSize);
+
+            if (slice.read(buf, payloadSize) != (int)payloadSize) return DB_OK;
+
             PaletteRecord candidateRecord;
 
-            if (PaletteCodec::deserialize(payload, PaletteCodec::RECORD_SIZE, candidateRecord) !=
-                PALETTE_CODEC_OK) {
+            if (PaletteCodec::deserialize(buf, payloadSize, candidateRecord) != PALETTE_CODEC_OK) {
                 return DB_OK;
             }
 
-            if (!paletteNamesEqual(candidateRecord.name, lookup.searchName)) {
-                return DB_OK;
-            }
+            if (!paletteNamesEqual(candidateRecord.name, lookup.searchName)) return DB_OK;
 
             *lookup.recordRef = candidateRef;
             lookup.found      = true;

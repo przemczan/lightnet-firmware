@@ -18,14 +18,22 @@ namespace Lightnet {
         return strlen(name) <= SCENE_NAME_MAX;
     }
 
-    // Persisted scene model: list index fields + parsed scene content (~2.5–3 KB).
-    struct SceneRecord {
-        char               id[ENTRY_ID_MAX + 1];
-        char               name[SCENE_NAME_MAX + 1];
-        uint32_t           duration;
-        uint8_t            hidden;
+    // Index fields readable without loading the full ~3 KB record.
+    // This struct is the exact binary prefix of SceneRecord — reading sizeof(SceneMeta)
+    // bytes from disk yields all fields needed for listing and lookup.
+    struct SceneMeta {
+        char     id[ENTRY_ID_MAX + 1];
+        char     name[SCENE_NAME_MAX + 1];
+        uint32_t duration;
+        uint8_t  schemaVersion;
+        uint8_t  layerCount;
+    } __attribute__((packed));
 
-        uint8_t            schemaVersion;
+    static_assert(sizeof(SceneMeta) == 48, "SceneMeta size mismatch");
+
+    // Full persisted scene model (~3 KB). SceneMeta is the leading prefix.
+    struct SceneRecord : SceneMeta {
+        uint8_t            hidden;
         bool               loop;
         char               palette[16];
         bool               hasPalette;
@@ -33,7 +41,6 @@ namespace Lightnet {
         Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
         Protocol::ColorRGB background;
         float              speed;
-        uint8_t            layerCount;
         SceneLayer         layers[SCENE_MAX_LAYERS];
     } __attribute__((packed));
 }  // namespace Lightnet

@@ -80,15 +80,15 @@ namespace Lightnet {
             bool                 first;
         };
 
-        void appendSceneListEntry(const SceneRecord& record, void *ctx)
+        void appendSceneListEntry(const SceneMeta& meta, void *ctx)
         {
             auto *c = static_cast<ListCtx *>(ctx);
             char buf[192];
 
             snprintf(buf, sizeof(buf),
                      "%s{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\",\"layerCount\":%u,\"duration\":%lu}",
-                     c->first ? "" : ",", record.id, record.name, (unsigned)record.layerCount,
-                     (unsigned long)record.duration);
+                     c->first ? "" : ",", meta.id, meta.name, (unsigned)meta.layerCount,
+                     (unsigned long)meta.duration);
             c->res->print(buf);
             c->first = false;
         }
@@ -100,7 +100,7 @@ namespace Lightnet {
         ListCtx ctx { res, true };
 
         res->print("[");
-        scenes.foreachRecord(appendSceneListEntry, &ctx);
+        scenes.foreachMeta(appendSceneListEntry, &ctx);
         res->print("]");
 
         req->send(res);
@@ -108,7 +108,7 @@ namespace Lightnet {
 
     void SceneServer::handleGetSceneById(AsyncWebServerRequest *req)
     {
-        char id[ENTRY_ID_MAX + 1];
+        char id[sizeof(SceneMeta::id)];
 
         if (!Http::idFromUrl(req->url().c_str(), "/api/scenes/", id, sizeof(id)) ||
             !Http::isSafeId(id)) {
@@ -154,7 +154,7 @@ namespace Lightnet {
 
     void SceneServer::handleDeleteScene(AsyncWebServerRequest *req)
     {
-        char id[ENTRY_ID_MAX + 1];
+        char id[sizeof(SceneMeta::id)];
 
         if (!Http::idFromUrl(req->url().c_str(), "/api/scenes/", id, sizeof(id)) ||
             !Http::isSafeId(id)) {
@@ -208,7 +208,7 @@ namespace Lightnet {
     {
         struct Args {
             SceneServer *self;
-            char         id[ENTRY_ID_MAX + 1];
+            char         id[sizeof(SceneMeta::id)];
         } args { this, {} };
 
         strncpy(args.id, id, sizeof(args.id) - 1);
@@ -299,7 +299,7 @@ namespace Lightnet {
             return;
         }
 
-        char id[ENTRY_ID_MAX + 1];
+        char id[sizeof(SceneMeta::id)];
 
         if (!Http::idFromUrl(url, "/api/scenes/", id, sizeof(id)) || !Http::isSafeId(id)) {
             Http::sendError(req, 400, "invalid_id");

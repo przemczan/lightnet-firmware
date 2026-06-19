@@ -1,5 +1,7 @@
 #include "SceneStore.hpp"
 #include "../../../Utils/EntryId.hpp"
+#include "../../Store/StorageSliceReader.hpp"
+#include <stddef.h>
 #include <string.h>
 
 namespace Lightnet {
@@ -99,13 +101,13 @@ namespace Lightnet {
         return removeImpl(id);
     }
 
-    SceneStoreResult SceneStore::foreachRecord(RecordCallback callback, void *userContext) const
+    SceneStoreResult SceneStore::foreachMeta(MetaCallback callback, void *userContext) const
     {
         Session session(_core);
 
         if (!session.isReady()) return SCENE_STORE_DB;
 
-        return foreachRecordImpl(callback, userContext);
+        return foreachMetaImpl(callback, userContext);
     }
 
     uint16_t SceneStore::count() const
@@ -141,9 +143,19 @@ namespace Lightnet {
 
         if (lookupResult != SCENE_STORE_OK) return lookupResult;
 
-        DatabaseResult readResult = _core.database.read(recordRef, out, _core.scratchBuffer);
+        StorageSliceReader slice(_core.storage, recordRef.offset + 1, SceneCodec::RECORD_SIZE);
 
-        return mapDatabaseResult(readResult);
+        if (slice.read((uint8_t *)&out, SceneCodec::RECORD_SIZE) != (int)SceneCodec::RECORD_SIZE) {
+            return SCENE_STORE_DB;
+        }
+
+        out.id[ENTRY_ID_MAX]                       = '\0';
+        out.name[sizeof(out.name) - 1]             = '\0';
+        out.palette[sizeof(out.palette) - 1]       = '\0';
+
+        if (!SceneCodec::isValid(out)) return SCENE_STORE_CODEC;
+
+        return SCENE_STORE_OK;
     }
 
     SceneStoreResult SceneStore::createImpl(const SceneRecord& record)
@@ -187,36 +199,36 @@ namespace Lightnet {
         return mapDatabaseResult(removeResult);
     }
 
-    SceneStoreResult SceneStore::foreachRecordImpl(RecordCallback callback, void *userContext) const
+    SceneStoreResult SceneStore::foreachMetaImpl(MetaCallback callback, void *userContext) const
     {
         if (!callback) return SCENE_STORE_NULL_ARG;
 
         struct IterationState {
-            RecordCallback   callback;
-            void *           userContext;
-            SceneRecord      record;
-            SceneStoreResult storeResult;
-        } state = { callback, userContext, {}, SCENE_STORE_OK };
+            MetaCallback callback;
+            void *       userContext;
+        } state = { callback, userContext };
+
+        // Read SceneMeta prefix + the hidden byte that immediately follows it.
+        constexpr size_t readSize = offsetof(SceneRecord, hidden) + sizeof(uint8_t);
 
         DatabaseResult foreachResult = _core.database.foreachLive(
-            [&](RecordRef recordRef, const uint8_t *payload) {
+            [&](RecordRef recordRef, IRandomAccessStorage& storage, size_t payloadOffset, size_t /*payloadSize*/) {
             (void)recordRef;
 
-            if (SceneCodec::deserialize(payload, SceneCodec::RECORD_SIZE, state.record) !=
-                SCENE_CODEC_OK) {
-                state.storeResult = SCENE_STORE_CODEC;
+            uint8_t buf[readSize];
+            StorageSliceReader slice(storage, payloadOffset, readSize);
 
-                return DB_FOREACH_ABORTED;
-            }
+            if (slice.read(buf, readSize) != (int)readSize) return DB_OK;
 
-            if (state.record.hidden) return DB_OK;
+            if (buf[offsetof(SceneRecord, hidden)]) return DB_OK;
 
-            state.callback(state.record, state.userContext);
+            SceneMeta meta;
+            memcpy(&meta, buf, sizeof(SceneMeta));
+
+            state.callback(meta, state.userContext);
 
             return DB_OK;
         });
-
-        if (state.storeResult != SCENE_STORE_OK) return state.storeResult;
 
         return mapDatabaseResult(foreachResult);
     }
@@ -235,10 +247,15 @@ namespace Lightnet {
         } lookup = { id, &recordRef, false };
 
         DatabaseResult foreachResult = _core.database.foreachLive(
-            [&](RecordRef candidateRef, const uint8_t *payload) {
-            if (!SceneCodec::recordIdMatches(payload, SceneCodec::RECORD_SIZE, lookup.searchId)) {
-                return DB_OK;
-            }
+            [&](RecordRef candidateRef, IRandomAccessStorage& storage, size_t payloadOffset, size_t /*payloadSize*/) {
+            char storedId[sizeof(SceneMeta::id)];
+            StorageSliceReader slice(storage, payloadOffset, sizeof(SceneMeta::id));
+
+            if (slice.read((uint8_t *)storedId, sizeof(SceneMeta::id)) != sizeof(SceneMeta::id))return DB_OK;
+
+            storedId[ENTRY_ID_MAX] = '\0';
+
+            if (strcmp(storedId, lookup.searchId) != 0) return DB_OK;
 
             *lookup.recordRef = candidateRef;
             lookup.found      = true;
