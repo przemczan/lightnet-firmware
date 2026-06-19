@@ -164,9 +164,9 @@ The top-level object:
 | `name` | yes (to save) | — | 1–18 chars, `[a-zA-Z0-9_-]`. The filename when stored. |
 | `loop` | no | `false` | Restart the whole scene when all layers finish. |
 | `speed` | no | `1.0` | Playback multiplier, clamped to `0.1`–`10.0`. Scales all durations. |
-| `colors` | no | white / black / black | The three **base colours** (`primary`, `secondary`, `tertiary`) referenced by `useColor` and the `userColors` palette. |
+| `colors` | no | white / black / black | The three **base colours** (`primary`, `secondary`, `tertiary`) referenced by `useColor` and the `"Base colors"` palette. |
 | `background` | no | `#000000` | Inline RGB **compositor base** pushed to every panel at scene start. Layers fold over it, and a panel with no active layer shows it. Great for a static ambient colour under animated accents. |
-| `palette` | no | `"userColors"` | Default palette for layers that don't override it. |
+| `palette` | no | `"Base colors"` | Default palette for layers that don't override it. |
 | `layers` | yes | — | 1–8 layer objects, played simultaneously and **composited** (§5.1). |
 
 ```json
@@ -174,7 +174,7 @@ The top-level object:
   "name": "my_scene",
   "loop": true,
   "speed": 1.0,
-  "palette": "ocean",
+  "palette": "Ocean",
   "colors": { "primary": "#10C0FF", "secondary": "#0030A0", "tertiary": "#000000" },
   "layers": [ /* … */ ]
 }
@@ -186,7 +186,7 @@ The top-level object:
   one-layer scene whose last step is infinite or `loop`ed (see §7).
 - **`speed`** is global; per-step timing is the step's `duration` divided by `speed`.
 - **`colors`** + **`palette`** feed the colour system (§9). If you omit `palette`, the scene
-  uses `userColors`, a gradient built live from the three base colours.
+  uses `"Base colors"`, a gradient built live from the three base colours.
 
 ---
 
@@ -222,7 +222,7 @@ Each entry in `layers`:
 {
   "group": "ambient",
   "panels": "all",
-  "palette": "ocean",
+  "palette": "Ocean",
   "sequence": [
     {
       "type": "BREATHE",
@@ -627,12 +627,12 @@ Every colour field (`color`, `colorTo`, `colorFrom`) accepts one of four forms:
 | Palette position | `{ "palette": 200 }` | Sample the active palette at 0–255. |
 | Base colour | `{ "useColor": 0 }` | `0`=primary, `1`=secondary, `2`=tertiary from `colors`. |
 
-- **Palettes** are 16-stop gradients. Use a built-in name (`rainbow`, `lava`, `ocean`,
-  `forest`, `party`, `sunset`, `aurora`, `embers`) or one you've uploaded. Full palette
+- **Palettes** are 16-stop gradients. Use a built-in name (`Rainbow`, `Lava`, `Ocean`,
+  `Forest`, `Party`, `Sunset`, `Aurora`, `Embers`) or one you've created via the API. Full palette
   schema and the built-in list are in [Concepts → Palettes](concepts.md#palettes).
-- **`userColors`** (the default palette) is built live from the three base colours, so
+- **`Base colors`** (the default palette) is built live from the three base colours, so
   `{"palette":0/128/255}` map to primary/secondary/tertiary. Referencing `useColor` or
-  `userColors` lets one scene re-skin instantly when the base colours change.
+  `"Base colors"` lets one scene re-skin instantly when the base colours change.
 - **Per-layer `palette`** overrides the scene palette for that layer's panels. ⚠ Each panel
   holds only one active palette — don't point two layers with different palettes at the same
   panel (last one wins). See the [overlap caveat](concepts.md#per-layer-palette-override).
@@ -802,7 +802,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
 {
   "name": "bg_accent",
   "loop": true,
-  "palette": "ocean",
+  "palette": "Ocean",
   "layers": [
     {
       "group": "bg",
@@ -875,7 +875,7 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
 {
   "name": "wave_out",
   "loop": true,
-  "palette": "lava",
+  "palette": "Lava",
   "layers": [
     {
       "group": "g",

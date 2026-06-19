@@ -265,21 +265,25 @@ Persists to `/config/appearance.json` atomically and broadcasts the updated valu
 
 ### 2.2 Palettes
 
+Palettes are stored in a binary database at `/data/palettes.db` (via `PaletteStore` / `PaletteRepository`). Each palette is keyed by its **name** (unique, case-insensitive comparison; stored with original casing). Built-in palettes are seeded on first boot.
+
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/palettes` | — | Meta array: `[{"schemaVersion":1,"id":"…","name":"…","builtin":true?},…]` |
-| `GET` | `/api/palettes/:id` | — | Palette JSON (includes `"id"`); `userColors` id returns synthesized stops from appearance base colors |
-| `POST` | `/api/palettes` | Palette JSON; optional `"id"` for update | `{"id":"…"}` |
-| `DELETE` | `/api/palettes/:id` | — | `403` if built-in or userColors |
+| `GET` | `/api/palettes` | — | Full palette array with `stops` (Base colors stops synthesized from current appearance) |
+| `GET` | `/api/palettes/:name` | — | Full palette JSON with `stops`; `"Base colors"` returns stops synthesized from current appearance base colors |
+| `POST` | `/api/palettes` | Palette JSON (create only) | `{"name":"…"}`; `409 name_exists` if the name is taken |
+| `PUT` | `/api/palettes/:name` | Palette JSON (`stops` only; name in body must match path) | `{}`; `403` if built-in |
+| `DELETE` | `/api/palettes/:name` | — | `204`; `403` if built-in or `"Base colors"` |
 
-Path `id`: 8–10 chars, lowercase `[a-z0-9]`. Display `name` in JSON may be up to 64 chars (any printable text).
+Path `name`: URL-encoded, 1–30 chars. Scene and appearance `palette` fields reference palette **names** (not ids).
+
+Built-in names (cannot be deleted or overwritten): `Rainbow`, `Lava`, `Ocean`, `Forest`, `Party`, `Sunset`, `Aurora`, `Embers`, and the virtual `Base colors` palette (synthesized from appearance base colors — not stored in the database).
 
 Palette JSON format:
 ```json
 {
   "schemaVersion": 1,
-  "id": "abcd1234",
-  "name": "My Cool Palette!",
+  "name": "My Cool Palette",
   "stops": [
     [0, "#000000"],
     [128, "#FF4400"],
@@ -301,7 +305,7 @@ Palette JSON format:
 | `GET` | `/api/scenes/:id` | — | Scene JSON (chunked stream; includes embedded `"id"`) |
 | `DELETE` | `/api/scenes/:id` | — | `{}` |
 
-Scene path `id`: 8–10 chars, lowercase `[a-z0-9]`. Display `name` in JSON may be up to 64 chars. Scene `palette` fields reference palette **ids**.
+Scene path `id`: 8–10 chars, lowercase `[a-z0-9]`. Display `name` in JSON may be up to 64 chars. Scene `palette` fields reference palette **names** (e.g. `"Lava"`, `"Base colors"`).
 
 #### Playback
 

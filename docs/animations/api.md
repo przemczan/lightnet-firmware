@@ -15,8 +15,8 @@ Three values define the current look of all panels, independent of any playing s
 | Setting | Range | Description |
 |---|---|---|
 | **Brightness** | 0–255 | Global multiplier applied on top of every animation's per-frame brightness |
-| **Base Colors** | 3 × #RRGGBB | Primary, secondary, tertiary colours used by the `userColors` palette |
-| **Palette** | name string | Currently active gradient palette (e.g. `"lava"`) |
+| **Base Colors** | 3 × #RRGGBB | Primary, secondary, tertiary colours used by the `"Base colors"` palette |
+| **Palette** | name string | Currently active gradient palette (e.g. `"Lava"`) |
 
 These are persisted in `/config/appearance.json` and restored on every boot. They take effect immediately — the panel resolves all animation colours at frame time using the current palette/base-colours, so a mid-flight change appears on the very next rendered frame without restarting anything.
 
@@ -27,7 +27,7 @@ These are persisted in `/config/appearance.json` and restored on every boot. The
   "schemaVersion": 1,
   "brightness": 192,
   "baseColors": ["#FF4400", "#FF8800", "#000000"],
-  "palette": "lava"
+  "palette": "Lava"
 }
 ```
 
@@ -38,7 +38,7 @@ These are persisted in `/config/appearance.json` and restored on every boot. The
 
 ```http
 GET    /api/appearance
-PATCH  /api/appearance        {"brightness":192, "baseColors":["#FF4400","#FF8800","#000000"], "palette":"lava"}
+PATCH  /api/appearance        {"brightness":192, "baseColors":["#FF4400","#FF8800","#000000"], "palette":"Lava"}
 ```
 
 All fields are optional — omit any you don't want to change. Returns `202 {}` on success (validated synchronously; the broadcast to panels is applied on the next main-loop tick), `422 {"error":"..."}` on invalid input, and persists to the filesystem.
@@ -60,10 +60,13 @@ All endpoints are on port 80 (`http://lightnet-<chipid>.local`).
 
 | Method | Path | Body / Response |
 |---|---|---|
-| `GET` | `/api/palettes` | `{"rainbow":{...},"lava":{...},...}` — map of name → Palette JSON |
-| `GET` | `/api/palettes/:name` | Palette JSON |
-| `POST` | `/api/palettes` | Palette JSON body |
-| `DELETE` | `/api/palettes/:name` | 403 for built-ins |
+| `GET` | `/api/palettes` | Full palette array with `stops` (Base colors stops synthesized from current appearance) |
+| `GET` | `/api/palettes/:name` | Full palette JSON with `stops` |
+| `POST` | `/api/palettes` | Create palette JSON — `{"name":"…"}`; `409` if name exists |
+| `PUT` | `/api/palettes/:name` | Update stops only (name in body must match path); `403` for built-ins |
+| `DELETE` | `/api/palettes/:name` | `204`; `403` for built-ins and `"Base colors"` |
+
+Path segment is URL-encoded (e.g. `Base%20colors`). Names are case-sensitive, max 30 chars.
 
 ### Scenes (scene library)
 
@@ -161,7 +164,7 @@ For chained steps on a notification (e.g. pulse → fade), use a short scene via
   "colors": {
     "primary": "#FF8800"
   },
-  "palette": "userColors",
+  "palette": "Base colors",
   "layers": [
     {
       "group": 1,
@@ -190,7 +193,7 @@ Change colour mid-flight: `PATCH /api/appearance {"baseColors":["#0044FF","#FF88
 {
   "name": "lava-wave",
   "loop": true,
-  "palette": "lava",
+  "palette": "Lava",
   "layers": [
     {
       "group": 1,
@@ -233,7 +236,7 @@ Group 1 holds a static dim background. Group 2 cycles: bright wave sweeps across
 {
   "name": "fire-reactive",
   "loop": true,
-  "palette": "embers",
+  "palette": "Embers",
   "layers": [
     {
       "group": 1,
@@ -266,7 +269,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
     {
       "group": 1,
       "panels": [1, 2, 3, 4, 5],
-      "palette": "ocean",
+      "palette": "Ocean",
       "sequence": [
         {
           "type": "HUE_CYCLE",
@@ -279,7 +282,7 @@ Send WebSocket trigger on every beat: `MSG_ANIMATION_TRIGGER group=1 value=255`.
     {
       "group": 2,
       "panels": [6, 7, 8, 9, 10],
-      "palette": "lava",
+      "palette": "Lava",
       "sequence": [
         {
           "type": "BREATHE",
@@ -304,7 +307,7 @@ Panels 1–5 cycle through ocean hues. Panels 6–10 breathe lava orange. Spatia
 {
   "name": "startup",
   "loop": false,
-  "palette": "rainbow",
+  "palette": "Rainbow",
   "layers": [
     {
       "group": 1,

@@ -195,7 +195,7 @@ namespace Lightnet {
 
             memcpy(&x, a, sizeof(x));
             x.self->animService.playParsed(*x.parsed,
-                                           x.self->appearance.paletteId(),
+                                           x.self->appearance.paletteName(),
                                            x.self->appearance.baseColors());
             delete x.parsed;
         }, &args, sizeof(args));

@@ -2,7 +2,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include "../../Appearance/AppearanceStore.hpp"
-#include "../../Palettes/IPaletteRepository.hpp"
+#include "../../Palettes/PaletteRepository.hpp"
 #include "../../Scenes/ScenesService.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
 
@@ -11,11 +11,11 @@ namespace Lightnet {
     {
         public:
             AppearanceServer(
-                AsyncWebServer&     server,
-                AppearanceStore&    appearance,
-                IPaletteRepository& palettes,
-                ScenesService&      animService,
-                MainLoopQueue&      queue
+                AsyncWebServer&    server,
+                AppearanceStore&   appearance,
+                PaletteRepository& palettes,
+                ScenesService&     animService,
+                MainLoopQueue&     queue
             );
 
             void begin();
@@ -23,7 +23,7 @@ namespace Lightnet {
         private:
             AsyncWebServer& server;
             AppearanceStore& appearance;
-            IPaletteRepository& palettes;
+            PaletteRepository& palettes;
             ScenesService& animService;
             MainLoopQueue& queue;
 

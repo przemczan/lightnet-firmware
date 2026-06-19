@@ -35,7 +35,7 @@
                     "#00FF00",
                     "#0000FF"
                   ],
-                  "palette": "lava"
+                  "palette": "Lava"
                 }
               }
             }
@@ -53,22 +53,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
+                  "type": "array",
+                  "items": {
                     "type": "object",
                     "properties": {
                       "schemaVersion": { "type": "integer" },
                       "name": { "type": "string" },
-                      "stops": { "type": "array" }
+                      "builtin": { "type": "boolean" },
+                      "stops": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {}
+                        }
+                      }
                     }
                   },
-                  "example": {
-                    "lava": {
+                  "example": [
+                    {
                       "schemaVersion": 1,
-                      "name": "lava",
-                      "stops": [[0,"#000000"],[255,"#FFFFFF"]]
+                      "name": "Rainbow",
+                      "builtin": true,
+                      "stops": [[0, "#FF0000"], [255, "#FF0000"]]
+                    },
+                    {
+                      "schemaVersion": 1,
+                      "name": "Base colors",
+                      "builtin": true,
+                      "stops": [[0, "#FF0000"], [128, "#00FF00"], [255, "#0000FF"]]
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -80,7 +94,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": { "name": "my-palette" }
+              }
+            }
+          },
+          "409": {
+            "description": "name_exists"
           }
         },
         "requestBody": {
@@ -103,12 +125,12 @@
         }
       }
     },
-    "/api/palettes/{{id}}": {
+    "/api/palettes/{{name}}": {
       "get": {
-        "summary": "Get Palette By Id",
+        "summary": "Get Palette By Name",
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
@@ -119,14 +141,58 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "404": {
+            "description": "not_found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Palette Stops",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "cannot_overwrite_builtin"
+          },
+          "404": {
+            "description": "not_found"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "schemaVersion": 1,
+                  "name": "my-palette",
+                  "stops": [
+                    [0, "#000000"],
+                    [255, "#FFFFFF"]
+                  ]
+                }
+              }
+            }
           }
         }
       },
       "delete": {
-        "summary": "Delete Palette By Id",
+        "summary": "Delete Palette By Name",
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
@@ -135,8 +201,14 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "cannot_delete_builtin"
+          },
+          "404": {
+            "description": "not_found"
           }
         }
       }

@@ -1,8 +1,8 @@
 #include "ScenesService.hpp"
 #include "Controller/SceneParser.hpp"
 #include "../../Core/Controller/SceneDuration.hpp"
+#include "../../Core/Common/UserColors.hpp"
 #include "../../Utils/JsonInject.hpp"
-#include "../../Utils/EntryId.hpp"
 #include <stdlib.h>
 #include <string.h>
 #include <Arduino.h>
@@ -221,7 +221,7 @@ namespace Lightnet {
 
         const char *palName = parsed.hasPalette
             ? parsed.palette
-            : (defaultPalette && defaultPalette[0] ? defaultPalette : userColorsId());
+            : (defaultPalette && defaultPalette[0] ? defaultPalette : USER_COLORS_PALETTE_NAME);
 
         const Protocol::ColorRGB *colors = parsed.hasColors
             ? parsed.baseColors

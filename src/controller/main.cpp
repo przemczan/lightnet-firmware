@@ -54,7 +54,7 @@ Lightnet::ControllerPacketSink controllerPacketSink(LNBus);
 Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
 
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
-Lightnet::LittleFsPaletteRepository *paletteStore = nullptr;
+Lightnet::PaletteRepository *paletteStore = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
 Lightnet::LittleFsSceneRepository *sceneStore       = nullptr;
 Lightnet::ScenePlayer *scenePlayer      = nullptr;
@@ -332,7 +332,7 @@ void loop()
                 animScheduler->initialize();
 
                 // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
-                // can read /config/ and /palettes/ before the captive portal blocks.
+                // can read /data/palettes.db and /config/ before the captive portal blocks.
                 Lightnet::Fs::begin();
 
                 // Ensure /config exists before the stores below write into it. ESP32's LittleFS
@@ -340,7 +340,7 @@ void loop()
                 // a fresh filesystem every /config/*.json write would fail without this. Idempotent.
                 Lightnet::Fs::mkdir("/config");
 
-                paletteStore = new Lightnet::LittleFsPaletteRepository();
+                paletteStore = new Lightnet::PaletteRepository();
                 paletteStore->ensureSeeded();
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
                 appearance->loadAndApply();

@@ -5,15 +5,14 @@
 #include "../../Core/Common/LightnetConfig.hpp"
 #include "../../Common/Protocol.hpp"
 #include "../../Core/Controller/AnimationScheduler.hpp"
-#include "../Palettes/IPaletteRepository.hpp"
+#include "../Palettes/PaletteRepository.hpp"
 #include "../../Utils/DeferredWriter.hpp"
-#include "../../Utils/EntryId.hpp"
 
 namespace Lightnet {
     class AppearanceStore
     {
         public:
-            AppearanceStore(AnimationScheduler& scheduler, const IPaletteRepository& palettes);
+            AppearanceStore(AnimationScheduler& scheduler, const PaletteRepository& palettes);
 
             void loadAndApply();
             void reapply();
@@ -23,14 +22,14 @@ namespace Lightnet {
             bool setBrightness(uint8_t value);
             bool setBaseColor(uint8_t slot, Protocol::ColorRGB color);
             bool setAllBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
-            bool setPalette(const char *id);
+            bool setPalette(const char *name);
 
             uint8_t brightness() const
             {
                 return brightnessValue;
             }
 
-            const char * paletteId() const
+            const char * paletteName() const
             {
                 return paletteValue;
             }
@@ -44,11 +43,11 @@ namespace Lightnet {
 
         private:
             AnimationScheduler& scheduler;
-            const IPaletteRepository& palettes;
+            const PaletteRepository& palettes;
 
             uint8_t brightnessValue;
             Protocol::ColorRGB baseColorsValue[BASE_COLORS_COUNT];
-            char paletteValue[ENTRY_ID_MAX + 1];
+            char paletteValue[MAX_PALETTE_NAME_LENGTH + 1];
 
             bool readFile();
             void writeFile();

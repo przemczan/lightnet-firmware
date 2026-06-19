@@ -1,3 +1,8 @@
+---
+description: 
+alwaysApply: true
+---
+
 # CLAUDE.md
 
 Guidance for Claude Code working in this repository.
@@ -5,12 +10,13 @@ Guidance for Claude Code working in this repository.
 **This code is still in heavy development**. At this point anything can be changed, backwards compatibility is not a concern.
 **Never** suggest in comments that something has been changed or how the code was working previously, always treat the current code as the only known version.
 
-## Coding preferences
+## IMPORTANT: Coding preferences for this project
 
-* Put implementation in cpp files instead of hpp - unless necessary functionality requires it to be in hpp.
+* Put implementation in cpp files instead of hpp - unless agreed functionality requires it to be in hpp.
 * For large changes (or plan execution) in the code:
   * Always test build different targets (one build for each board type is enough).
   * Always test build at least one SIM target.
+* Avoid harcoded mem offsets, use casting, sizeof etc. if possible.
 
 ---
 
@@ -73,7 +79,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -187,7 +193,7 @@ resolution (`rebuild()` + `resolvePanels()`); it pulls the tree through `ITopolo
 `AnimationScheduler` → `IPacketSink`.
 
 **Device glue** (`lib/Lightnet/Controller/`, implements the seams): `ControllerPacketSink` wraps
-`LNBus` (ack-retry + bus pacing); `PaletteStore` is the `IPaletteResolver`; `PanelsTopologyProvider`
+`LNBus` (ack-retry + bus pacing); `PaletteRepository` is the `IPaletteResolver`; `PanelsTopologyProvider`
 flattens the live `PanelsInitializer` tree into the `ITopologyProvider` arrays;
 `Topology/TopologyConfigStore` persists `/config/topology.json` and is the `ITagResolver`. Endpoints
 live in `API/http/TopologyServer` (`GET /api/topology`, `PUT /api/topology/root`,

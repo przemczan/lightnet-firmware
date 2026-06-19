@@ -187,7 +187,7 @@ A **palette** is a 16-stop gradient of `(position, R, G, B)` entries. The contro
 ```json
 {
   "schemaVersion": 1,
-  "name": "lava",
+  "name": "Lava",
   "stops": [
     [0, "#000000"],
     [46, "#240000"],
@@ -211,18 +211,18 @@ These are always available and cannot be deleted:
 
 | Name | Description |
 |---|---|
-| `rainbow` | Full hue spectrum |
-| `lava` | Black → dark red → orange → white |
-| `ocean` | Dark navy → teal → bright cyan/white |
-| `forest` | Dark green → bright lime |
-| `party` | Purple → magenta → orange → yellow → cyan |
-| `sunset` | Deep purple → warm red → golden orange |
-| `aurora` | Dark teal → bright green → purple → pink |
-| `embers` | Black → dark red → bright orange-gold |
+| `Rainbow` | Full hue spectrum |
+| `Lava` | Black → dark red → orange → white |
+| `Ocean` | Dark navy → teal → bright cyan/white |
+| `Forest` | Dark green → bright lime |
+| `Party` | Purple → magenta → orange → yellow → cyan |
+| `Sunset` | Deep purple → warm red → golden orange |
+| `Aurora` | Dark teal → bright green → purple → pink |
+| `Embers` | Black → dark red → bright orange-gold |
 
-### Special palette: `userColors`
+### Special palette: `Base colors`
 
-`userColors` is a synthetic palette built from the current base colours at the moment it is pushed to the panels. It is not stored as a file. When selected:
+`Base colors` is a synthetic palette built from the current base colours at the moment it is pushed to the panels. It is not stored in the database. When selected:
 
 ```
 stop[0] = (position=0,   color=primary)
@@ -242,7 +242,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 {
   "group": 2,
   "panels": [1, 2, 3],
-  "palette": "ocean",
+  "palette": "Ocean",
   "sequence": [...]
 }
 ```
@@ -266,7 +266,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
     "secondary": "#FF8800",
     "tertiary": "#000000"
   },
-  "palette": "lava",
+  "palette": "Lava",
   "layers": [
     {
       "group": 1,
@@ -313,9 +313,9 @@ A layer can specify its own palette, overriding the scene-level default for the 
 | `name` | No | — | 1–18 chars, `[a-zA-Z0-9_-]`. Required when saving via `POST /api/scenes`. |
 | `loop` | No | `false` | When `true`, the whole scene restarts (all layers together) once every layer has finished — the scene-cycle barrier. |
 | `speed` | No | `1.0` | Playback speed multiplier [0.1, 10.0]. Scales all step durations. |
-| `colors` | No | white/black/black | Scene's base colours for `userColors` palette and `{"useColor":N}` references. |
+| `colors` | No | white/black/black | Scene's base colours for `"Base colors"` palette and `{"useColor":N}` references. |
 | `background` | No | `#000000` | Compositor base colour pushed to all panels at scene start (see [Scene background](#scene-background)). |
-| `palette` | No | `"userColors"` | Active palette for all layers that don't have their own override. |
+| `palette` | No | `"Base colors"` | Active palette for all layers that don't have their own override. |
 | `layers` | Yes | — | Array of 1–8 layer objects. |
 
 **Layer fields**

@@ -2,6 +2,7 @@
 #include "../../Utils/SimpleJson.hpp"
 #include "PanelSelectorParser.hpp"
 #include "PanelField.hpp"
+#include "../Common/UserColors.hpp"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -925,7 +926,7 @@ namespace Lightnet {
         out.schemaVersion = 1;
         out.loop = false;
         out.speed = 1.0f;
-        strncpy(out.palette, userColorsId(), sizeof(out.palette) - 1);
+        strncpy(out.palette, USER_COLORS_PALETTE_NAME, sizeof(out.palette) - 1);
         out.hasPalette = false;
         out.hasColors  = false;
         out.baseColors[0] = { 0xFF, 0xFF, 0xFF };

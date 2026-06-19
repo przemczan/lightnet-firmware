@@ -111,7 +111,8 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `LittleFsPaletteRepository` | Built-in palettes seeded on boot; `resolve(id)` → `GradientStop[]` |
+| `PaletteRepository` | Wraps `PaletteStore` (`/data/palettes.db`); seeds built-ins on boot; `resolve(name)` → `GradientStop[]`; implements `IPaletteResolver` |
+| `Store/PaletteStore` | Typed store over `Database<PaletteCodec>` — create / update / remove by name |
 
 **Appearance/**
 
@@ -124,7 +125,7 @@ All firmware code lives under `lib/Lightnet/`.
 | Class | Routes | Purpose |
 |---|---|---|
 | `AppearanceServer` | `GET /api/appearance`, `PATCH /api/appearance` | Appearance read/write |
-| `PaletteServer` | `GET/POST /api/palettes`, `GET/DELETE /api/palettes/*` | Palette CRUD |
+| `PaletteServer` | `GET/POST /api/palettes`, `GET/PUT/DELETE /api/palettes/*` | Palette CRUD |
 | `SceneServer` | `GET/POST /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `TopologyServer` | `GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags` | Logical root + panel tags (backed by `TopologyConfigStore`) |
@@ -366,7 +367,7 @@ Sequence after `LNPanelsInitializer.isReady() == true`:
 flowchart TD
   A[Mount LittleFS] --> B[sendConfiguration — gamma/color temp to all panels]
   B --> C[selfTest — fade-in/out on every panel]
-  C --> D[LittleFsPaletteRepository::ensureSeeded]
+  C --> D[PaletteRepository::ensureSeeded]
   D --> E[AppearanceStore::loadAndApply\nbrightness + colors + palette broadcast]
   E --> F[AnimationScheduler init]
   F --> G[setupWiFi — AsyncWiFiManager\nauto-connect or open captive portal]
@@ -377,7 +378,7 @@ flowchart TD
 ```
 
 !!! info "LittleFS mounted before WiFi"
-    `Fs::begin()` is hoisted before WiFi so `LittleFsPaletteRepository` and `AppearanceStore` can read `/palettes/` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
+    `Fs::begin()` is hoisted before WiFi so `PaletteRepository` and `AppearanceStore` can read `/data/palettes.db` and `/config/` before the captive-portal blocks (which can take up to 120 s on first boot).
 
 Main loop (`case 1`), when no panel flash is in progress:
 ```cpp
@@ -532,7 +533,7 @@ loop (the demos).
 |---|---|
 | All `GET`s | read-only |
 | `POST /api/scenes`, `DELETE /api/scenes/:name` | filesystem only |
-| `POST /api/palettes`, `DELETE /api/palettes/:id` | filesystem only |
+| `POST /api/palettes`, `PUT /api/palettes/:name`, `DELETE /api/palettes/:name` | filesystem only |
 | `PATCH /api/configuration`, `PUT /api/panel-tags` | config/tag store only — no packets, no `ScenePlayer` |
 
 ### 8.5 PacketMirror flush-on-overflow

@@ -1,6 +1,7 @@
 #include "AppearanceStore.hpp"
 #include "../../Utils/Debug.hpp"
 #include "../../Utils/SimpleJson.hpp"
+#include "../../Core/Common/UserColors.hpp"
 #include <Arduino.h>
 #include "../../Utils/Fs/Fs.hpp"
 #include <string.h>
@@ -14,7 +15,7 @@ namespace Lightnet {
         const uint8_t APPEARANCE_SCHEMA = 1;
     } // anonymous namespace
 
-    AppearanceStore::AppearanceStore(AnimationScheduler& _scheduler, const IPaletteRepository& _palettes)
+    AppearanceStore::AppearanceStore(AnimationScheduler& _scheduler, const PaletteRepository& _palettes)
         : scheduler(_scheduler), palettes(_palettes), writer(10000)
     {
         writeDefaults();
@@ -26,7 +27,7 @@ namespace Lightnet {
         baseColorsValue[0] = { 0xFF, 0xFF, 0xFF }; // white primary
         baseColorsValue[1] = { 0x00, 0x00, 0x00 }; // black secondary
         baseColorsValue[2] = { 0x00, 0x00, 0x00 }; // black tertiary
-        strncpy(paletteValue, userColorsId(), sizeof(paletteValue));
+        strncpy(paletteValue, USER_COLORS_PALETTE_NAME, sizeof(paletteValue));
         paletteValue[sizeof(paletteValue) - 1] = '\0';
     }
 
@@ -201,10 +202,9 @@ namespace Lightnet {
         GradientStop stops[PALETTE_STOPS];
         uint8_t count = 0;
 
-        if (strcmp(paletteValue, userColorsId()) == 0) {
-            IPaletteRepository::buildUserColors(baseColorsValue, stops, count);
-        } else if (!palettes.resolve(paletteValue, stops, count)) {
-            IPaletteRepository::buildUserColors(baseColorsValue, stops, count);
+        if (strcmp(paletteValue, USER_COLORS_PALETTE_NAME) == 0 ||
+            !palettes.resolve(paletteValue, stops, count)) {
+            buildUserColors(baseColorsValue, stops, count);
         }
 
         scheduler.broadcastPalette(stops, count);
@@ -227,8 +227,7 @@ namespace Lightnet {
         writer.markDirty(millis());
         scheduler.broadcastBaseColors(baseColorsValue);
 
-        // If the active palette is userColors, the visible color also changes — re-push.
-        if (strcmp(paletteValue, userColorsId()) == 0) {
+        if (strcmp(paletteValue, USER_COLORS_PALETTE_NAME) == 0) {
             broadcastSelectedPalette();
         }
 
@@ -244,20 +243,20 @@ namespace Lightnet {
         writer.markDirty(millis());
         scheduler.broadcastBaseColors(baseColorsValue);
 
-        if (strcmp(paletteValue, userColorsId()) == 0) {
+        if (strcmp(paletteValue, USER_COLORS_PALETTE_NAME) == 0) {
             broadcastSelectedPalette();
         }
 
         return true;
     }
 
-    bool AppearanceStore::setPalette(const char *id)
+    bool AppearanceStore::setPalette(const char *name)
     {
-        if (!id) return false;
+        if (!name) return false;
 
-        if (!palettes.exists(id)) return false;
+        if (!palettes.exists(name)) return false;
 
-        strncpy(paletteValue, id, sizeof(paletteValue));
+        strncpy(paletteValue, name, sizeof(paletteValue));
         paletteValue[sizeof(paletteValue) - 1] = '\0';
         writer.markDirty(millis());
         broadcastSelectedPalette();

@@ -7,11 +7,11 @@
 
 namespace Lightnet {
     AppearanceServer::AppearanceServer(
-        AsyncWebServer&     _server,
-        AppearanceStore&    _appearance,
-        IPaletteRepository& _palettes,
-        ScenesService&      _animService,
-        MainLoopQueue&      _queue
+        AsyncWebServer&    _server,
+        AppearanceStore&   _appearance,
+        PaletteRepository& _palettes,
+        ScenesService&     _animService,
+        MainLoopQueue&     _queue
     )
         : server(_server), appearance(_appearance), palettes(_palettes), animService(_animService),
         queue(_queue)
@@ -45,7 +45,7 @@ namespace Lightnet {
 
         snprintf(buf, sizeof(buf),
                  "{\"brightness\":%u,\"baseColors\":[\"%s\",\"%s\",\"%s\"],\"palette\":\"%s\"}",
-                 (unsigned)appearance.brightness(), h0, h1, h2, appearance.paletteId());
+                 (unsigned)appearance.brightness(), h0, h1, h2, appearance.paletteName());
         Http::sendOkJson(req, buf);
     }
 
@@ -122,7 +122,7 @@ namespace Lightnet {
 
             if (x.hasPalette)    x.self->appearance.setPalette(x.palette);
 
-            x.self->animService.onAppearanceChanged(x.self->appearance.paletteId(),
+            x.self->animService.onAppearanceChanged(x.self->appearance.paletteName(),
                                                     x.self->appearance.baseColors());
         }, &args, sizeof(args));
 

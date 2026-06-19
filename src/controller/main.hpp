@@ -23,7 +23,7 @@
     #include "../../lib/Lightnet/Core/Controller/AnimationScheduler.hpp"
     #include "../../lib/Lightnet/Core/Controller/AnimationRunner.hpp"
     #include "Animations/ControllerPacketSink.hpp"
-    #include "Palettes/LittleFsPaletteRepository.hpp"
+    #include "Palettes/PaletteRepository.hpp"
     #include "Appearance/AppearanceStore.hpp"
     #include "API/http/AppearanceServer.hpp"
     #include "API/http/PaletteServer.hpp"

@@ -61,6 +61,54 @@ namespace Lightnet {
             return true;
         }
 
+        // Extracts and percent-decodes a name segment after `prefix`. Returns false on
+        // prefix mismatch, empty result, or overflow.
+        inline bool decodedNameFromUrl(const char *url, const char *prefix, char *out, size_t outLen)
+        {
+            if (!url || !prefix || !out || outLen == 0) return false;
+
+            size_t pfxLen = strlen(prefix);
+
+            if (strncmp(url, prefix, pfxLen) != 0) return false;
+
+            const char *src   = url + pfxLen;
+            const char *slash = strchr(src, '/');
+            size_t srcLen = slash ? (size_t)(slash - src) : strlen(src);
+
+            if (srcLen == 0) return false;
+
+            size_t written = 0;
+
+            for (size_t i = 0; i < srcLen && written + 1 < outLen; ) {
+                if (src[i] == '%' && i + 2 < srcLen) {
+                    auto hexVal = [](char c) -> int {
+                                      if (c >= '0' && c <= '9') return c - '0';
+
+                                      if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+
+                                      if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+
+                                      return -1;
+                                  };
+
+                    int hi = hexVal(src[i + 1]);
+                    int lo = hexVal(src[i + 2]);
+
+                    if (hi >= 0 && lo >= 0) {
+                        out[written++] = (char)((hi << 4) | lo);
+                        i += 3;
+                        continue;
+                    }
+                }
+
+                out[written++] = src[i++];
+            }
+
+            out[written] = '\0';
+
+            return written > 0;
+        }
+
         // Alias for palette/scene id path segments.
         inline bool idFromUrl(const char *url, const char *prefix, char *out, size_t outLen)
         {
