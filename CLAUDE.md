@@ -139,7 +139,7 @@ The controller captures every outbound I²C packet into `PacketMirror`. Clients 
 
 Snapshotted types: `PACKET_SET_GLOBAL_BRIGHTNESS`, `PACKET_SET_BASE_COLORS`, `PACKET_SET_PALETTE`, `PACKET_SET_BACKGROUND`, `PACKET_TURN_ON_OFF`, `PACKET_ANIMATION_PREPARE`, `PACKET_ANIMATION_START`. `PACKET_SET_COLOR` is not snapshotted (60 fps stream, self-heals within one live frame). `PACKET_ANIMATION_CONTROL` is mirrored live but not snapshotted — a STOP invalidates matching PREPARE/START snapshot entries.
 
-**Power-off / power-on**: `PacketMirror::clearSnapshot()` is called when the controller turns off, so stale animation state is not replayed to clients that connect while it is off. On power-on, `AnimationService::resumeScene()` restarts the last-loaded scene from the beginning using data preserved in `ScenePlayer` (all scene state survives `stop()` in memory; `lCount > 0` is the resume guard).
+**Power-off / power-on**: `PacketMirror::clearSnapshot()` is called when the controller turns off, so stale animation state is not replayed to clients that connect while it is off. On power-on, `ScenesService::resumeScene()` restarts the last-loaded scene from the beginning using data preserved in `ScenePlayer` (all scene state survives `stop()` in memory; `lCount > 0` is the resume guard).
 
 **Sim mode**: `lib/Lightnet/Sim/LightnetBusSim.cpp::sendPacket()` invokes `onPacketSentCallback` so the mirror pipeline works identically in SIM_MODE — outbound packets reach `PacketMirror::capture()` and the mobile live preview works without real hardware.
 

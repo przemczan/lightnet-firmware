@@ -12,7 +12,7 @@ namespace Lightnet {
         AsyncWebServer&     _server,
         AppStateStore&      _appState,
         PanelsController&   _panelsController,
-        AnimationService&   _animService,
+        ScenesService&      _animService,
         AnimationScheduler& _animScheduler,
         AppearanceStore&    _appearance,
         MainLoopQueue&      _queue,

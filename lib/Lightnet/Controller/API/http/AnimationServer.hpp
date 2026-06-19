@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ESPAsyncWebServer.h>
-#include "../../Scenes/AnimationService.hpp"
+#include "../../Scenes/ScenesService.hpp"
 #include "../../../Core/Controller/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../AppState/AppStateStore.hpp"
@@ -13,7 +13,7 @@ namespace Lightnet {
         public:
             AnimationServer(
                 AsyncWebServer&     server,
-                AnimationService&   animService,
+                ScenesService&      animService,
                 AnimationScheduler& scheduler,
                 AppearanceStore&    appearance,
                 AppStateStore&      appState,
@@ -24,7 +24,7 @@ namespace Lightnet {
 
         private:
             AsyncWebServer& server;
-            AnimationService& animService;
+            ScenesService& animService;
             AnimationScheduler& scheduler;
             AppearanceStore& appearance;
             AppStateStore& appState;

@@ -94,7 +94,7 @@ All firmware code lives under `lib/Lightnet/`.
 | File | Purpose |
 |---|---|
 | `LittleFsSceneRepository` | Scene persistence at `/scenes/<id>.json` + `/scenes/<id>.meta.json` |
-| `AnimationService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
+| `ScenesService` | Orchestrates save / play-by-name / play-inline / one-shot / stop. Split into `prepare*` (parse/validate/persist — safe on the AsyncTCP task) and `playParsed*` (emits packets — main loop only) so HTTP handlers can defer playback (see §8) |
 
 ### Core/Controller/ — portable scene engine (ESP + native + mobile C ABI)
 
@@ -510,7 +510,7 @@ sequenceDiagram
   Loop->>Loop: serviceMirror() → flush ring to WS clients
 ```
 
-`AnimationService` is split to support this: `prepareInline()` / `prepareByName()` /
+`ScenesService` is split to support this: `prepareInline()` / `prepareByName()` /
 `prepareOneShot()` parse + persist (pure, safe on AsyncTCP, return a heap-ownable result), while
 `playParsed()` / `playParsedOneShot()` emit packets and are called from the queued task on the main
 loop. The legacy `playScene*` / `playOneShot` methods remain for callers that already run on the main

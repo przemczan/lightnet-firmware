@@ -12,7 +12,7 @@
         // ============================================================================
 
         DemoRunner::DemoRunner(
-            AnimationService&   _animService,
+            ScenesService&      _animService,
             ISceneRepository&   _sceneStore,
             ScenePlayer&        _scenePlayer,
             AnimationScheduler& _scheduler,
@@ -50,7 +50,7 @@
                     break;
                 case  6: demoWaveAndChase();
                     break;
-                // -- Scene-based demos (full pipeline: AnimationService → ScenePlayer) --
+                // -- Scene-based demos (full pipeline: ScenesService → ScenePlayer) --
                 case  7: demoWarmBreathe();
                     break;
                 case  8: demoLavaWave();

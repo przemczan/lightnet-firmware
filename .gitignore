@@ -41,3 +41,7 @@ compile_commands.json
 # Per-device configuration (copy from *.example)
 src/controller.config.hpp
 src/panel.config.hpp
+
+# LittleFS dump from device (pio run -t downloadfs)
+data/
+partition_table_from_flash.bin

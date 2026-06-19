@@ -9,7 +9,7 @@
 namespace Lightnet {
     AnimationServer::AnimationServer(
         AsyncWebServer&     _server,
-        AnimationService&   _animService,
+        ScenesService&      _animService,
         AnimationScheduler& _scheduler,
         AppearanceStore&    _appearance,
         AppStateStore&      _appState,

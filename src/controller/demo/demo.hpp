@@ -9,7 +9,7 @@
         // Create the DemoRunner, seed demo scene files on the filesystem if missing.
         // Call once in case 0, after the filesystem.begin() and service construction.
         void initDemos(
-            Lightnet::AnimationService&   animService,
+            Lightnet::ScenesService&      animService,
             Lightnet::ISceneRepository&   sceneStore,
             Lightnet::ScenePlayer&        scenePlayer,
             Lightnet::AnimationScheduler& scheduler,

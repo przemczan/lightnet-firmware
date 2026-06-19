@@ -58,7 +58,7 @@ Lightnet::LittleFsPaletteRepository *paletteStore = nullptr;
 Lightnet::AppearanceStore *appearance       = nullptr;
 Lightnet::LittleFsSceneRepository *sceneStore       = nullptr;
 Lightnet::ScenePlayer *scenePlayer      = nullptr;
-Lightnet::AnimationService *animService      = nullptr;
+Lightnet::ScenesService *animService      = nullptr;
 Lightnet::AppearanceServer *appearanceServer = nullptr;
 Lightnet::PaletteServer *paletteServer    = nullptr;
 Lightnet::SceneServer *sceneServer      = nullptr;
@@ -347,7 +347,7 @@ void loop()
 
                 sceneStore  = new Lightnet::LittleFsSceneRepository();
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
-                animService = new Lightnet::AnimationService(*sceneStore, *scenePlayer);
+                animService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
 
                 // Per-device topology config: logical root + panel tags (used by scene selectors).
                 topologyConfig = new Lightnet::TopologyConfigStore();

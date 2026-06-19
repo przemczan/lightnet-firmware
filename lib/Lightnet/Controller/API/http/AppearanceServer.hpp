@@ -3,7 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../Palettes/IPaletteRepository.hpp"
-#include "../../Scenes/AnimationService.hpp"
+#include "../../Scenes/ScenesService.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
@@ -14,7 +14,7 @@ namespace Lightnet {
                 AsyncWebServer&     server,
                 AppearanceStore&    appearance,
                 IPaletteRepository& palettes,
-                AnimationService&   animService,
+                ScenesService&      animService,
                 MainLoopQueue&      queue
             );
 
@@ -24,7 +24,7 @@ namespace Lightnet {
             AsyncWebServer& server;
             AppearanceStore& appearance;
             IPaletteRepository& palettes;
-            AnimationService& animService;
+            ScenesService& animService;
             MainLoopQueue& queue;
 
             void registerRoutes();

@@ -2,7 +2,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include "../../../Core/Controller/ScenePlayer.hpp"
-#include "../../Scenes/AnimationService.hpp"
+#include "../../Scenes/ScenesService.hpp"
 #include "../../Scenes/ISceneRepository.hpp"
 #include "../../Scenes/LittleFsSceneRepository.hpp"
 #include "../../AppState/AppStateStore.hpp"
@@ -17,7 +17,7 @@ namespace Lightnet {
                 AsyncWebServer&   server,
                 ISceneRepository& scenes,
                 ScenePlayer&      player,
-                AnimationService& animService,
+                ScenesService&    animService,
                 AppStateStore&    appState,
                 AppearanceStore&  appearance,
                 MainLoopQueue&    queue
@@ -29,7 +29,7 @@ namespace Lightnet {
             AsyncWebServer& server;
             ISceneRepository& scenes;
             ScenePlayer& player;
-            AnimationService& animService;
+            ScenesService& animService;
             AppStateStore& appState;
             AppearanceStore& appearance;
             MainLoopQueue& queue;

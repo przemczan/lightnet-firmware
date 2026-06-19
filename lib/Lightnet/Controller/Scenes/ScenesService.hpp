@@ -1,5 +1,5 @@
 #pragma once
-// AnimationService is the reusable, HTTP-agnostic service layer for scene
+// ScenesService is the reusable, HTTP-agnostic service layer for scene
 // orchestration. It coordinates ISceneRepository + SceneParser + ScenePlayer.
 
 #include <stdint.h>
@@ -55,10 +55,10 @@ namespace Lightnet {
         }
     };
 
-    class AnimationService
+    class ScenesService
     {
         public:
-            AnimationService(ISceneRepository& scenes, ScenePlayer& player);
+            ScenesService(ISceneRepository& scenes, ScenePlayer& player);
 
             SceneResult saveScene(const char *body, size_t len);
 

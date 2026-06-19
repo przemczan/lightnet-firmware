@@ -2,7 +2,7 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
     #if DEMO_MODE
 
-        #include "../../../lib/Lightnet/Controller/Scenes/AnimationService.hpp"
+        #include "../../../lib/Lightnet/Controller/Scenes/ScenesService.hpp"
         #include "../../../lib/Lightnet/Controller/Scenes/ISceneRepository.hpp"
         #include "../../../lib/Lightnet/Utils/EntryId.hpp"
         #include "../../../lib/Lightnet/Utils/JsonInject.hpp"
@@ -41,7 +41,7 @@
             //   Verification demos  (demos_checks.cpp) — legacy, use scheduler + panels
             //     directly to exercise specific animation code paths.
             //
-            //   Scene demos         (demos_scenes.cpp) — use AnimationService to save and play
+            //   Scene demos         (demos_scenes.cpp) — use ScenesService to save and play
             //     real scene files, demonstrating the full pipeline.
             //
             // Usage:
@@ -52,7 +52,7 @@
             {
                 public:
                     DemoRunner(
-                        AnimationService&   animService,
+                        ScenesService&      animService,
                         ISceneRepository&   sceneStore,
                         ScenePlayer&        scenePlayer,
                         AnimationScheduler& scheduler,
@@ -68,7 +68,7 @@
                     void run();
 
                 private:
-                    AnimationService& animService;
+                    ScenesService& animService;
                     ISceneRepository& sceneStore;
                     ScenePlayer& scenePlayer;
                     AnimationScheduler& scheduler;

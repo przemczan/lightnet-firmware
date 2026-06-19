@@ -1,4 +1,4 @@
-#include "AnimationService.hpp"
+#include "ScenesService.hpp"
 #include "Controller/SceneParser.hpp"
 #include "../../Core/Controller/SceneDuration.hpp"
 #include "../../Utils/JsonInject.hpp"
@@ -8,12 +8,12 @@
 #include <Arduino.h>
 
 namespace Lightnet {
-    AnimationService::AnimationService(ISceneRepository& _scenes, ScenePlayer& _player)
+    ScenesService::ScenesService(ISceneRepository& _scenes, ScenePlayer& _player)
         : scenes(_scenes), player(_player)
     {
     }
 
-    SceneResult AnimationService::saveScene(const char *body, size_t len)
+    SceneResult ScenesService::saveScene(const char *body, size_t len)
     {
         SceneParseResult parsed;
 
@@ -59,7 +59,7 @@ namespace Lightnet {
         return SceneResult::success(id);
     }
 
-    SceneResult AnimationService::prepareById(const char *id, SceneParseResult& out)
+    SceneResult ScenesService::prepareById(const char *id, SceneParseResult& out)
     {
         size_t n = 0;
         char *buf = scenes.loadContent(id, n);
@@ -79,7 +79,7 @@ namespace Lightnet {
         return SceneResult::success();
     }
 
-    SceneResult AnimationService::prepareInline(const char *body, size_t len, SceneParseResult& out)
+    SceneResult ScenesService::prepareInline(const char *body, size_t len, SceneParseResult& out)
     {
         if (!parseScene(body, len, out)) {
             SceneError e = isSchemaTooNew(out.errMsg) ? SceneError::SchemaTooNew : SceneError::Invalid;
@@ -104,7 +104,7 @@ namespace Lightnet {
         return SceneResult::success();
     }
 
-    SceneResult AnimationService::playParsed(
+    SceneResult ScenesService::playParsed(
         SceneParseResult&        parsed,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
@@ -113,7 +113,7 @@ namespace Lightnet {
         return startPlay(parsed, defaultPalette, defaultColors);
     }
 
-    SceneResult AnimationService::playSceneById(
+    SceneResult ScenesService::playSceneById(
         const char *             id,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
@@ -127,7 +127,7 @@ namespace Lightnet {
         return startPlay(parsed, defaultPalette, defaultColors);
     }
 
-    SceneResult AnimationService::playSceneInline(
+    SceneResult ScenesService::playSceneInline(
         const char *             body,
         size_t                   len,
         const char *             defaultPalette,
@@ -142,7 +142,7 @@ namespace Lightnet {
         return startPlay(parsed, defaultPalette, defaultColors);
     }
 
-    SceneResult AnimationService::prepareOneShot(const char *body, size_t len, SceneLayer& out)
+    SceneResult ScenesService::prepareOneShot(const char *body, size_t len, SceneLayer& out)
     {
         char errMsg[64];
 
@@ -153,7 +153,7 @@ namespace Lightnet {
         return SceneResult::success();
     }
 
-    SceneResult AnimationService::playParsedOneShot(
+    SceneResult ScenesService::playParsedOneShot(
         SceneLayer&              layer,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
@@ -164,7 +164,7 @@ namespace Lightnet {
         return SceneResult::success();
     }
 
-    SceneResult AnimationService::playOneShot(
+    SceneResult ScenesService::playOneShot(
         const char *             body,
         size_t                   len,
         const char *             defaultPalette,
@@ -179,37 +179,37 @@ namespace Lightnet {
         return playParsedOneShot(layer, defaultPalette, defaultColors);
     }
 
-    void AnimationService::stopScene()
+    void ScenesService::stopScene()
     {
         player.stop();
     }
 
-    void AnimationService::resumeScene(uint32_t nowMs)
+    void ScenesService::resumeScene(uint32_t nowMs)
     {
         player.resume(nowMs);
     }
 
-    uint8_t AnimationService::groupIdForName(const char *name) const
+    uint8_t ScenesService::groupIdForName(const char *name) const
     {
         return player.groupIdForName(name);
     }
 
-    bool AnimationService::isPlaying() const
+    bool ScenesService::isPlaying() const
     {
         return player.isPlaying();
     }
 
-    float AnimationService::getSpeed() const
+    float ScenesService::getSpeed() const
     {
         return player.getSpeed();
     }
 
-    void AnimationService::setSceneSpeed(float speed)
+    void ScenesService::setSceneSpeed(float speed)
     {
         player.setSpeed(speed);
     }
 
-    SceneResult AnimationService::startPlay(
+    SceneResult ScenesService::startPlay(
         SceneParseResult&        parsed,
         const char *             defaultPalette,
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
@@ -238,7 +238,7 @@ namespace Lightnet {
         return SceneResult::success();
     }
 
-    void AnimationService::onAppearanceChanged(
+    void ScenesService::onAppearanceChanged(
         const char *             palette,
         const Protocol::ColorRGB colors[BASE_COLORS_COUNT]
     )

@@ -10,7 +10,7 @@ namespace Lightnet {
         AsyncWebServer&     _server,
         AppearanceStore&    _appearance,
         IPaletteRepository& _palettes,
-        AnimationService&   _animService,
+        ScenesService&      _animService,
         MainLoopQueue&      _queue
     )
         : server(_server), appearance(_appearance), palettes(_palettes), animService(_animService),

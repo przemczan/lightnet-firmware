@@ -13,7 +13,7 @@ namespace Lightnet {
         AsyncWebServer&   _server,
         ISceneRepository& _scenes,
         ScenePlayer&      _player,
-        AnimationService& _animService,
+        ScenesService&    _animService,
         AppStateStore&    _appState,
         AppearanceStore&  _appearance,
         MainLoopQueue&    _queue

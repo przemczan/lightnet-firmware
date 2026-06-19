@@ -7,7 +7,7 @@
     static Lightnet::DemoRunner *demoRunner = nullptr;
 
     void initDemos(
-    Lightnet::AnimationService&   animService,
+    Lightnet::ScenesService&      animService,
     Lightnet::ISceneRepository&   sceneStore,
     Lightnet::ScenePlayer&        scenePlayer,
     Lightnet::AnimationScheduler& scheduler,

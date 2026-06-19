@@ -3,7 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include "../../AppState/AppStateStore.hpp"
 #include "../../Panels/PanelsController.hpp"
-#include "../../Scenes/AnimationService.hpp"
+#include "../../Scenes/ScenesService.hpp"
 #include "../../../Core/Controller/AnimationScheduler.hpp"
 #include "../../Appearance/AppearanceStore.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
@@ -18,7 +18,7 @@ namespace Lightnet {
                 AsyncWebServer&     server,
                 AppStateStore&      appState,
                 PanelsController&   panelsController,
-                AnimationService&   animService,
+                ScenesService&      animService,
                 AnimationScheduler& animScheduler,
                 AppearanceStore&    appearance,
                 MainLoopQueue&      queue,
@@ -31,7 +31,7 @@ namespace Lightnet {
             AsyncWebServer& server;
             AppStateStore& appState;
             PanelsController& panelsController;
-            AnimationService& animService;
+            ScenesService& animService;
             AnimationScheduler& animScheduler;
             AppearanceStore& appearance;
             MainLoopQueue& queue;
