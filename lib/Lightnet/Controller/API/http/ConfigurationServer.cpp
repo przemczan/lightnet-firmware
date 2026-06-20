@@ -24,9 +24,7 @@ namespace Lightnet {
 
     void ConfigurationServer::registerRoutes()
     {
-        server.on("/api/configuration", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetConfiguration(r);
-        });
+        Http::onRequest(server, "/api/configuration", HTTP_GET, this, &ConfigurationServer::handleGetConfiguration);
         Http::onBody(server, "/api/configuration", HTTP_PATCH, Http::MAX_BODY_LARGE,
                      this, &ConfigurationServer::handlePatchConfiguration);
     }

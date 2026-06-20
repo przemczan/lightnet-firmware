@@ -46,30 +46,18 @@ namespace Lightnet {
 
     void SceneServer::registerRoutes()
     {
-        server.on("/api/scenes/stop", HTTP_POST, [this](AsyncWebServerRequest *r) {
-            handlePostStopScene(r);
-        });
+        Http::onRequest(server, "/api/scenes/stop", HTTP_POST, this, &SceneServer::handlePostStopScene);
         Http::onBody(server, "/api/scenes/speed", HTTP_POST, Http::MAX_BODY_LARGE,
                      this, &SceneServer::handlePostSetSpeed);
         Http::onBody(server, "/api/scenes/play/one-shot", HTTP_POST, Http::MAX_BODY_LARGE,
                      this, &SceneServer::handlePostPlayOneShotScene);
-        server.on("/api/scenes/play", HTTP_POST, [this](AsyncWebServerRequest *r) {
-            handlePostPlayLastScene(r);
-        });
-        server.on("/api/scenes/*", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetSceneById(r);
-        });
-        server.on("/api/scenes/*", HTTP_DELETE, [this](AsyncWebServerRequest *r) {
-            handleDeleteScene(r);
-        });
-        server.on("/api/scenes/*", HTTP_POST, [this](AsyncWebServerRequest *r) {
-            handlePostPlaySceneById(r);
-        });
+        Http::onRequest(server, "/api/scenes/play", HTTP_POST, this, &SceneServer::handlePostPlayLastScene);
+        Http::onRequest(server, "/api/scenes/*", HTTP_GET, this, &SceneServer::handleGetSceneById);
+        Http::onRequest(server, "/api/scenes/*", HTTP_DELETE, this, &SceneServer::handleDeleteScene);
+        Http::onRequest(server, "/api/scenes/*", HTTP_POST, this, &SceneServer::handlePostPlaySceneById);
         Http::onBody(server, "/api/scenes/*", HTTP_PATCH, Http::MAX_BODY_LARGE,
                      this, &SceneServer::handlePatchUpdateScene);
-        server.on("/api/scenes", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleListScenes(r);
-        });
+        Http::onRequest(server, "/api/scenes", HTTP_GET, this, &SceneServer::handleListScenes);
         Http::onBody(server, "/api/scenes", HTTP_POST, Http::MAX_BODY_LARGE,
                      this, &SceneServer::handlePostCreateScene);
     }
@@ -103,7 +91,7 @@ namespace Lightnet {
         scenes.foreachMeta(appendSceneListEntry, &ctx);
         res->print("]");
 
-        req->send(res);
+        Http::sendOkStream(req, res);
     }
 
     void SceneServer::handleGetSceneById(AsyncWebServerRequest *req)

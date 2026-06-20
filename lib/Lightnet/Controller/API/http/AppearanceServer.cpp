@@ -25,9 +25,7 @@ namespace Lightnet {
 
     void AppearanceServer::registerRoutes()
     {
-        server.on("/api/appearance", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetAppearance(r);
-        });
+        Http::onRequest(server, "/api/appearance", HTTP_GET, this, &AppearanceServer::handleGetAppearance);
 
         Http::onBody(server, "/api/appearance", HTTP_PATCH, Http::MAX_BODY_SMALL,
                      this, &AppearanceServer::handlePatchAppearance);

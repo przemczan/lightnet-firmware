@@ -23,17 +23,11 @@ namespace Lightnet {
 
     void PaletteServer::registerRoutes()
     {
-        server.on("/api/palettes/*", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetPalette(r);
-        });
-        server.on("/api/palettes/*", HTTP_DELETE, [this](AsyncWebServerRequest *r) {
-            handleDeletePalette(r);
-        });
+        Http::onRequest(server, "/api/palettes/*", HTTP_GET, this, &PaletteServer::handleGetPalette);
+        Http::onRequest(server, "/api/palettes/*", HTTP_DELETE, this, &PaletteServer::handleDeletePalette);
         Http::onBody(server, "/api/palettes/*", HTTP_PUT, Http::MAX_BODY_LARGE,
                      this, &PaletteServer::handlePutPalette);
-        server.on("/api/palettes", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleListPalettes(r);
-        });
+        Http::onRequest(server, "/api/palettes", HTTP_GET, this, &PaletteServer::handleListPalettes);
         Http::onBody(server, "/api/palettes", HTTP_POST, Http::MAX_BODY_LARGE,
                      this, &PaletteServer::handlePostPalette);
     }
@@ -117,7 +111,7 @@ namespace Lightnet {
 
         res->print("]");
 
-        req->send(res);
+        Http::sendOkStream(req, res);
     }
 
     void PaletteServer::handleGetPalette(AsyncWebServerRequest *req)
@@ -274,6 +268,6 @@ namespace Lightnet {
             return;
         }
 
-        req->send(204);
+        Http::sendNoContent(req);
     }
 }  // namespace Lightnet

@@ -63,12 +63,8 @@ namespace Lightnet {
     void PanelServer::registerRoutes()
     {
         // Specific routes must be registered before the wildcard.
-        server.on("/api/panels/edges", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetEdges(r);
-        });
-        server.on("/api/panels", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetPanels(r);
-        });
+        Http::onRequest(server, "/api/panels/edges", HTTP_GET, this, &PanelServer::handleGetEdges);
+        Http::onRequest(server, "/api/panels", HTTP_GET, this, &PanelServer::handleGetPanels);
         Http::onBody(server, "/api/panels/*", HTTP_PUT, Http::MAX_BODY_SMALL,
                      this, &PanelServer::handlePutPanel);
     }
@@ -105,7 +101,7 @@ namespace Lightnet {
         }
 
         response->print("]");
-        req->send(response);
+        Http::sendOkStream(req, response);
     }
 
     void PanelServer::handleGetEdges(AsyncWebServerRequest *req)
@@ -140,7 +136,7 @@ namespace Lightnet {
         }
 
         response->print("]");
-        req->send(response);
+        Http::sendOkStream(req, response);
     }
 
     void PanelServer::handlePutPanel(AsyncWebServerRequest *req, const uint8_t *body, size_t len)

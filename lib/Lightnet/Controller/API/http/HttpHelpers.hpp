@@ -3,18 +3,14 @@
 // AppearanceServer, AnimationServer, PanelServer).
 //
 // What lives here:
-//   - Response helpers (httpSendOk / httpSendOkJson / httpSendError)
-//   - Body-buffering route registration (httpOnBody) — accumulates a
+//   - Response helpers (sendOk / sendOkJson / sendOkStream / sendNoContent / sendError)
+//   - Body-buffering route registration (onBody) — accumulates a
 //     potentially-chunked request body into a single buffer and dispatches to
 //     a member function once complete. The buffer is always null-terminated.
-//   - URL/name parsing (httpIsSafeName, httpNameFromUrl)
+//   - No-body route registration (onRequest) — sets up timing context and
+//     dispatches to a member function.
+//   - URL/name parsing (isSafeName, nameFromUrl)
 //   - Body-size constants (MAX_BODY_SMALL, MAX_BODY_LARGE)
-//
-// Why it exists:
-//   Each server used to duplicate ~50 lines of body-buffering glue. The
-//   duplicated copies all shared the same bug (no null terminator after the
-//   accumulated body), and any new server would have inherited it. Centralising
-//   the implementation here means handlers only deal with their actual data.
 
 #include <ESPAsyncWebServer.h>
 #include "HttpUrl.hpp"
@@ -37,16 +33,32 @@ namespace Lightnet {
         namespace detail {
             constexpr size_t LOG_TRUNCATE = 80;
 
+            // Stored in req->_tempObject for every routed request.
+            // BodyBuf inherits this so logResponse can read startMs uniformly.
+            struct RequestContext {
+                uint32_t startMs;
+            };
+
+            inline uint32_t elapsedMs(AsyncWebServerRequest *req)
+            {
+                if (!req->_tempObject) return 0;
+
+                return millis() - static_cast<RequestContext *>(req->_tempObject)->startMs;
+            }
+
             inline void logResponse(AsyncWebServerRequest *req, int status, const char *body)
             {
+                uint32_t ms   = elapsedMs(req);
                 size_t blen = body ? strlen(body) : 0;
 
                 if (blen > LOG_TRUNCATE)
-                    D_PRINTF("[HTTP] %s %s -> %d %.*s...\n",
-                             req->methodToString(), req->url().c_str(), status, (int)LOG_TRUNCATE, body);
+                    D_PRINTF("[HTTP] %s %s -> %d (%ums) %.*s...\n",
+                             req->methodToString(), req->url().c_str(), status,
+                             (unsigned)ms, (int)LOG_TRUNCATE, body);
                 else
-                    D_PRINTF("[HTTP] %s %s -> %d %s\n",
-                             req->methodToString(), req->url().c_str(), status, body ? body : "");
+                    D_PRINTF("[HTTP] %s %s -> %d (%ums) %s\n",
+                             req->methodToString(), req->url().c_str(), status,
+                             (unsigned)ms, body ? body : "");
             }
 
             inline void logBody(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -58,7 +70,7 @@ namespace Lightnet {
                          len > LOG_TRUNCATE ? "..." : "");
             }
 
-            struct BodyBuf {
+            struct BodyBuf : RequestContext {
                 size_t  len, cap;
                 uint8_t data[1];
             };
@@ -78,13 +90,13 @@ namespace Lightnet {
 
                     if (cap > maxCap) cap = maxCap;
 
-                    // +1 byte for the trailing null terminator.
                     buf = (BodyBuf *)malloc(sizeof(BodyBuf) + cap + 1);
 
                     if (!buf) return false;
 
-                    buf->len = 0;
-                    buf->cap = cap;
+                    buf->startMs = millis();
+                    buf->len     = 0;
+                    buf->cap     = cap;
                     req->_tempObject = buf;
                     req->onDisconnect([req]() {
                         if (req->_tempObject) {
@@ -123,6 +135,18 @@ namespace Lightnet {
             req->send(200, "application/json", json);
         }
 
+        // For streaming responses built with req->beginResponseStream().
+        // Logs the response before handing the stream off to AsyncWebServer.
+        inline void sendOkStream(AsyncWebServerRequest *req, AsyncResponseStream *res)
+        {
+            DEBUG_IF(DEBUG_API, {
+                uint32_t ms = detail::elapsedMs(req);
+                D_PRINTF("[HTTP] %s %s -> 200 (%ums) [stream]\n",
+                         req->methodToString(), req->url().c_str(), (unsigned)ms);
+            });
+            req->send(res);
+        }
+
         // 202 Accepted: the request validated and its work was queued onto the main
         // loop (see MainLoopQueue). Used by mutating endpoints whose side effects —
         // I2C packet emission, ScenePlayer changes — must not run on the AsyncTCP task.
@@ -146,6 +170,48 @@ namespace Lightnet {
             snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
             DEBUG_IF(DEBUG_API, detail::logResponse(req, code, buf));
             req->send(code, "application/json", buf);
+        }
+
+        inline void sendNoContent(AsyncWebServerRequest *req)
+        {
+            DEBUG_IF(DEBUG_API, {
+                uint32_t ms = detail::elapsedMs(req);
+                D_PRINTF("[HTTP] %s %s -> 204 (%ums)\n",
+                         req->methodToString(), req->url().c_str(), (unsigned)ms);
+            });
+            req->send(204);
+        }
+
+        // ============================================================================
+        // Route registration helpers
+        // ============================================================================
+
+        // Register a no-body route (GET, DELETE, no-body POST, etc.) with timing.
+        // The timing context is stored in req->_tempObject so logResponse can report
+        // request duration. Signature: void T::method(AsyncWebServerRequest *).
+        template <typename T>
+        void onRequest(
+            AsyncWebServer&  server,
+            const char *     uri,
+            WebRequestMethod method,
+            T *              instance,
+            void (T::*       memberFn)(AsyncWebServerRequest *)
+        )
+        {
+            server.on(uri, method, [instance, memberFn](AsyncWebServerRequest *req) {
+                auto *ctx = static_cast<detail::RequestContext *>(malloc(sizeof(detail::RequestContext)));
+
+                if (ctx) {
+                    ctx->startMs = millis();
+                    req->_tempObject = ctx;
+                    req->onDisconnect([req]() {
+                        free(req->_tempObject);
+                        req->_tempObject = nullptr;
+                    });
+                }
+
+                (instance->*memberFn)(req);
+            });
         }
 
         // Register a route that buffers the request body, then dispatches to a member

@@ -31,9 +31,7 @@ namespace Lightnet {
 
     void StateServer::registerRoutes()
     {
-        server.on("/api/state", HTTP_GET, [this](AsyncWebServerRequest *r) {
-            handleGetState(r);
-        });
+        Http::onRequest(server, "/api/state", HTTP_GET, this, &StateServer::handleGetState);
         Http::onBody(server, "/api/state/power", HTTP_POST, Http::MAX_BODY_SMALL,
                      this, &StateServer::handlePostPower);
     }

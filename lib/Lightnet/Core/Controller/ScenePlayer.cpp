@@ -186,7 +186,6 @@ namespace Lightnet {
     )
     {
         stop();
-        scheduler.broadcastBlack();
 
         // Compositor base for this scene; pushed once so panels fold their layers over it
         // (and idle/untouched panels show it). Default black reproduces pre-v6 behaviour.
@@ -236,6 +235,7 @@ namespace Lightnet {
         memset(layerState, 0, sizeof(layerState)); // all → WAITING (re-armed on next play)
         memset(bouncePhase, 0, sizeof(bouncePhase)); // BOUNCE always restarts forward
         scheduler.broadcastStop();
+        scheduler.broadcastBlack();
     }
 
     void ScenePlayer::resume(uint32_t nowMs)
