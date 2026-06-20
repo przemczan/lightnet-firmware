@@ -105,6 +105,22 @@ namespace Lightnet {
                 Protocol::ColorRGB background = Protocol::ColorRGB{ 0, 0, 0 }
             );
 
+            // Direct-load fast path — avoids a ~3 KB staging SceneRecord. The caller fills up
+            // to SCENE_MAX_LAYERS entries directly into loadBuffer() (the player's own layers
+            // array), then calls playPreloaded() with the scene's header fields. Equivalent to
+            // loadAndPlay() but without the layer copy (the layers are already in place).
+            SceneLayer *loadBuffer() { return layers; }
+
+            void playPreloaded(
+                uint8_t layerCount,
+                bool loop,
+                const char *paletteDefault,
+                const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
+                uint32_t nowMs,
+                float speed = 1.0f,
+                Protocol::ColorRGB background = Protocol::ColorRGB{ 0, 0, 0 }
+            );
+
             void stop();
 
             // Restart the scene that was most recently loaded, if any. Intended for
@@ -206,6 +222,17 @@ namespace Lightnet {
             // Pre-resolved 16-stop palette per layer (resolved at load time).
             GradientStop resolvedPalettes[SCENE_MAX_LAYERS][PALETTE_STOPS];
             uint8_t resolvedPaletteCounts[SCENE_MAX_LAYERS];
+
+            // Shared body of loadAndPlay()/playPreloaded(): assumes layers[0..lCount) are already
+            // populated and lCount is set; resolves palettes, rebuilds topology, and arms the scene.
+            void armScene(
+                bool loop,
+                const char *paletteDefault,
+                const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
+                uint32_t nowMs,
+                float speed,
+                Protocol::ColorRGB background
+            );
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
             // Clears the layer's animation slot on its panels (ANIM_CTRL_STOP) so it stops

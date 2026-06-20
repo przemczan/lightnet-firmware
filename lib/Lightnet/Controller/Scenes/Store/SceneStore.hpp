@@ -26,6 +26,13 @@ namespace Lightnet {
 
             bool               exists(const char *id) const;
             SceneStoreResult   get(const char *id, SceneRecord& out) const;
+
+            // Partial read for playback: reads the small SceneHeader into `headerOut` and
+            // streams up to `maxLayers` layers directly into `layersOut` (e.g. ScenePlayer's
+            // own buffer), avoiding a ~3 KB intermediate SceneRecord. headerOut.layerCount is
+            // clamped to maxLayers.
+            SceneStoreResult   getForPlay(const char *id, SceneHeader& headerOut,
+                                          SceneLayer *layersOut, uint8_t maxLayers) const;
             SceneStoreResult   create(const SceneRecord& record);
             SceneStoreResult   update(const char *id, const SceneRecord& record);
             SceneStoreResult   remove(const char *id);

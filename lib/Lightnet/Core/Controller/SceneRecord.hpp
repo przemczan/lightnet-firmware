@@ -31,8 +31,11 @@ namespace Lightnet {
 
     static_assert(sizeof(SceneMeta) == 48, "SceneMeta size mismatch");
 
-    // Full persisted scene model (~3 KB). SceneMeta is the leading prefix.
-    struct SceneRecord : SceneMeta {
+    // Everything in SceneRecord except the (~2.2 KB) layers array. This small prefix is what
+    // the playback path reads on its own (via StorageSliceReader) so it can stream the layers
+    // straight into ScenePlayer's own buffer — no ~3 KB intermediate SceneRecord. SceneMeta is
+    // its leading prefix; SceneRecord appends the layers, keeping one packed on-disk layout.
+    struct SceneHeader : SceneMeta {
         uint8_t            hidden;
         bool               loop;
         char               palette[16];
@@ -41,6 +44,14 @@ namespace Lightnet {
         Protocol::ColorRGB baseColors[BASE_COLORS_COUNT];
         Protocol::ColorRGB background;
         float              speed;
+    } __attribute__((packed));
+
+    // Full persisted scene model (~3 KB). SceneHeader is the leading prefix; `layers` follows
+    // immediately (both packed), so the layers start exactly at sizeof(SceneHeader) on disk.
+    struct SceneRecord : SceneHeader {
         SceneLayer         layers[SCENE_MAX_LAYERS];
     } __attribute__((packed));
+
+    static_assert(sizeof(SceneRecord) == sizeof(SceneHeader) + SCENE_MAX_LAYERS * sizeof(SceneLayer),
+                  "SceneRecord must be SceneHeader immediately followed by layers (no padding)");
 }  // namespace Lightnet

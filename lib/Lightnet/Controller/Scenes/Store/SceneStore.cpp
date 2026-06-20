@@ -54,10 +54,9 @@ namespace Lightnet {
 
         if (!isValidId(record.id)) return SCENE_STORE_INVALID_ID;
 
-        if (SceneCodec::serialize(record, _core.scratchBuffer, sizeof(_core.scratchBuffer)) !=
-            SCENE_CODEC_OK) {
-            return SCENE_STORE_CODEC;
-        }
+        // On-disk form is the raw record; no serialize step. Validate the record directly
+        // (what serialize() used to do internally) before writing it.
+        if (!SceneCodec::isValid(record)) return SCENE_STORE_CODEC;
 
         Session session(_core);
 
@@ -76,10 +75,8 @@ namespace Lightnet {
 
         if (strcmp(id, record.id) != 0) return SCENE_STORE_ID_CHANGED;
 
-        if (SceneCodec::serialize(record, _core.scratchBuffer, sizeof(_core.scratchBuffer)) !=
-            SCENE_CODEC_OK) {
-            return SCENE_STORE_CODEC;
-        }
+        // On-disk form is the raw record; no serialize step. Validate directly.
+        if (!SceneCodec::isValid(record)) return SCENE_STORE_CODEC;
 
         Session session(_core);
 
@@ -158,6 +155,56 @@ namespace Lightnet {
         return SCENE_STORE_OK;
     }
 
+    SceneStoreResult SceneStore::getForPlay(const char *id, SceneHeader& headerOut,
+                                            SceneLayer *layersOut, uint8_t maxLayers) const
+    {
+        if (!id || !layersOut) return SCENE_STORE_NULL_ARG;
+
+        Session session(_core);
+
+        if (!session.isReady()) return SCENE_STORE_DB;
+
+        RecordRef recordRef;
+
+        SceneStoreResult lookupResult = findById(id, recordRef);
+
+        if (lookupResult != SCENE_STORE_OK) return lookupResult;
+
+        const size_t base = recordRef.offset + 1;  // skip the 1-byte slot flag (see getImpl)
+
+        // Small header read (~84 B): everything except the layers array.
+        StorageSliceReader headerReader(_core.storage, base, sizeof(SceneHeader));
+
+        if (headerReader.read((uint8_t *)&headerOut, sizeof(SceneHeader)) != (int)sizeof(SceneHeader)) {
+            return SCENE_STORE_DB;
+        }
+
+        headerOut.id[ENTRY_ID_MAX]                       = '\0';
+        headerOut.name[sizeof(headerOut.name) - 1]       = '\0';
+        headerOut.palette[sizeof(headerOut.palette) - 1] = '\0';
+
+        uint8_t count = headerOut.layerCount;
+
+        if (count > maxLayers) count = maxLayers;
+
+        headerOut.layerCount = count;
+
+        // Stream the layers straight into the caller's buffer (e.g. ScenePlayer's own layers[]).
+        // `layers` immediately follows the packed header, so it starts at sizeof(SceneHeader).
+        if (count > 0) {
+            const size_t layersOffset = base + sizeof(SceneHeader);
+            const size_t bytes        = (size_t)count * sizeof(SceneLayer);
+
+            StorageSliceReader layersReader(_core.storage, layersOffset, bytes);
+
+            if (layersReader.read((uint8_t *)layersOut, bytes) != (int)bytes) {
+                return SCENE_STORE_DB;
+            }
+        }
+
+        return SCENE_STORE_OK;
+    }
+
     SceneStoreResult SceneStore::createImpl(const SceneRecord& record)
     {
         RecordRef recordRef;
@@ -166,8 +213,8 @@ namespace Lightnet {
             return SCENE_STORE_ID_EXISTS;
         }
 
-        DatabaseResult insertResult = _core.database.insert(
-            record, _core.scratchBuffer, &recordRef);
+        DatabaseResult insertResult = _core.database.insertSerialized(
+            (const uint8_t *)&record, &recordRef);
 
         return mapDatabaseResult(insertResult);
     }
@@ -180,8 +227,8 @@ namespace Lightnet {
 
         if (lookupResult != SCENE_STORE_OK) return lookupResult;
 
-        DatabaseResult replaceResult = _core.database.replace(
-            recordRef, record, _core.scratchBuffer);
+        DatabaseResult replaceResult = _core.database.replaceSerialized(
+            recordRef, (const uint8_t *)&record);
 
         return mapDatabaseResult(replaceResult);
     }

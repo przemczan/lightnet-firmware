@@ -154,6 +154,37 @@ namespace Lightnet {
         Protocol::ColorRGB       newBackground
     )
     {
+        lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
+        memcpy(layers, newLayers, lCount * sizeof(SceneLayer));
+
+        armScene(newLoop, paletteDefault, newBaseColors, nowMs, newSpeed, newBackground);
+    }
+
+    void ScenePlayer::playPreloaded(
+        uint8_t                  newCount,
+        bool                     newLoop,
+        const char *             paletteDefault,
+        const Protocol::ColorRGB newBaseColors[BASE_COLORS_COUNT],
+        uint32_t                 nowMs,
+        float                    newSpeed,
+        Protocol::ColorRGB       newBackground
+    )
+    {
+        // layers[0..newCount) were already populated in place by the caller via loadBuffer().
+        lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
+
+        armScene(newLoop, paletteDefault, newBaseColors, nowMs, newSpeed, newBackground);
+    }
+
+    void ScenePlayer::armScene(
+        bool                     newLoop,
+        const char *             paletteDefault,
+        const Protocol::ColorRGB newBaseColors[BASE_COLORS_COUNT],
+        uint32_t                 nowMs,
+        float                    newSpeed,
+        Protocol::ColorRGB       newBackground
+    )
+    {
         stop();
         scheduler.broadcastBlack();
 
@@ -162,8 +193,6 @@ namespace Lightnet {
         background = newBackground;
         scheduler.broadcastBackground(background);
 
-        lCount = (newCount > SCENE_MAX_LAYERS) ? SCENE_MAX_LAYERS : newCount;
-        memcpy(layers, newLayers, lCount * sizeof(SceneLayer));
         allocSpawnPools(); // reserve group_id pools for RAIN/SPARKLE spawner layers
         loop = newLoop;
         speed = (newSpeed < 0.1f) ? 0.1f : (newSpeed > 10.0f) ? 10.0f : newSpeed;

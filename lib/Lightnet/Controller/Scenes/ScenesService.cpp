@@ -148,13 +148,39 @@ namespace Lightnet {
         const Protocol::ColorRGB defaultColors[BASE_COLORS_COUNT]
     )
     {
-        playLoadRecord = {};
+        // Read the scene header on the stack and stream its layers straight into the player's
+        // own buffer — no ~3 KB intermediate SceneRecord (see SceneStore::getForPlay).
+        SceneHeader header = {};
 
-        SceneResult r = prepareById(id, playLoadRecord);
+        SceneStoreResult sr = scenes.getForPlay(id, header, player.loadBuffer(), SCENE_MAX_LAYERS);
 
-        if (!r.ok()) return r;
+        if (sr != SCENE_STORE_OK) {
+            // A failed read may have partially overwritten the player's layer buffer; stop so a
+            // half-loaded scene can't render.
+            player.stop();
 
-        return startPlay(playLoadRecord, defaultPalette, defaultColors);
+            return SceneResult::error(SceneError::NotFound, "scene not found");
+        }
+
+        static const Protocol::ColorRGB kDefaultColors[BASE_COLORS_COUNT] = {
+            { 0xFF, 0xFF, 0xFF }, { 0x00, 0x00, 0x00 }, { 0x00, 0x00, 0x00 }
+        };
+
+        const char *palName = header.hasPalette
+            ? header.palette
+            : (defaultPalette && defaultPalette[0] ? defaultPalette : USER_COLORS_PALETTE_NAME);
+
+        const Protocol::ColorRGB *colors = header.hasColors
+            ? header.baseColors
+            : (defaultColors ? defaultColors : kDefaultColors);
+
+        player.playPreloaded(header.layerCount, header.loop, palName, colors,
+                             millis(), header.speed, header.background);
+
+        sceneHasOwnPalette = header.hasPalette;
+        sceneHasOwnColors  = header.hasColors;
+
+        return SceneResult::success();
     }
 
     SceneResult ScenesService::playSceneInline(

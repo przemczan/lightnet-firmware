@@ -120,9 +120,6 @@ namespace Lightnet {
             bool sceneHasOwnPalette = false;
             bool sceneHasOwnColors  = false;
 
-            // Main-loop play reload buffer — SceneRecord is ~3 KB; keep it off loopTask stack.
-            SceneRecord playLoadRecord;
-
             SceneResult startPlay(
                 SceneRecord&             parsed,
                 const char *             defaultPalette,

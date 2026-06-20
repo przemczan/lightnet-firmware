@@ -184,13 +184,20 @@ namespace Lightnet {
 
             DatabaseResult insert(const Model& record, uint8_t *scratchBuffer, RecordRef *outRecordRef)
             {
-                if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;
-
                 if (!scratchBuffer) return DB_NULL_ARG;
 
                 if (Codec::serialize(record, scratchBuffer, Codec::RECORD_SIZE) != 0) {
                     return DB_SERIALIZE_FAILED;
                 }
+
+                return insertSerialized(scratchBuffer, outRecordRef);
+            }
+
+            DatabaseResult insertSerialized(const uint8_t *recordBytes, RecordRef *outRecordRef)
+            {
+                if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;
+
+                if (!recordBytes) return DB_NULL_ARG;
 
                 const size_t recordSlotByteSize = recordSlotSize();
                 const size_t fileSize           = _backingStorage->size();
@@ -220,9 +227,9 @@ namespace Lightnet {
                 if (!reuseTombstone) {
                     targetSlotOffset = (fileSize >= RECORDS_START_OFFSET) ? fileSize
                                                                           : RECORDS_START_OFFSET;
-                    writeResult = appendRecordSlot(targetSlotOffset, scratchBuffer);
+                    writeResult = appendRecordSlot(targetSlotOffset, recordBytes);
                 } else {
-                    writeResult = writeLiveRecordSlot(targetSlotOffset, scratchBuffer);
+                    writeResult = writeLiveRecordSlot(targetSlotOffset, recordBytes);
                 }
 
                 if (writeResult != DB_OK) return writeResult;
@@ -240,9 +247,21 @@ namespace Lightnet {
 
             DatabaseResult replace(RecordRef recordRef, const Model& record, uint8_t *scratchBuffer)
             {
+                if (!scratchBuffer) return DB_NULL_ARG;
+
+                if (Codec::serialize(record, scratchBuffer, Codec::RECORD_SIZE) != 0) {
+                    return DB_SERIALIZE_FAILED;
+                }
+
+                return replaceSerialized(recordRef, scratchBuffer);
+            }
+
+            // Replace a live record with an already-serialized payload (RECORD_SIZE bytes).
+            DatabaseResult replaceSerialized(RecordRef recordRef, const uint8_t *recordBytes)
+            {
                 if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;
 
-                if (!scratchBuffer) return DB_NULL_ARG;
+                if (!recordBytes) return DB_NULL_ARG;
 
                 uint8_t slotFlags = 0;
 
@@ -252,11 +271,7 @@ namespace Lightnet {
 
                 if (slotFlags & FLAG_DELETED) return DB_RECORD_DELETED;
 
-                if (Codec::serialize(record, scratchBuffer, Codec::RECORD_SIZE) != 0) {
-                    return DB_SERIALIZE_FAILED;
-                }
-
-                return writeRecordPayloadAt(recordRef.offset, scratchBuffer);
+                return writeRecordPayloadAt(recordRef.offset, recordBytes);
             }
 
             DatabaseResult remove(RecordRef recordRef)

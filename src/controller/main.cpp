@@ -2,6 +2,11 @@
 
 #include "main.hpp"
 
+// TEMP heap-localization instrumentation (remove once the OOM baseline/leak is found).
+// Unconditional (not behind DEBUG) so it prints in production-like builds too.
+#define HLOG(tag) Serial.printf("[H] %-22s free=%u maxBlock=%u\n", tag, \
+                                ESP.getFreeHeap(), ESP.getMaxFreeBlockSize())
+
 uint8_t state = 0;
 DNSServer dns;
 PanelsController *panelsController;
@@ -220,6 +225,7 @@ void setupOTA()
 
 void setupWiFi()
 {
+    HLOG("wifi-start");
     WiFi.mode(WIFI_STA);
 
     webServer = new AsyncWebServer(SERVER_PORT);
@@ -241,6 +247,7 @@ void setupWiFi()
     packetMirror = new PacketMirror();
     packetMirror->setServer(websocketServer);  // enables flush-on-overflow in capture()
     LNBus.setOnPacketSent(mirrorOutboundPacket);
+    HLOG("wifi-objects");
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
@@ -249,18 +256,22 @@ void setupWiFi()
     if (!wifiManager->autoConnect("Lightnet-Controller")) {
         Serial.println("Failed to connect and hit timeout");
     }
+    HLOG("wifi-connected");
 
     // mDNS must be started only once the station has an IP. Starting it before
     // the connection (as it was before) leaves the ESP8266 responder bound to
     // no address, which is a likely cause of intermittent `.local` failures.
     setupMDNS();
+    HLOG("mdns");
 
     setupOTA();
+    HLOG("ota");
 
     twibootClient    = new TwibootClient();
     panelFlasher     = new PanelFlasher(panelsController, &LNPanelsInitializer, twibootClient);
     fwUpdateServer   = new FirmwareUpdateServer(webServer, panelFlasher);
     serialFwReceiver = new SerialFirmwareReceiver(panelFlasher);
+    HLOG("fwServers");
 }
 
 void setup()
@@ -324,11 +335,13 @@ void loop()
 
                 state = 1;
 
+                HLOG("case0-start");
                 sendConfiguration();
                 selfTest();
 
                 animScheduler = new Lightnet::AnimationScheduler(controllerPacketSink);
                 animScheduler->initialize();
+                HLOG("animScheduler");
 
                 // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
                 // can read /data/palettes.db and /config/ before the captive portal blocks.
@@ -338,27 +351,36 @@ void loop()
                 // (unlike ESP8266's) won't create a file whose parent directory is missing, so on
                 // a fresh filesystem every /config/*.json write would fail without this. Idempotent.
                 Lightnet::Fs::mkdir("/config");
+                HLOG("fs-begin");
 
                 paletteStore = new Lightnet::PaletteRepository();
                 paletteStore->ensureSeeded();
+                HLOG("paletteStore");
                 appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
                 appearance->loadAndApply();
+                HLOG("appearance");
 
                 sceneStore  = new Lightnet::SceneStore();
+                HLOG("sceneStore");
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
+                HLOG("scenePlayer");
                 animService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
+                HLOG("scenesService");
 
                 // Per-device topology config: logical root + panel tags (used by scene selectors).
                 topologyConfig = new Lightnet::TopologyConfigStore();
                 topologyConfig->load();
                 scenePlayer->setTagResolver(topologyConfig);
                 scenePlayer->setLogicalRoot(topologyConfig->logicalRoot(), millis());
+                HLOG("topologyConfig");
 
                 configStore = new Lightnet::ConfigurationStore();
                 configStore->load();
+                HLOG("configStore");
 
                 appStateStore = new Lightnet::AppStateStore();
                 appStateStore->load();
+                HLOG("appStateStore");
 
                 {
                     bool initialIsOn = true;
@@ -381,6 +403,7 @@ void loop()
                 #endif
 
                 setupWiFi();
+                HLOG("afterWiFi");
 
                 appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore, *animService, *mainLoopQueue);
                 appearanceServer->begin();
@@ -409,6 +432,7 @@ void loop()
                                                         *mainLoopQueue,
                                                         packetMirror);
                 stateServer->begin();
+                HLOG("httpServers");
 
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
                 break;
@@ -425,12 +449,12 @@ void loop()
 
                 websocketServer->cleanup();
 
-                DEBUG_BLOCK({
-                // Track heap over time to catch fragmentation-driven resets.
+                {
+                // TEMP: unconditional 1s heap trace to localize the OOM leak (was DEBUG-only/10s).
                 static uint32_t lastHeapLogMs = 0;
                 uint32_t now = millis();
 
-                if ((uint32_t)(now - lastHeapLogMs) >= 10000) {
+                if ((uint32_t)(now - lastHeapLogMs) >= 1000) {
                     lastHeapLogMs = now;
                     Serial.print("[HEAP] free: ");
                     Serial.print(ESP.getFreeHeap());
@@ -442,7 +466,7 @@ void loop()
                     #endif
                     Serial.println();
                 }
-            });
+            }
 
                 if (!panelFlasher || !panelFlasher->isActive()) {
                     websocketHandler->handleIncommingMessages();
