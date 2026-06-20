@@ -69,7 +69,6 @@ Lightnet::AppStateStore *appStateStore       = nullptr;
 Lightnet::ConfigurationServer *configServer  = nullptr;
 Lightnet::StateServer *stateServer           = nullptr;
 Lightnet::TopologyConfigStore *topologyConfig = nullptr;
-Lightnet::TopologyServer *topologyServer      = nullptr;
 TwibootClient *twibootClient    = nullptr;
 PanelFlasher *panelFlasher     = nullptr;
 FirmwareUpdateServer *fwUpdateServer   = nullptr;
@@ -399,7 +398,7 @@ void loop()
                 animServer->begin();
                 panelServer = new Lightnet::PanelServer(*webServer, *panelsController, *mainLoopQueue);
                 panelServer->begin();
-                configServer = new Lightnet::ConfigurationServer(*webServer, *configStore);
+                configServer = new Lightnet::ConfigurationServer(*webServer, *configStore, *topologyConfig, *scenePlayer, *mainLoopQueue);
                 configServer->begin();
                 stateServer = new Lightnet::StateServer(*webServer,
                                                         *appStateStore,
@@ -410,9 +409,6 @@ void loop()
                                                         *mainLoopQueue,
                                                         packetMirror);
                 stateServer->begin();
-
-                topologyServer = new Lightnet::TopologyServer(*webServer, *topologyConfig, *scenePlayer, *mainLoopQueue);
-                topologyServer->begin();
 
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
                 break;

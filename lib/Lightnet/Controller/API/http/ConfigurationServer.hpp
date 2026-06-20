@@ -2,18 +2,33 @@
 
 #include <ESPAsyncWebServer.h>
 #include "../../Configuration/ConfigurationStore.hpp"
+#include "../../Topology/TopologyConfigStore.hpp"
+#include "../../../Core/Controller/ScenePlayer.hpp"
+#include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
+    // Persistent device configuration:
+    //   GET   /api/configuration → { powerStateOnBoot, logicalRoot, tags }
+    //   PATCH /api/configuration → partial update of any of the above fields
     class ConfigurationServer
     {
         public:
-            ConfigurationServer(AsyncWebServer& server, ConfigurationStore& config);
+            ConfigurationServer(
+                AsyncWebServer&      server,
+                ConfigurationStore&  config,
+                TopologyConfigStore& topology,
+                ScenePlayer&         player,
+                MainLoopQueue&       queue
+            );
 
             void begin();
 
         private:
             AsyncWebServer& server;
             ConfigurationStore& config;
+            TopologyConfigStore& topology;
+            ScenePlayer& player;
+            MainLoopQueue& queue;
 
             void registerRoutes();
 

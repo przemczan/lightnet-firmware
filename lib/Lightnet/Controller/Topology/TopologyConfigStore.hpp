@@ -39,6 +39,9 @@ namespace Lightnet {
             // and persist. Whole-map replace. Returns false (with errMsg) on malformed input.
             bool replaceTags(const char *body, size_t len, char *errMsg, size_t errLen);
 
+            // Same as replaceTags, but reads the tag map object at the JSON cursor.
+            bool replaceTagsAt(const char *& p, const char *end, char *errMsg, size_t errLen);
+
             // Serialize the full config ({ logicalRoot, tags }) into the caller's buffer.
             void writeJson(char *buf, size_t bufLen) const;
 

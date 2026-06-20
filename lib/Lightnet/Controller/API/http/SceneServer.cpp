@@ -65,13 +65,13 @@ namespace Lightnet {
         server.on("/api/scenes/*", HTTP_POST, [this](AsyncWebServerRequest *r) {
             handlePostPlaySceneById(r);
         });
+        Http::onBody(server, "/api/scenes/*", HTTP_PATCH, Http::MAX_BODY_LARGE,
+                     this, &SceneServer::handlePatchUpdateScene);
         server.on("/api/scenes", HTTP_GET, [this](AsyncWebServerRequest *r) {
             handleListScenes(r);
         });
         Http::onBody(server, "/api/scenes", HTTP_POST, Http::MAX_BODY_LARGE,
                      this, &SceneServer::handlePostCreateScene);
-        Http::onBody(server, "/api/scenes", HTTP_PATCH, Http::MAX_BODY_LARGE,
-                     this, &SceneServer::handlePatchUpdateScene);
     }
 
     namespace {
@@ -190,7 +190,16 @@ namespace Lightnet {
 
     void SceneServer::handlePatchUpdateScene(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
-        auto r = animService.updateScene((const char *)body, len);
+        char id[sizeof(SceneMeta::id)];
+
+        if (!Http::idFromUrl(req->url().c_str(), "/api/scenes/", id, sizeof(id)) ||
+            !Http::isSafeId(id)) {
+            Http::sendError(req, 400, "invalid_id");
+
+            return;
+        }
+
+        auto r = animService.updateScene(id, (const char *)body, len);
 
         if (!r.ok()) {
             sendSceneError(req, r);

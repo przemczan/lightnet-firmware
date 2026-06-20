@@ -180,7 +180,7 @@ The top-level object:
 }
 ```
 
-- **`name`** is required to save a scene (`POST /api/scenes` or `PATCH /api/scenes`); inline play tolerates it but
+- **`name`** is required to save a scene (`POST /api/scenes` or `PATCH /api/scenes/:id`); inline play tolerates it but
   keep it set. Only `[a-zA-Z0-9_-]`, max 18.
 - **`loop`** governs the *whole scene*. To loop a single effect forever instead, use a
   one-layer scene whose last step is infinite or `loop`ed (see §7).
@@ -330,7 +330,7 @@ count. `depth`, `subtree`, `neighbors` follow the wiring.
 ### 6.3 Tags (per-device labels)
 
 A panel can be tagged on the device (e.g. `accent`, `left`) via the
-[Topology API](api.md#27-topology-logical-root-panel-tags). A scene then targets the label:
+[Configuration API](api.md#27-configuration). A scene then targets the label:
 
 ```json
 "panels": "tag:accent"
@@ -643,7 +643,7 @@ Every colour field (`color`, `colorTo`, `colorFrom`) accepts one of four forms:
 
 Two device-local settings let the same scene land correctly on different hardware. They are
 **not** part of the scene — they're set once per device via the
-[Topology API](api.md#27-topology-logical-root-panel-tags) and persist on the controller.
+[Configuration API](api.md#27-configuration) and persist on the controller.
 
 ### Logical root
 
@@ -662,13 +662,13 @@ center-oriented scene re-centres there — no scene edit:
              [6]                            [6]
 ```
 
-`PUT /api/topology/root` with `{"logicalRoot": 3}`. A value that doesn't exist on the device
+`PATCH /api/configuration` with `{"logicalRoot": 3}`. A value that doesn't exist on the device
 falls back to the physical root.
 
 ### Tags
 
-A per-device map of panel → labels, set with `PUT /api/panel-tags`
-(`{"1":["accent"],"5":["accent"]}`). Scenes reference them as `"tag:<name>"` (§6.3). Because
+A per-device map of panel → labels, set with `PATCH /api/configuration`
+(`{"tags":{"1":["accent"],"5":["accent"]}}`). Scenes reference them as `"tag:<name>"` (§6.3). Because
 the mapping lives on the device, a shared scene's `tag:accent` lights *that owner's* accent
 panels.
 

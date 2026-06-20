@@ -35,7 +35,6 @@
     #include "API/http/ConfigurationServer.hpp"
     #include "API/http/StateServer.hpp"
     #include "Topology/TopologyConfigStore.hpp"
-    #include "API/http/TopologyServer.hpp"
     #include "../../lib/Lightnet/Core/Controller/ScenePlayer.hpp"
     #include "Scenes/PanelsTopologyProvider.hpp"
     #include "../../lib/Lightnet/Core/Controller/SceneParser.hpp"

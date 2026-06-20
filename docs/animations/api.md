@@ -75,7 +75,7 @@ Stored in `/data/scenes.db` via `SceneStore`. See [`docs/api.md`](../api.md#23-s
 | Method | Path | Body / Response |
 |---|---|---|
 | `POST` | `/api/scenes` | Scene JSON body (no `"id"`) — returns `{"id":"…"}` |
-| `PATCH` | `/api/scenes` | Scene JSON body with required `"id"` — returns `{"id":"…"}` |
+| `PATCH` | `/api/scenes/:id` | Scene JSON body (no `"id"`) — returns `{"id":"…"}` |
 | `GET` | `/api/scenes` | `[{"schemaVersion":1,"id":"…","name":"…","layerCount":2,"duration":15000},…]` |
 | `GET` | `/api/scenes/:id` | Scene JSON (serialized from stored record) |
 | `DELETE` | `/api/scenes/:id` | — |
@@ -445,7 +445,7 @@ gantt
 
 ## Appendix: Validation Rules
 
-These apply to `POST /api/scenes`, `PATCH /api/scenes`, and `POST /api/scenes/play/one-shot`. All violations return `HTTP 422`.
+These apply to `POST /api/scenes`, `PATCH /api/scenes/:id`, and `POST /api/scenes/play/one-shot`. All violations return `HTTP 422`.
 
 | Field | Rule |
 |---|---|
@@ -489,6 +489,6 @@ worked examples live in [Scene Authoring → Targeting panels](scene-authoring.m
   emanates from; `"reverse": true` flips it. The legacy `"originPanel"` is accepted and maps to
   `source:panel:N`. `SPARKLE` has no directionality — `source`/`reverse`/`directionality`/`angle`
   are ignored.
-- **Per-device config** (resolved against, set via the [Topology API](../api.md#27-topology-logical-root-panel-tags)):
+- **Per-device config** (resolved against, set via the [Configuration API](../api.md#27-configuration)):
   the **logical root** re-centres `depth`/`subtree`/`source:root`; **tags** map `tag:<name>` to panels
   on this device. Both are device-local and not part of the shared scene.

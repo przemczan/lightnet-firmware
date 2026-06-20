@@ -196,8 +196,8 @@ resolution (`rebuild()` + `resolvePanels()`); it pulls the tree through `ITopolo
 `LNBus` (ack-retry + bus pacing); `PaletteRepository` is the `IPaletteResolver`; `PanelsTopologyProvider`
 flattens the live `PanelsInitializer` tree into the `ITopologyProvider` arrays;
 `Topology/TopologyConfigStore` persists `/config/topology.json` and is the `ITagResolver`. Endpoints
-live in `API/http/TopologyServer` (`GET /api/topology`, `PUT /api/topology/root`,
-`GET/PUT /api/panel-tags`), wired in `main.cpp` case 0.
+live in `API/http/ConfigurationServer` (`GET /api/configuration`, `PATCH /api/configuration`),
+wired in `main.cpp` case 0.
 
 - **No protocol change**: runners (incl. directionality math) run in float — they are **not** part of
   the `Core/Panel` panel-local math (which mobile also runs via `panel_core`). On the controller they

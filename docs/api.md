@@ -30,9 +30,8 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
    - [Animations](#24-animations)
    - [Firmware updates](#25-firmware-updates)
    - [Panels](#26-panels)
-   - [Topology](#27-topology-logical-root-panel-tags)
-   - [Configuration](#28-configuration)
-   - [State](#29-state)
+   - [Configuration](#27-configuration)
+   - [State](#28-state)
 3. [Error handling](#3-error-handling)
 
 ---
@@ -246,11 +245,11 @@ To turn panel 3 on:
 All endpoints return `application/json`. All ports are 80.
 
 Mutating endpoints whose side effects emit I²C packets to panels — scene play/stop/speed, one-shot
-play, animation trigger, appearance PATCH, per-panel on/color, power, and topology root — **validate
+play, animation trigger, appearance PATCH, per-panel on/color, power, and configuration `logicalRoot` — **validate
 synchronously then queue the work onto the main loop**, returning `202 Accepted`. The change is
 applied on the next main-loop tick (sub-millisecond later); validation failures (`4xx`) are still
 returned synchronously, and a full queue returns `503 busy`. Read-only endpoints and pure
-filesystem/config mutations (scene/palette save & delete, config PATCH, panel-tags) return `200`.
+filesystem/config mutations (scene/palette save & delete, configuration PATCH without `logicalRoot`) return `200`.
 
 ### 2.1 Appearance
 
@@ -303,7 +302,7 @@ Scenes are stored in a binary database at `/data/scenes.db` (via `SceneStore`). 
 | Method | Path | Body | Response |
 |---|---|---|---|
 | `POST` | `/api/scenes` | Scene JSON (no `id`) | `{"id":"…"}` |
-| `PATCH` | `/api/scenes` | Scene JSON with `"id"` | `{"id":"…"}` |
+| `PATCH` | `/api/scenes/:id` | Scene JSON (no `id` in body) | `{"id":"…"}` |
 | `GET` | `/api/scenes` | — | `[{"schemaVersion":1,"id":"…","name":"…","layerCount":2,"duration":15000},…]` |
 | `GET` | `/api/scenes/:id` | — | Scene JSON (chunked stream; includes embedded `"id"`) |
 | `DELETE` | `/api/scenes/:id` | — | `{}` |
@@ -320,7 +319,7 @@ Scene path `id`: 8–10 chars, lowercase `[a-z0-9]`. Display `name` in JSON may 
 | `POST` | `/api/scenes/stop` | — | `202 {}` |
 | `POST` | `/api/scenes/speed` | `{"speed": <float>}` — set playback speed multiplier [0.1, 10.0] | `202 {"ok":true,"speed":2.0}` |
 
-Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (§2.9).
+Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (§2.8).
 
 ---
 
@@ -440,30 +439,14 @@ These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANE
 
 ---
 
-### 2.7 Topology (logical root + panel tags)
+### 2.7 Configuration
 
-Per-device topology configuration that scene **panel selectors** resolve against (see [Scene Authoring → Targeting panels](animations/scene-authoring.md#6-targeting-panels-the-panels-field) and [§10 Per-device topology config](animations/scene-authoring.md#10-per-device-topology-config-logical-root--tags)). Stored in `/config/topology.json`, written atomically.
-
-| Method | Path | Body | Response |
-|---|---|---|---|
-| `GET` | `/api/topology` | — | `{"logicalRoot":5,"tags":{"1":["accent"],"5":["accent"]}}` |
-| `PUT` | `/api/topology/root` | `{"logicalRoot":N}` (1–255, or 0 to reset to the physical root) | `202 {"ok":true,"logicalRoot":N}` |
-| `GET` | `/api/panel-tags` | — | `{"1":["accent","left"],"5":["accent"]}` |
-| `PUT` | `/api/panel-tags` | tag map (whole-map replace) | `{}` |
-
-- **Logical root** re-centres the rooted topology view (`depth`/`subtree`/canonical order and the default runner `source:root`). Setting it persists *and* restarts a playing scene so the new rooting applies immediately. A `logicalRoot` that doesn't exist on this device falls back to the physical root.
-- **Tags** are validated `[a-zA-Z0-9_-]`, 1–15 chars; a scene targets them with `"panels":"tag:<name>"`. `PUT /api/panel-tags` replaces the entire map.
-
----
-
-### 2.8 Configuration
-
-Persistent app-level settings. Stored in `/config/configuration.json` and written atomically with a 5-second deferred-write window.
+Persistent app-level and per-device topology settings. Boot behaviour is stored in `/config/configuration.json` (written atomically with a 5-second deferred-write window). Logical root and panel tags are stored in `/config/topology.json` (written immediately on change).
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/configuration` | — | `{"powerStateOnBoot":0}` |
-| `PATCH` | `/api/configuration` | `{"powerStateOnBoot":int}` | `{}` |
+| `GET` | `/api/configuration` | — | `{"powerStateOnBoot":0,"logicalRoot":5,"tags":{"1":["accent"],"5":["accent"]}}` |
+| `PATCH` | `/api/configuration` | Any subset of `powerStateOnBoot`, `logicalRoot`, `tags` | `{}`, or `202 {"ok":true,"logicalRoot":N}` when `logicalRoot` is patched |
 
 **`powerStateOnBoot`** — controls the global power state after a reboot:
 
@@ -475,13 +458,17 @@ Persistent app-level settings. Stored in `/config/configuration.json` and writte
 
 Values outside `0–2` return `422`.
 
+**Logical root** re-centres the rooted topology view (`depth`/`subtree`/canonical order and the default runner `source:root`). Patching it persists *and* restarts a playing scene so the new rooting applies immediately (`202`). A `logicalRoot` that doesn't exist on this device falls back to the physical root. Use `0` to reset to the physical root.
+
+**Tags** are validated `[a-zA-Z0-9_-]`, 1–15 chars; a scene targets them with `"panels":"tag:<name>"`. Patching `tags` replaces the entire map.
+
 ---
 
-### 2.9 State
+### 2.8 State
 
 Runtime app state — power state, scene playback status, and the most recently played scene id.
 Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial
-`isOn` value on boot is derived from `powerStateOnBoot` (see §2.8); `lastPlayedSceneId` /
+`isOn` value on boot is derived from `powerStateOnBoot` (see §2.7); `lastPlayedSceneId` /
 `lastPlayedSceneIsStored` are set whenever a scene is played via `POST /api/scenes/play/one-shot`
 or `POST /api/scenes/:id/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` is `false` when
 the replay target is the internal one-shot scene id rather than a catalogued scene.

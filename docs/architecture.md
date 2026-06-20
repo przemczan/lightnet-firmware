@@ -126,16 +126,15 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|---|
 | `AppearanceServer` | `GET /api/appearance`, `PATCH /api/appearance` | Appearance read/write |
 | `PaletteServer` | `GET/POST /api/palettes`, `GET/PUT/DELETE /api/palettes/*` | Palette CRUD |
-| `SceneServer` | `GET/POST/PATCH /api/scenes`, `GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
+| `SceneServer` | `GET/POST /api/scenes`, `PATCH/GET/DELETE/POST /api/scenes/*`, `/api/scenes/stop`, `/api/scenes/speed`, `/api/scenes/play`, `/api/scenes/play/one-shot` | Scene CRUD + playback |
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
-| `TopologyServer` | `GET /api/topology`, `PUT /api/topology/root`, `GET/PUT /api/panel-tags` | Logical root + panel tags (backed by `TopologyConfigStore`) |
 | `PanelServer` | `GET /api/panels`, `GET /api/panels/edges`, `PUT /api/panels/*` | Per-panel on/color control |
 | `StateServer` | `GET /api/state`, `POST /api/state/power` | Runtime power state + scene playback status |
-| `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Persistent boot behaviour (`powerStateOnBoot`) |
+| `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Boot behaviour, logical root, panel tags (`ConfigurationStore` + `TopologyConfigStore`) |
 
 !!! note "Mutating endpoints defer to the main loop (§8)"
     Every handler that emits I²C packets (scene play/stop/speed, one-shot/trigger, appearance,
-    per-panel on/color, power, topology root) **validates synchronously, then queues the
+    per-panel on/color, power, configuration `logicalRoot`) **validates synchronously, then queues the
     packet-emitting work onto the main loop via `MainLoopQueue` and returns `202 Accepted`**.
     They are injected with a `MainLoopQueue&`. Read-only and pure filesystem/config endpoints stay
     synchronous (`200`). See [§8](#8-concurrency-task-model-deferred-execution).
@@ -527,14 +526,14 @@ loop (the demos).
 | `PATCH /api/appearance` | brightness / base-colors / palette broadcasts |
 | `POST /api/state/power` | per-panel on/off, scene stop/resume |
 | `PUT /api/panels/:addr/on`, `…/color` | per-panel packets |
-| `PUT /api/topology/root` | `ScenePlayer::setLogicalRoot` re-aims a playing scene |
+| `PATCH /api/configuration` (`logicalRoot`) | `ScenePlayer::setLogicalRoot` re-aims a playing scene |
 
 | Synchronous → `200` | Reason |
 |---|---|
 | All `GET`s | read-only |
-| `POST /api/scenes`, `PATCH /api/scenes`, `DELETE /api/scenes/:id` | database only |
+| `POST /api/scenes`, `PATCH /api/scenes/:id`, `DELETE /api/scenes/:id` | database only |
 | `POST /api/palettes`, `PUT /api/palettes/:name`, `DELETE /api/palettes/:name` | filesystem only |
-| `PATCH /api/configuration`, `PUT /api/panel-tags` | config/tag store only — no packets, no `ScenePlayer` |
+| `PATCH /api/configuration` (without `logicalRoot`) | config/tag store only — no packets, no `ScenePlayer` |
 
 ### 8.5 PacketMirror flush-on-overflow
 

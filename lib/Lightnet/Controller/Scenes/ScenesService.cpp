@@ -58,24 +58,29 @@ namespace Lightnet {
         return SceneResult::success(id);
     }
 
-    SceneResult ScenesService::updateScene(const char *body, size_t len)
+    SceneResult ScenesService::updateScene(const char *id, const char *body, size_t len)
     {
-        char bodyId[sizeof(SceneMeta::id)] = { 0 };
-
-        if (!jsonReadTopLevelString(body, len, "id", bodyId, sizeof(bodyId)) || bodyId[0] == '\0') {
-            return SceneResult::error(SceneError::Invalid, "id: required");
-        }
-
-        if (scenes.isHiddenId(bodyId)) {
-            return SceneResult::error(SceneError::Invalid, "reserved_id");
-        }
-
-        if (!isValidId(bodyId)) {
+        if (!id || id[0] == '\0') {
             return SceneResult::error(SceneError::Invalid, "invalid_id");
         }
 
-        if (!scenes.exists(bodyId)) {
+        if (scenes.isHiddenId(id)) {
+            return SceneResult::error(SceneError::Invalid, "reserved_id");
+        }
+
+        if (!isValidId(id)) {
+            return SceneResult::error(SceneError::Invalid, "invalid_id");
+        }
+
+        if (!scenes.exists(id)) {
             return SceneResult::error(SceneError::NotFound, "scene not found");
+        }
+
+        char bodyId[sizeof(SceneMeta::id)] = { 0 };
+
+        if (jsonReadTopLevelString(body, len, "id", bodyId, sizeof(bodyId)) && bodyId[0] != '\0' &&
+            strcmp(bodyId, id) != 0) {
+            return SceneResult::error(SceneError::IdMismatch, "id: mismatch");
         }
 
         SceneRecord parsed = {};
@@ -83,15 +88,15 @@ namespace Lightnet {
 
         if (!r.ok()) return r;
 
-        strncpy(parsed.id, bodyId, sizeof(parsed.id) - 1);
+        strncpy(parsed.id, id, sizeof(parsed.id) - 1);
 
-        SceneStoreResult sr = scenes.update(bodyId, parsed);
+        SceneStoreResult sr = scenes.update(id, parsed);
 
         if (sr != SCENE_STORE_OK) {
             return SceneResult::error(SceneError::IoFailure, "scene store write failed");
         }
 
-        return SceneResult::success(bodyId);
+        return SceneResult::success(id);
     }
 
     SceneResult ScenesService::prepareById(const char *id, SceneRecord& out)

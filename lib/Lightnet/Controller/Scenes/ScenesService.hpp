@@ -62,7 +62,7 @@ namespace Lightnet {
             ScenesService(SceneStore& scenes, ScenePlayer& player);
 
             SceneResult createScene(const char *body, size_t len);
-            SceneResult updateScene(const char *body, size_t len);
+            SceneResult updateScene(const char *id, const char *body, size_t len);
 
             SceneResult playSceneById(
                 const char *             id,

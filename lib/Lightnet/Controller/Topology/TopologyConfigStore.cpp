@@ -65,6 +65,11 @@ namespace Lightnet {
         const char *p   = body;
         const char *end = body + len;
 
+        return replaceTagsAt(p, end, errMsg, errLen);
+    }
+
+    bool TopologyConfigStore::replaceTagsAt(const char *& p, const char *end, char *errMsg, size_t errLen)
+    {
         Entry scratch[MAX_ENTRIES];
         uint8_t scratchCount = 0;
 

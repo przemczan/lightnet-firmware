@@ -242,37 +242,6 @@
           }
         }
       },
-      "patch": {
-        "summary": "Update Scene",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "not_found"
-          },
-          "422": {
-            "description": "id: required"
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "example": {
-                  "schemaVersion": 1,
-                  "id": "abcd1234",
-                  "name": "sunset",
-                  "loop": true,
-                  "layers": []
-                }
-              }
-            }
-          }
-        }
-      },
       "get": {
         "summary": "List Scenes",
         "parameters": [],
@@ -317,6 +286,45 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update Scene By Id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "not_found"
+          },
+          "422": {
+            "description": "validation error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "schemaVersion": 1,
+                  "name": "sunset",
+                  "loop": true,
+                  "layers": []
+                }
+              }
+            }
           }
         }
       }
@@ -506,85 +514,6 @@
         }
       }
     },
-    "/api/topology": {
-      "get": {
-        "summary": "Get Topology Config (logical root + tags)",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "example": {
-                    "logicalRoot": 5,
-                    "tags": { "1": ["accent", "left"], "5": ["accent"] }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/topology/root": {
-      "put": {
-        "summary": "Set Logical Root Panel",
-        "parameters": [],
-        "responses": {
-          "202": { "description": "Accepted — applied to a playing scene on the main loop" },
-          "422": { "description": "logicalRoot out of range" }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "example": { "logicalRoot": 5 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/panel-tags": {
-      "get": {
-        "summary": "Get Panel Tag Map",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "example": { "1": ["accent", "left"], "5": ["accent"] }
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Replace Panel Tag Map",
-        "parameters": [],
-        "responses": {
-          "200": { "description": "OK" },
-          "422": { "description": "invalid tag map" }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "example": { "1": ["accent", "left"], "5": ["accent"] }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/panels": {
       "get": {
         "summary": "List Panels",
@@ -689,7 +618,9 @@
             "content": {
               "application/json": {
                 "example": {
-                  "powerStateOnBoot": 0
+                  "powerStateOnBoot": 0,
+                  "logicalRoot": 5,
+                  "tags": { "1": ["accent", "left"], "5": ["accent"] }
                 }
               }
             }
@@ -703,8 +634,11 @@
           "200": {
             "description": "OK"
           },
+          "202": {
+            "description": "Accepted — logicalRoot applied to a playing scene on the main loop"
+          },
           "422": {
-            "description": "powerStateOnBoot out of range (must be 0, 1, or 2)"
+            "description": "validation error"
           }
         },
         "requestBody": {
@@ -717,11 +651,22 @@
                     "type": "integer",
                     "enum": [0, 1, 2],
                     "description": "0=ALWAYS_ON, 1=ALWAYS_OFF, 2=LAST_STATE"
+                  },
+                  "logicalRoot": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "description": "0 resets to the physical root"
+                  },
+                  "tags": {
+                    "type": "object",
+                    "description": "Whole-map replace of panel tag assignments"
                   }
                 },
-                "required": ["powerStateOnBoot"],
                 "example": {
-                  "powerStateOnBoot": 2
+                  "powerStateOnBoot": 2,
+                  "logicalRoot": 5,
+                  "tags": { "1": ["accent", "left"], "5": ["accent"] }
                 }
               }
             }
