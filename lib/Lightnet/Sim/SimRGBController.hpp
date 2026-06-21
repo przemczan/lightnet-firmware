@@ -94,7 +94,7 @@
 
         private:
             uint8_t panelIndex = 0;
-            Protocol::ColorRGB colorValue = { 0xFF, 0xFF, 0xFF };
+            Protocol::ColorRGB colorValue = { 0, 0, 0 };
             uint8_t brightnessValue = 0xFF;
             uint8_t globalBrightnessValue = 0xFF;
             bool isOn = false;

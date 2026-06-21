@@ -15,7 +15,7 @@
 class RGBController
 {
     private:
-        Protocol::ColorRGB colorValue = { .r = 0xFF, .g = 0xFF, .b = 0xFF };
+        Protocol::ColorRGB colorValue = { .r = 0, .g = 0, .b = 0 };
         uint8_t globalBrightnessValue = 0xFF;  // applied to every output frame, 0..255
         bool isOn = false;
         CRGB leds[1];

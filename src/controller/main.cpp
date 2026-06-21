@@ -156,11 +156,27 @@ void selfTest()
         panelsController->turnOn(addrs[i]);
     }
 
-    Lightnet::WaveRunner wave(1, addrs, panelCount, 1000, 3, { 255, 255, 255 });
+    static const uint8_t SELF_TEST_GROUP = 1;
 
-    while (!wave.isFinished()) {
-        wave.tick(millis());
-        delay(8);
+    if (panelCount == 1) {
+        animScheduler->playOnPanels(
+            SELF_TEST_GROUP, Lightnet::ANIM_PULSE, /*flags=*/ 0, /*durationMs=*/ 1000,
+            Protocol::ColorRGB{ 0, 0, 0 }, Protocol::ColorRGB{ 255, 255, 255 },
+            /*param1 rise%=*/ 51, /*param2 fall%=*/ 51,
+            addrs, panelCount
+        );
+
+        delay(1000);
+
+        // Free the slot — a finished non-looping animation otherwise holds forever.
+        animScheduler->sendControlToPanels(SELF_TEST_GROUP, Lightnet::ANIM_CTRL_STOP, addrs, panelCount);
+    } else {
+        Lightnet::WaveRunner wave(1, addrs, panelCount, 1000, 3, { 255, 255, 255 });
+
+        while (!wave.isFinished()) {
+            wave.tick(millis());
+            delay(8);
+        }
     }
 
     for (uint8_t i = 0; i < panelCount; i++) {
@@ -325,10 +341,11 @@ void loop()
                 state = 1;
 
                 sendConfiguration();
-                selfTest();
 
                 animScheduler = new Lightnet::AnimationScheduler(controllerPacketSink);
                 animScheduler->initialize();
+
+                selfTest();
 
                 // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
                 // can read /data/palettes.db and /config/ before the captive portal blocks.
