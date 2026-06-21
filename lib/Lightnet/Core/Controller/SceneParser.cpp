@@ -612,8 +612,8 @@ namespace Lightnet {
 
         // ---------------------------------------------------------------------------
         // Parse the "panels" value into the layer's selector program. The full grammar
-        // (index arrays, graph selectors, tags, and any/all/not/exclude composition)
-        // lives in the pure, natively-tested PanelSelectorParser.
+        // (index arrays, graph selectors, and any/all/not/exclude composition) lives in
+        // the pure, natively-tested PanelSelectorParser.
         // ---------------------------------------------------------------------------
 
         static bool parsePanels(const char *& p, const char *end, SceneLayer& layer, char *errMsg, size_t errLen)

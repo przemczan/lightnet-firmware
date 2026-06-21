@@ -474,21 +474,21 @@ These apply to `POST /api/scenes`, `PATCH /api/scenes/:id`, and `POST /api/scene
 
 ## Panel targeting & directionality
 
-Beyond `"all"` and explicit index arrays, a layer's `"panels"` accepts **graph selectors** and
-**tags**, and runner steps accept a **source** for directionality. Full grammar, semantics, and
-worked examples live in [Scene Authoring → Targeting panels](scene-authoring.md#6-targeting-panels-the-panels-field) and
+Beyond `"all"` and explicit index arrays, a layer's `"panels"` accepts **graph selectors**, and
+runner steps accept a **source** for directionality. Full grammar, semantics, and worked
+examples live in [Scene Authoring → Targeting panels](scene-authoring.md#6-targeting-panels-the-panels-field) and
 [Scene Authoring → Directionality](scene-authoring.md#8-directionality--the-source-field); a summary:
 
 - **Targeting** (`"panels"`): `"all"`, `[1,3,5]`, `{"exclude":[2]}` (v2, unchanged), plus graph
   selectors `"root"` / `"leaves"` / `"branches"` / `"depth:1-2"` / `"subtree:N"` / `"neighbors:N"` /
-  `"fraction:0-0.33"` / `"first:K"` / `"last:K"` / `"even"` / `"odd"`, the per-device `"tag:<name>"`,
-  and composition objects `{"any":[…]}` / `{"all":[…]}` / `{"not":…}`. A selector that matches no
-  panel here skips the layer (or uses an optional sibling `"fallback"` selector).
+  `"fraction:0-0.33"` / `"first:K"` / `"last:K"` / `"even"` / `"odd"`, and composition objects
+  `{"any":[…]}` / `{"all":[…]}` / `{"not":…}`. A selector that matches no panel here skips the
+  layer (or uses an optional sibling `"fallback"` selector).
 - **Directionality** (runner steps `WAVE`/`RIPPLE`/`CHASE`/`BOUNCE`/`RAIN`, and `WHEEL`'s pivot):
   `"source"` ∈ `root` | `leaves` | `panel:N` (default `root`) sets the graph origin the effect
   emanates from; `"reverse": true` flips it. The legacy `"originPanel"` is accepted and maps to
   `source:panel:N`. `SPARKLE` has no directionality — `source`/`reverse`/`directionality`/`angle`
   are ignored.
 - **Per-device config** (resolved against, set via the [Configuration API](../api.md#27-configuration)):
-  the **logical root** re-centres `depth`/`subtree`/`source:root`; **tags** map `tag:<name>` to panels
-  on this device. Both are device-local and not part of the shared scene.
+  the **logical root** re-centres `depth`/`subtree`/`source:root`. It is device-local and not part
+  of the shared scene.

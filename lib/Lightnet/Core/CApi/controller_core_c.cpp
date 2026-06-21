@@ -1,9 +1,9 @@
 /* controller_core_c.cpp — implementation of the scene-engine C ABI (see controller_core_c.h).
  *
- * Wraps a ScenePlayer + AnimationScheduler and the three pure seams the engine resolves
+ * Wraps a ScenePlayer + AnimationScheduler and the two pure seams the engine resolves
  * against: a callback IPacketSink (forwards emitted packets to the caller), an in-memory
- * IPaletteResolver, an in-memory ITagResolver, and an in-memory ITopologyProvider. No Arduino,
- * no filesystem, no bus — the same engine the controller runs, driven entirely from data.
+ * IPaletteResolver, and an in-memory ITopologyProvider. No Arduino, no filesystem, no bus —
+ * the same engine the controller runs, driven entirely from data.
  */
 
 #include "controller_core_c.h"
@@ -18,13 +18,11 @@
 #include "../Controller/IPacketSink.hpp"
 #include "../Controller/IPaletteResolver.hpp"
 #include "../Controller/SceneTopology.hpp"  // ITopologyProvider, TopoLink
-#include "../Controller/TagResolver.hpp"    // ITagResolver, TopologyIndex, PanelSet
 
 using namespace Lightnet;
 
 namespace {
     constexpr int SC_MAX_PALETTES = 16;
-    constexpr int SC_MAX_TAGS     = 64;
     constexpr int SC_NAME_LEN     = 16;
 
     // IPacketSink that accumulates each packet into a MIRROR_BATCH record buffer (drained by
@@ -109,44 +107,6 @@ namespace {
         }
     };
 
-    // In-memory tag resolver: tag name -> 1-based panel indices, mapped to slots via topo.
-    struct RegTags : public ITagResolver {
-        struct Entry {
-            char    name[SC_NAME_LEN];
-            uint8_t panel;
-        };
-        Entry entries[SC_MAX_TAGS];
-        int   n = 0;
-
-        void panelsForTag(const char *name, const TopologyIndex &topo, PanelSet &out) const override
-        {
-            for (int i = 0; i < n; i++) {
-                if (strcmp(entries[i].name, name) == 0) {
-                    uint8_t sl;
-
-                    if (topo.slotOf(entries[i].panel, sl)) out.set(sl);
-                }
-            }
-        }
-
-        void add(const char *name, const uint8_t *panels, uint8_t count)
-        {
-            if (!name || !panels) return;
-
-            for (uint8_t k = 0; k < count && n < SC_MAX_TAGS; k++) {
-                strncpy(entries[n].name, name, SC_NAME_LEN - 1);
-                entries[n].name[SC_NAME_LEN - 1] = '\0';
-                entries[n].panel = panels[k];
-                n++;
-            }
-        }
-
-        void clear()
-        {
-            n = 0;
-        }
-    };
-
     // In-memory topology provider: the panel tree supplied by scene_set_topology.
     struct RegTopology : public ITopologyProvider {
         uint8_t  indices[LIGHTNET_MAX_PANELS];
@@ -173,7 +133,6 @@ namespace {
     struct SceneCore {
         BufferSink           sink;
         RegPalettes          palettes;
-        RegTags              tags;
         RegTopology          topo;
         AnimationScheduler   scheduler;
         ScenePlayer          player;
@@ -190,7 +149,6 @@ namespace {
             err[0]     = '\0';
             sink.buf   = &outbuf;
             sink.count = &outCount;
-            player.setTagResolver(&tags);
         }
 
         void resetBatch(uint32_t now)
@@ -274,16 +232,6 @@ void scene_set_palette(scene_handle h, const char *name, const uint8_t *stops, u
 void scene_clear_palettes(scene_handle h)
 {
     if (h) self(h)->palettes.clear();
-}
-
-void scene_set_tag(scene_handle h, const char *name, const uint8_t *panels, uint8_t count)
-{
-    if (h) self(h)->tags.add(name, panels, count);
-}
-
-void scene_clear_tags(scene_handle h)
-{
-    if (h) self(h)->tags.clear();
 }
 
 int scene_load_and_play(scene_handle h, const char *json, int len, uint32_t now)

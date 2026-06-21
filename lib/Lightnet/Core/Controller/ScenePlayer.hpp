@@ -109,7 +109,10 @@ namespace Lightnet {
             // to SCENE_MAX_LAYERS entries directly into loadBuffer() (the player's own layers
             // array), then calls playPreloaded() with the scene's header fields. Equivalent to
             // loadAndPlay() but without the layer copy (the layers are already in place).
-            SceneLayer *loadBuffer() { return layers; }
+            SceneLayer *loadBuffer()
+            {
+                return layers;
+            }
 
             void playPreloaded(
                 uint8_t layerCount,
@@ -128,9 +131,6 @@ namespace Lightnet {
             // can replay it without reloading from disk.
             // Does nothing if no scene has been loaded (lCount == 0).
             void resume(uint32_t nowMs);
-
-            // Set the device tag map used to resolve `tag:` selectors. Null = tags resolve empty.
-            void setTagResolver(const ITagResolver *resolver);
 
             // Designate the logical root panel (§4.1): rebuilds the topology view and, if a scene
             // is playing, restarts it so the new rooting takes effect immediately.
@@ -168,8 +168,8 @@ namespace Lightnet {
             IPaletteResolver& paletteResolver;
 
             // Topology/targeting: owns the panel-tree views (graph/rooted index/geometry),
-            // the logical root, the tag resolver, and selector resolution. Rebuilt from the
-            // live discovered tree on each play/resume. See SceneTopology.hpp.
+            // the logical root, and selector resolution. Rebuilt from the live discovered
+            // tree on each play/resume. See SceneTopology.hpp.
             SceneTopology sceneTopo;
 
             SceneLayer layers[SCENE_MAX_LAYERS];
@@ -226,12 +226,12 @@ namespace Lightnet {
             // Shared body of loadAndPlay()/playPreloaded(): assumes layers[0..lCount) are already
             // populated and lCount is set; resolves palettes, rebuilds topology, and arms the scene.
             void armScene(
-                bool loop,
-                const char *paletteDefault,
+                bool                     loop,
+                const char *             paletteDefault,
                 const Protocol::ColorRGB baseColors[BASE_COLORS_COUNT],
-                uint32_t nowMs,
-                float speed,
-                Protocol::ColorRGB background
+                uint32_t                 nowMs,
+                float                    speed,
+                Protocol::ColorRGB       background
             );
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);

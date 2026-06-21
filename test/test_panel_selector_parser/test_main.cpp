@@ -242,17 +242,6 @@ void test_err_depth_empty()
     parseExpectError("\"depth:\"");
 }
 
-void test_tag_parses()
-{
-    // tag: now parses (resolution needs a device tag resolver, tested elsewhere).
-    parseOk("\"tag:accent\"");
-}
-
-void test_err_tag_invalid()
-{
-    parseExpectError("\"tag:bad name\""); // space is not allowed in a tag
-}
-
 void test_err_empty_object()
 {
     parseExpectError("{}");
@@ -316,8 +305,6 @@ int main(int /*argc*/, char ** /*argv*/)
 
     RUN_TEST(test_err_unknown_token);
     RUN_TEST(test_err_depth_empty);
-    RUN_TEST(test_tag_parses);
-    RUN_TEST(test_err_tag_invalid);
     RUN_TEST(test_err_empty_object);
     RUN_TEST(test_err_empty_array);
     RUN_TEST(test_err_zero_index);

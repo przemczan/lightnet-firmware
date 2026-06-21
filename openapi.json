@@ -619,8 +619,7 @@
               "application/json": {
                 "example": {
                   "powerStateOnBoot": 0,
-                  "logicalRoot": 5,
-                  "tags": { "1": ["accent", "left"], "5": ["accent"] }
+                  "logicalRoot": 5
                 }
               }
             }
@@ -657,16 +656,11 @@
                     "minimum": 0,
                     "maximum": 255,
                     "description": "0 resets to the physical root"
-                  },
-                  "tags": {
-                    "type": "object",
-                    "description": "Whole-map replace of panel tag assignments"
                   }
                 },
                 "example": {
                   "powerStateOnBoot": 2,
-                  "logicalRoot": 5,
-                  "tags": { "1": ["accent", "left"], "5": ["accent"] }
+                  "logicalRoot": 5
                 }
               }
             }

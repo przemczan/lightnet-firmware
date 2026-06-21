@@ -131,7 +131,7 @@ All firmware code lives under `lib/Lightnet/`.
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `PanelServer` | `GET /api/panels`, `GET /api/panels/edges`, `PUT /api/panels/*` | Per-panel on/color control |
 | `StateServer` | `GET /api/state`, `POST /api/state/power` | Runtime power state + scene playback status |
-| `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Boot behaviour, logical root, panel tags (`ConfigurationStore` + `TopologyConfigStore`) |
+| `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Boot behaviour, logical root (`ConfigurationStore` + `TopologyConfigStore`) |
 
 !!! note "Mutating endpoints defer to the main loop (§8)"
     Every handler that emits I²C packets (scene play/stop/speed, one-shot/trigger, appearance,
@@ -534,7 +534,7 @@ loop (the demos).
 | All `GET`s | read-only |
 | `POST /api/scenes`, `PATCH /api/scenes/:id`, `DELETE /api/scenes/:id` | database only |
 | `POST /api/palettes`, `PUT /api/palettes/:name`, `DELETE /api/palettes/:name` | filesystem only |
-| `PATCH /api/configuration` (without `logicalRoot`) | config/tag store only — no packets, no `ScenePlayer` |
+| `PATCH /api/configuration` (without `logicalRoot`) | config store only — no packets, no `ScenePlayer` |
 
 ### 8.5 PacketMirror flush-on-overflow
 

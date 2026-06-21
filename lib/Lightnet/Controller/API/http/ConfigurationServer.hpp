@@ -8,7 +8,7 @@
 
 namespace Lightnet {
     // Persistent device configuration:
-    //   GET   /api/configuration → { powerStateOnBoot, logicalRoot, tags }
+    //   GET   /api/configuration → { powerStateOnBoot, logicalRoot }
     //   PATCH /api/configuration → partial update of any of the above fields
     class ConfigurationServer
     {

@@ -10,7 +10,7 @@
 //   indexArray := [ uint, … ]                       → INDICES
 //   token  := all|root|leaves|branches|even|odd
 //           | depth:N | depth:A-B | subtree:N | neighbors:N
-//           | fraction:A-B | first:K | last:K | tag:NAME
+//           | fraction:A-B | first:K | last:K
 //   object := {"any":[value,…]} | {"all":[value,…]}
 //           | {"not":value} | {"exclude":[uint,…]}
 // ============================================================================
@@ -160,18 +160,6 @@ namespace Lightnet {
             uint8_t hb = (uint8_t)(hi * 255.0f + 0.5f);
 
             return out.emit(SEL_FRACTION) && out.emit(lb) && out.emit(hb);
-        }
-
-        if (!strcmp(tok, "tag")) {
-            if (!isValidTagName(arg)) return selErr(err, errLen, "tag: invalid name ([a-zA-Z0-9_-], 1-15)");
-
-            uint8_t len = (uint8_t)strlen(arg);
-
-            if (!out.emit(SEL_TAG) || !out.emit(len)) return selErr(err, errLen, "panels: too complex");
-
-            for (uint8_t k = 0; k < len; k++) if (!out.emit((uint8_t)arg[k])) return selErr(err, errLen, "panels: too complex");
-
-            return true;
         }
 
         return selErr(err, errLen, "panels: unknown selector");

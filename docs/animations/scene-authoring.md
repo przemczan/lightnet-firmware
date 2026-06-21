@@ -327,20 +327,7 @@ A string token resolved from the topology — these make a scene adapt to any de
 `fraction` scales with panel count (portable "front half"); `first/last:K` is an absolute
 count. `depth`, `subtree`, `neighbors` follow the wiring.
 
-### 6.3 Tags (per-device labels)
-
-A panel can be tagged on the device (e.g. `accent`, `left`) via the
-[Configuration API](api.md#27-configuration). A scene then targets the label:
-
-```json
-"panels": "tag:accent"
-```
-
-The tag resolves to whatever panels *this* device tagged, so a shared scene's intent ("light
-the accents") follows to other setups once their owner tags their panels. Tag names are
-`[a-zA-Z0-9_-]`, 1–15 chars.
-
-### 6.4 Composition
+### 6.3 Composition
 
 Combine any of the above with set algebra:
 
@@ -348,15 +335,13 @@ Combine any of the above with set algebra:
 "panels": { "any": ["root", "leaves"] }            // union  → {1,4,6}
 "panels": { "all": ["subtree:3", "leaves"] }       // intersect → {6}
 "panels": { "not": "subtree:3" }                   // complement → {1,2,4}
-"panels": { "any": ["tag:accent", "leaves"] }      // tags compose too
 ```
 
-### 6.5 What happens when nothing matches
+### 6.4 What happens when nothing matches
 
 If a selector resolves to **no panels** on the target device (e.g. `subtree:9` where panel 9
-doesn't exist, or an untagged `tag:accent`), the layer simply **contributes nothing** — the
-scene still plays, that layer is skipped. Explicit indices that don't exist are likewise
-skipped. Nothing errors at play time.
+doesn't exist), the layer simply **contributes nothing** — the scene still plays, that layer is
+skipped. Explicit indices that don't exist are likewise skipped. Nothing errors at play time.
 
 ```
 panels: "leaves"          panels: "subtree:3"        panels: {not:"subtree:3"}
@@ -639,11 +624,11 @@ Every colour field (`color`, `colorTo`, `colorFrom`) accepts one of four forms:
 
 ---
 
-## 10. Per-device topology config (logical root + tags)
+## 10. Per-device topology config (logical root)
 
-Two device-local settings let the same scene land correctly on different hardware. They are
-**not** part of the scene — they're set once per device via the
-[Configuration API](api.md#27-configuration) and persist on the controller.
+A device-local setting lets the same scene land correctly on different hardware. It is **not**
+part of the scene — it's set once per device via the
+[Configuration API](api.md#27-configuration) and persists on the controller.
 
 ### Logical root
 
@@ -665,13 +650,6 @@ center-oriented scene re-centres there — no scene edit:
 `PATCH /api/configuration` with `{"logicalRoot": 3}`. A value that doesn't exist on the device
 falls back to the physical root.
 
-### Tags
-
-A per-device map of panel → labels, set with `PATCH /api/configuration`
-(`{"tags":{"1":["accent"],"5":["accent"]}}`). Scenes reference them as `"tag:<name>"` (§6.3). Because
-the mapping lives on the device, a shared scene's `tag:accent` lights *that owner's* accent
-panels.
-
 ---
 
 ## 11. Validation & limits
@@ -689,7 +667,6 @@ Saving or playing a scene validates all of these (HTTP `422` with a message on f
 | `type` + `runner` | mutually exclusive |
 | `duration` | 0–65535 ms; `0` only on the **last** step of a layer |
 | Explicit panel list | indices 1–255, ≤ 32 per layer |
-| Tag name | `[a-zA-Z0-9_-]`, 1–15 |
 | `source` | `root` / `leaves` / `panel:N` |
 | `params` | ≤ 4 entries, each 0–255 |
 | `startAfter` | existing group, no self-reference, no cycle, target not infinite |
@@ -1032,42 +1009,6 @@ the topology-aware ones portable; the index-based ones assume your own wiring.
           "color": "#FF4080",
           "rippleWidth": 1,
           "duration": 1500
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Tag-driven accent (per-device intent)
-
-```json
-{
-  "name": "tag_accent",
-  "loop": true,
-  "palette": "party",
-  "layers": [
-    {
-      "group": "base",
-      "panels": { "not": "tag:accent" },
-      "sequence": [
-        {
-          "type": "SOLID",
-          "color": { "palette": 30 },
-          "duration": 0
-        }
-      ]
-    },
-    {
-      "group": "hi",
-      "panels": "tag:accent",
-      "async": true,
-      "sequence": [
-        {
-          "type": "STROBE",
-          "color": "#FFFFFF",
-          "duration": 2000,
-          "params": [6]
         }
       ]
     }

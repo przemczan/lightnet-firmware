@@ -7,8 +7,8 @@ alwaysApply: true
 
 Guidance for Claude Code working in this repository.
 
-**This code is still in heavy development**. At this point anything can be changed, backwards compatibility is not a concern.
-**Never** suggest in comments that something has been changed or how the code was working previously, always treat the current code as the only known version.
+* **This code is still in heavy development**. At this point anything can be changed, backwards compatibility is NOT a concern.
+* Comments MUST be timeless and describe only the present-state behavior of the code. Never reference prior implementations, previous behavior, or code history.
 
 ## IMPORTANT: Coding preferences for this project
 

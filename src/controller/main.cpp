@@ -365,10 +365,9 @@ void loop()
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
                 animService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
 
-                // Per-device topology config: logical root + panel tags (used by scene selectors).
+                // Per-device topology config: logical root used by scene selectors.
                 topologyConfig = new Lightnet::TopologyConfigStore();
                 topologyConfig->load();
-                scenePlayer->setTagResolver(topologyConfig);
                 scenePlayer->setLogicalRoot(topologyConfig->logicalRoot(), millis());
 
                 configStore = new Lightnet::ConfigurationStore();

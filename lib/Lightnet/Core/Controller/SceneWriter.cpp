@@ -127,18 +127,6 @@ namespace Lightnet {
                 return append(buf, cap, pos, "]");
             }
 
-            if (sel.len >= 2 && sel.ops[0] == SEL_TAG) {
-                uint8_t n = sel.ops[1];
-
-                if (n > 0 && (size_t)(2 + n) <= sel.len) {
-                    char tag[32] = { 0 };
-
-                    memcpy(tag, &sel.ops[2], n < sizeof(tag) - 1 ? n : sizeof(tag) - 1);
-
-                    return append(buf, cap, pos, "{\"tag\":\"%s\"}", tag);
-                }
-            }
-
             return append(buf, cap, pos, "\"all\"");
         }
 

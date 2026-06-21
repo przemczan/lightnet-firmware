@@ -21,7 +21,6 @@
 #include "TopologyIndex.hpp"
 #include "PanelGeometry.hpp"
 #include "PanelSelector.hpp"
-#include "TagResolver.hpp"
 
 namespace Lightnet {
     // Source of the current panel tree, decoupled from discovery. The controller impl
@@ -31,16 +30,18 @@ namespace Lightnet {
     class ITopologyProvider
     {
         public:
-            virtual ~ITopologyProvider() {}
+            virtual ~ITopologyProvider()
+            {
+            }
 
             // Fill indices[]/edgeCounts[] (per panel) and links[] (up to maxLinks), set
             // linkCount, and return the panel count (0 → no/invalid tree).
             virtual uint8_t fillTopology(
-                uint8_t *  indices,
-                uint8_t *  edgeCounts,
-                TopoLink * links,
-                uint8_t    maxLinks,
-                uint8_t &  linkCount
+                uint8_t * indices,
+                uint8_t * edgeCounts,
+                TopoLink *links,
+                uint8_t   maxLinks,
+                uint8_t & linkCount
             ) const = 0;
     };
 
@@ -48,14 +49,8 @@ namespace Lightnet {
     {
         public:
             explicit SceneTopology(const ITopologyProvider& _provider)
-                : provider(_provider), logicalRoot_(1), tagResolver(nullptr)
+                : provider(_provider), logicalRoot_(1)
             {
-            }
-
-            // Device tag map used to resolve `tag:` selectors. Null = tags resolve empty.
-            void setTagResolver(const ITagResolver *r)
-            {
-                tagResolver = r;
             }
 
             // Logical root panel the rooted view is built from (§4.1). 0 → physical root (1).
@@ -106,7 +101,7 @@ namespace Lightnet {
 
                 PanelSet set;
 
-                if (!resolveSelector(target, topo, set, tagResolver)) return;
+                if (!resolveSelector(target, topo, set)) return;
 
                 emitPanelIndices(set, topo, out, maxLen, count);
             }
@@ -142,6 +137,5 @@ namespace Lightnet {
             PanelGeometry geometry;
 
             uint8_t logicalRoot_;             // panel index the rooted view is built from (§4.1; default 1)
-            const ITagResolver *tagResolver;  // device tag map for `tag:` selectors (null until wired)
     };
 }  // namespace Lightnet

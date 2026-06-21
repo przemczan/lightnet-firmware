@@ -25,30 +25,6 @@ static const TopoLink LINKS[] = {
 static PanelGraph graph;
 static TopologyIndex topo;
 
-// Mock tag resolver: "accent" â†’ panels 1 and 5.
-struct MockTags : ITagResolver {
-    void panelsForTag(const char *name, const TopologyIndex& t, PanelSet& out) const override
-    {
-        if (strcmp(name, "accent") == 0) {
-            uint8_t s;
-
-            if (t.slotOf(1, s)) out.set(s);
-
-            if (t.slotOf(5, s)) out.set(s);
-        }
-    }
-};
-
-static MockTags mockTags;
-
-static void emitTag(PanelSelector& sel, const char *name)
-{
-    sel.emit(SEL_TAG);
-    sel.emit((uint8_t)strlen(name));
-
-    for (const char *p = name; *p; p++) sel.emit((uint8_t)*p);
-}
-
 // Resolve `ops` and assert the emitted panel list equals `expect`.
 static void check(const uint8_t *ops, uint8_t n, const uint8_t *expect, uint8_t en)
 {
@@ -229,96 +205,6 @@ void test_not()
 }
 
 // ---------------------------------------------------------------------------
-// Tags (resolved via an injected ITagResolver)
-// ---------------------------------------------------------------------------
-
-void test_tag_with_resolver()
-{
-    PanelSelector sel;
-
-    sel.clear();
-    emitTag(sel, "accent");
-
-    PanelSet set;
-
-    TEST_ASSERT_TRUE(resolveSelector(sel, topo, set, &mockTags));
-
-    uint8_t out[LIGHTNET_MAX_PANELS], c;
-
-    emitPanelIndices(set, topo, out, LIGHTNET_MAX_PANELS, c);
-
-    TEST_ASSERT_EQUAL_UINT8(2, c);
-    TEST_ASSERT_EQUAL_UINT8(1, out[0]);
-    TEST_ASSERT_EQUAL_UINT8(5, out[1]);
-}
-
-void test_tag_unknown_is_empty()
-{
-    PanelSelector sel;
-
-    sel.clear();
-    emitTag(sel, "nope");
-
-    PanelSet set;
-
-    TEST_ASSERT_TRUE(resolveSelector(sel, topo, set, &mockTags));
-    TEST_ASSERT_EQUAL_UINT8(0, set.popcount(topo.count()));
-}
-
-void test_tag_no_resolver_is_empty()
-{
-    PanelSelector sel;
-
-    sel.clear();
-    emitTag(sel, "accent");
-
-    PanelSet set;
-
-    TEST_ASSERT_TRUE(resolveSelector(sel, topo, set)); // no resolver passed
-    TEST_ASSERT_EQUAL_UINT8(0, set.popcount(topo.count()));
-}
-
-void test_tag_composition()
-{
-    // accent âˆª leaves = {1,5} âˆª {4,6} = {1,4,5,6}
-    PanelSelector sel;
-
-    sel.clear();
-    emitTag(sel, "accent");
-    sel.emit(SEL_LEAVES);
-    sel.emit(SEL_OR);
-
-    PanelSet set;
-
-    TEST_ASSERT_TRUE(resolveSelector(sel, topo, set, &mockTags));
-
-    uint8_t out[LIGHTNET_MAX_PANELS], c;
-
-    emitPanelIndices(set, topo, out, LIGHTNET_MAX_PANELS, c);
-
-    uint8_t e[] = { 1, 4, 5, 6 };
-
-    TEST_ASSERT_EQUAL_UINT8(4, c);
-
-    for (uint8_t i = 0; i < 4; i++) TEST_ASSERT_EQUAL_UINT8(e[i], out[i]);
-}
-
-void test_tag_truncated_rejected()
-{
-    // Claims 5 name bytes but only 1 is present â†’ malformed, rejected (no overread).
-    PanelSelector sel;
-
-    sel.clear();
-    sel.emit(SEL_TAG);
-    sel.emit(5);
-    sel.emit('a');
-
-    PanelSet set;
-
-    TEST_ASSERT_FALSE(resolveSelector(sel, topo, set, &mockTags));
-}
-
-// ---------------------------------------------------------------------------
 // Backward compatibility: v2 forms via their RPN mapping
 // ---------------------------------------------------------------------------
 
@@ -422,12 +308,6 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_or);
     RUN_TEST(test_and);
     RUN_TEST(test_not);
-
-    RUN_TEST(test_tag_with_resolver);
-    RUN_TEST(test_tag_unknown_is_empty);
-    RUN_TEST(test_tag_no_resolver_is_empty);
-    RUN_TEST(test_tag_composition);
-    RUN_TEST(test_tag_truncated_rejected);
 
     RUN_TEST(test_v2_all);
     RUN_TEST(test_v2_index_list);

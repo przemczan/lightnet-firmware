@@ -441,12 +441,12 @@ These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANE
 
 ### 2.7 Configuration
 
-Persistent app-level and per-device topology settings. Boot behaviour is stored in `/config/configuration.db` (a single binary `Database` record, written with a 5-second deferred-write window). Logical root and panel tags are stored in `/config/topology.json` (written immediately on change).
+Persistent app-level and per-device topology settings. Boot behaviour is stored in `/config/configuration.db` (a single binary `Database` record, written with a 5-second deferred-write window). Logical root is stored in `/config/topology.json` (written immediately on change).
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/configuration` | — | `{"powerStateOnBoot":0,"logicalRoot":5,"tags":{"1":["accent"],"5":["accent"]}}` |
-| `PATCH` | `/api/configuration` | Any subset of `powerStateOnBoot`, `logicalRoot`, `tags` | `{}`, or `202 {"ok":true,"logicalRoot":N}` when `logicalRoot` is patched |
+| `GET` | `/api/configuration` | — | `{"powerStateOnBoot":0,"logicalRoot":5}` |
+| `PATCH` | `/api/configuration` | Any subset of `powerStateOnBoot`, `logicalRoot` | `{}`, or `202 {"ok":true,"logicalRoot":N}` when `logicalRoot` is patched |
 
 **`powerStateOnBoot`** — controls the global power state after a reboot:
 
@@ -459,8 +459,6 @@ Persistent app-level and per-device topology settings. Boot behaviour is stored 
 Values outside `0–2` return `422`.
 
 **Logical root** re-centres the rooted topology view (`depth`/`subtree`/canonical order and the default runner `source:root`). Patching it persists *and* restarts a playing scene so the new rooting applies immediately (`202`). A `logicalRoot` that doesn't exist on this device falls back to the physical root. Use `0` to reset to the physical root.
-
-**Tags** are validated `[a-zA-Z0-9_-]`, 1–15 chars; a scene targets them with `"panels":"tag:<name>"`. Patching `tags` replaces the entire map.
 
 ---
 

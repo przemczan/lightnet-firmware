@@ -62,14 +62,13 @@ scalars; `anim_start` / `anim_control` / `anim_update_params` take the small sca
 ## Scene C ABI (`controller_core_c.h`)
 
 Runs `SceneParser -> ScenePlayer -> AnimationScheduler -> runners` with no hardware. The engine
-resolves against three caller-supplied seams instead of the bus/filesystem/discovery:
+resolves against two caller-supplied seams instead of the bus/filesystem/discovery:
 
 ```c
 h = scene_create();
 scene_set_sink(h, cb, user);                          // receive emitted wire packets
 scene_set_topology(h, idx, n, links, lc, ec, root);   // panel tree (cached or user-authored)
 scene_set_palette(h, "fire", stops, count);           // named palettes the scene uses
-scene_set_tag(h, "left", panels, count);              // device tags the scene targets
 scene_load_and_play(h, json, len, now);               // parse + start -> emits packets
 ... each frame: scene_tick(h, now);                   // advance steps -> emits packets
 scene_destroy(h);

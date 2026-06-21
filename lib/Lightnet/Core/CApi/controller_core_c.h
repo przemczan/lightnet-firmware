@@ -12,7 +12,6 @@
  *   scene_set_sink(h, cb, user);                       // receive emitted packets
  *   scene_set_topology(h, idx, n, links, lc, ec, root);// the panel tree (cached or virtual)
  *   scene_set_palette(h, "fire", stops, count);        // any named palettes the scene uses
- *   scene_set_tag(h, "left", panels, count);           // any device tags the scene targets
  *   scene_load_and_play(h, json, len, now);            // parse + start -> emits packets
  *   ... each frame: scene_tick(h, now);                // advances steps -> emits packets
  *   scene_destroy(h);
@@ -72,10 +71,6 @@ void scene_set_topology(
  * of the same name. "userColors" is synthesized from the scene's base colors, not registered. */
 void scene_set_palette(scene_handle h, const char *name, const uint8_t *stops, uint8_t count);
 void scene_clear_palettes(scene_handle h);
-
-/* Register a device tag -> the 1-based panel indices carrying it. */
-void scene_set_tag(scene_handle h, const char *name, const uint8_t *panels, uint8_t count);
-void scene_clear_tags(scene_handle h);
 
 /* Parse `len` bytes of scene JSON and start playing. Emits the scene-start packets through the
  * sink. Returns 1 on success, 0 on parse/validation failure (see scene_last_error). */
