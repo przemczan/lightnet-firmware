@@ -45,8 +45,24 @@ namespace Lightnet {
             // Serialize the full config ({ logicalRoot, tags }) into the caller's buffer.
             void writeJson(char *buf, size_t bufLen) const;
 
-            // Serialize just the tag map ({ "1":["accent"], … }).
-            void writeTagsJson(char *buf, size_t bufLen) const;
+            // Cursor-based access to the raw (panel, tag) entries, in storage order, for
+            // chunked HTTP serialization without a large contiguous buffer. Entries for a
+            // given panel are always contiguous (parseTags writes them per-key). Returns
+            // false once `index` is out of range.
+            size_t tagEntryCount() const
+            {
+                return count;
+            }
+
+            bool tagEntryAt(size_t index, uint8_t& panel, const char *& tag) const
+            {
+                if (index >= count) return false;
+
+                panel = entries[index].panel;
+                tag   = entries[index].tag;
+
+                return true;
+            }
 
             // ITagResolver: add panels carrying `name` to `out` (slots).
             void panelsForTag(const char *name, const TopologyIndex& topo, PanelSet& out) const override;

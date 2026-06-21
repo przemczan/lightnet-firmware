@@ -29,45 +29,152 @@ namespace Lightnet {
                      this, &ConfigurationServer::handlePatchConfiguration);
     }
 
+    namespace {
+        // Heap state for the chunked GET /api/configuration response. A single panel
+        // could in theory hold all of TopologyConfigStore's tag entries, so tags are
+        // streamed one (panel,tag) entry at a time rather than via one large buffer —
+        // owned solely via req->_tempObject + req->onDisconnect, freed exactly once.
+        struct GetConfigurationState : Http::detail::RequestContext {
+            ConfigurationStore * config;
+            TopologyConfigStore *topology;
+            size_t               entryIndex;
+            bool                 emittedPrologue;
+            bool                 inTagArray;
+            uint8_t              currentPanel;
+            bool                 firstPanel;
+            bool                 entriesExhausted;
+            bool                 emittedClose;
+            char                 pending[48];
+            size_t               pendingLen;
+            size_t               pendingPos;
+        };
+
+        size_t configurationFill(GetConfigurationState *state, uint8_t *buf, size_t maxLen)
+        {
+            size_t written = 0;
+
+            while (written < maxLen) {
+                if (state->pendingPos < state->pendingLen) {
+                    size_t n = state->pendingLen - state->pendingPos;
+
+                    if (n > maxLen - written) n = maxLen - written;
+
+                    memcpy(buf + written, state->pending + state->pendingPos, n);
+                    state->pendingPos += n;
+                    written           += n;
+
+                    continue;
+                }
+
+                if (!state->emittedPrologue) {
+                    int n = snprintf(state->pending, sizeof(state->pending),
+                                     "{\"powerStateOnBoot\":%u,\"logicalRoot\":%u,\"tags\":{",
+                                     (unsigned)state->config->powerStateOnBoot(),
+                                     (unsigned)state->topology->logicalRoot());
+
+                    state->pendingLen      = (n > 0) ? (size_t)n : 0;
+                    state->pendingPos      = 0;
+                    state->emittedPrologue = true;
+
+                    continue;
+                }
+
+                if (!state->entriesExhausted) {
+                    uint8_t panel;
+                    const char *tag;
+
+                    if (!state->topology->tagEntryAt(state->entryIndex, panel, tag)) {
+                        state->entriesExhausted = true;
+
+                        continue;
+                    }
+
+                    int n;
+
+                    if (!state->inTagArray || panel != state->currentPanel) {
+                        n = snprintf(state->pending, sizeof(state->pending), "%s%s\"%u\":[\"%s\"",
+                                     state->inTagArray ? "]" : "", state->firstPanel ? "" : ",",
+                                     (unsigned)panel, tag);
+                        state->inTagArray   = true;
+                        state->currentPanel  = panel;
+                        state->firstPanel    = false;
+                    } else {
+                        n = snprintf(state->pending, sizeof(state->pending), ",\"%s\"", tag);
+                    }
+
+                    state->pendingLen = (n > 0) ? (size_t)n : 0;
+                    state->pendingPos = 0;
+                    state->entryIndex++;
+
+                    continue;
+                }
+
+                if (!state->emittedClose) {
+                    snprintf(state->pending, sizeof(state->pending), "%s}}", state->inTagArray ? "]" : "");
+                    state->pendingLen   = strlen(state->pending);
+                    state->pendingPos   = 0;
+                    state->emittedClose = true;
+
+                    continue;
+                }
+
+                break;
+            }
+
+            return written;
+        }
+    } // namespace
+
     void ConfigurationServer::handleGetConfiguration(AsyncWebServerRequest *req)
     {
-        // Heap, not stack: tags can push the response to ~2 KB.
-        char *buf = (char *)malloc(2200);
+        auto *state = (GetConfigurationState *)malloc(sizeof(GetConfigurationState));
 
-        if (!buf) {
+        if (!state) {
             Http::sendError(req, 500, "oom");
 
             return;
         }
 
-        int n = snprintf(buf, 2200,
-                         "{\"powerStateOnBoot\":%u,\"logicalRoot\":%u,\"tags\":",
-                         (unsigned)config.powerStateOnBoot(),
-                         (unsigned)topology.logicalRoot());
-
-        if (n < 0 || (size_t)n >= 2200) {
-            free(buf);
-            Http::sendError(req, 500, "serialize_failed");
-
-            return;
+        if (req->_tempObject) {
+            state->startMs = static_cast<Http::detail::RequestContext *>(req->_tempObject)->startMs;
+            free(req->_tempObject);
+        } else {
+            state->startMs = millis();
         }
 
-        topology.writeTagsJson(buf + n, 2200 - (size_t)n);
+        state->config           = &config;
+        state->topology         = &topology;
+        state->entryIndex       = 0;
+        state->emittedPrologue  = false;
+        state->inTagArray       = false;
+        state->currentPanel     = 0;
+        state->firstPanel       = true;
+        state->entriesExhausted = false;
+        state->emittedClose     = false;
+        state->pendingLen       = 0;
+        state->pendingPos       = 0;
 
-        size_t len = strlen(buf);
+        req->_tempObject = state;
+        Http::onDisconnectLogged(req, [req]() {
+            if (req->_tempObject) {
+                free(req->_tempObject);
+                req->_tempObject = nullptr;
+            }
+        });
 
-        if (len + 1 >= 2200) {
-            free(buf);
-            Http::sendError(req, 500, "serialize_failed");
+        AsyncWebServerResponse *res = req->beginChunkedResponse(
+            "application/json",
+            [state, req](uint8_t *buf, size_t maxLen, size_t /*index*/) -> size_t {
+            size_t written = configurationFill(state, buf, maxLen);
 
-            return;
-        }
+            Http::logFillTick(req, written, maxLen);
 
-        buf[len]     = '}';
-        buf[len + 1] = '\0';
+            if (written == 0) Http::logChunkedComplete(req);
 
-        Http::sendOkJson(req, buf);
-        free(buf);
+            return written;
+        });
+
+        Http::sendOkChunked(req, res);
     }
 
     void ConfigurationServer::handlePatchConfiguration(AsyncWebServerRequest *req, const uint8_t *body, size_t len)

@@ -7,7 +7,7 @@
     {
         Serial.print('[');
         Serial.print(millis());
-        Serial.print(F(" ms] "));
+        Serial.print(F("ms] "));
     }
 
     #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)

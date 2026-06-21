@@ -205,11 +205,6 @@ namespace Lightnet {
         return appendf(buf, bufLen, pos, "}");
     }
 
-    void TopologyConfigStore::writeTagsJson(char *buf, size_t bufLen) const
-    {
-        appendTagsMap(buf, bufLen, 0);
-    }
-
     void TopologyConfigStore::writeJson(char *buf, size_t bufLen) const
     {
         size_t pos = appendf(buf, bufLen, 0, "{\"logicalRoot\":%u,\"tags\":", (unsigned)_logicalRoot);
