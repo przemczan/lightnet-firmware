@@ -27,7 +27,9 @@ void LightnetBus::onReceive(int size)
         return;
     }
 
-    uint8_t buffer[size];
+    if (size > Protocol::MAX_PACKET_SIZE) size = Protocol::MAX_PACKET_SIZE;
+
+    uint8_t buffer[Protocol::MAX_PACKET_SIZE];
 
     Wire.readBytes(&buffer[0], size);
     this->onPacketReceivedCallback((Protocol::PacketMeta *)&buffer[0], size);
@@ -201,7 +203,7 @@ uint8_t LightnetBus::requestData(uint8_t address, void *buffer, uint8_t maxSize)
     uint8_t receivedSize = Wire.requestFrom(address, maxSize, (uint8_t)true);
 
     if (receivedSize > maxSize) {
-        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN("Max data length exceeded"));
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(F("Max data length exceeded")));
 
         return 0;
     }

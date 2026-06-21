@@ -4,7 +4,7 @@ volatile bool LightnetPinger::busIsDisabled = false;
 
 LightnetPinger::LightnetPinger(uint8_t _pinNo) : pinNo(_pinNo)
 {
-    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("Init edge pin as IO", _pinNo));
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("Init edge pin as IO"), _pinNo));
     pinMode(this->pinNo, OUTPUT);
     digitalWrite(this->pinNo, HIGH);
     pinMode(this->pinNo, INPUT_PULLUP);
@@ -52,7 +52,7 @@ void LightnetPinger::processState()
 
 void LightnetPinger::ping(ping_type_t type)
 {
-    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[PING] OUT", this->pinNo));
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[PING] OUT"), this->pinNo));
 
     busIsDisabled = true;
 
@@ -84,7 +84,7 @@ bool LightnetPinger::getAndResetHandshake()
     #endif
 
     if (state) {
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[PING] HANDSHAKE IN", this->pinNo));
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[PING] HANDSHAKE IN"), this->pinNo));
     }
 
     return state;
@@ -107,7 +107,7 @@ bool LightnetPinger::getAndResetDone()
     #endif
 
     if (state) {
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[PING] DONE IN", this->pinNo));
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[PING] DONE IN"), this->pinNo));
     }
 
     return state;

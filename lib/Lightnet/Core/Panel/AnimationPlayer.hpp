@@ -80,13 +80,10 @@ namespace Lightnet {
                 AnimationState           cur; // running step
                 AnimationState           pending; // next step (PREPARE awaiting its START)
 
-                // REACTIVE state (per slot)
-                uint8_t                  reactiveLevel;
-                uint8_t                  reactiveDecayRate;
-                uint16_t                 reactiveTriggerMs;
-
-                ::Protocol::ColorRGB     outColor; // last computed source colour (held while paused)
-                uint8_t                  outValue; // last computed modifier scalar (animates != TARGET_COLOR)
+                // REACTIVE state (per slot). Decay rate is cur.param1 (set once at activation,
+                // never overwritten) — no need for a separate cached copy.
+                uint8_t  reactiveLevel;
+                uint16_t reactiveTriggerMs;
             };
 
             Slot slots[MAX_ANIM_SLOTS];
@@ -114,7 +111,10 @@ namespace Lightnet {
             // ---- Frame evaluation ----
             void composite();
             void setOutput(const ::Protocol::ColorRGB& c);  // gated: updates lastOutput + dirty only on change
-            void computeSlotOutput(Slot& s, uint16_t elapsed);  // → s.outColor (TARGET_COLOR) or s.outValue (modifier)
+
+            // Result lives only for the duration of one composite() pass — not cached on
+            // the Slot, since nothing reads it across frames.
+            void computeSlotOutput(Slot& s, uint16_t elapsed, ::Protocol::ColorRGB *outColor, uint8_t *outValue);
 
             ::Protocol::ColorRGB resolveColorRef(const ColorRef& ref) const;
             void resolveColors(const AnimationState& a, ::Protocol::ColorRGB *outFrom, ::Protocol::ColorRGB *outTo) const;
@@ -124,18 +124,17 @@ namespace Lightnet {
             uint8_t getValueFrom(const AnimationState& a) const;
             uint8_t getValueTo(const AnimationState& a) const;
 
-            // Lerp colorFrom/colorTo (TARGET_COLOR) or valueFrom/valueTo (modifier) by
-            // progress_q8 into s.outColor / s.outValue.
-            void applyProgress(const AnimationState& a, uint8_t progress_q8, Slot& s) const;
+            // Lerp colorFrom/colorTo (TARGET_COLOR) or valueFrom/valueTo (modifier) by progress_q8.
+            void applyProgress(const AnimationState& a, uint8_t progress_q8, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
 
-            // Type-specific handlers (write s.outColor or s.outValue via applyProgress)
-            void tickFade(const AnimationState& a, uint16_t elapsed, Slot& s) const;
-            void tickBreathe(const AnimationState& a, uint16_t elapsed, Slot& s) const;
-            void tickPulse(const AnimationState& a, uint16_t elapsed, Slot& s) const;
-            void tickBlink(const AnimationState& a, uint16_t elapsed, Slot& s) const;
+            // Type-specific handlers (write *outColor or *outValue via applyProgress)
+            void tickFade(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
+            void tickBreathe(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
+            void tickPulse(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
+            void tickBlink(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
             void tickHueCycle(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB& out) const;
-            void tickStrobe(const AnimationState& a, uint16_t elapsed, Slot& s) const;
-            void tickReactive(Slot& s) const;
+            void tickStrobe(const AnimationState& a, uint16_t elapsed, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
+            void tickReactive(Slot& s, ::Protocol::ColorRGB *outColor, uint8_t *outValue) const;
 
             // Utilities
             uint8_t lerp8(uint8_t a, uint8_t b, uint8_t frac_q8) const;

@@ -22,7 +22,7 @@ void setup()
     digitalWrite(PD6, 0);
 
     Serial.begin(57600);
-    DEBUG_IF(DEBUG_INIT, D_PRINTLN(""));
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN(F("")));
 
     LNPanel.addEdge(EDGE_1_PIN);
     #if NUMBER_OF_EDGES >= 2
@@ -40,7 +40,7 @@ void setup()
 
     LNPanel.configure({});
 
-    DEBUG_IF(DEBUG_INIT, D_PRINTLN("===> [PANEL]"));
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN(F("===> [PANEL]")));
 
     // PCIE0 is for PB port — enable PC INTs for the active edge pins
     PCICR |= (1 << PCIE0);

@@ -33,7 +33,7 @@ class LightnetPinger
         // Size must be a power of two so head/tail wrap with a bitmask.
         static const uint8_t STATE_RING_SIZE = 8;
 
-        struct StateEntry {
+        struct __attribute__((packed)) StateEntry {
             uint8_t  state;
             uint16_t timestamp;
         };

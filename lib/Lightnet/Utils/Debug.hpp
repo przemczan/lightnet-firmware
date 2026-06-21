@@ -1,8 +1,9 @@
 #pragma once
 
 #if DEBUG
+    #include <Arduino.h>
+
     #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-        #include <Arduino.h>
         #define D_PRINTF Serial.printf
     #else
         // Define a template that will deliberately fail compilation if called
@@ -19,47 +20,65 @@
     #define DEBUG_BLOCK(...) do { __VA_ARGS__; } while (0)
     #define DEBUG_IF(flag, ...) do { if (flag) { __VA_ARGS__; } } while (0)
 
-    #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-        inline void D_PRINT()
-        {
-        }
+    inline void D_PRINT()
+    {
+    }
 
+    #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+        // ESP has ample RAM: plain string literals (const char*) are fine.
         template<typename T>
         inline void D_PRINT(T first)
         {
             Serial.print(first);
         }
 
-        template<typename T, typename ... Args>
-        inline void D_PRINT(T first, Args... args)
+    #else
+        // AVR has ~2KB RAM: a plain "literal" (const char*) gets copied into RAM at
+        // boot. Force callers through F(...) instead, which keeps the string in flash.
+        template<typename T, typename U>
+        struct _DebugIsSameType {
+            static constexpr bool value = false;
+        };
+
+        template<typename T>
+        struct _DebugIsSameType<T, T> {
+            static constexpr bool value = true;
+        };
+
+        template<typename T>
+        inline void D_PRINT(T first)
+        {
+            static_assert(!_DebugIsSameType<T, const char *>::value,
+                          "D_PRINT/D_PRINTLN string literals must be wrapped in F(...) on AVR to stay in flash");
+            Serial.print(first);
+        }
+
+        inline void D_PRINT(const __FlashStringHelper *first)
         {
             Serial.print(first);
-            Serial.print(' ');
-            D_PRINT(args ...);
-        }
-
-        inline void D_PRINTLN()
-        {
-            Serial.println();
-        }
-
-        template<typename ... Args>
-        inline void D_PRINTLN(Args... args)
-        {
-            D_PRINT(args ...);
-            Serial.println();
-        }
-
-    #else
-        template<typename ... Args> inline void D_PRINT(Args...)
-        {
-        }
-
-        template<typename ... Args> inline void D_PRINTLN(Args...)
-        {
         }
 
     #endif
+
+    template<typename T, typename ... Args>
+    inline void D_PRINT(T first, Args... args)
+    {
+        D_PRINT(first);
+        Serial.print(' ');
+        D_PRINT(args ...);
+    }
+
+    inline void D_PRINTLN()
+    {
+        Serial.println();
+    }
+
+    template<typename ... Args>
+    inline void D_PRINTLN(Args... args)
+    {
+        D_PRINT(args ...);
+        Serial.println();
+    }
 
     // Sub-switch defaults — each defaults to 1 unless pre-defined (e.g. via build flag or config override)
     #ifndef DEBUG_API

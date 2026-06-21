@@ -108,8 +108,8 @@ void RGBController::maybeLog()
         lastLogGlobal = globalBrightnessValue;
         lastLogOn     = isOn;
 
-        D_PRINTLN("[RGB]", colorValue.r, colorValue.g, colorValue.b,
-                  "gl:", globalBrightnessValue, "on:", isOn);
+        D_PRINTLN(F("[RGB]"), colorValue.r, colorValue.g, colorValue.b,
+                  F("gl:"), globalBrightnessValue, F("on:"), isOn);
     });
 }
 

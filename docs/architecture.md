@@ -154,7 +154,7 @@ All firmware code lives under `lib/Lightnet/`.
 |---|---|
 | `LightnetPanel` | Main panel state machine; handles I²C packets, drives edge registration |
 | `RGBController` | FastLED wrapper for the single WS2812 LED on PD5. `globalBrightness` multiplier on all output |
-| `AnimationPlayer` | Layer compositor: `slots[MAX_ANIM_SLOTS]` (18) composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
+| `AnimationPlayer` | Layer compositor: `slots[MAX_ANIM_SLOTS]` composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
 | `BootloaderBridge` | Writes EEPROM boot-magic `0xB007` then software-jumps to twiboot |
 
 ### Controller/API/websocket/ — WebSocket (controller only)
@@ -245,7 +245,7 @@ It is the **single implementation** of panel-local animation math, compiled into
 
 ### AnimationPlayer (panel side) — layer compositor
 
-- `slots[MAX_ANIM_SLOTS]` (18) — each an independent layer keyed by `group_id`, with its running
+- `slots[MAX_ANIM_SLOTS]` (12) — each an independent layer keyed by `group_id`, with its running
   step + a 1-deep pending step (PREPARE buffers `pending`; START activates it).
 - `tick()` gated at 16 ms (60 fps), integer math only. Each tick resolves every started slot to one
   contribution (source colour or modifier value). **Non-looping** layers honour `startDelayMs`

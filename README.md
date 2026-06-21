@@ -98,7 +98,7 @@ The ATmega328P/PB has **2 KB SRAM**. These compile-time constants share that bud
 | `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the 4 Wire/TWI static buffers |
 | `RX_QUEUE_BYTES` | `LightnetPanel.hpp` | Size of the single lock-free RX packet ring (`SpscByteQueue`) |
 | `Protocol::MAX_PACKET_SIZE` | `Common/Protocol.hpp` | Largest packet in the protocol; sets the minimum safe `TWI_BUFFER_SIZE` |
-| `MAX_ANIM_SLOTS` | `Core/Common/AnimationTypes.hpp` | Concurrent animation layers per panel (currently 18) |
+| `MAX_ANIM_SLOTS` | `Core/Common/AnimationTypes.hpp` | Concurrent animation layers per panel |
 
 **Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE` (currently 80).**  
 A packet larger than `TWI_BUFFER_SIZE` is silently truncated — the CRC still validates, so the corrupted payload reaches the handler and corrupts state. Keep them equal.

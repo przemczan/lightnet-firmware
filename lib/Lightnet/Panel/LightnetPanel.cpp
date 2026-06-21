@@ -81,8 +81,8 @@ void LightnetPanel::run()
             #endif
             this->setState(STATE_WORKING);
             DEBUG_IF(DEBUG_DISCOVERY, {
-            D_PRINTLN("===> [READY]", this->index);
-            D_PRINTLN("MAX_PACKET_SIZE=", Protocol::MAX_PACKET_SIZE);
+            D_PRINTLN(F("===> [READY]"), this->index);
+            D_PRINTLN(F("MAX_PACKET_SIZE="), Protocol::MAX_PACKET_SIZE);
         });
             break;
 
@@ -156,7 +156,7 @@ void LightnetPanel::registerEdges()
 
 void LightnetPanel::beginEdgeRegistration()
 {
-    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][REGISTER] begin", this->nextEdgeToRegister));
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[EDGE][REGISTER] begin"), this->nextEdgeToRegister));
 
     LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo, Protocol::PULLING_ADDRESS);
     this->setRegisterState(REGISTER_STATE_SEND);
@@ -164,15 +164,15 @@ void LightnetPanel::beginEdgeRegistration()
 
 void LightnetPanel::endEdgeRegistration()
 {
-    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][REGISTER] end"));
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[EDGE][REGISTER] end")));
 
     LNBus.end();
 
     LightnetPanelEdge *edge = this->edges->get(this->nextEdgeToRegister);
 
     DEBUG_IF(DEBUG_DISCOVERY, {
-        D_PRINTLN("[EDGE][BOOT] begin");
-        D_PRINTLN("[EDGE][BOOT] timeout is", edge->getBootTimeout());
+        D_PRINTLN(F("[EDGE][BOOT] begin"));
+        D_PRINTLN(F("[EDGE][BOOT] timeout is"), edge->getBootTimeout());
     });
 
     this->setRegisterState(REGISTER_STATE_BOOT);
@@ -181,7 +181,7 @@ void LightnetPanel::endEdgeRegistration()
 void LightnetPanel::bootEdge()
 {
     if (this->parentEdgeIndex == this->nextEdgeToRegister) {
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][BOOT] Skipping parent edge"));
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[EDGE][BOOT] Skipping parent edge")));
         this->setNextEdgeToRegister();
 
         return;
@@ -192,7 +192,7 @@ void LightnetPanel::bootEdge()
     edge->boot();
 
     if (edge->isFinished()) {
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][BOOT] done"));
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[EDGE][BOOT] done")));
         this->setNextEdgeToRegister();
     }
 }
@@ -219,7 +219,7 @@ void LightnetPanel::setRegisterState(register_state_t state)
 
 void LightnetPanel::setState(state_t state)
 {
-    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[STATE]", state));
+    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[STATE]"), state));
     this->state = state;
 }
 
@@ -411,7 +411,7 @@ void LightnetPanel::onPacketReceived(Protocol::PacketMeta *packet, int size)
 
             if (!this->index) {
                 this->index = ((Protocol::PacketInitializationPull *)packet)->panelIndex;
-                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN("[EDGE][REGISTER] Got index", this->index));
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(F("[EDGE][REGISTER] Got index"), this->index));
             }
 
             break;
@@ -525,7 +525,7 @@ void LightnetPanel::handleEnterBootloader(Protocol::PacketEnterBootloader *packe
             return;
         }
 
-        DEBUG_IF(DEBUG_INIT, ("[BOOTLOADER] entering — saving address and resetting"));
+        DEBUG_IF(DEBUG_INIT, D_PRINTLN(F("[BOOTLOADER] entering, saving address and resetting")));
         BootloaderBridge::prepareAndReset(this->index);
         // execution never reaches here
     #endif
