@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <functional>
 
 namespace Lightnet {
     namespace Http {
@@ -147,6 +148,28 @@ namespace Lightnet {
             req->send(res);
         }
 
+        // For chunked responses built with req->beginChunkedResponse(). Does NOT log —
+        // unlike sendOkStream, the content isn't fully generated yet at this point (the
+        // fill callback streams it incrementally as TCP buffer space frees up), so timing
+        // here would only measure setup, not the real request duration. Call
+        // logChunkedComplete(req) from the fill callback once it returns 0 (the signal
+        // ESPAsyncWebServer uses to end the chunked stream — see AsyncAbstractResponse::_ack).
+        inline void sendOkChunked(AsyncWebServerRequest *req, AsyncWebServerResponse *res)
+        {
+            req->send(res);
+        }
+
+        // Call from a beginChunkedResponse fill callback exactly when it returns 0
+        // (stream finished generating content) to log the true end-to-end duration.
+        inline void logChunkedComplete(AsyncWebServerRequest *req)
+        {
+            DEBUG_IF(DEBUG_API, {
+                uint32_t ms = detail::elapsedMs(req);
+                D_PRINTF("[HTTP] %s %s -> 200 (%ums) [chunked]\n",
+                         req->methodToString(), req->url().c_str(), (unsigned)ms);
+            });
+        }
+
         // 202 Accepted: the request validated and its work was queued onto the main
         // loop (see MainLoopQueue). Used by mutating endpoints whose side effects —
         // I2C packet emission, ScenePlayer changes — must not run on the AsyncTCP task.
@@ -180,6 +203,60 @@ namespace Lightnet {
                          req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
             req->send(204);
+        }
+
+        // ============================================================================
+        // Debug-only connection lifecycle instrumentation
+        //
+        // logChunkedComplete() above only proves the firmware finished GENERATING
+        // content (the fill callback returned 0) — it says nothing about whether
+        // those bytes ever reached the client. Don't hook AsyncClient's onAck/
+        // onTimeout/onError directly (req->client()->onAck(...) etc.): AsyncWebServerRequest's
+        // constructor already wires those to its own internal handlers that drive the
+        // chunked-response state machine and the framework's stall-recovery — replacing
+        // them silently breaks response delivery. req->onDisconnect(...) is the only
+        // safe app-owned hook, and it fires whether the connection closes normally
+        // after full delivery or is force-closed by the framework's own ack-timeout.
+        // ============================================================================
+
+        // Wraps a route's req->onDisconnect(...) registration to additionally log the
+        // true end-to-end connection lifetime (elapsed time + heap stats) at the
+        // moment the socket actually closes, then runs the route's own cleanup.
+        // Compare against logChunkedComplete()'s timestamp to see how much time was
+        // spent flushing after content generation was already "done".
+        inline void onDisconnectLogged(AsyncWebServerRequest *req, std::function<void()> cleanup = nullptr)
+        {
+            req->onDisconnect([req, cleanup]() {
+                DEBUG_IF(DEBUG_API, {
+                    uint32_t ms = detail::elapsedMs(req);
+                    D_PRINTF("[HTTP][CLOSE] %s %s after %ums (heap free=%u",
+                             req->methodToString(), req->url().c_str(), (unsigned)ms,
+                             (unsigned)ESP.getFreeHeap());
+                    #ifdef ARDUINO_ARCH_ESP8266
+                        D_PRINTF(" frag%%=%u maxBlock=%u", (unsigned)ESP.getHeapFragmentation(),
+                                 (unsigned)ESP.getMaxFreeBlockSize());
+                    #endif
+                    D_PRINTF(")\n");
+                });
+
+                if (cleanup) cleanup();
+            });
+        }
+
+        // Call from inside a beginChunkedResponse fill lambda on EVERY invocation
+        // (not just when written == 0) to see the actual send cadence. A long gap
+        // between consecutive ticks points at ack-stalls/heap-pressure retries inside
+        // the framework's _ack(), as opposed to the handler itself being slow to
+        // build content.
+        inline void logFillTick(AsyncWebServerRequest *req, size_t written, size_t maxLen)
+        {
+            DEBUG_IF(DEBUG_API, {
+                uint32_t ms = detail::elapsedMs(req);
+                D_PRINTF("[HTTP][FILL] %s %s wrote=%u/%u t=%ums heap=%u\n",
+                         req->methodToString(), req->url().c_str(),
+                         (unsigned)written, (unsigned)maxLen, (unsigned)ms,
+                         (unsigned)ESP.getFreeHeap());
+            });
         }
 
         // ============================================================================

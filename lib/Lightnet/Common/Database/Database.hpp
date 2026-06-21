@@ -157,6 +157,52 @@ namespace Lightnet {
                 return DB_OK;
             }
 
+            // Resumable, single-step version of foreachLive: scans forward from
+            // fromSlotOffset and returns the first live record found. nextSlotOffsetOut
+            // is the slot offset to pass on the next call. foundOut=false (with DB_OK)
+            // means the scan reached end-of-file — iteration is done. Does not seek the
+            // backing storage or read the payload; callers use read(RecordRef, ...) for
+            // that. Intended for callers that cannot hold the database session open
+            // across multiple calls (e.g. one call per chunked-HTTP-response tick).
+            DatabaseResult nextLiveFrom(
+            size_t     fromSlotOffset,
+            RecordRef& outRecordRef,
+            size_t&    nextSlotOffsetOut,
+            bool&      foundOut
+            ) const
+            {
+                foundOut = false;
+
+                if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;
+
+                const size_t recordSlotByteSize = recordSlotSize();
+                const size_t fileSize           = _backingStorage->size();
+
+                if (fileSize < RECORDS_START_OFFSET) return DB_FILE_TOO_SHORT;
+
+                size_t slotOffset = fromSlotOffset;
+
+                for (; slotOffset + recordSlotByteSize <= fileSize; slotOffset += recordSlotByteSize) {
+                    uint8_t slotFlags = 0;
+
+                    DatabaseResult readResult = readSlotFlagsAt(slotOffset, slotFlags);
+
+                    if (readResult != DB_OK) return readResult;
+
+                    if (slotFlags & FLAG_DELETED) continue;
+
+                    outRecordRef.offset = (uint32_t)slotOffset;
+                    nextSlotOffsetOut   = slotOffset + recordSlotByteSize;
+                    foundOut            = true;
+
+                    return DB_OK;
+                }
+
+                nextSlotOffsetOut = slotOffset;
+
+                return DB_OK;
+            }
+
             DatabaseResult read(RecordRef recordRef, Model& record, uint8_t *scratchBuffer) const
             {
                 if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;

@@ -155,8 +155,12 @@ namespace Lightnet {
         return SCENE_STORE_OK;
     }
 
-    SceneStoreResult SceneStore::getForPlay(const char *id, SceneHeader& headerOut,
-                                            SceneLayer *layersOut, uint8_t maxLayers) const
+    SceneStoreResult SceneStore::getForPlay(
+        const char * id,
+        SceneHeader& headerOut,
+        SceneLayer * layersOut,
+        uint8_t      maxLayers
+    ) const
     {
         if (!id || !layersOut) return SCENE_STORE_NULL_ARG;
 
@@ -278,6 +282,55 @@ namespace Lightnet {
         });
 
         return mapDatabaseResult(foreachResult);
+    }
+
+    SceneStoreResult SceneStore::nextMeta(
+        size_t     fromSlotOffset,
+        SceneMeta& metaOut,
+        size_t&    nextSlotOffsetOut,
+        bool&      foundOut
+    ) const
+    {
+        foundOut = false;
+
+        Session session(_core);
+
+        if (!session.isReady()) return SCENE_STORE_DB;
+
+        constexpr size_t readSize = offsetof(SceneRecord, hidden) + sizeof(uint8_t);
+        size_t cursor   = fromSlotOffset;
+
+        for (;;) {
+            RecordRef recordRef;
+            size_t nextCursor = cursor;
+            bool found      = false;
+
+            DatabaseResult scanResult =
+                session.database().nextLiveFrom(cursor, recordRef, nextCursor, found);
+
+            if (scanResult != DB_OK) return mapDatabaseResult(scanResult);
+
+            cursor = nextCursor;
+
+            if (!found) {
+                nextSlotOffsetOut = cursor;
+
+                return SCENE_STORE_OK;
+            }
+
+            uint8_t buf[readSize];
+            StorageSliceReader slice(_core.storage, recordRef.offset + 1, readSize);
+
+            if (slice.read(buf, readSize) != (int)readSize) continue;  // corrupt slot, skip
+
+            if (buf[offsetof(SceneRecord, hidden)]) continue;  // hidden, skip
+
+            memcpy(&metaOut, buf, sizeof(SceneMeta));
+            nextSlotOffsetOut = cursor;
+            foundOut          = true;
+
+            return SCENE_STORE_OK;
+        }
     }
 
     uint16_t SceneStore::countImpl() const

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 namespace Lightnet {
     PaletteServer::PaletteServer(
@@ -75,43 +76,168 @@ namespace Lightnet {
         return n;
     }
 
-    void PaletteServer::handleListPalettes(AsyncWebServerRequest *req)
-    {
-        AsyncResponseStream *res = req->beginResponseStream("application/json");
+    namespace {
+        // Heap state for the chunked /api/palettes listing. Owned solely via
+        // req->_tempObject + req->onDisconnect (see handleListPalettes) — freed
+        // exactly once, never by the fill callback itself.
+        struct ListPalettesState : Http::detail::RequestContext {
+            AppearanceStore *  appearance;
+            PaletteRepository *palettes;
+            size_t             cursor;  // next DB slot offset to scan from
+            bool               emittedOpenBracket;
+            bool               emittedUserColors;
+            bool               first;   // controls comma placement
+            bool               dbExhausted;
+            bool               emittedCloseBracket;
+            char               pending[600]; // one JSON piece: bracket, or one record + separator
+            size_t             pendingLen;
+            size_t             pendingPos; // read cursor into pending
+        };
 
-        res->print("[");
+        // Serializes one piece of JSON (with leading comma if needed) into
+        // state->pending, resetting the pending read cursor to the start.
+        void appendPendingRecord(ListPalettesState *state, const PaletteRecord& record)
+        {
+            size_t prefixLen = 0;
 
-        struct ListState {
-            AsyncResponseStream *res;
-            AppearanceStore *    appearance;
-            bool                 first;
-        } state = { res, &appearance, true };
-
-        palettes.foreachRecord(
-            [](const PaletteRecord& src, void *ctx) {
-            auto *s = static_cast<ListState *>(ctx);
-
-            PaletteRecord record = src;
-
-            if (record.stopsCount == 0 &&
-                paletteNamesEqual(record.name, USER_COLORS_PALETTE_NAME)) {
-                buildUserColors(s->appearance->baseColors(), record.stops, record.stopsCount);
+            if (!state->first) {
+                state->pending[0] = ',';
+                prefixLen = 1;
             }
 
-            char buf[512];
+            int n = PaletteServer::serializePaletteJson(
+                record, state->pending + prefixLen, sizeof(state->pending) - prefixLen);
 
-            PaletteServer::serializePaletteJson(record, buf, sizeof(buf));
+            state->pendingLen = prefixLen + ((n > 0) ? (size_t)n : 0);
+            state->pendingPos = 0;
+            state->first      = false;
+        }
 
-            if (!s->first) s->res->print(",");
+        size_t paletteListFill(ListPalettesState *state, uint8_t *buf, size_t maxLen)
+        {
+            size_t written = 0;
 
-            s->res->print(buf);
-            s->first = false;
-        },
-            &state);
+            while (written < maxLen) {
+                if (state->pendingPos < state->pendingLen) {
+                    size_t n = state->pendingLen - state->pendingPos;
 
-        res->print("]");
+                    if (n > maxLen - written) n = maxLen - written;
 
-        Http::sendOkStream(req, res);
+                    memcpy(buf + written, state->pending + state->pendingPos, n);
+                    state->pendingPos += n;
+                    written           += n;
+
+                    continue;
+                }
+
+                if (!state->emittedOpenBracket) {
+                    state->pending[0]  = '[';
+                    state->pendingLen  = 1;
+                    state->pendingPos  = 0;
+                    state->emittedOpenBracket = true;
+
+                    continue;
+                }
+
+                if (!state->emittedUserColors) {
+                    PaletteRecord record = {};
+
+                    strncpy(record.name, USER_COLORS_PALETTE_NAME, sizeof(record.name) - 1);
+                    record.builtin = true;
+                    buildUserColors(state->appearance->baseColors(), record.stops, record.stopsCount);
+
+                    appendPendingRecord(state, record);
+                    state->emittedUserColors = true;
+
+                    continue;
+                }
+
+                if (!state->dbExhausted) {
+                    PaletteRecord record = {};
+                    size_t nextCursor = state->cursor;
+                    bool found = false;
+
+                    PaletteStoreResult result =
+                        state->palettes->nextRecord(state->cursor, record, nextCursor, found);
+
+                    state->cursor = nextCursor;
+
+                    if (result != PALETTE_STORE_OK || !found) {
+                        state->dbExhausted = true;
+
+                        continue;
+                    }
+
+                    appendPendingRecord(state, record);
+
+                    continue;
+                }
+
+                if (!state->emittedCloseBracket) {
+                    state->pending[0]  = ']';
+                    state->pendingLen  = 1;
+                    state->pendingPos  = 0;
+                    state->emittedCloseBracket = true;
+
+                    continue;
+                }
+
+                break;
+            }
+
+            return written;
+        }
+    } // namespace
+
+    void PaletteServer::handleListPalettes(AsyncWebServerRequest *req)
+    {
+        auto *state = (ListPalettesState *)malloc(sizeof(ListPalettesState));
+
+        if (!state) {
+            Http::sendError(req, 500, "oom");
+
+            return;
+        }
+
+        if (req->_tempObject) {
+            state->startMs = static_cast<Http::detail::RequestContext *>(req->_tempObject)->startMs;
+            free(req->_tempObject);
+        } else {
+            state->startMs = millis();
+        }
+
+        state->appearance          = &appearance;
+        state->palettes            = &palettes;
+        state->cursor              = RECORDS_START_OFFSET;
+        state->emittedOpenBracket  = false;
+        state->emittedUserColors   = false;
+        state->first               = true;
+        state->dbExhausted         = false;
+        state->emittedCloseBracket = false;
+        state->pendingLen          = 0;
+        state->pendingPos          = 0;
+
+        req->_tempObject = state;
+        Http::onDisconnectLogged(req, [req]() {
+            if (req->_tempObject) {
+                free(req->_tempObject);
+                req->_tempObject = nullptr;
+            }
+        });
+
+        AsyncWebServerResponse *res = req->beginChunkedResponse(
+            "application/json",
+            [state, req](uint8_t *buf, size_t maxLen, size_t /*index*/) -> size_t {
+            size_t written = paletteListFill(state, buf, maxLen);
+
+            Http::logFillTick(req, written, maxLen);
+
+            if (written == 0) Http::logChunkedComplete(req);
+
+            return written;
+        });
+
+        Http::sendOkChunked(req, res);
     }
 
     void PaletteServer::handleGetPalette(AsyncWebServerRequest *req)

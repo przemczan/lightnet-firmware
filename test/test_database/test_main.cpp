@@ -180,6 +180,59 @@ void test_delete_reuses_tombstone()
     TEST_ASSERT_EQUAL_UINT8(9, insertedRecord.a);
 }
 
+void test_next_live_from_resumable_cursor()
+{
+    MemoryRandomAccessStorage backingStorage;
+    TestDatabase database;
+    uint8_t scratchBuffer[TestCodec::RECORD_SIZE];
+
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.create(backingStorage));
+
+    RecordRef recordRefs[3];
+
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(10, 11), scratchBuffer, &recordRefs[0]));
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(20, 21), scratchBuffer, &recordRefs[1]));
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(30, 31), scratchBuffer, &recordRefs[2]));
+
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.remove(recordRefs[1]));  // tombstone in the middle
+
+    std::vector<TestModel> seenRecords;
+    size_t cursor = RECORDS_START_OFFSET;
+
+    for (;;) {
+        RecordRef recordRef;
+        size_t nextCursor = 0;
+        bool found      = false;
+
+        TEST_ASSERT_EQUAL_UINT8(
+            DB_OK, database.nextLiveFrom(cursor, recordRef, nextCursor, found));
+
+        if (!found) break;
+
+        TestModel record = {};
+
+        TEST_ASSERT_EQUAL_UINT8(DB_OK, database.read(recordRef, record, scratchBuffer));
+        seenRecords.push_back(record);
+
+        cursor = nextCursor;
+    }
+
+    TEST_ASSERT_EQUAL(size_t(2), seenRecords.size());
+    TEST_ASSERT_EQUAL_UINT8(10, seenRecords[0].a);
+    TEST_ASSERT_EQUAL_UINT8(30, seenRecords[1].a);  // tombstone skipped, offsets stable
+
+    // Calling again past the end stays well-behaved (found=false, no crash/rescan).
+    RecordRef recordRef;
+    size_t nextCursor = 0;
+    bool found      = true;
+
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.nextLiveFrom(cursor, recordRef, nextCursor, found));
+    TEST_ASSERT_FALSE(found);
+}
+
 void test_version_mismatch_rejected()
 {
     MemoryRandomAccessStorage backingStorage;
@@ -255,6 +308,7 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_create_and_open);
     RUN_TEST(test_insert_foreach_and_replace);
     RUN_TEST(test_delete_reuses_tombstone);
+    RUN_TEST(test_next_live_from_resumable_cursor);
     RUN_TEST(test_version_mismatch_rejected);
     RUN_TEST(test_model_version_mismatch_rejected);
     RUN_TEST(test_read_version_helper);

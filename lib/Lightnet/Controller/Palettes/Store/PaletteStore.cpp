@@ -202,6 +202,38 @@ namespace Lightnet {
         return mapDatabaseResult(foreachResult);
     }
 
+    PaletteStoreResult PaletteStore::nextRecord(
+        size_t         fromSlotOffset,
+        PaletteRecord& recordOut,
+        size_t&        nextSlotOffsetOut,
+        bool&          foundOut
+    ) const
+    {
+        foundOut = false;
+
+        Session session(_core);
+
+        if (!session.isReady()) return PALETTE_STORE_DB;
+
+        RecordRef recordRef;
+        bool found = false;
+
+        DatabaseResult scanResult =
+            session.database().nextLiveFrom(fromSlotOffset, recordRef, nextSlotOffsetOut, found);
+
+        if (scanResult != DB_OK) return mapDatabaseResult(scanResult);
+
+        if (!found) return PALETTE_STORE_OK;
+
+        DatabaseResult readResult = session.database().read(recordRef, recordOut, session.scratchBuffer());
+
+        if (readResult != DB_OK) return mapDatabaseResult(readResult);
+
+        foundOut = true;
+
+        return PALETTE_STORE_OK;
+    }
+
     uint16_t PaletteStore::count() const
     {
         Session session(_core);

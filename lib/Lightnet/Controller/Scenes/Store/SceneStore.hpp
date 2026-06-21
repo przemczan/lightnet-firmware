@@ -31,13 +31,31 @@ namespace Lightnet {
             // streams up to `maxLayers` layers directly into `layersOut` (e.g. ScenePlayer's
             // own buffer), avoiding a ~3 KB intermediate SceneRecord. headerOut.layerCount is
             // clamped to maxLayers.
-            SceneStoreResult   getForPlay(const char *id, SceneHeader& headerOut,
-                                          SceneLayer *layersOut, uint8_t maxLayers) const;
+            SceneStoreResult   getForPlay(
+                const char * id,
+                SceneHeader& headerOut,
+                SceneLayer * layersOut,
+                uint8_t      maxLayers
+            ) const;
             SceneStoreResult   create(const SceneRecord& record);
             SceneStoreResult   update(const char *id, const SceneRecord& record);
             SceneStoreResult   remove(const char *id);
             SceneStoreResult   foreachMeta(MetaCallback callback, void *userContext) const;
             uint16_t           count() const;
+
+            // Resumable single-meta read for chunked HTTP responses. Pass
+            // Lightnet::RECORDS_START_OFFSET as fromSlotOffset to begin. Skips hidden
+            // scenes internally (foundOut=false only once the file is exhausted). On
+            // return with foundOut=true, metaOut is populated and nextSlotOffsetOut
+            // should be passed on the next call. Opens and closes its own short-lived
+            // Session per call, so the scene store lock is held only for one scan, not
+            // across calls.
+            SceneStoreResult   nextMeta(
+                size_t     fromSlotOffset,
+                SceneMeta& metaOut,
+                size_t&    nextSlotOffsetOut,
+                bool&      foundOut
+            ) const;
             bool               allocateId(char *out, size_t outLen) const;
 
             const char * oneShotId() const;

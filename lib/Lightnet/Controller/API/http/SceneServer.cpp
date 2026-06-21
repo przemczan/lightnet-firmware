@@ -63,35 +63,151 @@ namespace Lightnet {
     }
 
     namespace {
-        struct ListCtx {
-            AsyncResponseStream *res;
-            bool                 first;
+        // Heap state for the chunked /api/scenes listing. Owned solely via
+        // req->_tempObject + req->onDisconnect (see handleListScenes) — freed
+        // exactly once, never by the fill callback itself.
+        struct ListScenesState : Http::detail::RequestContext {
+            SceneStore *scenes;
+            size_t      cursor;         // next DB slot offset to scan from
+            bool        emittedOpenBracket;
+            bool        first;          // controls comma placement
+            bool        dbExhausted;
+            bool        emittedCloseBracket;
+            char        pending[224];   // one JSON piece: bracket, or one meta entry + separator
+            size_t      pendingLen;
+            size_t      pendingPos;     // read cursor into pending
         };
 
-        void appendSceneListEntry(const SceneMeta& meta, void *ctx)
+        // Serializes one meta entry (with leading comma if needed) into
+        // state->pending, resetting the pending read cursor to the start.
+        void appendPendingSceneEntry(ListScenesState *state, const SceneMeta& meta)
         {
-            auto *c = static_cast<ListCtx *>(ctx);
-            char buf[192];
+            size_t prefixLen = 0;
 
-            snprintf(buf, sizeof(buf),
-                     "%s{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\",\"layerCount\":%u,\"duration\":%lu}",
-                     c->first ? "" : ",", meta.id, meta.name, (unsigned)meta.layerCount,
-                     (unsigned long)meta.duration);
-            c->res->print(buf);
-            c->first = false;
+            if (!state->first) {
+                state->pending[0] = ',';
+                prefixLen = 1;
+            }
+
+            int n = snprintf(state->pending + prefixLen, sizeof(state->pending) - prefixLen,
+                             "{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\",\"layerCount\":%u,\"duration\":%lu}",
+                             meta.id, meta.name, (unsigned)meta.layerCount, (unsigned long)meta.duration);
+
+            state->pendingLen = prefixLen + ((n > 0) ? (size_t)n : 0);
+            state->pendingPos = 0;
+            state->first      = false;
+        }
+
+        size_t sceneListFill(ListScenesState *state, uint8_t *buf, size_t maxLen)
+        {
+            size_t written = 0;
+
+            while (written < maxLen) {
+                if (state->pendingPos < state->pendingLen) {
+                    size_t n = state->pendingLen - state->pendingPos;
+
+                    if (n > maxLen - written) n = maxLen - written;
+
+                    memcpy(buf + written, state->pending + state->pendingPos, n);
+                    state->pendingPos += n;
+                    written           += n;
+
+                    continue;
+                }
+
+                if (!state->emittedOpenBracket) {
+                    state->pending[0]  = '[';
+                    state->pendingLen  = 1;
+                    state->pendingPos  = 0;
+                    state->emittedOpenBracket = true;
+
+                    continue;
+                }
+
+                if (!state->dbExhausted) {
+                    SceneMeta meta       = {};
+                    size_t nextCursor = state->cursor;
+                    bool found      = false;
+
+                    SceneStoreResult result =
+                        state->scenes->nextMeta(state->cursor, meta, nextCursor, found);
+
+                    state->cursor = nextCursor;
+
+                    if (result != SCENE_STORE_OK || !found) {
+                        state->dbExhausted = true;
+
+                        continue;
+                    }
+
+                    appendPendingSceneEntry(state, meta);
+
+                    continue;
+                }
+
+                if (!state->emittedCloseBracket) {
+                    state->pending[0]  = ']';
+                    state->pendingLen  = 1;
+                    state->pendingPos  = 0;
+                    state->emittedCloseBracket = true;
+
+                    continue;
+                }
+
+                break;
+            }
+
+            return written;
         }
     } // anonymous namespace
 
     void SceneServer::handleListScenes(AsyncWebServerRequest *req)
     {
-        AsyncResponseStream *res = req->beginResponseStream("application/json");
-        ListCtx ctx { res, true };
+        auto *state = (ListScenesState *)malloc(sizeof(ListScenesState));
 
-        res->print("[");
-        scenes.foreachMeta(appendSceneListEntry, &ctx);
-        res->print("]");
+        if (!state) {
+            Http::sendError(req, 500, "oom");
 
-        Http::sendOkStream(req, res);
+            return;
+        }
+
+        if (req->_tempObject) {
+            state->startMs = static_cast<Http::detail::RequestContext *>(req->_tempObject)->startMs;
+            free(req->_tempObject);
+        } else {
+            state->startMs = millis();
+        }
+
+        state->scenes              = &scenes;
+        state->cursor              = RECORDS_START_OFFSET;
+        state->emittedOpenBracket  = false;
+        state->first               = true;
+        state->dbExhausted         = false;
+        state->emittedCloseBracket = false;
+        state->pendingLen          = 0;
+        state->pendingPos          = 0;
+
+        req->_tempObject = state;
+        Http::onDisconnectLogged(req, [req]() {
+            if (req->_tempObject) {
+                free(req->_tempObject);
+                req->_tempObject = nullptr;
+            }
+        });
+
+        AsyncWebServerResponse *res = req->beginChunkedResponse(
+            "application/json",
+            [state, req](uint8_t *buf, size_t maxLen, size_t /*index*/) -> size_t {
+            size_t written = sceneListFill(state, buf, maxLen);
+
+            Http::logFillTick(req, written, maxLen);
+
+            if (written == 0) Http::logChunkedComplete(req);
+
+            return written;
+        });
+
+        Http::sendOkChunked(req, res);
     }
 
     void SceneServer::handleGetSceneById(AsyncWebServerRequest *req)

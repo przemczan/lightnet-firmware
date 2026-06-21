@@ -32,6 +32,18 @@ namespace Lightnet {
 
             uint16_t count() const;
 
+            // Resumable single-record read over stored records only (built-ins +
+            // user-created), for chunked HTTP responses. The synthetic
+            // USER_COLORS_PALETTE_NAME entry is not part of this cursor — callers
+            // emit it themselves via buildUserColors() before starting iteration.
+            // Pass Lightnet::RECORDS_START_OFFSET as fromSlotOffset to begin.
+            PaletteStoreResult nextRecord(
+                size_t         fromSlotOffset,
+                PaletteRecord& recordOut,
+                size_t&        nextSlotOffsetOut,
+                bool&          foundOut
+            ) const;
+
         private:
             PaletteStore _store;
     };

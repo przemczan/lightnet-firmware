@@ -16,6 +16,8 @@ namespace Lightnet {
 
             void begin();
 
+            static int serializePaletteJson(const PaletteRecord& record, char *buf, size_t bufLen);
+
         private:
             AsyncWebServer& server;
             PaletteRepository& palettes;
@@ -28,7 +30,5 @@ namespace Lightnet {
             void handlePostPalette(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handlePutPalette(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
             void handleDeletePalette(AsyncWebServerRequest *req);
-
-            static int serializePaletteJson(const PaletteRecord& record, char *buf, size_t bufLen);
     };
 }  // namespace Lightnet
