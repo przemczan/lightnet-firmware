@@ -11,7 +11,7 @@ namespace Lightnet {
     PaletteServer::PaletteServer(
         AsyncWebServer&    _server,
         PaletteRepository& _palettes,
-        AppearanceStore&   _appearance
+        AppearanceService&   _appearance
     )
         : server(_server), palettes(_palettes), appearance(_appearance)
     {
@@ -81,7 +81,7 @@ namespace Lightnet {
         // req->_tempObject + req->onDisconnect (see handleListPalettes) — freed
         // exactly once, never by the fill callback itself.
         struct ListPalettesState : Http::detail::RequestContext {
-            AppearanceStore *  appearance;
+            AppearanceService *  appearance;
             PaletteRepository *palettes;
             size_t             cursor;  // next DB slot offset to scan from
             bool               emittedOpenBracket;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ESPAsyncWebServer.h>
-#include "../../Appearance/AppearanceStore.hpp"
+#include "../../Appearance/AppearanceService.hpp"
 #include "../../Palettes/PaletteRepository.hpp"
 #include "../../Scenes/ScenesService.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
@@ -12,7 +12,7 @@ namespace Lightnet {
         public:
             AppearanceServer(
                 AsyncWebServer&    server,
-                AppearanceStore&   appearance,
+                AppearanceService&   appearance,
                 PaletteRepository& palettes,
                 ScenesService&     animService,
                 MainLoopQueue&     queue
@@ -22,7 +22,7 @@ namespace Lightnet {
 
         private:
             AsyncWebServer& server;
-            AppearanceStore& appearance;
+            AppearanceService& appearance;
             PaletteRepository& palettes;
             ScenesService& animService;
             MainLoopQueue& queue;

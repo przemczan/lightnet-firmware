@@ -162,7 +162,7 @@
             auto r = animService.playSceneById(id);
 
             if (!r.ok()) {
-                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] fire_react play failed: %s\n", r.msg));
+                DEBUG_IF(DEBUG_DEMO, D_PRINTFLN("[DEMO] fire_react play failed: %s", r.msg));
 
                 return;
             }

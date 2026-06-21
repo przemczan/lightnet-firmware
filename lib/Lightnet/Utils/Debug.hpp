@@ -3,8 +3,16 @@
 #if DEBUG
     #include <Arduino.h>
 
+    inline void _debugPrintTimestamp()
+    {
+        Serial.print('[');
+        Serial.print(millis());
+        Serial.print(F(" ms] "));
+    }
+
     #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
         #define D_PRINTF Serial.printf
+        #define D_PRINTFLN(...) do { _debugPrintTimestamp(); Serial.printf(__VA_ARGS__); Serial.println(); } while (0)
     #else
         // Define a template that will deliberately fail compilation if called
         template<typename ... Args>
@@ -15,6 +23,7 @@
 
         // Accept any arguments, but pass them to our failing function
         #define D_PRINTF // (...) _unsupported_printf(__VA_ARGS__)
+        #define D_PRINTFLN // (...) _unsupported_printf(__VA_ARGS__)
     #endif
 
     #define DEBUG_BLOCK(...) do { __VA_ARGS__; } while (0)
@@ -70,12 +79,14 @@
 
     inline void D_PRINTLN()
     {
+        _debugPrintTimestamp();
         Serial.println();
     }
 
     template<typename ... Args>
     inline void D_PRINTLN(Args... args)
     {
+        _debugPrintTimestamp();
         D_PRINT(args ...);
         Serial.println();
     }
@@ -108,6 +119,7 @@
 
 #else
     #define D_PRINTF(...)
+    #define D_PRINTFLN(...)
     #define DEBUG_BLOCK(...)
     #define DEBUG_IF(flag, ...)
 

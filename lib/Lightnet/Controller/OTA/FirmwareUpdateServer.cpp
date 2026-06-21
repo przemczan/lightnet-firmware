@@ -66,7 +66,7 @@
     )
     {
         if (index == 0) {
-            D_PRINTF("[FW] upload start, total=%u bytes\n", (unsigned)total);
+            D_PRINTFLN("[FW] upload start, total=%u bytes", (unsigned)total);
             uploadFile = Lightnet::Fs::open(FIRMWARE_PATH, "w");
 
             if (!uploadFile) {
@@ -85,7 +85,7 @@
         if (index + len == total) {
             if (uploadFile) {
                 uploadFile.close();
-                D_PRINTF("[FW] upload done, %u bytes written\n", (unsigned)total);
+                D_PRINTFLN("[FW] upload done, %u bytes written", (unsigned)total);
             }
         }
     }

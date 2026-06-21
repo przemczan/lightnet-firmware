@@ -53,11 +53,11 @@ namespace Lightnet {
                 size_t blen = body ? strlen(body) : 0;
 
                 if (blen > LOG_TRUNCATE)
-                    D_PRINTF("[HTTP] %s %s -> %d (%ums) %.*s...\n",
+                    D_PRINTFLN("[HTTP] %s %s -> %d (%ums) %.*s...",
                              req->methodToString(), req->url().c_str(), status,
                              (unsigned)ms, (int)LOG_TRUNCATE, body);
                 else
-                    D_PRINTF("[HTTP] %s %s -> %d (%ums) %s\n",
+                    D_PRINTFLN("[HTTP] %s %s -> %d (%ums) %s",
                              req->methodToString(), req->url().c_str(), status,
                              (unsigned)ms, body ? body : "");
             }
@@ -66,7 +66,7 @@ namespace Lightnet {
             {
                 size_t show = (len < LOG_TRUNCATE) ? len : LOG_TRUNCATE;
 
-                D_PRINTF("[HTTP] %s %s <- %.*s%s\n",
+                D_PRINTFLN("[HTTP] %s %s <- %.*s%s",
                          req->methodToString(), req->url().c_str(), (int)show, (const char *)body,
                          len > LOG_TRUNCATE ? "..." : "");
             }
@@ -142,7 +142,7 @@ namespace Lightnet {
         {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
-                D_PRINTF("[HTTP] %s %s -> 200 (%ums) [stream]\n",
+                D_PRINTFLN("[HTTP] %s %s -> 200 (%ums) [stream]",
                          req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
             req->send(res);
@@ -165,7 +165,7 @@ namespace Lightnet {
         {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
-                D_PRINTF("[HTTP] %s %s -> 200 (%ums) [chunked]\n",
+                D_PRINTFLN("[HTTP] %s %s -> 200 (%ums) [chunked]",
                          req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
         }
@@ -199,7 +199,7 @@ namespace Lightnet {
         {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
-                D_PRINTF("[HTTP] %s %s -> 204 (%ums)\n",
+                D_PRINTFLN("[HTTP] %s %s -> 204 (%ums)",
                          req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
             req->send(204);
@@ -252,7 +252,7 @@ namespace Lightnet {
         {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
-                D_PRINTF("[HTTP][FILL] %s %s wrote=%u/%u t=%ums heap=%u\n",
+                D_PRINTFLN("[HTTP][FILL] %s %s wrote=%u/%u t=%ums heap=%u",
                          req->methodToString(), req->url().c_str(),
                          (unsigned)written, (unsigned)maxLen, (unsigned)ms,
                          (unsigned)ESP.getFreeHeap());

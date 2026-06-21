@@ -5,7 +5,7 @@
 #include "../../Panels/PanelsController.hpp"
 #include "../../Scenes/ScenesService.hpp"
 #include "../../../Core/Controller/AnimationScheduler.hpp"
-#include "../../Appearance/AppearanceStore.hpp"
+#include "../../Appearance/AppearanceService.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
 
 class PacketMirror;  // forward declaration — only a pointer is stored
@@ -20,7 +20,7 @@ namespace Lightnet {
                 PanelsController&   panelsController,
                 ScenesService&      animService,
                 AnimationScheduler& animScheduler,
-                AppearanceStore&    appearance,
+                AppearanceService&    appearance,
                 MainLoopQueue&      queue,
                 PacketMirror *      packetMirror = nullptr
             );
@@ -33,7 +33,7 @@ namespace Lightnet {
             PanelsController& panelsController;
             ScenesService& animService;
             AnimationScheduler& animScheduler;
-            AppearanceStore& appearance;
+            AppearanceService& appearance;
             MainLoopQueue& queue;
             PacketMirror *packetMirror;
 

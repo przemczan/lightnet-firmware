@@ -24,7 +24,7 @@
     #include "../../lib/Lightnet/Core/Controller/AnimationRunner.hpp"
     #include "Animations/ControllerPacketSink.hpp"
     #include "Palettes/PaletteRepository.hpp"
-    #include "Appearance/AppearanceStore.hpp"
+    #include "Appearance/AppearanceService.hpp"
     #include "API/http/AppearanceServer.hpp"
     #include "API/http/PaletteServer.hpp"
     #include "API/http/SceneServer.hpp"

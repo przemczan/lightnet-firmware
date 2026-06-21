@@ -118,7 +118,8 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `AppearanceStore` | Owns `/config/appearance.json`; atomic writes, broadcasts to panels on change |
+| `AppearanceStore` | Storage only: owns `/config/appearance.db` (single binary `Database` record) — getters/setters + deferred persistence |
+| `AppearanceService` | Behaviour facade over `AppearanceStore`: validates the palette, broadcasts brightness/base-colours/palette to panels on change and on `reapply()` |
 
 **API/http/**
 

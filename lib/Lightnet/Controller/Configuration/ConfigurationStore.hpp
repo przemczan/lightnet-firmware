@@ -2,22 +2,12 @@
 
 #include <stdint.h>
 #include "../../Utils/DeferredWriter.hpp"
+#include "../../Common/Database/SingleRecordStore.hpp"
+#include "Store/ConfigurationCodec.hpp"
 
 namespace Lightnet {
-    constexpr uint8_t POWER_ALWAYS_ON  = 0;
-    constexpr uint8_t POWER_ALWAYS_OFF = 1;
-    constexpr uint8_t POWER_LAST_STATE = 2;
-
-    // Owns `/config/configuration.json` — persistent app-level settings.
-    //
-    // filesystem layout:
-    //   /config/configuration.json
-    //   { "schemaVersion": 1, "powerStateOnBoot": 0 }
-    //
-    // powerStateOnBoot controls which isOn value AppStateStore applies on boot:
-    //   0 = POWER_ALWAYS_ON  — always start with isOn = true
-    //   1 = POWER_ALWAYS_OFF — always start with isOn = false
-    //   2 = POWER_LAST_STATE — restore the last persisted isOn value
+    // Owns `/config/configuration.db` — persistent app-level settings, stored as a single
+    // binary Database record (see ConfigurationRecord for the power-state semantics).
     class ConfigurationStore
     {
         public:
@@ -29,17 +19,23 @@ namespace Lightnet {
 
             uint8_t powerStateOnBoot() const
             {
-                return _powerStateOnBoot;
+                return _record.powerStateOnBoot;
             }
 
             // Returns false if value is out of range (not 0-2).
             bool setPowerStateOnBoot(uint8_t v);
 
         private:
-            uint8_t _powerStateOnBoot = POWER_ALWAYS_ON;
-            DeferredWriter writer{ 5000 };
+            static constexpr const char *CONFIGURATION_DATABASE_PATH = "/config/configuration.db";
+            static constexpr const char *CONFIGURATION_DATA_DIR      = "/config";
 
-            bool readFile();
+            ConfigurationRecord _record{ POWER_ALWAYS_ON };
+            DeferredWriter      writer{ 5000 };
+
+            SingleRecordStore<ConfigurationCodec> _store{
+                CONFIGURATION_DATABASE_PATH, CONFIGURATION_DATA_DIR
+            };
+
             void writeFile();
     };
 }  // namespace Lightnet

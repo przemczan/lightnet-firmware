@@ -8,7 +8,7 @@
 namespace Lightnet {
     AppearanceServer::AppearanceServer(
         AsyncWebServer&    _server,
-        AppearanceStore&   _appearance,
+        AppearanceService&   _appearance,
         PaletteRepository& _palettes,
         ScenesService&     _animService,
         MainLoopQueue&     _queue
@@ -50,7 +50,7 @@ namespace Lightnet {
     void AppearanceServer::handlePatchAppearance(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
     {
         // Validate everything synchronously (pure, no packets), collect the validated
-        // values, then defer the actual apply — every AppearanceStore mutator broadcasts
+        // values, then defer the actual apply — every AppearanceService mutator broadcasts
         // to panels, which must happen on the main loop (see MainLoopQueue / PacketMirror).
         SimpleJson j(body, len);
 

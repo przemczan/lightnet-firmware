@@ -125,7 +125,7 @@
             char errMsg[64];
 
             if (!parseScene(json, strlen(json), parsed, errMsg, sizeof(errMsg))) {
-                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed parse failed for %s: %s\n", name, errMsg));
+                DEBUG_IF(DEBUG_DEMO, D_PRINTFLN("[DEMO] seed parse failed for %s: %s", name, errMsg));
 
                 return;
             }
@@ -135,7 +135,7 @@
             parsed.hidden   = 0;
 
             if (sceneStore.create(parsed) != SCENE_STORE_OK) {
-                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] seed failed for %s\n", name));
+                DEBUG_IF(DEBUG_DEMO, D_PRINTFLN("[DEMO] seed failed for %s", name));
             }
         }
 
@@ -150,7 +150,7 @@
             auto r = animService.playSceneById(id);
 
             if (!r.ok()) {
-                DEBUG_IF(DEBUG_DEMO, D_PRINTF("[DEMO] play failed for %s: %s\n", name, r.msg));
+                DEBUG_IF(DEBUG_DEMO, D_PRINTFLN("[DEMO] play failed for %s: %s", name, r.msg));
 
                 return;
             }

@@ -67,7 +67,7 @@ uint8_t WebsocketHandler::handleMessage(WebsocketApi::Internal::Message *message
 
 uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint16_t size, uint32_t clientId)
 {
-    D_PRINTF("[CMD HANDLER] handling cmd [client:%u, type:%u]\n", clientId, command->header.type);
+    D_PRINTFLN("[CMD HANDLER] handling cmd [client:%u, type:%u]", clientId, command->header.type);
 
     uint8_t error = 0;
 

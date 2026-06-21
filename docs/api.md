@@ -258,7 +258,7 @@ filesystem/config mutations (scene/palette save & delete, configuration PATCH wi
 | `GET` | `/api/appearance` | — | `{"brightness":N,"baseColors":["#..","#..","#.."],"palette":"..."}` |
 | `PATCH` | `/api/appearance` | Any subset of the three fields | `202 {}` (applied on the main loop) |
 
-Persists to `/config/appearance.json` atomically and broadcasts the updated value to all panels immediately.
+Persists to `/config/appearance.db` (a single binary `Database` record) and broadcasts the updated value to all panels immediately.
 
 ---
 
@@ -441,7 +441,7 @@ These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANE
 
 ### 2.7 Configuration
 
-Persistent app-level and per-device topology settings. Boot behaviour is stored in `/config/configuration.json` (written atomically with a 5-second deferred-write window). Logical root and panel tags are stored in `/config/topology.json` (written immediately on change).
+Persistent app-level and per-device topology settings. Boot behaviour is stored in `/config/configuration.db` (a single binary `Database` record, written with a 5-second deferred-write window). Logical root and panel tags are stored in `/config/topology.json` (written immediately on change).
 
 | Method | Path | Body | Response |
 |---|---|---|---|
@@ -467,7 +467,7 @@ Values outside `0–2` return `422`.
 ### 2.8 State
 
 Runtime app state — power state, scene playback status, and the most recently played scene id.
-Persisted in `/config/app_state.json` with a 5-second deferred-write window. The initial
+Persisted in `/config/app_state.db` (a single binary `Database` record) with a 5-second deferred-write window. The initial
 `isOn` value on boot is derived from `powerStateOnBoot` (see §2.7); `lastPlayedSceneId` /
 `lastPlayedSceneIsStored` are set whenever a scene is played via `POST /api/scenes/play/one-shot`
 or `POST /api/scenes/:id/play` (see §2.3 Scenes). `lastPlayedSceneIsStored` is `false` when

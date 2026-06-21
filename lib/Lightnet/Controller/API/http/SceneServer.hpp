@@ -5,7 +5,7 @@
 #include "../../Scenes/ScenesService.hpp"
 #include "../../Scenes/Store/SceneStore.hpp"
 #include "../../AppState/AppStateStore.hpp"
-#include "../../Appearance/AppearanceStore.hpp"
+#include "../../Appearance/AppearanceService.hpp"
 #include "../../../Utils/MainLoopQueue.hpp"
 
 namespace Lightnet {
@@ -18,7 +18,7 @@ namespace Lightnet {
                 ScenePlayer&     player,
                 ScenesService&   animService,
                 AppStateStore&   appState,
-                AppearanceStore& appearance,
+                AppearanceService& appearance,
                 MainLoopQueue&   queue
             );
 
@@ -30,7 +30,7 @@ namespace Lightnet {
             ScenePlayer& player;
             ScenesService& animService;
             AppStateStore& appState;
-            AppearanceStore& appearance;
+            AppearanceService& appearance;
             MainLoopQueue& queue;
 
             void registerRoutes();

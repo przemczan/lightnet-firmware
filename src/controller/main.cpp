@@ -55,7 +55,7 @@ Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
 
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
 Lightnet::PaletteRepository *paletteStore = nullptr;
-Lightnet::AppearanceStore *appearance       = nullptr;
+Lightnet::AppearanceService *appearance      = nullptr;
 Lightnet::SceneStore *sceneStore       = nullptr;
 Lightnet::ScenePlayer *scenePlayer      = nullptr;
 Lightnet::ScenesService *animService      = nullptr;
@@ -228,7 +228,7 @@ void setupOTA()
         if (appStateStore) appStateStore->flush();
     });
     ArduinoOTA.onError([](ota_error_t error) {
-        DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[OTA] error %u\n", error));
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[OTA] error %u", error));
     });
     ArduinoOTA.begin();
     DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] ArduinoOTA ready"));
@@ -358,7 +358,7 @@ void loop()
 
                 paletteStore = new Lightnet::PaletteRepository();
                 paletteStore->ensureSeeded();
-                appearance   = new Lightnet::AppearanceStore(*animScheduler, *paletteStore);
+                appearance   = new Lightnet::AppearanceService(*animScheduler, *paletteStore);
                 appearance->loadAndApply();
 
                 sceneStore  = new Lightnet::SceneStore();

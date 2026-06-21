@@ -15,7 +15,7 @@ namespace Lightnet {
         ScenePlayer&     _player,
         ScenesService&   _animService,
         AppStateStore&   _appState,
-        AppearanceStore& _appearance,
+        AppearanceService& _appearance,
         MainLoopQueue&   _queue
     )
         : server(_server), scenes(_scenes), player(_player), animService(_animService),

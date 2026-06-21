@@ -11,7 +11,7 @@ namespace Lightnet {
         AsyncWebServer&     _server,
         ScenesService&      _animService,
         AnimationScheduler& _scheduler,
-        AppearanceStore&    _appearance,
+        AppearanceService&    _appearance,
         AppStateStore&      _appState,
         MainLoopQueue&      _queue
     )

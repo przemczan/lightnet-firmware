@@ -149,7 +149,7 @@ uint8_t LightnetBus::sendPacketWithResponse(
     uint8_t writeErr = this->sendPacket(address, packet, packetSize, false);
 
     if (writeErr != 0) {
-        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] write err=%d addr=0x%02X\n", writeErr, address));
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTFLN("[BUS] write err=%d addr=0x%02X", writeErr, address));
 
         return 1;
     }
@@ -159,7 +159,7 @@ uint8_t LightnetBus::sendPacketWithResponse(
     uint8_t readErr = this->requestPacket(address, responseBuffer, responseSize);
 
     if (readErr != 0) {
-        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] read err=%d addr=0x%02X\n", readErr, address));
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTFLN("[BUS] read err=%d addr=0x%02X", readErr, address));
 
         return 2;
     }
@@ -182,7 +182,7 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
     uint8_t receivedSize = this->requestData(address, buffer, size);
 
     if (!receivedSize || receivedSize != size) {
-        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] ack size got=%d expected=%d\n", receivedSize, size));
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTFLN("[BUS] ack size got=%d expected=%d", receivedSize, size));
 
         return 1;
     }
@@ -193,7 +193,7 @@ uint8_t LightnetBus::requestPacket(uint8_t address, void *buffer, uint8_t size)
         return 0;
     }
 
-    DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTF("[BUS] ack validate err=%d\n", vErr));
+    DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTFLN("[BUS] ack validate err=%d", vErr));
 
     return 2;
 }

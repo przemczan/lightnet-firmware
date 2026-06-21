@@ -19,7 +19,7 @@
             uint8_t err = sendCmd(address, CMD_WAIT, nullptr, 0);
 
             if (err == 0) {
-                DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] connected @ 0x%02X (attempt %d)\n", address, attempt + 1));
+                DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] connected @ 0x%02X (attempt %d)", address, attempt + 1));
 
                 if (info) {
                     info->pageSize  = PAGE_SIZE;
@@ -30,12 +30,12 @@
                 return true;
             }
 
-            DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] connect attempt %d/%d @ 0x%02X failed (err=%d)\n",
+            DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] connect attempt %d/%d @ 0x%02X failed (err=%d)",
                                              attempt + 1, maxRetries, address, err));
             delay(retryDelayMs);
         }
 
-        DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] connect failed after %d attempts\n", maxRetries));
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] connect failed after %d attempts", maxRetries));
 
         return false;
     }
@@ -49,13 +49,13 @@
     {
         uint16_t numPages = (uint16_t)((size + PAGE_SIZE - 1) / PAGE_SIZE);
 
-        DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] programming %u pages (%u bytes)\n", numPages, (unsigned)size));
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] programming %u pages (%u bytes)", numPages, (unsigned)size));
 
         for (uint16_t page = 0; page < numPages; page++) {
             uint16_t byteAddr = page * PAGE_SIZE;
 
             if (!writePage(address, byteAddr, data + byteAddr)) {
-                DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] write failed at page %u (addr 0x%04X)\n", page, byteAddr));
+                DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] write failed at page %u (addr 0x%04X)", page, byteAddr));
 
                 return false;
             }
@@ -77,19 +77,19 @@
         uint16_t numPages = (uint16_t)((size + PAGE_SIZE - 1) / PAGE_SIZE);
         uint8_t buf[PAGE_SIZE];
 
-        DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] verifying %u pages\n", numPages));
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] verifying %u pages", numPages));
 
         for (uint16_t page = 0; page < numPages; page++) {
             uint16_t byteAddr = page * PAGE_SIZE;
 
             if (!readPage(address, byteAddr, buf)) {
-                DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] read failed at page %u (addr 0x%04X)\n", page, byteAddr));
+                DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] read failed at page %u (addr 0x%04X)", page, byteAddr));
 
                 return false;
             }
 
             if (memcmp(buf, data + byteAddr, PAGE_SIZE) != 0) {
-                DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] verify mismatch at page %u\n", page));
+                DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] verify mismatch at page %u", page));
 
                 return false;
             }
@@ -108,12 +108,12 @@
         uint8_t err = sendCmd(address, CMD_SWITCH_APPLICATION, &arg, 1);
 
         if (err != 0) {
-            DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] startApp failed @ 0x%02X (err=%d)\n", address, err));
+            DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] startApp failed @ 0x%02X (err=%d)", address, err));
 
             return false;
         }
 
-        DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] app started @ 0x%02X\n", address));
+        DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] app started @ 0x%02X", address));
 
         return true;
     }
@@ -146,7 +146,7 @@
             uint8_t err = Wire.endTransmission();
 
             if (err != 0) {
-                DEBUG_IF(DEBUG_FLASHER, D_PRINTF("[TWIBOOT] writePage chunk %d err=%d @ 0x%04X\n", c, err, chunkAddr));
+                DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[TWIBOOT] writePage chunk %d err=%d @ 0x%04X", c, err, chunkAddr));
 
                 return false;
             }

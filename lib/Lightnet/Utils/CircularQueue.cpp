@@ -113,8 +113,8 @@ bool CircularQueue::empty()
 
 void CircularQueue::dumpMeta()
 {
-    D_PRINTF(
-        "\nWri: %u, Rea: %u, Tai: %u, Sof: %u, Cnt: %u\n",
+    D_PRINTFLN(
+        "\nWri: %u, Rea: %u, Tai: %u, Sof: %u, Cnt: %u",
         (uintptr_t)this->writePointer - (uintptr_t)this->head,
         (uintptr_t)this->readPointer - (uintptr_t)this->head,
         (uintptr_t)this->tail - (uintptr_t)this->head,

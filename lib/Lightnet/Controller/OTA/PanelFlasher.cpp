@@ -137,7 +137,7 @@
                     break;
                 }
 
-                D_PRINTF("[TWIBOOT] page %u/%u\n", currentPage + 1, totalPages);
+                D_PRINTFLN("[TWIBOOT] page %u/%u", currentPage + 1, totalPages);
                 currentPage++;
                 status.progressPct = (uint8_t)((uint32_t)currentPage * 100 / totalPages);
 
@@ -170,12 +170,12 @@
 
                         if (!match) {
                             if (!readOk) {
-                                D_PRINTF("[FLASHER] verify: read failed page %u\n", p);
+                                D_PRINTFLN("[FLASHER] verify: read failed page %u", p);
                             } else {
                                 // log first mismatched byte so we can diagnose
                                 for (int i = 0; i < 128; i++) {
                                     if (fileBuf[i] != flashBuf[i]) {
-                                        D_PRINTF("[FLASHER] verify mismatch page %u byte %d: file=0x%02X flash=0x%02X\n",
+                                        D_PRINTFLN("[FLASHER] verify mismatch page %u byte %d: file=0x%02X flash=0x%02X",
                                                  p, i, fileBuf[i], flashBuf[i]);
                                         break;
                                     }
@@ -219,7 +219,7 @@
     {
         status.state    = next;
         stateEnteredAt  = millis();
-        D_PRINTF("[FLASHER] -> state %d\n", (int)next);
+        D_PRINTFLN("[FLASHER] -> state %d", (int)next);
     }
 
     void PanelFlasher::setError(const char *msg)

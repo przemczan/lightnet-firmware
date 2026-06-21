@@ -121,7 +121,7 @@
                 lastOn = isOn;
 
                 DEBUG_IF(DEBUG_RGB_CTRL,
-                         D_PRINTF("[SIM:LED] %lu %u %02X %02X %02X %02X %02X\n",
+                         D_PRINTFLN("[SIM:LED] %lu %u %02X %02X %02X %02X %02X",
                                   millis(), panelIndex,
                                   colorValue.r, colorValue.g, colorValue.b,
                                   brightnessValue, eff)

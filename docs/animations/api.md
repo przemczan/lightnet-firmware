@@ -18,7 +18,7 @@ Three values define the current look of all panels, independent of any playing s
 | **Base Colors** | 3 × #RRGGBB | Primary, secondary, tertiary colours used by the `"Base colors"` palette |
 | **Palette** | name string | Currently active gradient palette (e.g. `"Lava"`) |
 
-These are persisted in `/config/appearance.json` and restored on every boot. They take effect immediately — the panel resolves all animation colours at frame time using the current palette/base-colours, so a mid-flight change appears on the very next rendered frame without restarting anything.
+These are persisted in `/config/appearance.db` and restored on every boot. They take effect immediately — the panel resolves all animation colours at frame time using the current palette/base-colours, so a mid-flight change appears on the very next rendered frame without restarting anything.
 
 ### Persistence file
 

@@ -1,60 +1,62 @@
 #pragma once
 
 #include <stdint.h>
-#include "../../Core/Common/Palette.hpp"
 #include "../../Core/Common/LightnetConfig.hpp"
 #include "../../Common/Protocol.hpp"
-#include "../../Core/Controller/AnimationScheduler.hpp"
-#include "../Palettes/PaletteRepository.hpp"
 #include "../../Utils/DeferredWriter.hpp"
+#include "../../Common/Database/SingleRecordStore.hpp"
+#include "Store/AppearanceCodec.hpp"
 
 namespace Lightnet {
+    // Storage-only owner of the appearance settings record (`/config/appearance.db`).
+    // Holds no scheduler or palette repository — broadcasting and palette resolution
+    // live in AppearanceService. Setters mutate state and mark dirty; persistence is
+    // deferred and flushed via tick()/flush().
     class AppearanceStore
     {
         public:
-            AppearanceStore(AnimationScheduler& scheduler, const PaletteRepository& palettes);
+            AppearanceStore();
 
-            void loadAndApply();
-            void reapply();
+            // Loads the stored record, writing defaults if none exists yet.
+            void load();
             void tick(uint32_t now);
             void flush();
 
-            bool setBrightness(uint8_t value);
+            void setBrightness(uint8_t value);
             bool setBaseColor(uint8_t slot, Protocol::ColorRGB color);
-            bool setAllBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
-            bool setPalette(const char *name);
+            void setAllBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
+            void setPalette(const char *name);
 
             uint8_t brightness() const
             {
-                return brightnessValue;
+                return _record.brightness;
             }
 
             const char * paletteName() const
             {
-                return paletteValue;
+                return _record.palette;
             }
 
             Protocol::ColorRGB baseColor(uint8_t slot) const;
 
             const Protocol::ColorRGB * baseColors() const
             {
-                return baseColorsValue;
+                return _record.baseColors;
             }
 
         private:
-            AnimationScheduler& scheduler;
-            const PaletteRepository& palettes;
+            static constexpr const char *APPEARANCE_DATABASE_PATH = "/config/appearance.db";
+            static constexpr const char *APPEARANCE_DATA_DIR      = "/config";
 
-            uint8_t brightnessValue;
-            Protocol::ColorRGB baseColorsValue[BASE_COLORS_COUNT];
-            char paletteValue[MAX_PALETTE_NAME_LENGTH + 1];
+            AppearanceRecord _record;
 
-            bool readFile();
             void writeFile();
             void writeDefaults();
 
             DeferredWriter writer{ 10000 };
 
-            void broadcastSelectedPalette();
+            SingleRecordStore<AppearanceCodec> _store{
+                APPEARANCE_DATABASE_PATH, APPEARANCE_DATA_DIR
+            };
     };
 }  // namespace Lightnet

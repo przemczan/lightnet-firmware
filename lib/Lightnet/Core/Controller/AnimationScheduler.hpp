@@ -100,7 +100,7 @@ namespace Lightnet {
             // of sendPrepareToPanel so all panels begin together.
             void sendGroupStart(uint8_t group_id);
 
-            // Appearance broadcast helpers — used by AppearanceStore and ScenePlayer
+            // Appearance broadcast helpers — used by AppearanceService and ScenePlayer
             void broadcastPalette(const GradientStop *stops, uint8_t count);
             void broadcastBaseColors(const Protocol::ColorRGB colors[BASE_COLORS_COUNT]);
             void broadcastGlobalBrightness(uint8_t value);

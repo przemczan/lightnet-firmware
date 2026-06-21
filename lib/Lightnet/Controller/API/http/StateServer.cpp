@@ -14,7 +14,7 @@ namespace Lightnet {
         PanelsController&   _panelsController,
         ScenesService&      _animService,
         AnimationScheduler& _animScheduler,
-        AppearanceStore&    _appearance,
+        AppearanceService&    _appearance,
         MainLoopQueue&      _queue,
         PacketMirror *      _packetMirror
     )

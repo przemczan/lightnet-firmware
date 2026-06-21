@@ -222,7 +222,7 @@ namespace Lightnet {
 
         playing = true;
 
-        DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] play layers=%u loop=%s speed=%.1f\n",
+        DEBUG_IF(DEBUG_SCENE, D_PRINTFLN("[SCENE] play layers=%u loop=%s speed=%.1f",
                                        (unsigned)lCount, loop ? "true" : "false", (double)speed));
 
         // Arm layer gating and fire the layers that start immediately (async included).
@@ -427,7 +427,7 @@ namespace Lightnet {
         const SceneLayer& layer = layers[layerIdx];
         const SceneStep& step  = layer.steps[currentStep[layerIdx]];
 
-        DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] layer=%u step=%u/%u type=%s dur=%ums grp=%u\n",
+        DEBUG_IF(DEBUG_SCENE, D_PRINTFLN("[SCENE] layer=%u step=%u/%u type=%s dur=%ums grp=%u",
                                        (unsigned)layerIdx,
                                        (unsigned)currentStep[layerIdx] + 1,
                                        (unsigned)layer.stepCount,
@@ -1365,7 +1365,7 @@ namespace Lightnet {
 
         for (uint8_t a = 1; a <= LIGHTNET_MAX_PANELS; a++) {
             if (cover[a] > MAX_ANIM_SLOTS) {
-                DEBUG_IF(DEBUG_SCENE, D_PRINTF("[SCENE] panel %u covered by %u layers (>%u slots) — extra layers dropped\n",
+                DEBUG_IF(DEBUG_SCENE, D_PRINTFLN("[SCENE] panel %u covered by %u layers (>%u slots) — extra layers dropped",
                                                (unsigned)a, (unsigned)cover[a], (unsigned)MAX_ANIM_SLOTS));
             }
         }

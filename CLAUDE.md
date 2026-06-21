@@ -79,7 +79,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_codec`, `test_scene_writer`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_config_codecs`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_codec`, `test_scene_writer`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -219,7 +219,8 @@ wired in `main.cpp` case 0.
 - **Source entry**: `src/main.cpp` selects the target via `LIGHTNET_TARGET_CONTROLLER`; `setup()`/`loop()` live in `src/controller/main.cpp` or `src/panel/main.cpp`.
 - **I²C protocol version**: v6 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
 - **`animScheduler->tick(millis())`** must be called in the main loop `case 1`.
-- **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.json`.
+- **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.db`.
+- **Single-record config stores** (`AppearanceStore`, `ConfigurationStore`, `AppStateStore`) persist as binary `Database` records via `SingleRecordStore<Codec>` (`Common/Database/SingleRecordStore.hpp`) — one fixed-slot record per `.db` file (`/config/appearance.db`, `/config/configuration.db`, `/config/app_state.db`), sharing the same format as palettes/scenes. Their `*Codec`/`*Record` live under each store's `Store/` subdir.
 
 - **`BOOTLOADER_ENTRY_TOKEN = 0xB0`** — both sides of `PACKET_ENTER_BOOTLOADER` must agree on this value. Do not send `CMD_SWITCH_APPLICATION + BOOTTYPE_BOOTLOADER` (bytes `0x01 0x00`) to the twiboot fork — it WDT-resets the panel.
 - **`busIsDisabled` in `LightnetPinger` is static (shared)** — set while any ping pulse is being driven so all pingers drop ISR samples during that window, preventing self-detection.
