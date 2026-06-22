@@ -39,7 +39,7 @@ namespace Lightnet {
         public:
             typedef void (*TaskFn)(const uint8_t *args, uint16_t len);
 
-            static const uint16_t CAPACITY = 1024; // ring bytes; records are fn-ptr + small args
+            static const uint16_t CAPACITY = 512; // ring bytes; records are fn-ptr + small args
             static const uint16_t MAX_ARGS = 64;   // per-task argument cap
 
             // Producer (AsyncTCP, or any task). Copies [fn][args] into the ring. Returns
@@ -51,7 +51,7 @@ namespace Lightnet {
                     return false;
                 }
 
-                uint8_t blob[sizeof(TaskFn) + MAX_ARGS];
+                uint8_t blob[sizeof(TaskFn) + argLen];
 
                 memcpy(blob, &fn, sizeof(TaskFn));
 

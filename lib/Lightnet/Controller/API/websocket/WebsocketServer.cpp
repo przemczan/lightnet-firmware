@@ -8,10 +8,13 @@
 static inline size_t largestFreeBlock()
 {
     #if defined(ARDUINO_ARCH_ESP8266)
+
         return ESP.getMaxFreeBlockSize();
     #elif defined(ARDUINO_ARCH_ESP32)
+
         return ESP.getMaxAllocHeap();
     #else
+
         return SIZE_MAX;
     #endif
 }
@@ -124,6 +127,8 @@ void WebsocketServer::sendToMirroringClients(const void *frame, size_t len)
     for (uint8_t i = 0; i < count; i++) {
         this->socket->binary(targets[i], buffer);
     }
+
+    D_PRINTFLN("[MIRROR] sent to %d clients", count);
 }
 
 void WebsocketServer::sendFrameToClient(uint32_t clientId, const void *frame, size_t len)

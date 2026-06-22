@@ -25,7 +25,7 @@
 namespace Lightnet {
     namespace Http {
         constexpr size_t MAX_BODY_SMALL = 512;
-        constexpr size_t MAX_BODY_LARGE = 1024 * 6;
+        constexpr size_t MAX_BODY_LARGE = 1024 * 5;
 
         // ============================================================================
         // Body buffering (chunked request body → single null-terminated buffer)
@@ -54,12 +54,12 @@ namespace Lightnet {
 
                 if (blen > LOG_TRUNCATE)
                     D_PRINTFLN("[HTTP] %s %s -> %d (%ums) %.*s...",
-                             req->methodToString(), req->url().c_str(), status,
-                             (unsigned)ms, (int)LOG_TRUNCATE, body);
+                               req->methodToString(), req->url().c_str(), status,
+                               (unsigned)ms, (int)LOG_TRUNCATE, body);
                 else
                     D_PRINTFLN("[HTTP] %s %s -> %d (%ums) %s",
-                             req->methodToString(), req->url().c_str(), status,
-                             (unsigned)ms, body ? body : "");
+                               req->methodToString(), req->url().c_str(), status,
+                               (unsigned)ms, body ? body : "");
             }
 
             inline void logBody(AsyncWebServerRequest *req, const uint8_t *body, size_t len)
@@ -67,8 +67,8 @@ namespace Lightnet {
                 size_t show = (len < LOG_TRUNCATE) ? len : LOG_TRUNCATE;
 
                 D_PRINTFLN("[HTTP] %s %s <- %.*s%s",
-                         req->methodToString(), req->url().c_str(), (int)show, (const char *)body,
-                         len > LOG_TRUNCATE ? "..." : "");
+                           req->methodToString(), req->url().c_str(), (int)show, (const char *)body,
+                           len > LOG_TRUNCATE ? "..." : "");
             }
 
             struct BodyBuf : RequestContext {
@@ -143,7 +143,7 @@ namespace Lightnet {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
                 D_PRINTFLN("[HTTP] %s %s -> 200 (%ums) [stream]",
-                         req->methodToString(), req->url().c_str(), (unsigned)ms);
+                           req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
             req->send(res);
         }
@@ -166,7 +166,7 @@ namespace Lightnet {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
                 D_PRINTFLN("[HTTP] %s %s -> 200 (%ums) [chunked]",
-                         req->methodToString(), req->url().c_str(), (unsigned)ms);
+                           req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
         }
 
@@ -200,7 +200,7 @@ namespace Lightnet {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
                 D_PRINTFLN("[HTTP] %s %s -> 204 (%ums)",
-                         req->methodToString(), req->url().c_str(), (unsigned)ms);
+                           req->methodToString(), req->url().c_str(), (unsigned)ms);
             });
             req->send(204);
         }
@@ -253,9 +253,9 @@ namespace Lightnet {
             DEBUG_IF(DEBUG_API, {
                 uint32_t ms = detail::elapsedMs(req);
                 D_PRINTFLN("[HTTP][FILL] %s %s wrote=%u/%u t=%ums heap=%u",
-                         req->methodToString(), req->url().c_str(),
-                         (unsigned)written, (unsigned)maxLen, (unsigned)ms,
-                         (unsigned)ESP.getFreeHeap());
+                           req->methodToString(), req->url().c_str(),
+                           (unsigned)written, (unsigned)maxLen, (unsigned)ms,
+                           (unsigned)ESP.getFreeHeap());
             });
         }
 
