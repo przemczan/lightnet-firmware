@@ -87,7 +87,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `AnimationRunner` | Base class for the streaming runner classes (`WaveRunner`/`RippleRunner`/`ChaseRunner`) — used by built-in demos only; scenes compile runners instead |
+| `CompiledSweep` | One-shot linear WAVE/RIPPLE/CHASE via compile-to-PULSE (boot self-test + verification demos) |
 
 **Scenes/** (device glue)
 
@@ -290,9 +290,8 @@ traffic that previously grew with panel count.
 `compile*` geometry feeds `compileRepeating()`, which **swaps `colorFrom`/`colorTo`** (lit↔dark) so
 the rise→hold→fall envelope reads departing→dark-hold→approaching with `FLAG_LOOP` — true dark gaps
 using only the existing PULSE/loop mechanism. WHEEL always uses this engine (`compileWheel` via
-`compileRepeatingAsym`). `SCENE_SCHEMA_VERSION` is 8.
-
-The streaming `WaveRunner`/`RippleRunner`/`ChaseRunner` classes remain for the built-in demos.
+`compileRepeatingAsym`). `SCENE_SCHEMA_VERSION` is 8. Boot self-test and verification demos use the same compile path via
+`CompiledSweep` (list-order coordinates).
 
 ### Controller runners — RAIN / SPARKLE particle spawners (v7)
 
@@ -319,7 +318,7 @@ natively tested in `test_runner_spawn`; the stateful real-time behaviour is veri
 |---|---|
 | N panels, all panel-local (BREATHE etc.) | **0 µs/frame** during animation |
 | 30 panels, REACTIVE, 120 BPM | **~140 µs per beat** (0 µs between beats) |
-| 3-wide WaveRunner (demo streaming path only) | **≤ 600 µs/frame** |
+| N panels, WAVE/RIPPLE/CHASE (compiled PULSE) | **0 µs/frame** during sweep (one PREPARE burst per pass) |
 | Setup: PREPARE × 30 panels + 2 General Calls | **~6.2 ms** one-time |
 
 ---
@@ -388,7 +387,6 @@ panelFlasher->run();
 
 websocketHandler->handleIncommingMessages();        // drain WS commands   → main loop
 mainLoopQueue->drain();                              // drain HTTP-deferred work → main loop (§8)
-if (appStateStore->isOn()) animScheduler->tick(millis());  // controller-computed runners
 if (appStateStore->isOn()) scenePlayer->tick(millis());    // multi-layer scene playback
 appearance->tick(millis()); configStore->tick(millis()); appStateStore->tick(millis());
 serviceMirror();                                    // ≤30 fps flush of the mirror ring
@@ -407,7 +405,7 @@ The controller firmware runs on **two concurrent tasks**:
 
 | Task | What runs on it | Examples |
 |---|---|---|
-| **Main loop** (Arduino `loop()`) | The `case 1` body: scene/animation ticks, mirror flush, queue draining | `scenePlayer->tick()`, `animScheduler->tick()`, `serviceMirror()` |
+| **Main loop** (Arduino `loop()`) | The `case 1` body: scene/animation ticks, mirror flush, queue draining | `scenePlayer->tick()`, `serviceMirror()` |
 | **AsyncTCP task** | All `AsyncWebServer` / `AsyncWebSocket` callbacks — HTTP route handlers and WS event/message callbacks | `SceneServer::handlePostPlayScene()`, `WebsocketServer::onMessage()` |
 
 On **ESP32** these are separate FreeRTOS tasks, usually on different cores, preemptively scheduled.
@@ -420,7 +418,7 @@ Every outbound I²C packet is captured by `PacketMirror::capture()` (registered 
 `LNBus.setOnPacketSent()`). `capture()` appends to a single shared ring buffer **with no locks** — it
 is written assuming exactly one caller. But `LNBus.sendPacket()` is reached from **both** tasks:
 
-- **Main loop** — `scenePlayer->tick()` / `animScheduler->tick()` emit per-frame `SET_COLOR` and
+- **Main loop** — `scenePlayer->tick()` emits step PREPARE/START packets and services spawners;
   step PREPARE/START packets.
 - **AsyncTCP** — a synchronous HTTP handler such as `/api/scenes/play/one-shot` calls `loadAndPlay()`, which
   emits a burst of ~300 PREPARE/START packets **inline on the AsyncTCP task**.
@@ -562,7 +560,6 @@ producer/consumer discipline to arbitrary function-pointer work for the HTTP lay
 // case 1, when no panel flash is in progress:
 websocketHandler->handleIncommingMessages();        // 1. drain WS commands      → main loop
 mainLoopQueue->drain();                              // 2. drain HTTP-deferred work → main loop
-if (appStateStore->isOn()) animScheduler->tick(millis());
 if (appStateStore->isOn()) scenePlayer->tick(millis());
 appearance->tick(millis()); configStore->tick(millis()); appStateStore->tick(millis());
 serviceMirror();                                    // 3. ≤30 fps flush of the mirror ring

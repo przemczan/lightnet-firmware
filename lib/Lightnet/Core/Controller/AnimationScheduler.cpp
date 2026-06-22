@@ -1,21 +1,17 @@
 #include "AnimationScheduler.hpp"
-#include "AnimationRunner.hpp"
 #include "../Common/ProtocolMeta.hpp"
 #include <string.h>
 
 namespace Lightnet {
     AnimationScheduler::AnimationScheduler(IPacketSink& _sink, uint8_t _maxPanels)
-        : sink(_sink), maxPanels(_maxPanels), lastFrameMs(0), nextSeqId(1)
+        : sink(_sink), maxPanels(_maxPanels), nextSeqId(1)
     {
-        activeRunners = new List<AnimationRunner *>();
-        activeRunners->reserve(MAX_ACTIVE_RUNNERS);
         panelStates = new AnimationRecord[maxPanels];
         memset(panelStates, 0, sizeof(AnimationRecord) * maxPanels);
     }
 
     AnimationScheduler::~AnimationScheduler()
     {
-        delete activeRunners;
         delete[] panelStates;
     }
 
@@ -65,8 +61,7 @@ namespace Lightnet {
             panelStates[panelAddress].animType     = animType;
             panelStates[panelAddress].groupId      = group_id;
             panelStates[panelAddress].durationMs   = durationMs;
-            panelStates[panelAddress].startMs      = 0; // diagnostic only; no device clock here
-            panelStates[panelAddress].isController  = false;
+            panelStates[panelAddress].startMs    = 0; // diagnostic only; no device clock here
         }
     }
 
@@ -142,18 +137,6 @@ namespace Lightnet {
         pkt.cmd      = Lightnet::ANIM_CTRL_STOP;
         pkt.group_id = 0; // all slots
         sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
-
-        // Mark runners cancelled rather than deleting them here.  This method may be
-        // called from the HTTP task while tick() is iterating activeRunners on the main
-        // loop task — deleting runners under tick() causes a use-after-free (PC=0x0).
-        // tick() checks isCancelled() and performs the actual deletion safely.
-        uint16_t i = activeRunners->getSize();
-
-        while (i--) {
-            AnimationRunner *runner = activeRunners->get(i);
-
-            if (runner) runner->cancel();
-        }
     }
 
     void AnimationScheduler::clearAllPanelQueues()
@@ -189,54 +172,6 @@ namespace Lightnet {
         }
 
         return &panelStates[panelAddress];
-    }
-
-    void AnimationScheduler::tick(uint32_t nowMs)
-    {
-        // Frame gate: 60fps = 16.67ms
-        const uint32_t FRAME_MS = 17;
-
-        if ((uint32_t)(nowMs - lastFrameMs) < FRAME_MS) {
-            return;
-        }
-
-        lastFrameMs = nowMs;
-
-        // Tick all runners, then remove finished ones. Iterate in reverse so
-        // removeByIndex doesn't shift unvisited entries.
-        uint16_t i = activeRunners->getSize();
-
-        while (i--) {
-            AnimationRunner *runner = activeRunners->get(i);
-
-            if (!runner) continue;
-
-            if (!runner->isCancelled()) runner->tick(nowMs);
-
-            if (runner->isFinished() || runner->isCancelled()) {
-                activeRunners->removeByIndex(i);
-                delete runner;
-            }
-        }
-    }
-
-    void AnimationScheduler::addRunner(AnimationRunner *runner)
-    {
-        if (runner) {
-            runner->setSink(&sink);
-            activeRunners->push(runner);
-        }
-    }
-
-    void AnimationScheduler::removeRunner(AnimationRunner *runner)
-    {
-        for (uint16_t i = 0; i < activeRunners->getSize(); i++) {
-            if (activeRunners->get(i) == runner) {
-                activeRunners->removeByIndex(i);
-
-                return;
-            }
-        }
     }
 
     void AnimationScheduler::sendGeneralCallStart(uint8_t group_id)

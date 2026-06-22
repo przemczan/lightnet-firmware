@@ -21,7 +21,7 @@
     #endif
     #include "Protocol.hpp"
     #include "../../lib/Lightnet/Core/Controller/AnimationScheduler.hpp"
-    #include "../../lib/Lightnet/Core/Controller/AnimationRunner.hpp"
+    #include "../../lib/Lightnet/Core/Controller/CompiledSweep.hpp"
     #include "Animations/ControllerPacketSink.hpp"
     #include "Palettes/PaletteRepository.hpp"
     #include "Appearance/AppearanceService.hpp"

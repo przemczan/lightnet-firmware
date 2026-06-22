@@ -218,7 +218,7 @@ wired in `main.cpp` case 0.
 
 - **Source entry**: `src/main.cpp` selects the target via `LIGHTNET_TARGET_CONTROLLER`; `setup()`/`loop()` live in `src/controller/main.cpp` or `src/panel/main.cpp`.
 - **I²C protocol version**: v6 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
-- **`animScheduler->tick(millis())`** must be called in the main loop `case 1`.
+- **`scenePlayer->tick(millis())`** must be called in the main loop `case 1` when power is on.
 - **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.db`.
 - **Single-record config stores** (`AppearanceStore`, `ConfigurationStore`, `AppStateStore`) persist as binary `Database` records via `SingleRecordStore<Codec>` (`Common/Database/SingleRecordStore.hpp`) — one fixed-slot record per `.db` file (`/config/appearance.db`, `/config/configuration.db`, `/config/app_state.db`), sharing the same format as palettes/scenes. Their `*Codec`/`*Record` live under each store's `Store/` subdir.
 

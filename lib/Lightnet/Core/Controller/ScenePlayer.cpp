@@ -1,5 +1,4 @@
 #include "ScenePlayer.hpp"
-#include "AnimationRunner.hpp"
 #include "RunnerCompile.hpp"
 #include "RunnerSpawn.hpp"
 #include "PanelField.hpp"

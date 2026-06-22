@@ -180,7 +180,6 @@
                     nextBeat = now + 600;      // ~100 BPM
                 }
 
-                scheduler.tick(now);
                 scenePlayer.tick(now);
                 serviceMirror();
                 delay(16);

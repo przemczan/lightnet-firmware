@@ -40,7 +40,7 @@ target_include_directories(panel_core PUBLIC
 # controller_core — the whole controller-side scene engine as a second static library.
 #
 # Where panel_core runs one panel's player, controller_core runs SceneParser -> ScenePlayer ->
-# AnimationScheduler -> runners with no hardware, emitting the same wire packets the controller
+# AnimationScheduler with no hardware, emitting the same wire packets the controller
 # would. The mobile app links BOTH: controller_core produces a scene's packets, panel_core renders
 # them per panel. The engine lives in Core/Controller (a library the AVR panel never pulls).
 set(LIGHTNET_SCENE_DIR "${LIGHTNET_CORE_DIR}/Controller" CACHE PATH "Path to lib/Lightnet/Core/Controller")
@@ -53,7 +53,7 @@ endif()
 add_library(controller_core STATIC
     controller_core_c.cpp
     "${LIGHTNET_SCENE_DIR}/AnimationScheduler.cpp"
-    "${LIGHTNET_SCENE_DIR}/AnimationRunner.cpp"
+    "${LIGHTNET_SCENE_DIR}/CompiledSweep.cpp"
     "${LIGHTNET_SCENE_DIR}/ScenePlayer.cpp"
     "${LIGHTNET_SCENE_DIR}/SceneParser.cpp"
     "${LIGHTNET_CORE_DIR}/Common/ProtocolMeta.cpp"

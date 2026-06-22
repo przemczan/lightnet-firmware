@@ -85,10 +85,8 @@
             turnOffAll();
         }
 
-        // TESTS: static→member lastBrightness fix in controller runners.
-        // 3 WaveRunners then 3 RippleRunners — each a separate instance. Before fix,
-        // lastBrightness[] was static and shared, so the second runner inherited stale
-        // values and suppressed its opening I²C frames. Each pass must start cleanly.
+        // TESTS: compiled WAVE/RIPPLE sweeps (list-order coords). Each pass must start
+        // cleanly from black — compiled pulses use FLAG_REAP_ON_DONE and fresh group ids.
         void DemoRunner::demoWaveRippleSequence()
         {
             DEBUG_IF(DEBUG_DEMO, D_PRINTLN("[DEMO] Wave + Ripple sequence"));
@@ -107,15 +105,9 @@
             }
 
             for (uint8_t p = 0; p < 3; p++) {
-                WaveRunner wave(30 + p, addrs, n, 1400, 2, warm);
-
-                while (!wave.isFinished()) {
-                    wave.tick(millis());
-                    serviceMirror();
-                    delay(8);
-                }
-
-                wait(150);
+                emitLinearSweep(scheduler, (uint8_t)(30 + p), addrs, n,
+                                1400, 2, 0, warm, LinearSweepKind::Wave);
+                wait(1450);
             }
 
             c.rgb = cool;
@@ -123,15 +115,9 @@
             for (uint8_t i = 0; i < n; i++) panels.setColor(addrs[i], demoColor(demoDim(c.rgb, 0)));
 
             for (uint8_t p = 0; p < 3; p++) {
-                RippleRunner ripple(33 + p, addrs, n, p % n, 1400, 2, cool);
-
-                while (!ripple.isFinished()) {
-                    ripple.tick(millis());
-                    serviceMirror();
-                    delay(8);
-                }
-
-                wait(150);
+                emitLinearSweep(scheduler, (uint8_t)(33 + p), addrs, n,
+                                1400, 2, (uint8_t)(p % n), cool, LinearSweepKind::Ripple);
+                wait(1450);
             }
 
             turnOffAll();
@@ -204,15 +190,9 @@
             }
 
             for (uint8_t p = 0; p < 3; p++) {
-                WaveRunner wave(60 + p, addrs, n, 1200, 2, warm);
-
-                while (!wave.isFinished()) {
-                    wave.tick(millis());
-                    serviceMirror();
-                    delay(8);
-                }
-
-                wait(120);
+                emitLinearSweep(scheduler, (uint8_t)(60 + p), addrs, n,
+                                1200, 2, 0, warm, LinearSweepKind::Wave);
+                wait(1250);
             }
 
             c.rgb = cyan;
@@ -220,13 +200,9 @@
             for (uint8_t i = 0; i < n; i++) panels.setColor(addrs[i], demoColor(demoDim(c.rgb, 0)));
 
             for (uint8_t p = 0; p < 4; p++) {
-                ChaseRunner chase(63 + p, addrs, n, 1000, cyan);
-
-                while (!chase.isFinished()) {
-                    chase.tick(millis());
-                    serviceMirror();
-                    delay(8);
-                }
+                emitLinearSweep(scheduler, (uint8_t)(63 + p), addrs, n,
+                                1000, 2, 0, cyan, LinearSweepKind::Chase);
+                wait(1050);
             }
 
             turnOffAll();

@@ -2,7 +2,7 @@
 
 // IPacketSink — the outbound-packet seam for the shared scene engine.
 //
-// AnimationScheduler / AnimationRunner build fully-stamped wire packets and hand them
+// AnimationScheduler builds fully-stamped wire packets and hands them
 // to a sink instead of touching the I2C bus directly. The controller impl wraps LNBus
 // (ack-retry + inter-packet pacing); the mobile/preview impl forwards the raw bytes to
 // the per-panel players (ack/pacing are no-ops). This is what lets the scene engine run

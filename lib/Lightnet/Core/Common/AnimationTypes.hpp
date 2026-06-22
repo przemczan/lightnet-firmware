@@ -21,8 +21,8 @@ namespace Lightnet {
         ANIM_GAP         = 9,// controller-only: timed no-op delay. Never sent to a panel —
                              // ScenePlayer holds the layer's panels for the step duration.
 
-        // Controller-side runner animations (64+). Dispatched by ScenePlayer/AnimationServer
-        // to AnimationScheduler::addRunner(), or compiled to per-panel PREPARE. Not a panel type.
+        // Controller-side runner animations (64+). Compiled to per-panel PREPARE by
+        // ScenePlayer (or CompiledSweep for boot demos). Not a panel wire type.
         RUN_WAVE         = 64,
         RUN_RIPPLE       = 65,
         RUN_CHASE        = 66,

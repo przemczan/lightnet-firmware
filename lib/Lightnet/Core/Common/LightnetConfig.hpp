@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 namespace Lightnet {
-    // System-wide panel count cap. Referenced by AnimationRunner subtypes, AnimationScheduler,
+    // System-wide panel count cap. Referenced by AnimationScheduler,
     // and ScenePlayer panel targeting.
     //
     // ESP8266 has ~80 KB DRAM shared between the WiFi stack, heap, and BSS. Fixed-size arrays

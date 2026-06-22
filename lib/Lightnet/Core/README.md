@@ -24,7 +24,7 @@ The single source of truth for animation logic, shared by:
 |---|---|
 | `Common/` | Shared protocol/animation types used by both `Panel/` and `Controller/`: `ProtocolMeta`, `ProtocolTypes`, `LightnetConfig`, `Palette`, `ColorRef`, `AnimationTypes`, `UserColors`, `SpscByteQueue`. |
 | `Panel/` | `AnimationPlayer` (panel-side layer compositor) + `ColorCompose`. Used by the AVR panel, `SimPanel`, and the `panel_core` C ABI. |
-| `Controller/` | The controller-side scene engine: `ScenePlayer`, `AnimationScheduler`, `AnimationRunner`, `SceneParser`, topology/selector/field primitives (`TopologyIndex`, `PanelSelector`, `PanelField`, `PanelGeometry`). Decoupled from hardware via `IPacketSink` / `IPaletteResolver` / `ITopologyProvider`. The AVR panel never pulls this in. |
+| `Controller/` | The controller-side scene engine: `ScenePlayer`, `AnimationScheduler`, `CompiledSweep`, `SceneParser`, topology/selector/field primitives (`TopologyIndex`, `PanelSelector`, `PanelField`, `PanelGeometry`). Decoupled from hardware via `IPacketSink` / `IPaletteResolver` / `ITopologyProvider`. The AVR panel never pulls this in. |
 | `CApi/` | C ABIs (`panel_core_c.h/.cpp`, `controller_core_c.h/.cpp`) + CMake build exposing `Panel/` and `Controller/` to non-PlatformIO consumers (mobile NDK/cinterop, host smoke tests). Excluded from firmware builds via `library.json` `srcFilter`. |
 
 `Core/library.json` builds `Common/` + `Panel/` + `Controller/` as one PlatformIO library

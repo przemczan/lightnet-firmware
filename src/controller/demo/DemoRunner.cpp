@@ -164,9 +164,6 @@
             uint32_t deadline = millis() + ms;
 
             while ((int32_t)(millis() - deadline) < 0) {
-                // Both ticks, mirroring the main loop: scenePlayer advances steps, scheduler
-                // drives the controller-side runners (WAVE/RIPPLE/CHASE) that scene layers add.
-                scheduler.tick(millis());
                 scenePlayer.tick(millis());
                 serviceMirror();
                 delay(16);

@@ -7,7 +7,7 @@
         #include "../../../lib/Lightnet/Utils/EntryId.hpp"
         #include "../../../lib/Lightnet/Core/Controller/ScenePlayer.hpp"
         #include "../../../lib/Lightnet/Core/Controller/AnimationScheduler.hpp"
-        #include "../../../lib/Lightnet/Core/Controller/AnimationRunner.hpp"
+        #include "../../../lib/Lightnet/Core/Controller/CompiledSweep.hpp"
         #include "../../../lib/Lightnet/Controller/Panels/PanelsController.hpp"
         #include "../../../lib/Lightnet/Controller/Panels/PanelsInitializer.hpp"
         #include "../MirrorService.hpp"   // serviceMirror() — keeps live preview streaming during demos
