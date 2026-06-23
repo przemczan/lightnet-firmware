@@ -473,11 +473,12 @@ the replay target is the internal one-shot scene id rather than a catalogued sce
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedSceneId":"abcd1234","lastPlayedSceneIsStored":true,"playing":true,"speed":1.0}` |
+| `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedSceneId":"abcd1234","lastPlayedSceneIsStored":true,"playing":true,"speed":1.0,"controllerFirmware":"1.2.3"}` |
 | `POST` | `/api/state/power` | `{"isOn":bool}` | `202 {"isOn":bool}` (panel effects applied on the main loop) |
 
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.
 - Setting `isOn: true` turns all panels back on and re-broadcasts the current appearance (brightness, palette, base colors).
+- `controllerFirmware` is the controller build version string (`FW_VERSION`); read-only, useful for the mobile app to show the running firmware.
 
 ---
 

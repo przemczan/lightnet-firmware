@@ -40,13 +40,13 @@ cp src/panel.config.hpp.example       src/panel.config.hpp
 
 ```bash
 # Build controller (Wemos D1 Mini / ESP8266)
-pio run -e controller_wemos
+pio run -e controller_wemos_d1_mini_pro
 
 # Build + upload via USB
-pio run -e controller_wemos -t upload
+pio run -e controller_wemos_d1_mini_pro -t upload
 
 # Build + upload over WiFi (OTA)
-pio run -e controller_wemos -t upload --upload-port lightnet-XXXX.local
+pio run -e controller_wemos_d1_mini_pro -t upload --upload-port lightnet-XXXX.local
 
 # Build panel firmware (ATmega328PB)
 pio run -e panel_atmega328pb
@@ -55,7 +55,7 @@ pio run -e panel_atmega328pb
 pio run -e panel_atmega328pb -t upload
 
 # Serial monitor (57600 baud)
-pio device monitor -e controller_wemos
+pio device monitor -e controller_wemos_d1_mini_pro
 
 # Run native host-side unit tests (no device needed)
 pio test -e native

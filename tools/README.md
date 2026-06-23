@@ -58,7 +58,7 @@ then flashes each panel over I²C using twiboot.
 
 **Requires:** `pip install pyserial`
 
-Used automatically by the `panel_atmega328p_via_controller` PlatformIO environment
+Used automatically by the `panel_atmega328_via_controller` PlatformIO environment
 (see `upload_command` in `platformio.ini`). Can also be run manually:
 
 ```

@@ -682,7 +682,8 @@
                   "lastPlayedSceneId": "abcd1234",
                   "lastPlayedSceneIsStored": true,
                   "playing": true,
-                  "speed": 1.0
+                  "speed": 1.0,
+                  "controllerFirmware": "1.2.3"
                 }
               }
             }

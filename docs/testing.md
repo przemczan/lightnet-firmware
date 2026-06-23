@@ -39,7 +39,9 @@ pio test -e native -vvv                  # verbose (compiler output)
 | Suite | File | What it tests |
 |---|---|---|
 | `test_simplejson` | [`test/test_simplejson/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_simplejson/test_main.cpp) | `jsonFindKey`, cursor-based iterators (`jsonEnterObject` / `jsonNextKey` / `jsonSkipValue` / `jsonReadFloat`), `SimpleJson` accessor class, hex colour parsing |
-| `test_http_url` | [`test/test_http_url/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_http_url/test_main.cpp) | `Http::isSafeName` (path-traversal, special chars, length cap), `Http::nameFromUrl` (prefix match, overflow, null inputs) |
+| `test_http_url` | [`test/test_http_url/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_http_url/test_main.cpp) | `Http::isSafeName` / `Http::isSafeId` (path-traversal, special chars, length cap), `Http::nameFromUrl` / `Http::idFromUrl` (prefix match, overflow, null inputs) |
+| `test_entry_id` | [`test/test_entry_id/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_entry_id/test_main.cpp) | Scene/palette id generation — deterministic ids, validation, random id helper |
+| `test_json_inject` | [`test/test_json_inject/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_json_inject/test_main.cpp) | `jsonUpsertId` — inject/replace top-level `"id"` in scene JSON blobs |
 | `test_palette_parser` | [`test/test_palette_parser/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_palette_parser/test_main.cpp) | `parsePaletteJson` — happy paths (with/without name, pretty-printed JSON, reverse key order), every documented failure mode, `PALETTE_STOPS` cap |
 | `test_palette_codec` | [`test/test_palette_codec/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_palette_codec/test_main.cpp) | `PaletteCodec` — `PaletteRecord` round-trip serialize/deserialize, empty-name and invalid-stops rejection |
 | `test_database` | [`test/test_database/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_database/test_main.cpp) | `Database<Codec>` + `DatabaseFormat` — create/open, insert/replace/remove, tombstone reuse, version mismatch, truncated file rejection (in-memory `IRandomAccessStorage`) |
@@ -58,9 +60,12 @@ pio test -e native -vvv                  # verbose (compiler output)
 | `test_spsc_queue` | [`test/test_spsc_queue/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_spsc_queue/test_main.cpp) | Lock-free `Core/Common/SpscByteQueue` — FIFO order, full/empty edges, wrap-boundary straddle integrity, panel-sized (70 B) max record, 200k-iteration fuzz vs. a reference model |
 | `test_main_loop_queue` | [`test/test_main_loop_queue/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_main_loop_queue/test_main.cpp) | `Utils/MainLoopQueue` — FIFO post/drain, POD arg round-trip, zero-length args, null-fn and oversized-args rejection, full-queue recovery |
 | `test_scene_player` | [`test/test_scene_player/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_player/test_main.cpp) | `ScenePlayer` end-to-end via a mock `IPacketSink` — SOLID scene emits PREPARE+START, `stop()` emits control packet and clears playing state |
+| `test_scene_codec` | [`test/test_scene_codec/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_codec/test_main.cpp) | `SceneCodec` — `SceneRecord` round-trip serialize/deserialize, name validation, record-id matching |
+| `test_scene_writer` | [`test/test_scene_writer/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_writer/test_main.cpp) | Scene JSON parse → serialize → parse round-trip |
+| `test_scene_duration` | [`test/test_scene_duration/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_duration/test_main.cpp) | Scene duration calculation — single-layer sum, multi-layer max, zero-duration steps |
 | `test_scene_capi` | [`test/test_scene_capi/test_main.cpp`](https://github.com/przemczan/lightnet-firmware/blob/master/test/test_scene_capi/test_main.cpp) | Scene C ABI (`Core/CApi/controller_core_c.h`) — load+play emits packets, bad-JSON rejection, stop emits control, mirror-batch drain |
 
-255 tests total, ~11 s wall time.
+287 tests total, ~41 s wall time.
 
 ---
 

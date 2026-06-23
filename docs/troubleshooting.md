@@ -19,7 +19,7 @@ Serial debug macros, common user-facing symptoms, and how to inspect panel state
 Serial baud rate is **57600** on every environment.
 
 ```bash
-pio device monitor -e controller_wemos
+pio device monitor -e controller_wemos_d1_mini_pro
 ```
 
 ### Per-frame panel LED log

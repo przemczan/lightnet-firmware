@@ -9,9 +9,11 @@ This page is the PlatformIO reference: every environment, the fuses, and the day
 ## Repository
 
 ```bash
-git clone https://github.com/przemczan/lightnet-firmware.git
+git clone --recurse-submodules https://github.com/przemczan/lightnet-firmware.git
 cd lightnet-firmware
 ```
+
+The twiboot bootloader lives in a submodule. If you already cloned without `--recurse-submodules`, run `git submodule update --init --recursive`.
 
 The same source tree builds both controller and panel binaries — the active PlatformIO environment selects which one.
 
@@ -24,9 +26,10 @@ Before building, copy the example config files and edit them to match your hardw
 ```bash
 cp src/controller.config.hpp.example src/controller.config.hpp
 cp src/panel.config.hpp.example       src/panel.config.hpp
+cp platformio_local.ini.example       platformio_local.ini   # optional: USB/monitor ports
 ```
 
-Both files ship with sane defaults, so no changes are required to do a first build. The `*.config.hpp` files are gitignored — keep per-device settings there without touching the tracked `*.example` files.
+Both `*.config.hpp` files ship with sane defaults, so no changes are required to do a first build. The `*.config.hpp` files and `platformio_local.ini` are gitignored — keep per-device and per-machine settings there without touching the tracked `*.example` files.
 
 === "controller.config.hpp"
 
@@ -77,16 +80,26 @@ All environments are defined in `platformio.ini`.
     | Environment | Board | Notes |
     |---|---|---|
     | `controller_esp8266` | ESP-12E (ESP8266) | USB upload at 230400 baud |
-    | `controller_wemos` | Wemos D1 Mini Pro (ESP8266) | USB upload at 460800 baud |
+    | `controller_wemos_d1_mini_pro` | Wemos D1 Mini Pro (ESP8266) | USB upload at 460800 baud |
     | `controller_esp32` | ESP32 DevKit | USB upload at 460800 baud |
+    | `controller_s2_mini` | Lolin S2 Mini (ESP32-S2) | USB upload at 460800 baud |
+    | `controller_wemos_sim` | Wemos D1 Mini (sim) | Host-side sim — no hardware; mirrors I²C over serial |
+    | `controller_esp32_sim` | ESP32 DevKit (sim) | Same as `_sim` above |
+    | `controller_s2_mini_sim` | Lolin S2 Mini (sim) | Same as `_sim` above |
 
-    All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager.
+    All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE` and drive a virtual panel bus for development and live-preview testing without panels attached.
+
+=== "Native tests"
+
+    | Environment | Purpose |
+    |---|---|
+    | `native` | Host-side unit tests — pure C++ logic, no Arduino (`pio test -e native`) |
 
 === "Panel"
 
     | Environment | Board | Uploader | Bootloader | Notes |
     |---|---|---|---|---|
-    | `panel_atmega328p_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
+    | `panel_atmega328_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
     | `panel_atmega328pb` | ATmega328PB | USBasp | twiboot at `0x7000` | `-D` flag preserves bootloader on erase |
     | `panel_atmega328p` | ATmega328P | USBasp | twiboot at `0x7000` | Same binary as 328PB |
 
@@ -129,13 +142,13 @@ After this, future panel updates are wireless via the controller. See [OTA & Upd
 pio run -e controller_esp32
 
 # Build + upload over USB
-pio run -e controller_wemos -t upload
+pio run -e controller_wemos_d1_mini_pro -t upload
 
 # Upload over Wi-Fi (controller OTA via ArduinoOTA + mDNS)
-pio run -e controller_wemos -t upload --upload-port lightnet-XXXX.local
+pio run -e controller_wemos_d1_mini_pro -t upload --upload-port lightnet-XXXX.local
 
 # Serial monitor — 57600 baud everywhere
-pio device monitor -e controller_wemos
+pio device monitor -e controller_wemos_d1_mini_pro
 
 # Build everything
 pio run

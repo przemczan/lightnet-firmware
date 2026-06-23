@@ -90,7 +90,7 @@ Stored in `/data/scenes.db` via `SceneStore`. See [`docs/api.md`](../api.md#23-s
 | `POST` | `/api/scenes/stop` | — |
 | `POST` | `/api/scenes/speed` | `{"speed":<float>}` — change playback speed [0.1, 10.0] while playing |
 
-Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (see [`docs/api.md`](../api.md#29-state)).
+Playback status (`playing`, `speed`) and `lastPlayedSceneIsStored` are reported via `GET /api/state` (see [`docs/api.md`](../api.md#28-state)).
 
 ### One-shot / triggers
 

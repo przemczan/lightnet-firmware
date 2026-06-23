@@ -59,14 +59,14 @@ Build the mobile app from that repo: `.\gradlew.bat :composeApp:assembleDebug`. 
 ## Build quick-reference
 
 ```bash
-pio run -e controller_wemos              # build controller (Wemos D1 Mini)
-pio run -e controller_wemos -t upload    # build + upload via USB
+pio run -e controller_wemos_d1_mini_pro              # build controller (Wemos D1 Mini)
+pio run -e controller_wemos_d1_mini_pro -t upload    # build + upload via USB
 pio run -e panel_atmega328pb -t upload    # build + upload panel via USBasp
-pio run -e controller_wemos -t upload --upload-port lightnet-XXXX.local  # OTA
-pio device monitor -e controller_wemos   # serial monitor (57600 baud)
+pio run -e controller_wemos_d1_mini_pro -t upload --upload-port lightnet-XXXX.local  # OTA
+pio device monitor -e controller_wemos_d1_mini_pro   # serial monitor (57600 baud)
 ```
 
-Environments: `controller_esp8266` / `controller_wemos` / `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller; `panel_atmega328p_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels; `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time twiboot burn. See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
+Environments: `controller_esp8266` / `controller_wemos_d1_mini_pro` / `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller; `panel_atmega328_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels; `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time twiboot burn. Per-machine `upload_port` / `monitor_port` overrides go in gitignored `platformio_local.ini` (copy from `platformio_local.ini.example`). See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
 
 ## Tests
 
@@ -79,7 +79,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_config_codecs`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_codec`, `test_scene_writer`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_entry_id`, `test_json_inject`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_config_codecs`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_codec`, `test_scene_writer`, `test_scene_duration`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 

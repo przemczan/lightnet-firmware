@@ -1,0 +1,7 @@
+; Copy to platformio_local.ini (gitignored). PlatformIO merges via extra_configs.
+;
+; [env:controller_esp8266]
+; upload_port = /dev/cu.wchusbserial1442420
+;
+; [env:panel_atmega328p]
+; monitor_port = COM14
