@@ -68,6 +68,8 @@ pio device monitor -e controller_wemos_d1_mini_pro   # serial monitor (57600 bau
 
 Environments: `controller_esp8266` / `controller_wemos_d1_mini_pro` / `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller; `panel_atmega328_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels; `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time twiboot burn. Per-machine `upload_port` / `monitor_port` overrides go in gitignored `platformio_local.ini` (copy from `platformio_local.ini.example`). See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
 
+**MQTT (Home Assistant):** ESP32 controller targets only (`LIGHTNET_MQTT=1` in `platformio.ini`). Not built for ESP8266. Config via captive portal or `GET/PATCH /api/mqtt`; optional async broker discovery (`_mqtt._tcp` → HA host fallback). See [`docs/api.md`](docs/api.md) §2.9.
+
 ## Tests
 
 Native host-side unit tests cover the pure C++ utilities (no Arduino, no hardware). Run via PlatformIO:

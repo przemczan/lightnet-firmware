@@ -1,6 +1,7 @@
 #include "StateServer.hpp"
 #include "HttpHelpers.hpp"
 #include "../../../Utils/SimpleJson.hpp"
+#include "../../Actions/ControllerActions.hpp"
 #include "../../Panels/PanelsInitializer.hpp"
 #include "../../Panels/Panel.hpp"
 #include "../websocket/PacketMirror.hpp"
@@ -14,7 +15,7 @@ namespace Lightnet {
         PanelsController&   _panelsController,
         ScenesService&      _animService,
         AnimationScheduler& _animScheduler,
-        AppearanceService&    _appearance,
+        AppearanceService&  _appearance,
         MainLoopQueue&      _queue,
         PacketMirror *      _packetMirror
     )
@@ -100,7 +101,16 @@ namespace Lightnet {
             memcpy(&x, a, sizeof(x));
 
             if (x.self->appState.setIsOn(x.on)) {
-                x.self->applyPowerEffects(x.on);
+                ControllerPowerContext ctx{
+                    x.self->appState,
+                    x.self->panelsController,
+                    x.self->animService,
+                    x.self->animScheduler,
+                    x.self->appearance,
+                    LNPanelsInitializer,
+                    x.self->packetMirror
+                };
+                ControllerActions::applyPowerEffects(ctx, x.on);
             }
         }, &args, sizeof(args));
 
@@ -114,31 +124,5 @@ namespace Lightnet {
 
         snprintf(buf, sizeof(buf), "{\"isOn\":%s}", newValue ? "true" : "false");
         Http::sendAcceptedJson(req, buf);
-    }
-
-    void StateServer::applyPowerEffects(bool newValue)
-    {
-        List<Panel *> *panels = LNPanelsInitializer.getPanels();
-
-        if (!newValue) {
-            // Clear the mirror snapshot first so stale animation state is not replayed
-            // to clients that connect while the controller is off. TURN_ON_OFF(off)
-            // packets sent below will re-populate the snapshot with the off state.
-            if (packetMirror) packetMirror->clearSnapshot();
-
-            animService.stopScene();
-            animScheduler.clearAllPanelQueues();
-
-            for (uint16_t i = 0; i < panels->getSize(); i++) {
-                panelsController.turnOff(panels->get(i)->index);
-            }
-        } else {
-            for (uint16_t i = 0; i < panels->getSize(); i++) {
-                panelsController.turnOn(panels->get(i)->index);
-            }
-
-            appearance.reapply();
-            animService.resumeScene(millis());
-        }
     }
 }  // namespace Lightnet

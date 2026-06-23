@@ -20,7 +20,7 @@ namespace Lightnet {
                 PanelsController&   panelsController,
                 ScenesService&      animService,
                 AnimationScheduler& animScheduler,
-                AppearanceService&    appearance,
+                AppearanceService&  appearance,
                 MainLoopQueue&      queue,
                 PacketMirror *      packetMirror = nullptr
             );
@@ -41,9 +41,5 @@ namespace Lightnet {
 
             void handleGetState(AsyncWebServerRequest *req);
             void handlePostPower(AsyncWebServerRequest *req, const uint8_t *body, size_t len);
-
-            // Emits the on/off side effects (panel packets, scene stop/resume). Runs on
-            // the main loop; the caller has already flipped appState via setIsOn().
-            void applyPowerEffects(bool on);
     };
 }  // namespace Lightnet

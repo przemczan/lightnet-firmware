@@ -131,6 +131,7 @@ All firmware code lives under `lib/Lightnet/`.
 | `AnimationServer` | `POST /api/animations/play`, `POST /api/animations/trigger` | One-shot play + reactive trigger |
 | `PanelServer` | `GET /api/panels`, `GET /api/panels/edges`, `PUT /api/panels/*` | Per-panel on/color control |
 | `StateServer` | `GET /api/state`, `POST /api/state/power` | Runtime power state, scene playback status, `controllerFirmware` version string |
+| `MqttServer` | `GET /api/mqtt`, `PATCH /api/mqtt` | MQTT broker config + runtime discovery status (ESP32 only; see [`docs/api.md`](api.md) §2.9) |
 | `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Boot behaviour, logical root (`ConfigurationStore` + `TopologyConfigStore`) |
 
 !!! note "Mutating endpoints defer to the main loop (§8)"

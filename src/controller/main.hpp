@@ -46,6 +46,12 @@
     #include "OTA/SerialFirmwareReceiver.hpp"
     #include <ArduinoOTA.h>
     #include "../../lib/Lightnet/Utils/Fs/Fs.hpp"
+    #ifdef LIGHTNET_MQTT
+        #include "../../lib/Lightnet/Controller/Mqtt/MqttConfigStore.hpp"
+        #include "../../lib/Lightnet/Controller/Mqtt/MqttService.hpp"
+        #include "../../lib/Lightnet/Controller/Mqtt/MqttPortalSetup.hpp"
+        #include "../../lib/Lightnet/Controller/API/http/MqttServer.hpp"
+    #endif
     #include "demo/demo.hpp"   // initDemos/runDemos (compiled out unless DEMO_MODE)
 
 #endif

@@ -32,6 +32,7 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
    - [Panels](#26-panels)
    - [Configuration](#27-configuration)
    - [State](#28-state)
+   - [MQTT (Home Assistant)](#29-mqtt-home-assistant)
 3. [Error handling](#3-error-handling)
 
 ---
@@ -479,6 +480,77 @@ the replay target is the internal one-shot scene id rather than a catalogued sce
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.
 - Setting `isOn: true` turns all panels back on and re-broadcasts the current appearance (brightness, palette, base colors).
 - `controllerFirmware` is the controller build version string (`FW_VERSION`); read-only, useful for the mobile app to show the running firmware.
+
+---
+
+### 2.9 MQTT (Home Assistant)
+
+**ESP32 controllers only** (`controller_esp32`, `controller_s2_mini`). MQTT is not compiled for ESP8266 targets.
+
+Optional integration with a local MQTT broker (no TLS in v1). When enabled, the controller publishes Home Assistant MQTT discovery configs and state topics, and subscribes to command topics. Configuration is stored in `/config/mqtt.db`.
+
+**Configure via:**
+
+1. **Captive portal** — WiFi setup form includes an *MQTT (Home Assistant)* section (`Enable MQTT`, broker discovery mode, broker host, port, username, password).
+2. **HTTP** — `GET/PATCH /api/mqtt`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/api/mqtt` | — | See fields below |
+| `PATCH` | `/api/mqtt` | Partial update; password omitted in GET; empty `password` leaves the stored password unchanged | Same as GET |
+
+**Config fields**
+
+| Field | Type | Notes |
+|---|---|---|
+| `enabled` | bool | Master switch |
+| `brokerDiscovery` | uint | `0` manual, `1` auto, `2` mDNS only (`_mqtt._tcp`), `3` HA host fallback only |
+| `broker` | string | Manual broker hostname/IP. When non-empty, discovery is skipped regardless of `brokerDiscovery` |
+| `port` | uint | Default `1883`; used for manual broker and as fallback when mDNS SRV omits a port |
+| `username` / `password` | string | Broker credentials; password never returned on GET |
+| `topicPrefix` | string | Default `lightnet/{deviceId}` |
+| `discoveryPrefix` | string | HA discovery root; default `homeassistant` |
+
+**Runtime fields (GET only)**
+
+| Field | Type | Notes |
+|---|---|---|
+| `connected` | bool | MQTT session state |
+| `brokerDiscoveryState` | string | `idle`, `searching`, `done`, or `failed` |
+| `resolvedBroker` | string | Host used for the current/recent connection attempt |
+| `resolvedPort` | uint | Port paired with `resolvedBroker` |
+| `discoverySource` | string | `none`, `manual`, `mdns`, `homeassistant`, or `hassio` |
+
+**Broker discovery**
+
+When `brokerDiscovery` is not `manual` and `broker` is empty, the controller resolves the broker asynchronously in the main loop (non-blocking ESP-IDF mDNS):
+
+1. **Auto (`1`)** — browse `_mqtt._tcp`, then resolve `homeassistant.local`, then `hassio.local` (port `1883`).
+2. **mDNS only (`2`)** — `_mqtt._tcp` browse only.
+3. **HA host only (`3`)** — `homeassistant` / `hassio` A-record lookup only.
+
+A non-empty `broker` field always wins (manual override). Patching config or disabling MQTT clears the cached endpoint and triggers a fresh resolve on reconnect. `broker` is required when `enabled` is true and `brokerDiscovery` is `manual` (`422 broker_required`).
+
+Patching config triggers an MQTT reconnect on the next main-loop tick.
+
+**Default topic prefix:** `lightnet/{deviceId}` where `deviceId` matches the mDNS hostname (e.g. `lightnet-a1b2c3d4`).
+
+| Topic suffix | Direction | Payload |
+|---|---|---|
+| `status` | pub (LWT + birth) | `offline` / `online` |
+| `state/power` | pub | `ON` / `OFF` |
+| `command/power` | sub | `ON` / `OFF` |
+| `state/brightness` | pub | `0`–`255` |
+| `command/brightness` | sub | `0`–`255` |
+| `state/scene` | pub | scene id or `none` |
+| `command/scene` | sub | scene id or `none` (stop) |
+| `state/playing` | pub | `true` / `false` |
+| `state/speed` | pub | float string (e.g. `1.0`) |
+| `command/stop` | sub | any payload → stop scene |
+
+**Home Assistant discovery** (retained, under `{discoveryPrefix}/`, default `homeassistant/`): switch (power), light (brightness + on/off), select (scene list), binary sensor (playing), sensor (speed).
+
+MQTT commands that mutate panel/scene state are deferred through `MainLoopQueue` like HTTP. Brightness and scene commands are ignored while `isOn` is false (same as HTTP `409 system_off` behaviour, but without an error reply on MQTT).
 
 ---
 

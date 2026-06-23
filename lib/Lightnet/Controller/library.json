@@ -2,7 +2,7 @@
   "name": "LightnetController",
   "version": "1.0.0",
   "build": {
-    "srcDirs": ["Animation", "Appearance", "Panels", "OTA"],
+    "srcDirs": ["Actions", "Animation", "Appearance", "Panels", "OTA", "Mqtt", "API", "Configuration", "AppState", "Scenes", "Palettes", "Topology", "Store"],
     "includeDir": "."
   }
 }

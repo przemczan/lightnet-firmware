@@ -727,6 +727,61 @@
           }
         }
       }
+    },
+    "/api/mqtt": {
+      "get": {
+        "summary": "Get MQTT configuration",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "enabled": false,
+                  "brokerDiscovery": 1,
+                  "broker": "",
+                  "port": 1883,
+                  "username": "",
+                  "topicPrefix": "lightnet/lightnet-a1b2c3d4",
+                  "discoveryPrefix": "homeassistant",
+                  "connected": false,
+                  "brokerDiscoveryState": "idle",
+                  "resolvedBroker": "",
+                  "resolvedPort": 1883,
+                  "discoverySource": "none"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update MQTT configuration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "enabled": true,
+                "brokerDiscovery": 1,
+                "broker": "",
+                "port": 1883,
+                "username": "mqtt",
+                "password": "secret",
+                "topicPrefix": "lightnet/lightnet-a1b2c3d4",
+                "discoveryPrefix": "homeassistant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK — returns updated config; reconnects MQTT if needed"
+          },
+          "422": {
+            "description": "Validation error (e.g. broker_required when enabled with manual discovery, brokerDiscovery_out_of_range, port_out_of_range)"
+          }
+        }
+      }
     }
   }
 }

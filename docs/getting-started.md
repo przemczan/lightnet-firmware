@@ -89,6 +89,8 @@ All environments are defined in `platformio.ini`.
 
     All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE` and drive a virtual panel bus for development and live-preview testing without panels attached.
 
+    **MQTT / Home Assistant** is available on ESP32 controller targets only (`controller_esp32`, `controller_s2_mini`, and their `_sim` variants). ESP8266 builds do not include MQTT. Enable it via the WiFi captive portal (MQTT section) or `PATCH /api/mqtt` after the controller is on the network. By default the controller **auto-discovers** the broker (`_mqtt._tcp` mDNS, then `homeassistant.local` / `hassio.local`); set a manual broker host to skip discovery. Home Assistant discovers Lightnet entities automatically when its MQTT integration uses the same broker. See [`docs/api.md`](api.md) §2.9 for topic layout and discovery modes.
+
 === "Native tests"
 
     | Environment | Purpose |

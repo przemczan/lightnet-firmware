@@ -74,6 +74,13 @@ PanelFlasher *panelFlasher     = nullptr;
 FirmwareUpdateServer *fwUpdateServer   = nullptr;
 SerialFirmwareReceiver *serialFwReceiver = nullptr;
 
+#ifdef LIGHTNET_MQTT
+    Lightnet::MqttConfigStore *mqttConfigStore = nullptr;
+    Lightnet::MqttService *mqttService     = nullptr;
+    Lightnet::MqttServer *mqttServer      = nullptr;
+
+#endif
+
 // Always-on (not gated by DEBUG) so rare production resets can be diagnosed
 // from the serial log: the reset reason is printed once at every boot.
 void logBootDiagnostics()
@@ -221,6 +228,14 @@ void setupOTA()
     DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] ArduinoOTA ready"));
 }
 
+#ifdef LIGHTNET_MQTT
+    static void onMqttPortalSaved()
+    {
+        if (mqttService) mqttService->notifyConfigChanged();
+    }
+
+#endif
+
 void setupWiFi()
 {
     WiFi.mode(WIFI_STA);
@@ -246,6 +261,14 @@ void setupWiFi()
     LNBus.setOnPacketSent(mirrorOutboundPacket);
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
+
+    #ifdef LIGHTNET_MQTT
+
+        if (mqttConfigStore) {
+            Lightnet::mqttPortalSetup(wifiManager, mqttConfigStore, onMqttPortalSaved);
+        }
+
+    #endif
 
     // This will block for 30 seconds if it can't connect.
     // If you want it non-blocking, you'd need to use startConfigPortal() instead.
@@ -363,6 +386,11 @@ void loop()
                 appStateStore = new Lightnet::AppStateStore();
                 appStateStore->load();
 
+                #ifdef LIGHTNET_MQTT
+                    mqttConfigStore = new Lightnet::MqttConfigStore();
+                    mqttConfigStore->load();
+                #endif
+
                 {
                     bool initialIsOn = true;
 
@@ -413,6 +441,16 @@ void loop()
                                                         packetMirror);
                 stateServer->begin();
 
+                #ifdef LIGHTNET_MQTT
+                    mqttService = new Lightnet::MqttService(
+                        *mqttConfigStore, *appStateStore, *appearance, *animService, *sceneStore,
+                        *panelsController, LNPanelsInitializer, *animScheduler, *mainLoopQueue, packetMirror
+                    );
+                    mqttService->begin();
+                    mqttServer = new Lightnet::MqttServer(*webServer, *mqttConfigStore, *mqttService);
+                    mqttServer->begin();
+                #endif
+
                 DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
                 break;
 
@@ -461,6 +499,12 @@ void loop()
                     if (configStore)   configStore->tick(millis());
 
                     if (appStateStore) appStateStore->tick(millis());
+
+                    #ifdef LIGHTNET_MQTT
+
+                        if (mqttService) mqttService->tick(millis());
+
+                    #endif
 
                     serviceMirror();
 
