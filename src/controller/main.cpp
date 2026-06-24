@@ -373,6 +373,7 @@ void loop()
                 appearance->loadAndApply();
 
                 sceneStore  = new Lightnet::SceneStore();
+                sceneStore->compactIfFragmented();
                 scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
                 animService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
 

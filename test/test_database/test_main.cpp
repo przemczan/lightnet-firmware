@@ -293,6 +293,46 @@ void test_truncated_file_rejected()
     TEST_ASSERT_EQUAL_UINT8(DB_FILE_TOO_SHORT, database.open(backingStorage));
 }
 
+void test_compact_drops_tombstones()
+{
+    MemoryRandomAccessStorage backingStorage;
+    TestDatabase database;
+    uint8_t scratchBuffer[TestCodec::RECORD_SIZE];
+
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.create(backingStorage));
+
+    RecordRef recordRefs[3];
+
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(1, 1), scratchBuffer, &recordRefs[0]));
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(2, 2), scratchBuffer, &recordRefs[1]));
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(3, 3), scratchBuffer, &recordRefs[2]));
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.remove(recordRefs[0]));
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.remove(recordRefs[1]));
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.remove(recordRefs[2]));
+    TEST_ASSERT_EQUAL_UINT16(0, database.liveCount());
+    TEST_ASSERT_EQUAL(size_t(3), database.slotCount());
+
+    RecordRef reusedRecordRef;
+
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.insert(makeTestModel(9, 9), scratchBuffer, &reusedRecordRef));
+    TEST_ASSERT_EQUAL_UINT16(1, database.liveCount());
+    TEST_ASSERT_EQUAL(size_t(3), database.slotCount());
+
+    TEST_ASSERT_EQUAL_UINT8(DB_OK, database.compact(scratchBuffer));
+    TEST_ASSERT_EQUAL(size_t(1), database.slotCount());
+    TEST_ASSERT_EQUAL_UINT16(1, database.liveCount());
+
+    TestModel readRecord = {};
+
+    TEST_ASSERT_EQUAL_UINT8(
+        DB_OK, database.read(reusedRecordRef, readRecord, scratchBuffer));
+    TEST_ASSERT_EQUAL_UINT8(9, readRecord.a);
+}
+
 void setUp(void)
 {
 }
@@ -313,6 +353,7 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_model_version_mismatch_rejected);
     RUN_TEST(test_read_version_helper);
     RUN_TEST(test_truncated_file_rejected);
+    RUN_TEST(test_compact_drops_tombstones);
 
     return UNITY_END();
 }

@@ -31,19 +31,6 @@ namespace Lightnet {
             PaletteStoreResult foreachRecord(RecordCallback callback, void *userContext) const;
             uint16_t           count() const;
 
-            // Resumable single-record read for chunked HTTP responses. Pass
-            // Lightnet::RECORDS_START_OFFSET as fromSlotOffset to begin. On return with
-            // foundOut=true, recordOut is populated and nextSlotOffsetOut should be
-            // passed on the next call. Opens and closes its own short-lived Session
-            // per call, so the palette store lock is held only for one record's
-            // lookup+read — never hold a cursor across calls without going through here.
-            PaletteStoreResult nextRecord(
-                size_t         fromSlotOffset,
-                PaletteRecord& recordOut,
-                size_t&        nextSlotOffsetOut,
-                bool&          foundOut
-            ) const;
-
         private:
             static constexpr const char *PALETTE_DATABASE_PATH = "/data/palettes.db";
             static constexpr const char *PALETTE_DATA_DIR      = "/data";

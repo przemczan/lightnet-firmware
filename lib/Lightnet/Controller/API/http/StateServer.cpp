@@ -1,5 +1,6 @@
 #include "StateServer.hpp"
 #include "HttpHelpers.hpp"
+#include "HttpJsonCapacity.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include "../../Actions/ControllerActions.hpp"
 #include "../../Panels/PanelsInitializer.hpp"
@@ -39,7 +40,7 @@ namespace Lightnet {
 
     void StateServer::handleGetState(AsyncWebServerRequest *req)
     {
-        char buf[256];
+        char buf[HttpJson::STATE_GET_BUFFER];
         size_t pos = (size_t)snprintf(buf, sizeof(buf),
                                       "{\"isOn\":%s,\"lastPlayedSceneId\":",
                                       appState.isOn() ? "true" : "false");
@@ -52,7 +53,7 @@ namespace Lightnet {
 
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos, appState.lastPlayedSceneId());
 
-        if (pos == (size_t)-1 || pos + 96 >= sizeof(buf)) {
+        if (pos == (size_t)-1 || pos + HttpJson::STATE_GET_FIRMWARE_TAIL >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;
@@ -74,7 +75,7 @@ namespace Lightnet {
         pos += (size_t)n;
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos, FW_VERSION);
 
-        if (pos == (size_t)-1 || pos + 2 >= sizeof(buf)) {
+        if (pos == (size_t)-1 || pos + HttpJson::CLOSE_RESERVE >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;
@@ -153,7 +154,7 @@ namespace Lightnet {
             return;
         }
 
-        char buf[16];
+        char buf[HttpJson::STATE_POWER_BUFFER];
 
         snprintf(buf, sizeof(buf), "{\"isOn\":%s}", newValue ? "true" : "false");
         Http::sendAcceptedJson(req, buf);

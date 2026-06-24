@@ -43,19 +43,9 @@ namespace Lightnet {
             SceneStoreResult   foreachMeta(MetaCallback callback, void *userContext) const;
             uint16_t           count() const;
 
-            // Resumable single-meta read for chunked HTTP responses. Pass
-            // Lightnet::RECORDS_START_OFFSET as fromSlotOffset to begin. Skips hidden
-            // scenes internally (foundOut=false only once the file is exhausted). On
-            // return with foundOut=true, metaOut is populated and nextSlotOffsetOut
-            // should be passed on the next call. Opens and closes its own short-lived
-            // Session per call, so the scene store lock is held only for one scan, not
-            // across calls.
-            SceneStoreResult   nextMeta(
-                size_t     fromSlotOffset,
-                SceneMeta& metaOut,
-                size_t&    nextSlotOffsetOut,
-                bool&      foundOut
-            ) const;
+            // Drops tombstoned slots when the on-disk file has more slots than live records.
+            SceneStoreResult   compactIfFragmented();
+
             bool               allocateId(char *out, size_t outLen) const;
 
             const char * oneShotId() const;

@@ -1,7 +1,9 @@
 #include "SceneStore.hpp"
 #include "../../../Utils/EntryId.hpp"
+#include "../../../Common/Database/DatabaseFormat.hpp"
 #include "../../Store/StorageSliceReader.hpp"
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 namespace Lightnet {
@@ -116,6 +118,29 @@ namespace Lightnet {
         return countImpl();
     }
 
+    SceneStoreResult SceneStore::compactIfFragmented()
+    {
+        Session session(_core);
+
+        if (!session.isReady()) return SCENE_STORE_DB;
+
+        Database<SceneCodec>& db    = session.database();
+        const uint16_t live  = db.liveCount();
+        const size_t slots = db.slotCount();
+
+        if (slots <= (size_t)live + 1) return SCENE_STORE_OK;
+
+        uint8_t *scratch = (uint8_t *)malloc(SceneCodec::RECORD_SIZE);
+
+        if (!scratch) return SCENE_STORE_DB;
+
+        DatabaseResult compactResult = db.compact(scratch);
+
+        free(scratch);
+
+        return mapDatabaseResult(compactResult);
+    }
+
     bool SceneStore::allocateId(char *out, size_t outLen) const
     {
         Session session(_core);
@@ -140,7 +165,8 @@ namespace Lightnet {
 
         if (lookupResult != SCENE_STORE_OK) return lookupResult;
 
-        StorageSliceReader slice(_core.storage, recordRef.offset + 1, SceneCodec::RECORD_SIZE);
+        StorageSliceReader slice(_core.storage, recordPayloadOffset(recordRef.offset),
+                                 SceneCodec::RECORD_SIZE);
 
         if (slice.read((uint8_t *)&out, SceneCodec::RECORD_SIZE) != (int)SceneCodec::RECORD_SIZE) {
             return SCENE_STORE_DB;
@@ -174,7 +200,7 @@ namespace Lightnet {
 
         if (lookupResult != SCENE_STORE_OK) return lookupResult;
 
-        const size_t base = recordRef.offset + 1;  // skip the 1-byte slot flag (see getImpl)
+        const size_t base = recordPayloadOffset(recordRef.offset);
 
         // Small header read (~84 B): everything except the layers array.
         StorageSliceReader headerReader(_core.storage, base, sizeof(SceneHeader));
@@ -267,9 +293,8 @@ namespace Lightnet {
             (void)recordRef;
 
             uint8_t buf[readSize];
-            StorageSliceReader slice(storage, payloadOffset, readSize);
 
-            if (slice.read(buf, readSize) != (int)readSize) return DB_OK;
+            if (storage.read(buf, readSize) != readSize) return DB_OK;
 
             if (buf[offsetof(SceneRecord, hidden)]) return DB_OK;
 
@@ -282,55 +307,6 @@ namespace Lightnet {
         });
 
         return mapDatabaseResult(foreachResult);
-    }
-
-    SceneStoreResult SceneStore::nextMeta(
-        size_t     fromSlotOffset,
-        SceneMeta& metaOut,
-        size_t&    nextSlotOffsetOut,
-        bool&      foundOut
-    ) const
-    {
-        foundOut = false;
-
-        Session session(_core);
-
-        if (!session.isReady()) return SCENE_STORE_DB;
-
-        constexpr size_t readSize = offsetof(SceneRecord, hidden) + sizeof(uint8_t);
-        size_t cursor   = fromSlotOffset;
-
-        for (;;) {
-            RecordRef recordRef;
-            size_t nextCursor = cursor;
-            bool found      = false;
-
-            DatabaseResult scanResult =
-                session.database().nextLiveFrom(cursor, recordRef, nextCursor, found);
-
-            if (scanResult != DB_OK) return mapDatabaseResult(scanResult);
-
-            cursor = nextCursor;
-
-            if (!found) {
-                nextSlotOffsetOut = cursor;
-
-                return SCENE_STORE_OK;
-            }
-
-            uint8_t buf[readSize];
-            StorageSliceReader slice(_core.storage, recordRef.offset + 1, readSize);
-
-            if (slice.read(buf, readSize) != (int)readSize) continue;  // corrupt slot, skip
-
-            if (buf[offsetof(SceneRecord, hidden)]) continue;  // hidden, skip
-
-            memcpy(&metaOut, buf, sizeof(SceneMeta));
-            nextSlotOffsetOut = cursor;
-            foundOut          = true;
-
-            return SCENE_STORE_OK;
-        }
     }
 
     uint16_t SceneStore::countImpl() const

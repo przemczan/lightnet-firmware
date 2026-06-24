@@ -1,5 +1,6 @@
 #include "ConfigurationServer.hpp"
 #include "HttpHelpers.hpp"
+#include "HttpJsonCapacity.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <string.h>
@@ -31,7 +32,7 @@ namespace Lightnet {
 
     void ConfigurationServer::handleGetConfiguration(AsyncWebServerRequest *req)
     {
-        char buf[64];
+        char buf[HttpJson::CONFIGURATION_GET_BUFFER];
 
         snprintf(buf, sizeof(buf), "{\"powerStateOnBoot\":%u,\"logicalRoot\":%u}",
                  (unsigned)config.powerStateOnBoot(),
@@ -118,7 +119,7 @@ namespace Lightnet {
                 return;
             }
 
-            char buf[48];
+            char buf[HttpJson::CONFIGURATION_PATCH_BUFFER];
 
             snprintf(buf, sizeof(buf), "{\"ok\":true,\"logicalRoot\":%u}", (unsigned)root);
             Http::sendAcceptedJson(req, buf);

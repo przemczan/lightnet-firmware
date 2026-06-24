@@ -32,6 +32,15 @@ namespace Lightnet {
                 return STORAGE_OK;
             }
 
+            StorageResult seekForward(size_t delta) override
+            {
+                if (_seekPosition + delta > _fileBytes.size()) return STORAGE_SEEK_OUT_OF_RANGE;
+
+                _seekPosition += delta;
+
+                return STORAGE_OK;
+            }
+
             size_t read(void *buffer, size_t length) override
             {
                 if (!buffer || length == 0) return 0;

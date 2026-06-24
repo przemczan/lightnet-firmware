@@ -11,6 +11,7 @@
 //     dispatches to a member function.
 //   - URL/name parsing (isSafeName, nameFromUrl)
 //   - Body-size constants (MAX_BODY_SMALL, MAX_BODY_LARGE)
+//   - JSON response capacity estimates (HttpJsonCapacity.hpp)
 
 #include <ESPAsyncWebServer.h>
 #include "HttpUrl.hpp"

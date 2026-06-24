@@ -10,6 +10,22 @@ namespace Lightnet {
 
     static constexpr uint8_t FLAG_DELETED = 0x01;
 
+    struct RecordSlotFlags {
+        uint8_t value;
+    };
+
+    static_assert(sizeof(RecordSlotFlags) == 1, "RecordSlotFlags wire size");
+
+    inline bool isRecordSlotDeleted(RecordSlotFlags flags)
+    {
+        return (flags.value & FLAG_DELETED) != 0;
+    }
+
+    inline size_t recordPayloadOffset(size_t slotOffset)
+    {
+        return slotOffset + sizeof(RecordSlotFlags);
+    }
+
     enum DatabaseFormatResult : uint8_t {
         DB_FORMAT_OK             = 0,
         DB_FORMAT_FILE_TOO_SHORT = 1,

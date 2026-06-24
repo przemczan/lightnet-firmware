@@ -60,18 +60,39 @@
             : STORAGE_SEEK_OUT_OF_RANGE;
         }
 
+        StorageResult FsRandomAccessStorage::seekForward(size_t delta)
+        {
+            if (!_platformFile) return STORAGE_NOT_OPEN;
+
+            File *openFile = static_cast<File *>(_platformFile);
+
+            if (!openFile->seek(delta, SeekCur)) return STORAGE_SEEK_OUT_OF_RANGE;
+
+            _seekPosition = openFile->position();
+
+            return STORAGE_OK;
+        }
+
         size_t FsRandomAccessStorage::read(void *buffer, size_t length)
         {
             if (!_platformFile || !buffer || length == 0) return 0;
 
-            return static_cast<File *>(_platformFile)->readBytes((char *)buffer, length);
+            size_t got = static_cast<File *>(_platformFile)->readBytes((char *)buffer, length);
+
+            _seekPosition += got;
+
+            return got;
         }
 
         size_t FsRandomAccessStorage::write(const void *buffer, size_t length)
         {
             if (!_platformFile || !buffer || length == 0) return 0;
 
-            return static_cast<File *>(_platformFile)->write((const uint8_t *)buffer, length);
+            size_t got = static_cast<File *>(_platformFile)->write((const uint8_t *)buffer, length);
+
+            _seekPosition += got;
+
+            return got;
         }
 
         size_t FsRandomAccessStorage::size() const

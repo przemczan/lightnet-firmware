@@ -2,6 +2,7 @@
 
 #include "MqttServer.hpp"
 #include "HttpHelpers.hpp"
+#include "HttpJsonCapacity.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <stdio.h>
@@ -27,7 +28,7 @@ namespace Lightnet {
 
     void MqttServer::handleGetMqtt(AsyncWebServerRequest *req)
     {
-        char buf[768];
+        char buf[HttpJson::MQTT_GET_BUFFER];
         size_t pos = (size_t)snprintf(buf, sizeof(buf),
                                       "{\"enabled\":%s,\"brokerDiscovery\":%u,\"broker\":",
                                       config.enabled() ? "true" : "false",
@@ -156,7 +157,7 @@ namespace Lightnet {
         pos += (size_t)n;
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos, mqtt.discoverySourceName());
 
-        if (pos == (size_t)-1 || pos + 2 >= sizeof(buf)) {
+        if (pos == (size_t)-1 || pos + HttpJson::CLOSE_RESERVE >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;

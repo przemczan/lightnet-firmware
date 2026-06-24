@@ -1,5 +1,6 @@
 #include "SceneServer.hpp"
 #include "HttpHelpers.hpp"
+#include "HttpJsonCapacity.hpp"
 #include "../../../Utils/EntryId.hpp"
 #include "../../../Core/Controller/SceneWriter.hpp"
 #include "../../../Utils/SimpleJson.hpp"
@@ -63,185 +64,113 @@ namespace Lightnet {
     }
 
     namespace {
-        // Heap state for the chunked /api/scenes listing. Owned solely via
-        // req->_tempObject + req->onDisconnect (see handleListScenes) — freed
-        // exactly once, never by the fill callback itself.
-        struct ListScenesState : Http::detail::RequestContext {
-            SceneStore *scenes;
-            size_t      cursor;         // next DB slot offset to scan from
-            bool        emittedOpenBracket;
-            bool        first;          // controls comma placement
-            bool        dbExhausted;
-            bool        emittedCloseBracket;
-            char        pending[224];   // one JSON piece: bracket, or one meta entry + separator
-            size_t      pendingLen;
-            size_t      pendingPos;     // read cursor into pending
+        struct ListScenesContext {
+            char * buf;
+            size_t cap;
+            size_t pos;
+            bool   first;
+            bool   ok;
         };
 
-        // Serializes one meta entry (with leading comma if needed) into
-        // state->pending, resetting the pending read cursor to the start.
-        void appendPendingSceneEntry(ListScenesState *state, const SceneMeta& meta)
+        bool appendListSceneMeta(ListScenesContext *ctx, const SceneMeta& meta)
         {
-            size_t pos = 0;
+            if (!ctx->ok) return false;
 
-            if (!state->first) {
-                state->pending[0] = ',';
-                pos = 1;
+            if (!ctx->first) {
+                if (ctx->pos + 1 >= ctx->cap) {
+                    ctx->ok = false;
+
+                    return false;
+                }
+
+                ctx->buf[ctx->pos++] = ',';
             }
 
-            pos += (size_t)snprintf(state->pending + pos, sizeof(state->pending) - pos,
+            size_t pos = ctx->pos;
+
+            pos += (size_t)snprintf(ctx->buf + pos, ctx->cap - pos,
                                     "{\"schemaVersion\":1,\"id\":");
 
-            if (pos >= sizeof(state->pending)) {
-                state->pendingLen = 0;
-                state->pendingPos = 0;
+            if (pos >= ctx->cap) {
+                ctx->ok = false;
 
-                return;
+                return false;
             }
 
-            pos = jsonAppendQuotedString(state->pending, sizeof(state->pending), pos, meta.id);
+            pos = jsonAppendQuotedString(ctx->buf, ctx->cap, pos, meta.id);
 
             static const char NAME_FIELD[] = ",\"name\":";
             constexpr size_t nameFieldLen = sizeof(NAME_FIELD) - 1;
 
-            if (pos == (size_t)-1 || pos + nameFieldLen >= sizeof(state->pending)) {
-                state->pendingLen = 0;
-                state->pendingPos = 0;
+            if (pos == (size_t)-1 || pos + nameFieldLen >= ctx->cap) {
+                ctx->ok = false;
 
-                return;
+                return false;
             }
 
-            memcpy(state->pending + pos, NAME_FIELD, nameFieldLen);
+            memcpy(ctx->buf + pos, NAME_FIELD, nameFieldLen);
             pos += nameFieldLen;
 
-            pos = jsonAppendQuotedString(state->pending, sizeof(state->pending), pos, meta.name);
+            pos = jsonAppendQuotedString(ctx->buf, ctx->cap, pos, meta.name);
 
             if (pos == (size_t)-1) {
-                state->pendingLen = 0;
-                state->pendingPos = 0;
+                ctx->ok = false;
 
-                return;
+                return false;
             }
 
-            int n = snprintf(state->pending + pos, sizeof(state->pending) - pos,
+            int n = snprintf(ctx->buf + pos, ctx->cap - pos,
                              ",\"layerCount\":%u,\"duration\":%lu}",
                              (unsigned)meta.layerCount, (unsigned long)meta.duration);
 
-            state->pendingLen = pos + ((n > 0) ? (size_t)n : 0);
-            state->pendingPos = 0;
-            state->first      = false;
-        }
+            if (n <= 0 || pos + (size_t)n >= ctx->cap) {
+                ctx->ok = false;
 
-        size_t sceneListFill(ListScenesState *state, uint8_t *buf, size_t maxLen)
-        {
-            size_t written = 0;
-
-            while (written < maxLen) {
-                if (state->pendingPos < state->pendingLen) {
-                    size_t n = state->pendingLen - state->pendingPos;
-
-                    if (n > maxLen - written) n = maxLen - written;
-
-                    memcpy(buf + written, state->pending + state->pendingPos, n);
-                    state->pendingPos += n;
-                    written           += n;
-
-                    continue;
-                }
-
-                if (!state->emittedOpenBracket) {
-                    state->pending[0]  = '[';
-                    state->pendingLen  = 1;
-                    state->pendingPos  = 0;
-                    state->emittedOpenBracket = true;
-
-                    continue;
-                }
-
-                if (!state->dbExhausted) {
-                    SceneMeta meta       = {};
-                    size_t nextCursor = state->cursor;
-                    bool found      = false;
-
-                    SceneStoreResult result =
-                        state->scenes->nextMeta(state->cursor, meta, nextCursor, found);
-
-                    state->cursor = nextCursor;
-
-                    if (result != SCENE_STORE_OK || !found) {
-                        state->dbExhausted = true;
-
-                        continue;
-                    }
-
-                    appendPendingSceneEntry(state, meta);
-
-                    continue;
-                }
-
-                if (!state->emittedCloseBracket) {
-                    state->pending[0]  = ']';
-                    state->pendingLen  = 1;
-                    state->pendingPos  = 0;
-                    state->emittedCloseBracket = true;
-
-                    continue;
-                }
-
-                break;
+                return false;
             }
 
-            return written;
+            ctx->pos    = pos + (size_t)n;
+            ctx->first  = false;
+
+            return true;
+        }
+
+        void foreachListSceneMeta(const SceneMeta& meta, void *userContext)
+        {
+            appendListSceneMeta(static_cast<ListScenesContext *>(userContext), meta);
         }
     } // anonymous namespace
 
     void SceneServer::handleListScenes(AsyncWebServerRequest *req)
     {
-        auto *state = (ListScenesState *)malloc(sizeof(ListScenesState));
+        size_t cap = HttpJson::sceneListCapacity(scenes.count());
 
-        if (!state) {
+        char *buf = (char *)malloc(cap);
+
+        if (!buf) {
             Http::sendError(req, 500, "oom");
 
             return;
         }
 
-        if (req->_tempObject) {
-            state->startMs = static_cast<Http::detail::RequestContext *>(req->_tempObject)->startMs;
-            free(req->_tempObject);
-        } else {
-            state->startMs = millis();
+        ListScenesContext ctx = { buf, cap, 0, true, true };
+
+        buf[ctx.pos++] = '[';
+
+        SceneStoreResult result = scenes.foreachMeta(foreachListSceneMeta, &ctx);
+
+        if (result != SCENE_STORE_OK || !ctx.ok || ctx.pos + HttpJson::CLOSE_RESERVE > ctx.cap) {
+            free(buf);
+            Http::sendError(req, 500, result != SCENE_STORE_OK ? "store_error" : "response_overflow");
+
+            return;
         }
 
-        state->scenes              = &scenes;
-        state->cursor              = RECORDS_START_OFFSET;
-        state->emittedOpenBracket  = false;
-        state->first               = true;
-        state->dbExhausted         = false;
-        state->emittedCloseBracket = false;
-        state->pendingLen          = 0;
-        state->pendingPos          = 0;
+        buf[ctx.pos++] = ']';
+        buf[ctx.pos]   = '\0';
 
-        req->_tempObject = state;
-        Http::onDisconnectLogged(req, [req]() {
-            if (req->_tempObject) {
-                free(req->_tempObject);
-                req->_tempObject = nullptr;
-            }
-        });
-
-        AsyncWebServerResponse *res = req->beginChunkedResponse(
-            "application/json",
-            [state, req](uint8_t *buf, size_t maxLen, size_t /*index*/) -> size_t {
-            size_t written = sceneListFill(state, buf, maxLen);
-
-            Http::logFillTick(req, written, maxLen);
-
-            if (written == 0) Http::logChunkedComplete(req);
-
-            return written;
-        });
-
-        Http::sendOkChunked(req, res);
+        Http::sendOkJson(req, buf);
+        free(buf);
     }
 
     void SceneServer::handleGetSceneById(AsyncWebServerRequest *req)
@@ -320,7 +249,7 @@ namespace Lightnet {
             return;
         }
 
-        char resp[48];
+        char resp[HttpJson::SCENE_ID_BUFFER];
 
         if (jsonWriteObjectStringField(resp, sizeof(resp), "id", r.savedId) < 0) {
             Http::sendError(req, 500, "response_overflow");
@@ -350,7 +279,7 @@ namespace Lightnet {
             return;
         }
 
-        char resp[48];
+        char resp[HttpJson::SCENE_ID_BUFFER];
 
         if (jsonWriteObjectStringField(resp, sizeof(resp), "id", r.savedId) < 0) {
             Http::sendError(req, 500, "response_overflow");
@@ -558,7 +487,7 @@ namespace Lightnet {
             return;
         }
 
-        char buf[48];
+        char buf[HttpJson::SCENE_SPEED_BUFFER];
 
         snprintf(buf, sizeof(buf), "{\"ok\":true,\"speed\":%.1f}", (double)speed);
         Http::sendAcceptedJson(req, buf);

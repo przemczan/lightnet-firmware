@@ -50,6 +50,88 @@ namespace Lightnet {
                 return _liveRecordCount;
             }
 
+            // Total on-disk record slots (live + tombstoned).
+            size_t slotCount() const
+            {
+                if (!_isOpen || !_backingStorage) return 0;
+
+                const size_t fileSize = _backingStorage->size();
+
+                if (fileSize < RECORDS_START_OFFSET) return 0;
+
+                return (fileSize - RECORDS_START_OFFSET) / recordSlotSize();
+            }
+
+            // Rewrites live records to the front of the file and truncates trailing
+            // tombstones. recordBuffer must hold Codec::RECORD_SIZE bytes.
+            DatabaseResult compact(uint8_t *recordBuffer)
+            {
+                if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;
+
+                if (!recordBuffer) return DB_NULL_ARG;
+
+                const size_t recordSlotByteSize = recordSlotSize();
+                const size_t fileSize           = _backingStorage->size();
+
+                if (fileSize < RECORDS_START_OFFSET) return DB_FILE_TOO_SHORT;
+
+                size_t writeOffset = RECORDS_START_OFFSET;
+
+                if (_backingStorage->seek(RECORDS_START_OFFSET) != STORAGE_OK) return DB_SEEK_FAILED;
+
+                size_t slotOffset = RECORDS_START_OFFSET;
+
+                while (slotOffset + recordSlotByteSize <= fileSize) {
+                    RecordSlotFlags slotFlags = {};
+
+                    if (_backingStorage->read(&slotFlags, sizeof(slotFlags)) != sizeof(slotFlags)) {
+                        return DB_READ_FAILED;
+                    }
+
+                    if (isRecordSlotDeleted(slotFlags)) {
+                        if (_backingStorage->seekForward(recordSlotByteSize - sizeof(slotFlags)) !=
+                            STORAGE_OK) {
+                            return DB_SEEK_FAILED;
+                        }
+
+                        slotOffset += recordSlotByteSize;
+
+                        continue;
+                    }
+
+                    if (slotOffset != writeOffset) {
+                        if (_backingStorage->read(recordBuffer, Codec::RECORD_SIZE) != Codec::RECORD_SIZE) {
+                            return DB_READ_FAILED;
+                        }
+
+                        DatabaseResult readResult = writeLiveRecordSlot(writeOffset, recordBuffer);
+
+                        if (readResult != DB_OK) return readResult;
+
+                        slotOffset  += recordSlotByteSize;
+                        writeOffset += recordSlotByteSize;
+
+                        if (slotOffset + recordSlotByteSize > fileSize) break;
+
+                        if (_backingStorage->seek(slotOffset) != STORAGE_OK) return DB_SEEK_FAILED;
+
+                        continue;
+                    }
+
+                    if (_backingStorage->seekForward(recordSlotByteSize - sizeof(RecordSlotFlags)) !=
+                        STORAGE_OK) {
+                        return DB_SEEK_FAILED;
+                    }
+
+                    slotOffset  += recordSlotByteSize;
+                    writeOffset += recordSlotByteSize;
+                }
+
+                if (_backingStorage->truncate(writeOffset) != STORAGE_OK) return DB_TRUNCATE_FAILED;
+
+                return DB_OK;
+            }
+
             DatabaseResult create(IRandomAccessStorage& backingStorage)
             {
                 _backingStorage = &backingStorage;
@@ -118,11 +200,10 @@ namespace Lightnet {
             }
 
             // Iterates live (non-deleted) records without buffering payloads.
-            // For each live record, seeks the backing storage to payloadOffset
-            // and invokes callback(RecordRef, IRandomAccessStorage&, payloadOffset, payloadSize).
-            // The storage cursor is positioned at payloadOffset when the callback fires.
-            // payloadSize equals Codec::RECORD_SIZE. Callback must complete all reads
-            // before returning. Returns DB_FOREACH_ABORTED if callback returns non-DB_OK.
+            // Scans slots sequentially: read flag, invoke callback at payload start
+            // (cursor already past the flag byte), then seek to the next slot.
+            // payloadSize equals Codec::RECORD_SIZE. Returns DB_FOREACH_ABORTED if
+            // callback returns non-DB_OK.
             template <typename Callback>
             DatabaseResult foreachLive(Callback callback) const
             {
@@ -133,25 +214,40 @@ namespace Lightnet {
 
                 if (fileSize < RECORDS_START_OFFSET) return DB_FILE_TOO_SHORT;
 
-                for (size_t slotOffset = RECORDS_START_OFFSET;
-                     slotOffset + recordSlotByteSize <= fileSize;
-                     slotOffset += recordSlotByteSize) {
-                    uint8_t slotFlags = 0;
+                if (_backingStorage->seek(RECORDS_START_OFFSET) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                    DatabaseResult readResult = readSlotFlagsAt(slotOffset, slotFlags);
+                size_t slotOffset = RECORDS_START_OFFSET;
 
-                    if (readResult != DB_OK) return readResult;
+                while (slotOffset + recordSlotByteSize <= fileSize) {
+                    RecordSlotFlags slotFlags = {};
 
-                    if (slotFlags & FLAG_DELETED) continue;
+                    if (_backingStorage->read(&slotFlags, sizeof(slotFlags)) != sizeof(slotFlags)) {
+                        return DB_READ_FAILED;
+                    }
 
-                    const size_t payloadOffset = slotOffset + 1;
+                    if (isRecordSlotDeleted(slotFlags)) {
+                        if (_backingStorage->seekForward(recordSlotByteSize - sizeof(slotFlags)) !=
+                            STORAGE_OK) {
+                            return DB_SEEK_FAILED;
+                        }
+
+                        slotOffset += recordSlotByteSize;
+
+                        continue;
+                    }
+
                     RecordRef recordRef     = { (uint32_t)slotOffset };
-
-                    if (_backingStorage->seek(payloadOffset) != STORAGE_OK) return DB_SEEK_FAILED;
+                    const size_t payloadOffset = recordPayloadOffset(slotOffset);
 
                     if (callback(recordRef, *_backingStorage, payloadOffset, Codec::RECORD_SIZE) != DB_OK) {
                         return DB_FOREACH_ABORTED;
                     }
+
+                    slotOffset += recordSlotByteSize;
+
+                    if (slotOffset + recordSlotByteSize > fileSize) break;
+
+                    if (_backingStorage->seek(slotOffset) != STORAGE_OK) return DB_SEEK_FAILED;
                 }
 
                 return DB_OK;
@@ -160,10 +256,8 @@ namespace Lightnet {
             // Resumable, single-step version of foreachLive: scans forward from
             // fromSlotOffset and returns the first live record found. nextSlotOffsetOut
             // is the slot offset to pass on the next call. foundOut=false (with DB_OK)
-            // means the scan reached end-of-file — iteration is done. Does not seek the
-            // backing storage or read the payload; callers use read(RecordRef, ...) for
-            // that. Intended for callers that cannot hold the database session open
-            // across multiple calls (e.g. one call per chunked-HTTP-response tick).
+            // means the scan reached end-of-file — iteration is done. Does not read the
+            // payload; callers use read(RecordRef, ...) for that.
             DatabaseResult nextLiveFrom(
             size_t     fromSlotOffset,
             RecordRef& outRecordRef,
@@ -182,20 +276,31 @@ namespace Lightnet {
 
                 size_t slotOffset = fromSlotOffset;
 
-                for (; slotOffset + recordSlotByteSize <= fileSize; slotOffset += recordSlotByteSize) {
-                    uint8_t slotFlags = 0;
+                if (slotOffset < RECORDS_START_OFFSET) slotOffset = RECORDS_START_OFFSET;
 
-                    DatabaseResult readResult = readSlotFlagsAt(slotOffset, slotFlags);
+                if (_backingStorage->seek(slotOffset) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                    if (readResult != DB_OK) return readResult;
+                while (slotOffset + recordSlotByteSize <= fileSize) {
+                    RecordSlotFlags slotFlags = {};
 
-                    if (slotFlags & FLAG_DELETED) continue;
+                    if (_backingStorage->read(&slotFlags, sizeof(slotFlags)) != sizeof(slotFlags)) {
+                        return DB_READ_FAILED;
+                    }
 
-                    outRecordRef.offset = (uint32_t)slotOffset;
-                    nextSlotOffsetOut   = slotOffset + recordSlotByteSize;
-                    foundOut            = true;
+                    if (!isRecordSlotDeleted(slotFlags)) {
+                        outRecordRef.offset = (uint32_t)slotOffset;
+                        nextSlotOffsetOut   = slotOffset + recordSlotByteSize;
+                        foundOut            = true;
 
-                    return DB_OK;
+                        return DB_OK;
+                    }
+
+                    if (_backingStorage->seekForward(recordSlotByteSize - sizeof(RecordSlotFlags)) !=
+                        STORAGE_OK) {
+                        return DB_SEEK_FAILED;
+                    }
+
+                    slotOffset += recordSlotByteSize;
                 }
 
                 nextSlotOffsetOut = slotOffset;
@@ -209,13 +314,13 @@ namespace Lightnet {
 
                 if (!scratchBuffer) return DB_NULL_ARG;
 
-                uint8_t slotFlags = 0;
+                RecordSlotFlags slotFlags = {};
 
                 DatabaseResult readResult = readSlotFlagsAt(recordRef.offset, slotFlags);
 
                 if (readResult != DB_OK) return readResult;
 
-                if (slotFlags & FLAG_DELETED) return DB_RECORD_DELETED;
+                if (isRecordSlotDeleted(slotFlags)) return DB_RECORD_DELETED;
 
                 readResult = readRecordPayloadAt(recordRef.offset, scratchBuffer);
 
@@ -251,20 +356,29 @@ namespace Lightnet {
                 bool reuseTombstone     = false;
 
                 if (fileSize >= RECORDS_START_OFFSET) {
-                    for (size_t slotOffset = RECORDS_START_OFFSET;
-                         slotOffset + recordSlotByteSize <= fileSize;
-                         slotOffset += recordSlotByteSize) {
-                        uint8_t slotFlags = 0;
+                    if (_backingStorage->seek(RECORDS_START_OFFSET) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                        DatabaseResult readResult = readSlotFlagsAt(slotOffset, slotFlags);
+                    size_t slotOffset = RECORDS_START_OFFSET;
 
-                        if (readResult != DB_OK) return readResult;
+                    while (slotOffset + recordSlotByteSize <= fileSize) {
+                        RecordSlotFlags slotFlags = {};
 
-                        if (slotFlags & FLAG_DELETED) {
+                        if (_backingStorage->read(&slotFlags, sizeof(slotFlags)) != sizeof(slotFlags)) {
+                            return DB_READ_FAILED;
+                        }
+
+                        if (isRecordSlotDeleted(slotFlags)) {
                             targetSlotOffset = slotOffset;
                             reuseTombstone   = true;
                             break;
                         }
+
+                        if (_backingStorage->seekForward(recordSlotByteSize - sizeof(RecordSlotFlags)) !=
+                            STORAGE_OK) {
+                            return DB_SEEK_FAILED;
+                        }
+
+                        slotOffset += recordSlotByteSize;
                     }
                 }
 
@@ -309,13 +423,13 @@ namespace Lightnet {
 
                 if (!recordBytes) return DB_NULL_ARG;
 
-                uint8_t slotFlags = 0;
+                RecordSlotFlags slotFlags = {};
 
                 DatabaseResult readResult = readSlotFlagsAt(recordRef.offset, slotFlags);
 
                 if (readResult != DB_OK) return readResult;
 
-                if (slotFlags & FLAG_DELETED) return DB_RECORD_DELETED;
+                if (isRecordSlotDeleted(slotFlags)) return DB_RECORD_DELETED;
 
                 return writeRecordPayloadAt(recordRef.offset, recordBytes);
             }
@@ -326,15 +440,15 @@ namespace Lightnet {
 
                 if (_liveRecordCount == 0) return DB_NO_LIVE_RECORDS;
 
-                uint8_t slotFlags = 0;
+                RecordSlotFlags slotFlags = {};
 
                 DatabaseResult readResult = readSlotFlagsAt(recordRef.offset, slotFlags);
 
                 if (readResult != DB_OK) return readResult;
 
-                if (slotFlags & FLAG_DELETED) return DB_RECORD_DELETED;
+                if (isRecordSlotDeleted(slotFlags)) return DB_RECORD_DELETED;
 
-                slotFlags |= FLAG_DELETED;
+                slotFlags.value |= FLAG_DELETED;
 
                 DatabaseResult writeResult = writeSlotFlagsAt(recordRef.offset, slotFlags);
 
@@ -352,7 +466,7 @@ namespace Lightnet {
 
             static size_t recordSlotSize()
             {
-                return 1 + Codec::RECORD_SIZE;
+                return sizeof(RecordSlotFlags) + Codec::RECORD_SIZE;
             }
 
             DatabaseResult persistLiveRecordCount()
@@ -371,27 +485,33 @@ namespace Lightnet {
                 return DB_OK;
             }
 
-            DatabaseResult readSlotFlagsAt(size_t slotOffset, uint8_t& slotFlagsOut) const
+            DatabaseResult readSlotFlagsAt(size_t slotOffset, RecordSlotFlags& slotFlagsOut) const
             {
                 if (_backingStorage->seek(slotOffset) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                if (_backingStorage->read(&slotFlagsOut, 1) != 1) return DB_READ_FAILED;
+                if (_backingStorage->read(&slotFlagsOut, sizeof(slotFlagsOut)) != sizeof(slotFlagsOut)) {
+                    return DB_READ_FAILED;
+                }
 
                 return DB_OK;
             }
 
-            DatabaseResult writeSlotFlagsAt(size_t slotOffset, uint8_t slotFlags)
+            DatabaseResult writeSlotFlagsAt(size_t slotOffset, RecordSlotFlags slotFlags)
             {
                 if (_backingStorage->seek(slotOffset) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                if (_backingStorage->write(&slotFlags, 1) != 1) return DB_WRITE_FAILED;
+                if (_backingStorage->write(&slotFlags, sizeof(slotFlags)) != sizeof(slotFlags)) {
+                    return DB_WRITE_FAILED;
+                }
 
                 return DB_OK;
             }
 
             DatabaseResult readRecordPayloadAt(size_t slotOffset, uint8_t *recordBuffer) const
             {
-                if (_backingStorage->seek(slotOffset + 1) != STORAGE_OK) return DB_SEEK_FAILED;
+                if (_backingStorage->seek(recordPayloadOffset(slotOffset)) != STORAGE_OK) {
+                    return DB_SEEK_FAILED;
+                }
 
                 if (_backingStorage->read(recordBuffer, Codec::RECORD_SIZE) != Codec::RECORD_SIZE) {
                     return DB_READ_FAILED;
@@ -402,7 +522,9 @@ namespace Lightnet {
 
             DatabaseResult writeRecordPayloadAt(size_t slotOffset, const uint8_t *recordBuffer)
             {
-                if (_backingStorage->seek(slotOffset + 1) != STORAGE_OK) return DB_SEEK_FAILED;
+                if (_backingStorage->seek(recordPayloadOffset(slotOffset)) != STORAGE_OK) {
+                    return DB_SEEK_FAILED;
+                }
 
                 if (_backingStorage->write(recordBuffer, Codec::RECORD_SIZE) != Codec::RECORD_SIZE) {
                     return DB_WRITE_FAILED;
@@ -413,11 +535,13 @@ namespace Lightnet {
 
             DatabaseResult writeLiveRecordSlot(size_t slotOffset, const uint8_t *recordBuffer)
             {
-                const uint8_t liveSlotFlags = 0;
+                const RecordSlotFlags liveSlotFlags = {};
 
                 if (_backingStorage->seek(slotOffset) != STORAGE_OK) return DB_SEEK_FAILED;
 
-                if (_backingStorage->write(&liveSlotFlags, 1) != 1) return DB_WRITE_FAILED;
+                if (_backingStorage->write(&liveSlotFlags, sizeof(liveSlotFlags)) != sizeof(liveSlotFlags)) {
+                    return DB_WRITE_FAILED;
+                }
 
                 return writeRecordPayloadAt(slotOffset, recordBuffer);
             }

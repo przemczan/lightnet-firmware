@@ -25,24 +25,13 @@ namespace Lightnet {
             PaletteStoreResult update(const char *name, const PaletteRecord& record);
             PaletteStoreResult remove(const char *name);
 
-            // Iterates USER_COLORS_PALETTE_NAME, all hardcoded built-ins, then stored records.
-            // The "Base colors" entry has stopsCount == 0 (no stops stored).
+            // Iterates USER_COLORS_PALETTE_NAME, then all stored records (built-ins
+            // and user-created). The synthetic USER_COLORS entry has stopsCount == 0;
+            // list callers synthesize stops via buildUserColors() and skip it here.
             typedef void (*RecordCallback)(const PaletteRecord& record, void *userContext);
             void foreachRecord(RecordCallback callback, void *userContext) const;
 
             uint16_t count() const;
-
-            // Resumable single-record read over stored records only (built-ins +
-            // user-created), for chunked HTTP responses. The synthetic
-            // USER_COLORS_PALETTE_NAME entry is not part of this cursor — callers
-            // emit it themselves via buildUserColors() before starting iteration.
-            // Pass Lightnet::RECORDS_START_OFFSET as fromSlotOffset to begin.
-            PaletteStoreResult nextRecord(
-                size_t         fromSlotOffset,
-                PaletteRecord& recordOut,
-                size_t&        nextSlotOffsetOut,
-                bool&          foundOut
-            ) const;
 
         private:
             PaletteStore _store;

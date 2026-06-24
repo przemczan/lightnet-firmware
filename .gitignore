@@ -48,3 +48,5 @@ data/
 partition_table_from_flash.bin
 
 my_devices.json
+
+tmp

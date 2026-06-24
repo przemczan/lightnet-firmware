@@ -173,14 +173,4 @@ namespace Lightnet {
     {
         return 1 + _store.count();
     }
-
-    PaletteStoreResult PaletteRepository::nextRecord(
-        size_t         fromSlotOffset,
-        PaletteRecord& recordOut,
-        size_t&        nextSlotOffsetOut,
-        bool&          foundOut
-    ) const
-    {
-        return _store.nextRecord(fromSlotOffset, recordOut, nextSlotOffsetOut, foundOut);
-    }
 }  // namespace Lightnet

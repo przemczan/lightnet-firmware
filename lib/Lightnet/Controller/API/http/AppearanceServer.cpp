@@ -1,5 +1,6 @@
 #include "AppearanceServer.hpp"
 #include "HttpHelpers.hpp"
+#include "HttpJsonCapacity.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <string.h>
@@ -39,7 +40,7 @@ namespace Lightnet {
         jsonFormatHex(appearance.baseColor(1).r, appearance.baseColor(1).g, appearance.baseColor(1).b, h1);
         jsonFormatHex(appearance.baseColor(2).r, appearance.baseColor(2).g, appearance.baseColor(2).b, h2);
 
-        char buf[320];
+        char buf[HttpJson::APPEARANCE_GET_BUFFER];
         size_t pos = (size_t)snprintf(buf, sizeof(buf),
                                       "{\"brightness\":%u,\"baseColors\":[\"%s\",\"%s\",\"%s\"],\"palette\":",
                                       (unsigned)appearance.brightness(), h0, h1, h2);
@@ -52,7 +53,7 @@ namespace Lightnet {
 
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos, appearance.paletteName());
 
-        if (pos == (size_t)-1 || pos + 2 >= sizeof(buf)) {
+        if (pos == (size_t)-1 || pos + HttpJson::CLOSE_RESERVE >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;

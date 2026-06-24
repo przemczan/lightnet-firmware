@@ -22,6 +22,7 @@
                 bool            isOpen() const;
 
                 StorageResult seek(size_t offset) override;
+                StorageResult seekForward(size_t delta) override;
                 size_t        read(void *buffer, size_t length) override;
                 size_t        write(const void *buffer, size_t length) override;
                 size_t        size() const override;
