@@ -176,6 +176,16 @@ namespace Lightnet {
 
         static size_t writeStep(char *buf, size_t cap, size_t pos, const SceneStep& step)
         {
+            if (step.animType == ANIM_GAP) {
+                pos = append(buf, cap, pos, "{");
+
+                if (step.durationMs > 0) {
+                    pos = append(buf, cap, pos, "\"duration\":%u", (unsigned)step.durationMs);
+                }
+
+                return append(buf, cap, pos, "}");
+            }
+
             const char *name = animTypeWireName(step.animType);
 
             if (!name) return pos;

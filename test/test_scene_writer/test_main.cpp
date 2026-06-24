@@ -42,6 +42,42 @@ void test_parse_serialize_parse_round_trip()
     TEST_ASSERT_EQUAL_UINT16(a.layers[0].steps[0].durationMs, b.layers[0].steps[0].durationMs);
 }
 
+static const char *GAP_SCENE =
+    R"({
+  "name": "gap_test",
+  "layers": [{
+    "group": "burst",
+    "panels": "all",
+    "sequence": [
+      { "runner": "RIPPLE", "color": "#FF0000", "duration": 3000 },
+      { "duration": 1000 },
+      { "runner": "SPARKLE", "color": "#00FF00", "duration": 3500 }
+    ]
+  }]
+})";
+
+void test_gap_step_serializes_valid_json()
+{
+    SceneRecord a = {};
+    char errA[64];
+
+    TEST_ASSERT_TRUE(parseScene(GAP_SCENE, strlen(GAP_SCENE), a, errA, sizeof(errA)));
+    TEST_ASSERT_EQUAL_UINT8(3, a.layers[0].stepCount);
+
+    char json[4096];
+    int n = serializeScene(a, json, sizeof(json));
+
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_NULL(strstr(json, ",,"));
+
+    SceneRecord b = {};
+    char errB[64];
+
+    TEST_ASSERT_TRUE(parseScene(json, (size_t)n, b, errB, sizeof(errB)));
+    TEST_ASSERT_EQUAL_UINT8(3, b.layers[0].stepCount);
+    TEST_ASSERT_EQUAL_UINT16(1000, b.layers[0].steps[1].durationMs);
+}
+
 void test_round_trip_scene_name_with_quote()
 {
     const char *json =
@@ -80,6 +116,7 @@ int main(int /*argc*/, char ** /*argv*/)
     UNITY_BEGIN();
 
     RUN_TEST(test_parse_serialize_parse_round_trip);
+    RUN_TEST(test_gap_step_serializes_valid_json);
     RUN_TEST(test_round_trip_scene_name_with_quote);
 
     return UNITY_END();
