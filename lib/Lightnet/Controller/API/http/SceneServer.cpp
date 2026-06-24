@@ -101,15 +101,18 @@ namespace Lightnet {
 
             pos = jsonAppendQuotedString(state->pending, sizeof(state->pending), pos, meta.id);
 
-            if (pos == (size_t)-1 || pos + 9 >= sizeof(state->pending)) {
+            static const char NAME_FIELD[] = ",\"name\":";
+            constexpr size_t nameFieldLen = sizeof(NAME_FIELD) - 1;
+
+            if (pos == (size_t)-1 || pos + nameFieldLen >= sizeof(state->pending)) {
                 state->pendingLen = 0;
                 state->pendingPos = 0;
 
                 return;
             }
 
-            memcpy(state->pending + pos, ",\"name\":", 8);
-            pos += 8;
+            memcpy(state->pending + pos, NAME_FIELD, nameFieldLen);
+            pos += nameFieldLen;
 
             pos = jsonAppendQuotedString(state->pending, sizeof(state->pending), pos, meta.name);
 

@@ -66,14 +66,17 @@ namespace Lightnet {
             return;
         }
 
-        if (pos + 16 >= sizeof(buf)) {
+        static const char TOPIC_PREFIX_FIELD[] = ",\"topicPrefix\":";
+        constexpr size_t topicPrefixFieldLen = sizeof(TOPIC_PREFIX_FIELD) - 1;
+
+        if (pos + topicPrefixFieldLen >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;
         }
 
-        memcpy(buf + pos, ",\"topicPrefix\":", 15);
-        pos += 15;
+        memcpy(buf + pos, TOPIC_PREFIX_FIELD, topicPrefixFieldLen);
+        pos += topicPrefixFieldLen;
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos, config.topicPrefix());
 
         if (pos == (size_t)-1) {
@@ -82,14 +85,17 @@ namespace Lightnet {
             return;
         }
 
-        if (pos + 20 >= sizeof(buf)) {
+        static const char DISCOVERY_PREFIX_FIELD[] = ",\"discoveryPrefix\":";
+        constexpr size_t discoveryPrefixFieldLen = sizeof(DISCOVERY_PREFIX_FIELD) - 1;
+
+        if (pos + discoveryPrefixFieldLen >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;
         }
 
-        memcpy(buf + pos, ",\"discoveryPrefix\":", 19);
-        pos += 19;
+        memcpy(buf + pos, DISCOVERY_PREFIX_FIELD, discoveryPrefixFieldLen);
+        pos += discoveryPrefixFieldLen;
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos, config.discoveryPrefix());
 
         if (pos == (size_t)-1) {
@@ -117,14 +123,17 @@ namespace Lightnet {
             return;
         }
 
-        if (pos + 18 >= sizeof(buf)) {
+        static const char RESOLVED_BROKER_FIELD[] = ",\"resolvedBroker\":";
+        constexpr size_t resolvedBrokerFieldLen = sizeof(RESOLVED_BROKER_FIELD) - 1;
+
+        if (pos + resolvedBrokerFieldLen >= sizeof(buf)) {
             Http::sendError(req, 500, "response_overflow");
 
             return;
         }
 
-        memcpy(buf + pos, ",\"resolvedBroker\":", 17);
-        pos += 17;
+        memcpy(buf + pos, RESOLVED_BROKER_FIELD, resolvedBrokerFieldLen);
+        pos += resolvedBrokerFieldLen;
         pos = jsonAppendQuotedString(buf, sizeof(buf), pos,
                                      mqtt.resolvedBroker() ? mqtt.resolvedBroker() : "");
 

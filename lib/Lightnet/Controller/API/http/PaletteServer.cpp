@@ -47,10 +47,13 @@ namespace Lightnet {
         if (pos == (size_t)-1) return -1;
 
         if (record.builtin) {
-            if (pos + 14 >= bufLen) return -1;
+            static const char BUILTIN_TRUE[] = ",\"builtin\":true";
+            constexpr size_t builtinLen = sizeof(BUILTIN_TRUE) - 1;
 
-            memcpy(buf + pos, ",\"builtin\":true", 14);
-            pos += 14;
+            if (pos + builtinLen >= bufLen) return -1;
+
+            memcpy(buf + pos, BUILTIN_TRUE, builtinLen);
+            pos += builtinLen;
         }
 
         if (record.stopsCount == 0) {
@@ -62,10 +65,13 @@ namespace Lightnet {
             return (int)pos;
         }
 
-        if (pos + 10 >= bufLen) return -1;
+        static const char STOPS_FIELD[] = ",\"stops\":[";
+        constexpr size_t stopsFieldLen = sizeof(STOPS_FIELD) - 1;
 
-        memcpy(buf + pos, ",\"stops\":[", 10);
-        pos += 10;
+        if (pos + stopsFieldLen >= bufLen) return -1;
+
+        memcpy(buf + pos, STOPS_FIELD, stopsFieldLen);
+        pos += stopsFieldLen;
 
         for (uint8_t i = 0; i < record.stopsCount; i++) {
             char hex[8];

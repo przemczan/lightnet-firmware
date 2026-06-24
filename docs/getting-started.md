@@ -83,7 +83,7 @@ All environments are defined in `platformio.ini`.
     | `controller_wemos_d1_mini_pro` | Wemos D1 Mini Pro (ESP8266) | USB upload at 460800 baud |
     | `controller_esp32` | ESP32 DevKit | USB upload at 460800 baud |
     | `controller_s2_mini` | Lolin S2 Mini (ESP32-S2) | USB upload at 460800 baud |
-    | `controller_wemos_sim` | Wemos D1 Mini (sim) | Host-side sim — no hardware; mirrors I²C over serial |
+    | `controller_wemos_d1_mini_pro_sim` | Wemos D1 Mini (sim) | Host-side sim — no hardware; mirrors I²C over serial |
     | `controller_esp32_sim` | ESP32 DevKit (sim) | Same as `_sim` above |
     | `controller_s2_mini_sim` | Lolin S2 Mini (sim) | Same as `_sim` above |
 
