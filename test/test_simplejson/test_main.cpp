@@ -211,6 +211,61 @@ void test_readFloat_parses_negative()
     TEST_ASSERT_FLOAT_WITHIN(0.001f, -1.25f, out);
 }
 
+void test_parseString_unescapes_quote()
+{
+    const char *json = "\"test\\\"\"";
+    char out[16];
+
+    TEST_ASSERT_TRUE(jsonParseString(json, json + strlen(json), out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("test\"", out);
+}
+
+void test_parseString_unescapes_backslash()
+{
+    const char *json = "\"a\\\\b\"";
+    char out[16];
+
+    TEST_ASSERT_TRUE(jsonParseString(json, json + strlen(json), out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("a\\b", out);
+}
+
+void test_parseString_unescapes_whitespace()
+{
+    const char *json = "\"a\\nb\"";
+    char out[16];
+
+    TEST_ASSERT_TRUE(jsonParseString(json, json + strlen(json), out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("a\nb", out);
+}
+
+void test_findKey_skips_escaped_quote_inside_value()
+{
+    const char *json = "{\"note\":\"say \\\"hi\\\"\",\"name\":\"found\"}";
+    const char *p = jsonFindKey(json, strlen(json), "name");
+
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_EQUAL_STRING_LEN("\"found\"", p, 7);
+}
+
+void test_writeQuotedString_escapes_quote()
+{
+    char out[32];
+
+    TEST_ASSERT_EQUAL_INT(8, jsonWriteQuotedString(out, sizeof(out), "test\""));
+    TEST_ASSERT_EQUAL_STRING("\"test\\\"\"", out);
+}
+
+void test_escape_round_trip()
+{
+    const char *src = "line\"break\\tab";
+    char quoted[32];
+    char decoded[32];
+
+    TEST_ASSERT_TRUE(jsonWriteQuotedString(quoted, sizeof(quoted), src) > 0);
+    TEST_ASSERT_TRUE(jsonParseString(quoted, quoted + strlen(quoted), decoded, sizeof(decoded)));
+    TEST_ASSERT_EQUAL_STRING(src, decoded);
+}
+
 // ---------------------------------------------------------------------------
 // Test runner
 // ---------------------------------------------------------------------------
@@ -249,6 +304,13 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_skipValue_handles_nested_array);
     RUN_TEST(test_readFloat_parses_decimal);
     RUN_TEST(test_readFloat_parses_negative);
+
+    RUN_TEST(test_parseString_unescapes_quote);
+    RUN_TEST(test_parseString_unescapes_backslash);
+    RUN_TEST(test_parseString_unescapes_whitespace);
+    RUN_TEST(test_findKey_skips_escaped_quote_inside_value);
+    RUN_TEST(test_writeQuotedString_escapes_quote);
+    RUN_TEST(test_escape_round_trip);
 
     return UNITY_END();
 }

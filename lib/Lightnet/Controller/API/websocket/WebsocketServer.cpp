@@ -85,6 +85,45 @@ void WebsocketServer::sendMessage(WebsocketApi::Internal::Message *message)
     this->socket->binary(message->clientId, message->payload, message->payloadSize);
 }
 
+void WebsocketServer::sendToAllClients(const void *frame, size_t len)
+{
+    if (!this->socket) {
+        return;
+    }
+
+    uint32_t targets[MAX_CLIENTS];
+    uint8_t count = 0;
+
+    this->lockClients();
+
+    for (uint8_t i = 0; i < MAX_CLIENTS; i++) {
+        if (this->clientSettings[i].clientId != 0) {
+            targets[count++] = this->clientSettings[i].clientId;
+        }
+    }
+
+    this->unlockClients();
+
+    if (count == 0) {
+        return;
+    }
+
+    if (largestFreeBlock() < len + 128) {
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[WS] broadcast dropped (low heap)"));
+
+        return;
+    }
+
+    auto buffer = std::make_shared<std::vector<uint8_t> >(
+        (const uint8_t *)frame, (const uint8_t *)frame + len);
+
+    for (uint8_t i = 0; i < count; i++) {
+        this->socket->binary(targets[i], buffer);
+    }
+
+    D_PRINTFLN("[WS] broadcast to %d clients", count);
+}
+
 void WebsocketServer::sendToMirroringClients(const void *frame, size_t len)
 {
     if (!this->socket) {

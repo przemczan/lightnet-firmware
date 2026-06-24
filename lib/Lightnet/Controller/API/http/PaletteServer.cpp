@@ -2,6 +2,7 @@
 #include "HttpHelpers.hpp"
 #include "HttpUrl.hpp"
 #include "../../Palettes/PaletteJson.hpp"
+#include "../../../Utils/SimpleJson.hpp"
 #include <Arduino.h>
 #include <string.h>
 #include <stdio.h>
@@ -11,7 +12,7 @@ namespace Lightnet {
     PaletteServer::PaletteServer(
         AsyncWebServer&    _server,
         PaletteRepository& _palettes,
-        AppearanceService&   _appearance
+        AppearanceService& _appearance
     )
         : server(_server), palettes(_palettes), appearance(_appearance)
     {
@@ -35,45 +36,58 @@ namespace Lightnet {
 
     int PaletteServer::serializePaletteJson(const PaletteRecord& record, char *buf, size_t bufLen)
     {
-        int n = 0;
+        if (!buf || bufLen < 32) return -1;
+
+        size_t pos = (size_t)snprintf(buf, bufLen, "{\"schemaVersion\":1,\"name\":");
+
+        if (pos >= bufLen) return -1;
+
+        pos = jsonAppendQuotedString(buf, bufLen, pos, record.name);
+
+        if (pos == (size_t)-1) return -1;
 
         if (record.builtin) {
-            n = snprintf(buf, bufLen,
-                         "{\"schemaVersion\":1,\"name\":\"%s\",\"builtin\":true",
-                         record.name);
-        } else {
-            n = snprintf(buf, bufLen,
-                         "{\"schemaVersion\":1,\"name\":\"%s\"",
-                         record.name);
+            if (pos + 14 >= bufLen) return -1;
+
+            memcpy(buf + pos, ",\"builtin\":true", 14);
+            pos += 14;
         }
 
         if (record.stopsCount == 0) {
-            if (n > 0 && n < (int)bufLen - 1) {
-                buf[n++] = '}';
-                buf[n]   = '\0';
-            }
+            if (pos + 1 >= bufLen) return -1;
 
-            return n;
+            buf[pos++] = '}';
+            buf[pos]   = '\0';
+
+            return (int)pos;
         }
 
-        if (n > 0 && n + 10 < (int)bufLen) {
-            n += snprintf(buf + n, bufLen - n, ",\"stops\":[");
-        }
+        if (pos + 10 >= bufLen) return -1;
 
-        for (uint8_t i = 0; i < record.stopsCount && n + 24 < (int)bufLen; i++) {
+        memcpy(buf + pos, ",\"stops\":[", 10);
+        pos += 10;
+
+        for (uint8_t i = 0; i < record.stopsCount; i++) {
             char hex[8];
 
             snprintf(hex, sizeof(hex), "#%02X%02X%02X",
                      record.stops[i].r, record.stops[i].g, record.stops[i].b);
-            n += snprintf(buf + n, bufLen - n,
-                          "%s[%u,\"%s\"]", i ? "," : "", (unsigned)record.stops[i].pos, hex);
+
+            int n = snprintf(buf + pos, bufLen - pos, "%s[%u,\"%s\"]",
+                             i ? "," : "", (unsigned)record.stops[i].pos, hex);
+
+            if (n <= 0 || pos + (size_t)n >= bufLen) return -1;
+
+            pos += (size_t)n;
         }
 
-        if (n > 0 && n + 2 < (int)bufLen) {
-            n += snprintf(buf + n, bufLen - n, "]}");
-        }
+        if (pos + 2 >= bufLen) return -1;
 
-        return n;
+        buf[pos++] = ']';
+        buf[pos++] = '}';
+        buf[pos]   = '\0';
+
+        return (int)pos;
     }
 
     namespace {
@@ -81,7 +95,7 @@ namespace Lightnet {
         // req->_tempObject + req->onDisconnect (see handleListPalettes) — freed
         // exactly once, never by the fill callback itself.
         struct ListPalettesState : Http::detail::RequestContext {
-            AppearanceService *  appearance;
+            AppearanceService *appearance;
             PaletteRepository *palettes;
             size_t             cursor;  // next DB slot offset to scan from
             bool               emittedOpenBracket;
@@ -308,9 +322,14 @@ namespace Lightnet {
             return;
         }
 
-        char resp[MAX_PALETTE_NAME_LENGTH + 16];
+        char resp[MAX_PALETTE_NAME_LENGTH + 32];
 
-        snprintf(resp, sizeof(resp), "{\"name\":\"%s\"}", name);
+        if (jsonWriteObjectStringField(resp, sizeof(resp), "name", name) < 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
         Http::sendOkJson(req, resp);
     }
 

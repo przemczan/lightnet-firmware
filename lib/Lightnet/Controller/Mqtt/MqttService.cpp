@@ -4,6 +4,7 @@
 #include "../Actions/ControllerActions.hpp"
 #include "../../Utils/Debug.hpp"
 #include "../../Utils/EntryId.hpp"
+#include "../../Utils/SimpleJson.hpp"
 #include <AsyncMqttClient.h>
 #include <Arduino.h>
 #include <WiFi.h>
@@ -558,10 +559,23 @@ namespace Lightnet {
         buf[len + 1] = '\0';
     }
 
+    static void formatSceneMqttLabel(const SceneMeta& meta, char *out, size_t outLen)
+    {
+        snprintf(out, outLen, "%s (%s)", meta.name, meta.id);
+    }
+
+    static const char SCENE_COMMAND_TEMPLATE[] =
+        "{% if value == 'none' %}none{% else %}{{ value.split('(')[-1].rstrip(')') }}{% endif %}";
+
+    static const char SCENE_VALUE_TEMPLATE[] =
+        "{% if value == 'none' %}none{% else %}{% set ns = namespace(found='none') %}"
+        "{% for o in this.attributes.options %}{% if o != 'none' and o.endswith('(' ~ value ~ ')') %}"
+        "{% set ns.found = o %}{% endif %}{% endfor %}{{ ns.found }}{% endif %}";
+
     void MqttService::publishHaDiscovery(HaDiscoveryStep step)
     {
-        static char s_payload[1024];
-        static char s_sceneOptions[512];
+        static char s_payload[2560];
+        static char s_sceneOptions[2048];
 
         char discoveryTopic[96];
         char stateTopic[MQTT_TOPIC_PREFIX_MAX + 32];
@@ -612,43 +626,44 @@ namespace Lightnet {
 
             case HA_DISCOVERY_SCENE:
             {
-                int pos   = 0;
+                size_t pos   = 0;
                 bool first = true;
 
-                pos += snprintf(s_sceneOptions + pos, sizeof(s_sceneOptions) - (size_t)pos, "[");
+                if (pos >= sizeof(s_sceneOptions)) break;
+
+                s_sceneOptions[pos++] = '[';
 
                 struct Ctx {
-                    char *buf;
-                    int   cap;
-                    int * pos;
-                    bool *first;
-                } ctx { s_sceneOptions, (int)sizeof(s_sceneOptions), &pos, &first };
+                    char *  buf;
+                    size_t  cap;
+                    size_t *pos;
+                    bool *  first;
+                } ctx { s_sceneOptions, sizeof(s_sceneOptions), &pos, &first };
 
                 sceneStore.foreachMeta(+[](const SceneMeta& meta, void *user) {
                     Ctx *c = static_cast<Ctx *>(user);
-                    int room = c->cap - *(c->pos);
+                    char label[SCENE_NAME_MAX + ENTRY_ID_MAX + 4];
 
-                    if (room <= 1) return;
-
-                    int written = snprintf(c->buf + *(c->pos), (size_t)room, "%s\"%s\"",
-                                           *(c->first) ? "" : ",", meta.id);
-
-                    if (written > 0 && written < room) {
-                        *(c->pos) += written;
-                        *(c->first) = false;
-                    }
+                    formatSceneMqttLabel(meta, label, sizeof(label));
+                    jsonAppendArrayStringElement(c->buf, c->cap, c->pos, c->first, label);
                 }, &ctx);
 
-                pos += snprintf(s_sceneOptions + pos, sizeof(s_sceneOptions) - (size_t)pos, "%s\"none\"]",
-                                first ? "" : ",");
+                jsonAppendArrayStringElement(s_sceneOptions, sizeof(s_sceneOptions), &pos, &first, "none");
+
+                if (pos + 2 < sizeof(s_sceneOptions)) {
+                    s_sceneOptions[pos++] = ']';
+                    s_sceneOptions[pos]   = '\0';
+                }
 
                 buildDiscoveryTopic(discoveryTopic, sizeof(discoveryTopic), "select", "scene");
                 buildTopic(stateTopic, sizeof(stateTopic), "state/scene");
                 buildTopic(commandTopic, sizeof(commandTopic), "command/scene");
                 snprintf(buf, sizeof(s_payload),
                          "{\"name\":\"Lightnet Scene\",\"unique_id\":\"%s_scene\","
-                         "\"command_topic\":\"%s\",\"state_topic\":\"%s\",\"options\":%s",
-                         _deviceId, commandTopic, stateTopic, s_sceneOptions);
+                         "\"command_topic\":\"%s\",\"state_topic\":\"%s\",\"options\":%s,"
+                         "\"command_template\":\"%s\",\"value_template\":\"%s\"",
+                         _deviceId, commandTopic, stateTopic, s_sceneOptions,
+                         SCENE_COMMAND_TEMPLATE, SCENE_VALUE_TEMPLATE);
                 appendAvailability(buf, sizeof(s_payload), _statusTopic);
                 appendDeviceBlock(buf, sizeof(s_payload), _deviceId);
                 appendJsonClose(buf, sizeof(s_payload));
@@ -781,6 +796,10 @@ namespace Lightnet {
             uint16_t *h = static_cast<uint16_t *>(user);
 
             for (const char *p = meta.id; *p; ++p) {
+                *h = (uint16_t)(*h * 31 + (uint8_t)(*p));
+            }
+
+            for (const char *p = meta.name; *p; ++p) {
                 *h = (uint16_t)(*h * 31 + (uint8_t)(*p));
             }
         }, &hash);

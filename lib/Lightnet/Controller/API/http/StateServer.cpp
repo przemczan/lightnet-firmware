@@ -39,16 +39,49 @@ namespace Lightnet {
 
     void StateServer::handleGetState(AsyncWebServerRequest *req)
     {
-        char buf[192];
+        char buf[256];
+        size_t pos = (size_t)snprintf(buf, sizeof(buf),
+                                      "{\"isOn\":%s,\"lastPlayedSceneId\":",
+                                      appState.isOn() ? "true" : "false");
 
-        snprintf(buf, sizeof(buf),
-                 "{\"isOn\":%s,\"lastPlayedSceneId\":\"%s\",\"lastPlayedSceneIsStored\":%s,"
-                 "\"playing\":%s,\"speed\":%.1f,\"controllerFirmware\":\"%s\"}",
-                 appState.isOn() ? "true" : "false", appState.lastPlayedSceneId(),
-                 appState.lastPlayedSceneIsStored() ? "true" : "false",
-                 animService.isPlaying() ? "true" : "false",
-                 (double)animService.getSpeed(),
-                 FW_VERSION);
+        if (pos >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, appState.lastPlayedSceneId());
+
+        if (pos == (size_t)-1 || pos + 96 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        int n = snprintf(buf + pos, sizeof(buf) - pos,
+                         ",\"lastPlayedSceneIsStored\":%s,"
+                         "\"playing\":%s,\"speed\":%.1f,\"controllerFirmware\":",
+                         appState.lastPlayedSceneIsStored() ? "true" : "false",
+                         animService.isPlaying() ? "true" : "false",
+                         (double)animService.getSpeed());
+
+        if (n <= 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos += (size_t)n;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, FW_VERSION);
+
+        if (pos == (size_t)-1 || pos + 2 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        buf[pos++] = '}';
+        buf[pos]   = '\0';
         Http::sendOkJson(req, buf);
     }
 

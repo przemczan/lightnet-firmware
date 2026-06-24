@@ -34,6 +34,21 @@ void test_read_top_level_string()
     TEST_ASSERT_EQUAL_STRING("abcd1234", id);
 }
 
+void test_upsert_escapes_quote_in_value()
+{
+    const char *body = "{\"schemaVersion\":1,\"name\":\"x\",\"layers\":[]}";
+    char out[256];
+    int n = jsonUpsertStringField(body, strlen(body), "name", "test\"", out, sizeof(out));
+
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_NOT_NULL(strstr(out, "\"name\":\"test\\\"\""));
+
+    char name[16] = { 0 };
+
+    TEST_ASSERT_TRUE(jsonReadTopLevelString(out, (size_t)n, "name", name, sizeof(name)));
+    TEST_ASSERT_EQUAL_STRING("test\"", name);
+}
+
 void setUp(void)
 {
 }
@@ -49,6 +64,7 @@ int main(int /*argc*/, char ** /*argv*/)
     RUN_TEST(test_upsert_inserts_missing_id);
     RUN_TEST(test_upsert_replaces_existing_id);
     RUN_TEST(test_read_top_level_string);
+    RUN_TEST(test_upsert_escapes_quote_in_value);
 
     return UNITY_END();
 }

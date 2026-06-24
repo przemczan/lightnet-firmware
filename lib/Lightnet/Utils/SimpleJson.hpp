@@ -18,6 +18,21 @@ namespace Lightnet {
     // Free helpers (reusable without the class)
     // ============================================================================
 
+    inline void jsonSkipQuotedString(const char *& p, const char *end)
+    {
+        if (p >= end || *p != '"') return;
+
+        p++;
+
+        while (p < end && *p != '"') {
+            if (*p == '\\' && p + 1 < end) p++;
+
+            p++;
+        }
+
+        if (p < end) p++;
+    }
+
     // Returns pointer to the value start (after `key:` + whitespace) of the first
     // top-level occurrence of `key` in the JSON object body, or nullptr.
     //
@@ -35,34 +50,41 @@ namespace Lightnet {
 
         if (p < end && *p == '{') p++;
 
-        for (; p + klen + 2 <= end; p++) {
+        while (p < end) {
             if (*p == '{' || *p == '[') {
                 depth++;
+                p++;
                 continue;
             }
 
             if (*p == '}' || *p == ']') {
                 depth--;
+                p++;
                 continue;
             }
 
-            if (depth != 0 || *p != '"') continue;
+            if (depth != 0 || *p != '"') {
+                p++;
+                continue;
+            }
 
-            if (strncmp(p + 1, key, klen) != 0) continue;
+            if (p + 1 + klen < end &&
+                strncmp(p + 1, key, klen) == 0 &&
+                p[1 + klen] == '"') {
+                const char *q = p + klen + 2;
 
-            if (p[1 + klen] != '"') continue;
+                while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
 
-            const char *q = p + klen + 2;
+                if (q < end && *q == ':') {
+                    q++;
 
-            while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
+                    while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
 
-            if (q >= end || *q != ':') continue;
+                    return q;
+                }
+            }
 
-            q++;
-
-            while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) q++;
-
-            return q;
+            jsonSkipQuotedString(p, end);
         }
 
         return nullptr;
@@ -85,6 +107,75 @@ namespace Lightnet {
         return v;
     }
 
+    inline int jsonHexVal(char c)
+    {
+        if (c >= '0' && c <= '9') return c - '0';
+
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+
+        return -1;
+    }
+
+    inline bool jsonDecodeEscapedChar(const char *& p, const char *end, char *out)
+    {
+        if (p >= end) return false;
+
+        char esc = *p++;
+
+        switch (esc) {
+            case '"':  *out = '"';
+
+                return true;
+            case '\\': *out = '\\';
+
+                return true;
+            case '/':  *out = '/';
+
+                return true;
+            case 'b':  *out = '\b';
+
+                return true;
+            case 'f':  *out = '\f';
+
+                return true;
+            case 'n':  *out = '\n';
+
+                return true;
+            case 'r':  *out = '\r';
+
+                return true;
+            case 't':  *out = '\t';
+
+                return true;
+            case 'u':
+            {
+                if (p + 4 > end) return false;
+
+                uint16_t code = 0;
+
+                for (int i = 0; i < 4; i++) {
+                    int h = jsonHexVal(p[i]);
+
+                    if (h < 0) return false;
+
+                    code = (uint16_t)((code << 4) | (uint16_t)h);
+                }
+
+                p += 4;
+
+                if (code > 0x7F) return false;
+
+                *out = (char)code;
+
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
     // Parse a quoted JSON string. Returns false if `p` isn't a `"`, value overflows,
     // or there's no closing quote.
     inline bool jsonParseString(const char *p, const char *end, char *out, size_t outLen)
@@ -95,14 +186,20 @@ namespace Lightnet {
 
         size_t i = 0;
 
-        while (p < end && *p != '"' && i + 1 < outLen) {
+        while (p < end && *p != '"') {
+            char ch;
+
             if (*p == '\\') {
                 p++;
 
-                if (p >= end) return false;
+                if (!jsonDecodeEscapedChar(p, end, &ch)) return false;
+            } else {
+                ch = *p++;
             }
 
-            out[i++] = *p++;
+            if (i + 1 >= outLen) return false;
+
+            out[i++] = ch;
         }
 
         if (p >= end || *p != '"') return false;
@@ -152,6 +249,232 @@ namespace Lightnet {
         out[7] = '\0';
     }
 
+    inline size_t jsonEscapedContentLen(const char *src)
+    {
+        size_t n = 0;
+
+        if (!src) return 0;
+
+        for (const char *p = src; *p; p++) {
+            switch (*p) {
+                case '"':
+                case '\\':
+                case '\b':
+                case '\f':
+                case '\n':
+                case '\r':
+                case '\t':
+                    n += 2;
+                    break;
+
+                default:
+
+                    if ((unsigned char)*p < 0x20) n += 6;
+                    else n += 1;
+            }
+        }
+
+        return n;
+    }
+
+    inline size_t jsonQuotedLen(const char *src)
+    {
+        return jsonEscapedContentLen(src) + 2;
+    }
+
+    inline int jsonWriteEscapedContent(char *out, size_t outCap, const char *src)
+    {
+        if (!out || outCap == 0) return -1;
+
+        size_t pos = 0;
+
+        if (!src) {
+            out[0] = '\0';
+
+            return 0;
+        }
+
+        for (const char *p = src; *p; p++) {
+            const char *esc = nullptr;
+            char ubuf[7];
+
+            switch (*p) {
+                case '"':  esc = "\\\"";
+                    break;
+                case '\\': esc = "\\\\";
+                    break;
+                case '\b': esc = "\\b";
+                    break;
+                case '\f': esc = "\\f";
+                    break;
+                case '\n': esc = "\\n";
+                    break;
+                case '\r': esc = "\\r";
+                    break;
+                case '\t': esc = "\\t";
+                    break;
+
+                default:
+
+                    if ((unsigned char)*p < 0x20) {
+                        static const char hx[] = "0123456789abcdef";
+
+                        ubuf[0] = '\\';
+                        ubuf[1] = 'u';
+                        ubuf[2] = '0';
+                        ubuf[3] = '0';
+                        ubuf[4] = hx[((unsigned char)*p >> 4) & 0xF];
+                        ubuf[5] = hx[(unsigned char)*p & 0xF];
+                        ubuf[6] = '\0';
+                        esc = ubuf;
+                    }
+
+                    break;
+            }
+
+            if (esc) {
+                size_t elen = strlen(esc);
+
+                if (pos + elen >= outCap) return -1;
+
+                memcpy(out + pos, esc, elen);
+                pos += elen;
+            } else {
+                if (pos + 1 >= outCap) return -1;
+
+                out[pos++] = *p;
+            }
+        }
+
+        if (pos >= outCap) return -1;
+
+        out[pos] = '\0';
+
+        return (int)pos;
+    }
+
+    // Writes a quoted, escaped JSON string (including both `"` delimiters).
+    inline int jsonWriteQuotedString(char *out, size_t outCap, const char *src)
+    {
+        if (!out || outCap < 2) return -1;
+
+        out[0] = '"';
+
+        int n = jsonWriteEscapedContent(out + 1, outCap - 1, src);
+
+        if (n < 0) return -1;
+
+        size_t pos = 1 + (size_t)n;
+
+        if (pos + 1 >= outCap) return -1;
+
+        out[pos]     = '"';
+        out[pos + 1] = '\0';
+
+        return (int)(pos + 1);
+    }
+
+    // Appends a quoted, escaped JSON string at `pos`. Returns new position, or
+    // `(size_t)-1` on overflow.
+    inline size_t jsonAppendQuotedString(char *buf, size_t cap, size_t pos, const char *src)
+    {
+        if (pos >= cap) return (size_t)-1;
+
+        int n = jsonWriteQuotedString(buf + pos, cap - pos, src);
+
+        if (n < 0) return (size_t)-1;
+
+        return pos + (size_t)n;
+    }
+
+    // Appends `"key":<quoted value>` with an optional leading comma.
+    inline size_t jsonAppendStringField(
+        char *      buf,
+        size_t      cap,
+        size_t      pos,
+        const char *key,
+        const char *value,
+        bool        leadingComma
+    )
+    {
+        if (!key || !value) return (size_t)-1;
+
+        if (leadingComma) {
+            if (pos >= cap) return (size_t)-1;
+
+            buf[pos++] = ',';
+        }
+
+        size_t klen = strlen(key);
+
+        if (pos + klen + 3 >= cap) return (size_t)-1;
+
+        buf[pos++] = '"';
+        memcpy(buf + pos, key, klen);
+        pos += klen;
+        buf[pos++] = '"';
+        buf[pos++] = ':';
+
+        return jsonAppendQuotedString(buf, cap, pos, value);
+    }
+
+    // Writes `{"key":<quoted value>}`. Returns length or -1 on overflow.
+    inline int jsonWriteObjectStringField(char *out, size_t outCap, const char *key, const char *value)
+    {
+        if (!out || outCap < 4 || !key || !value) return -1;
+
+        size_t pos = 0;
+
+        if (pos + 1 >= outCap) return -1;
+
+        out[pos++] = '{';
+
+        pos = jsonAppendStringField(out, outCap, pos, key, value, false);
+
+        if (pos == (size_t)-1) return -1;
+
+        if (pos + 1 >= outCap) return -1;
+
+        out[pos++] = '}';
+        out[pos]   = '\0';
+
+        return (int)pos;
+    }
+
+    // Writes `{"error":<quoted message>}`.
+    inline int jsonWriteErrorObject(char *out, size_t outCap, const char *msg)
+    {
+        return jsonWriteObjectStringField(out, outCap, "error", msg ? msg : "error");
+    }
+
+    // Appends a quoted, escaped string element to a JSON array builder.
+    inline bool jsonAppendArrayStringElement(
+        char *      buf,
+        size_t      cap,
+        size_t *    pos,
+        bool *      first,
+        const char *str
+    )
+    {
+        if (!buf || !pos || !first || !str || *pos >= cap) return false;
+
+        if (!*first) {
+            if (*pos + 1 >= cap) return false;
+
+            buf[(*pos)++] = ',';
+        }
+
+        *first = false;
+
+        size_t next = jsonAppendQuotedString(buf, cap, *pos, str);
+
+        if (next == (size_t)-1) return false;
+
+        *pos = next;
+
+        return true;
+    }
+
     // ============================================================================
     // Cursor-based primitives — for streaming parsers (SceneParser, PaletteStore)
     //
@@ -182,15 +505,17 @@ namespace Lightnet {
         size_t i = 0;
 
         while (p < end && *p != '"') {
+            char ch;
+
             if (*p == '\\') {
                 p++;
 
-                if (p >= end) return false;
+                if (!jsonDecodeEscapedChar(p, end, &ch)) return false;
+            } else {
+                ch = *p++;
             }
 
-            if (i + 1 < outLen) out[i++] = *p;
-
-            p++;
+            if (i + 1 < outLen) out[i++] = ch;
         }
 
         if (p >= end) return false;
@@ -306,17 +631,8 @@ namespace Lightnet {
             }
 
             if (*p == '"') {
-                p++;
-
-                while (p < end && *p != '"') {
-                    if (*p == '\\') p++;
-
-                    p++;
-                }
-
-                if (p >= end) return false;
-
-                p++;
+                jsonSkipQuotedString(p, end);
+                continue;
             }
 
             jsonSkipWs(p, end);
@@ -360,17 +676,7 @@ namespace Lightnet {
         if (p >= end) return false;
 
         if (*p == '"') {
-            p++;
-
-            while (p < end && *p != '"') {
-                if (*p == '\\') p++;
-
-                p++;
-            }
-
-            if (p >= end) return false;
-
-            p++;
+            jsonSkipQuotedString(p, end);
 
             return true;
         }

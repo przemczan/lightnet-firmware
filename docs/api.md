@@ -21,7 +21,7 @@ The controller is discoverable via mDNS as `lightnet-<chipid>.local` with servic
 1. [WebSocket Binary API](#1-websocket-binary-api)
    - [Packet structure](#11-packet-structure)
    - [Commands](#12-commands) — TOGGLE (1), SET_COLOR (3), GET_PANELS_STATES (5), GET_EDGES_LIST (4), ANIMATION_TRIGGER (8), SET_MIRROR (10), PING (11)
-   - [Responses](#13-responses) — PANELS_STATES (6), EDGES_LIST (7), MIRROR_BATCH (9), PONG (12)
+   - [Responses](#13-responses) — PANELS_STATES (6), EDGES_LIST (7), MIRROR_BATCH (9), PONG (12), APP_STATE (13)
    - [Sending a command — worked example](#14-sending-a-command-worked-example)
 2. [HTTP API](#2-http-api)
    - [Appearance](#21-appearance)
@@ -225,6 +225,24 @@ All records in one frame share the same `controllerMillis` timestamp. The first 
 Sent immediately in reply to `PING`, on the same connection.
 
 No payload.
+
+---
+
+#### APP_STATE (type 13)
+
+Broadcast **controller → all connected clients** whenever any field of `GET /api/state` changes (power, last-played scene, playback status, or speed). No client command triggers this frame.
+
+`payloadSize = 51`.
+
+| Offset | Size | Field | Type | Description |
+|---|---|---|---|---|
+| 0 | 1 B | `isOn` | uint8 | `1` = panels on, `0` = off |
+| 1 | 1 B | `lastPlayedSceneIsStored` | uint8 | `1` if `lastPlayedSceneId` refers to a catalogued scene |
+| 2 | 1 B | `playing` | uint8 | `1` if a scene is currently playing |
+| 3 | 1 B | `_reserved` | uint8 | Always `0` |
+| 4 | 4 B | `speed` | float32 LE | Current scene speed multiplier (`0.1`–`10.0`) |
+| 8 | 11 B | `lastPlayedSceneId` | char[11] | Null-terminated scene id (max 10 chars) |
+| 19 | 32 B | `controllerFirmware` | char[32] | Null-terminated controller build version (`FW_VERSION`) |
 
 ---
 
@@ -477,6 +495,8 @@ the replay target is the internal one-shot scene id rather than a catalogued sce
 | `GET` | `/api/state` | — | `{"isOn":true,"lastPlayedSceneId":"abcd1234","lastPlayedSceneIsStored":true,"playing":true,"speed":1.0,"controllerFirmware":"1.2.3"}` |
 | `POST` | `/api/state/power` | `{"isOn":bool}` | `202 {"isOn":bool}` (panel effects applied on the main loop) |
 
+WebSocket clients receive an `APP_STATE` (type 13) broadcast whenever any field in the response above changes — see [§1.3 APP_STATE](#app_state-type-13).
+
 - Setting `isOn: false` stops all animations, clears panel animation queues, and turns all panels off. Scene and animation play endpoints return `409 system_off` while off.
 - Setting `isOn: true` turns all panels back on and re-broadcasts the current appearance (brightness, palette, base colors).
 - `controllerFirmware` is the controller build version string (`FW_VERSION`); read-only, useful for the mobile app to show the running firmware.
@@ -544,11 +564,13 @@ Patching config triggers an MQTT reconnect on the next main-loop tick.
 | `command/brightness` | sub | `0`–`255` |
 | `state/scene` | pub | scene id or `none` |
 | `command/scene` | sub | scene id or `none` (stop) |
+
+Home Assistant scene **select** discovery lists options as `"Name (id)"` and uses `command_template` / `value_template` so the HA UI shows the label while `state/scene` and `command/scene` payloads remain the raw scene id.
 | `state/playing` | pub | `true` / `false` |
 | `state/speed` | pub | float string (e.g. `1.0`) |
 | `command/stop` | sub | any payload → stop scene |
 
-**Home Assistant discovery** (retained, under `{discoveryPrefix}/`, default `homeassistant/`): switch (power), light (brightness + on/off), select (scene list), binary sensor (playing), sensor (speed).
+**Home Assistant discovery** (retained, under `{discoveryPrefix}/`, default `homeassistant/`): switch (power), light (brightness + on/off), select (scene list as `"Name (id)"` with id on the wire), binary sensor (playing), sensor (speed).
 
 MQTT commands that mutate panel/scene state are deferred through `MainLoopQueue` like HTTP. Brightness and scene commands are ignored while `isOn` is false (same as HTTP `409 system_off` behaviour, but without an error reply on MQTT).
 

@@ -42,6 +42,31 @@ void test_parse_serialize_parse_round_trip()
     TEST_ASSERT_EQUAL_UINT16(a.layers[0].steps[0].durationMs, b.layers[0].steps[0].durationMs);
 }
 
+void test_round_trip_scene_name_with_quote()
+{
+    const char *json =
+        "{\"name\":\"test\\\"\",\"layers\":[{\"group\":1,\"panels\":\"all\",\"sequence\":"
+        "[{\"type\":\"SOLID\",\"color\":\"#FF0000\",\"duration\":1000}]}]}";
+
+    SceneRecord a = {};
+    char errA[64];
+
+    TEST_ASSERT_TRUE(parseScene(json, strlen(json), a, errA, sizeof(errA)));
+    TEST_ASSERT_EQUAL_STRING("test\"", a.name);
+
+    char out[4096];
+    int n = serializeScene(a, out, sizeof(out));
+
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_NOT_NULL(strstr(out, "\"name\":\"test\\\"\""));
+
+    SceneRecord b = {};
+    char errB[64];
+
+    TEST_ASSERT_TRUE(parseScene(out, (size_t)n, b, errB, sizeof(errB)));
+    TEST_ASSERT_EQUAL_STRING("test\"", b.name);
+}
+
 void setUp(void)
 {
 }
@@ -55,6 +80,7 @@ int main(int /*argc*/, char ** /*argv*/)
     UNITY_BEGIN();
 
     RUN_TEST(test_parse_serialize_parse_round_trip);
+    RUN_TEST(test_round_trip_scene_name_with_quote);
 
     return UNITY_END();
 }

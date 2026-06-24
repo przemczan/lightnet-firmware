@@ -28,7 +28,11 @@ namespace WebsocketApi
         SET_MIRROR = 10,          // client→controller: enable/disable MIRROR_BATCH streaming
         PING = 11,                // client→controller: liveness check
         PONG = 12,                // controller→client: reply to PING
+        APP_STATE = 13,           // controller→client: runtime state (mirrors GET /api/state)
     };
+
+    static constexpr uint8_t APP_STATE_SCENE_ID_MAX   = 10;
+    static constexpr uint8_t APP_STATE_FW_VERSION_MAX   = 31;
 
     typedef struct PACK {
         packet_t type;
@@ -94,6 +98,17 @@ namespace WebsocketApi
             uint16_t      length;
             PanelEdgeInfo edges[];
         } EdgesList;
+
+        // Mirrors GET /api/state — broadcast to all clients when any field changes.
+        typedef struct PACK {
+            uint8_t isOn;
+            uint8_t lastPlayedSceneIsStored;
+            uint8_t playing;
+            uint8_t _reserved;
+            float   speed;
+            char    lastPlayedSceneId[APP_STATE_SCENE_ID_MAX + 1];
+            char    controllerFirmware[APP_STATE_FW_VERSION_MAX + 1];
+        } AppState;
     }
 
     namespace Internal {

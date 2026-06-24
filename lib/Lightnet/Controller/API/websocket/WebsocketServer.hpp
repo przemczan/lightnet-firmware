@@ -72,6 +72,8 @@ class WebsocketServer
         CircularQueue *getIncommingMessages();
         ReceivedCounts getAndResetReceivedCount();
         void sendMessage(WebsocketApi::Internal::Message *message);
+        // Sends a fully-framed WS message to every connected client.
+        void sendToAllClients(const void *frame, size_t len);
         // Sends a fully-framed WS message to all clients that have enabled mirroring.
         // Sends per-client independently so a backed-up client loses only its own frames.
         void sendToMirroringClients(const void *frame, size_t len);

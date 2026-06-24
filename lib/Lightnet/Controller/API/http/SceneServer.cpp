@@ -10,13 +10,13 @@
 
 namespace Lightnet {
     SceneServer::SceneServer(
-        AsyncWebServer&  _server,
-        SceneStore&      _scenes,
-        ScenePlayer&     _player,
-        ScenesService&   _animService,
-        AppStateStore&   _appState,
+        AsyncWebServer&    _server,
+        SceneStore&        _scenes,
+        ScenePlayer&       _player,
+        ScenesService&     _animService,
+        AppStateStore&     _appState,
         AppearanceService& _appearance,
-        MainLoopQueue&   _queue
+        MainLoopQueue&     _queue
     )
         : server(_server), scenes(_scenes), player(_player), animService(_animService),
         appState(_appState), appearance(_appearance), queue(_queue)
@@ -82,18 +82,49 @@ namespace Lightnet {
         // state->pending, resetting the pending read cursor to the start.
         void appendPendingSceneEntry(ListScenesState *state, const SceneMeta& meta)
         {
-            size_t prefixLen = 0;
+            size_t pos = 0;
 
             if (!state->first) {
                 state->pending[0] = ',';
-                prefixLen = 1;
+                pos = 1;
             }
 
-            int n = snprintf(state->pending + prefixLen, sizeof(state->pending) - prefixLen,
-                             "{\"schemaVersion\":1,\"id\":\"%s\",\"name\":\"%s\",\"layerCount\":%u,\"duration\":%lu}",
-                             meta.id, meta.name, (unsigned)meta.layerCount, (unsigned long)meta.duration);
+            pos += (size_t)snprintf(state->pending + pos, sizeof(state->pending) - pos,
+                                    "{\"schemaVersion\":1,\"id\":");
 
-            state->pendingLen = prefixLen + ((n > 0) ? (size_t)n : 0);
+            if (pos >= sizeof(state->pending)) {
+                state->pendingLen = 0;
+                state->pendingPos = 0;
+
+                return;
+            }
+
+            pos = jsonAppendQuotedString(state->pending, sizeof(state->pending), pos, meta.id);
+
+            if (pos == (size_t)-1 || pos + 9 >= sizeof(state->pending)) {
+                state->pendingLen = 0;
+                state->pendingPos = 0;
+
+                return;
+            }
+
+            memcpy(state->pending + pos, ",\"name\":", 8);
+            pos += 8;
+
+            pos = jsonAppendQuotedString(state->pending, sizeof(state->pending), pos, meta.name);
+
+            if (pos == (size_t)-1) {
+                state->pendingLen = 0;
+                state->pendingPos = 0;
+
+                return;
+            }
+
+            int n = snprintf(state->pending + pos, sizeof(state->pending) - pos,
+                             ",\"layerCount\":%u,\"duration\":%lu}",
+                             (unsigned)meta.layerCount, (unsigned long)meta.duration);
+
+            state->pendingLen = pos + ((n > 0) ? (size_t)n : 0);
             state->pendingPos = 0;
             state->first      = false;
         }
@@ -288,7 +319,12 @@ namespace Lightnet {
 
         char resp[48];
 
-        snprintf(resp, sizeof(resp), "{\"id\":\"%s\"}", r.savedId);
+        if (jsonWriteObjectStringField(resp, sizeof(resp), "id", r.savedId) < 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
         Http::sendOkJson(req, resp);
     }
 
@@ -313,7 +349,12 @@ namespace Lightnet {
 
         char resp[48];
 
-        snprintf(resp, sizeof(resp), "{\"id\":\"%s\"}", r.savedId);
+        if (jsonWriteObjectStringField(resp, sizeof(resp), "id", r.savedId) < 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
         Http::sendOkJson(req, resp);
     }
 

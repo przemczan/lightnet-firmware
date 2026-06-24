@@ -27,25 +27,134 @@ namespace Lightnet {
 
     void MqttServer::handleGetMqtt(AsyncWebServerRequest *req)
     {
-        char buf[512];
+        char buf[768];
+        size_t pos = (size_t)snprintf(buf, sizeof(buf),
+                                      "{\"enabled\":%s,\"brokerDiscovery\":%u,\"broker\":",
+                                      config.enabled() ? "true" : "false",
+                                      (unsigned)config.brokerDiscovery());
 
-        snprintf(buf, sizeof(buf),
-                 "{\"enabled\":%s,\"brokerDiscovery\":%u,\"broker\":\"%s\",\"port\":%u,"
-                 "\"username\":\"%s\",\"topicPrefix\":\"%s\",\"discoveryPrefix\":\"%s\","
-                 "\"connected\":%s,\"brokerDiscoveryState\":\"%s\",\"resolvedBroker\":\"%s\","
-                 "\"resolvedPort\":%u,\"discoverySource\":\"%s\"}",
-                 config.enabled() ? "true" : "false",
-                 (unsigned)config.brokerDiscovery(),
-                 config.broker(),
-                 (unsigned)config.port(),
-                 config.username(),
-                 config.topicPrefix(),
-                 config.discoveryPrefix(),
-                 mqtt.isConnected() ? "true" : "false",
-                 mqtt.brokerDiscoveryStateName(),
-                 mqtt.resolvedBroker() ? mqtt.resolvedBroker() : "",
-                 (unsigned)mqtt.resolvedPort(),
-                 mqtt.discoverySourceName());
+        if (pos >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, config.broker());
+
+        if (pos == (size_t)-1) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        int n = snprintf(buf + pos, sizeof(buf) - pos,
+                         ",\"port\":%u,\"username\":",
+                         (unsigned)config.port());
+
+        if (n <= 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos += (size_t)n;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, config.username());
+
+        if (pos == (size_t)-1) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        if (pos + 16 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        memcpy(buf + pos, ",\"topicPrefix\":", 15);
+        pos += 15;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, config.topicPrefix());
+
+        if (pos == (size_t)-1) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        if (pos + 20 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        memcpy(buf + pos, ",\"discoveryPrefix\":", 19);
+        pos += 19;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, config.discoveryPrefix());
+
+        if (pos == (size_t)-1) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        n = snprintf(buf + pos, sizeof(buf) - pos,
+                     ",\"connected\":%s,\"brokerDiscoveryState\":",
+                     mqtt.isConnected() ? "true" : "false");
+
+        if (n <= 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos += (size_t)n;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, mqtt.brokerDiscoveryStateName());
+
+        if (pos == (size_t)-1) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        if (pos + 18 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        memcpy(buf + pos, ",\"resolvedBroker\":", 17);
+        pos += 17;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos,
+                                     mqtt.resolvedBroker() ? mqtt.resolvedBroker() : "");
+
+        if (pos == (size_t)-1) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        n = snprintf(buf + pos, sizeof(buf) - pos,
+                     ",\"resolvedPort\":%u,\"discoverySource\":",
+                     (unsigned)mqtt.resolvedPort());
+
+        if (n <= 0) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos += (size_t)n;
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, mqtt.discoverySourceName());
+
+        if (pos == (size_t)-1 || pos + 2 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        buf[pos++] = '}';
+        buf[pos]   = '\0';
         Http::sendOkJson(req, buf);
     }
 

@@ -10,6 +10,7 @@ AsyncWiFiManager *wifiManager;
 WebsocketServer *websocketServer;
 WebsocketHandler *websocketHandler;
 PacketMirror *packetMirror = nullptr;
+Lightnet::AppStateBroadcaster *appStateBroadcaster = nullptr;
 Lightnet::MainLoopQueue *mainLoopQueue = nullptr;
 
 // LightnetBus::onPacketSent is a plain function pointer, so it can't capture.
@@ -441,6 +442,9 @@ void loop()
                                                         packetMirror);
                 stateServer->begin();
 
+                appStateBroadcaster = new Lightnet::AppStateBroadcaster(
+                    *websocketServer, *appStateStore, *animService);
+
                 #ifdef LIGHTNET_MQTT
                     mqttService = new Lightnet::MqttService(
                         *mqttConfigStore, *appStateStore, *appearance, *animService, *sceneStore,
@@ -499,6 +503,8 @@ void loop()
                     if (configStore)   configStore->tick(millis());
 
                     if (appStateStore) appStateStore->tick(millis());
+
+                    if (appStateBroadcaster) appStateBroadcaster->tick();
 
                     #ifdef LIGHTNET_MQTT
 

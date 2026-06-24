@@ -3,6 +3,7 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
     #include "../../Utils/Debug.hpp"
+    #include "../../Utils/SimpleJson.hpp"
 
     static const char *FIRMWARE_PATH = "/panel_fw.bin";
 
@@ -29,8 +30,11 @@
 
         if (s.hasError) {
             char body[128];
-            snprintf(body, sizeof(body),
-                     "{\"error\":\"%s\"}", s.errorMsg);
+
+            if (Lightnet::jsonWriteErrorObject(body, sizeof(body), s.errorMsg) < 0) {
+                strcpy(body, "{\"error\":\"flash error\"}");
+            }
+
             request->send(422, "application/json", body);
         } else {
             char body[64];
@@ -96,9 +100,18 @@
         char body[192];
 
         if (s.hasError) {
-            snprintf(body, sizeof(body),
-                     "{\"state\":\"error\",\"panel\":%d,\"total\":%d,\"error\":\"%s\"}",
-                     s.panelIdx, s.totalPanels, s.errorMsg);
+            size_t pos = (size_t)snprintf(body, sizeof(body),
+                                          "{\"state\":\"error\",\"panel\":%d,\"total\":%d,\"error\":",
+                                          s.panelIdx, s.totalPanels);
+
+            if (pos < sizeof(body)) {
+                pos = Lightnet::jsonAppendQuotedString(body, sizeof(body), pos, s.errorMsg);
+
+                if (pos != (size_t)-1 && pos + 2 < sizeof(body)) {
+                    body[pos++] = '}';
+                    body[pos]   = '\0';
+                }
+            }
         } else {
             const char *stateStr = "idle";
 

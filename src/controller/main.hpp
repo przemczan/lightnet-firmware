@@ -9,6 +9,7 @@
     #include "API/websocket/WebsocketServer.hpp"
     #include "API/websocket/WebsocketHandler.hpp"
     #include "API/websocket/PacketMirror.hpp"
+    #include "API/websocket/AppStateBroadcaster.hpp"
     #include "MirrorService.hpp"
     #include "../../lib/Lightnet/Utils/MainLoopQueue.hpp"
     #include <ESPAsyncWebServer.h>

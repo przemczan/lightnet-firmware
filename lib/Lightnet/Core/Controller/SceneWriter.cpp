@@ -27,6 +27,27 @@ namespace Lightnet {
             return pos + (size_t)n;
         }
 
+        static size_t appendJsonQuoted(char *buf, size_t cap, size_t pos, const char *str)
+        {
+            size_t next = jsonAppendQuotedString(buf, cap, pos, str);
+
+            return (next == (size_t)-1) ? cap : next;
+        }
+
+        static size_t appendJsonStringField(
+            char *      buf,
+            size_t      cap,
+            size_t      pos,
+            const char *key,
+            const char *value,
+            bool        leadingComma
+        )
+        {
+            size_t next = jsonAppendStringField(buf, cap, pos, key, value, leadingComma);
+
+            return (next == (size_t)-1) ? cap : next;
+        }
+
         static const char *animTypeWireName(uint8_t t)
         {
             switch (t) {
@@ -285,10 +306,15 @@ namespace Lightnet {
 
                 const char *gn = groupWireName(record.layers[k]);
 
-                if (gn) return append(buf, cap, pos, ",\"startAfter\":\"%s\"", gn);
+                if (gn) {
+                    pos = append(buf, cap, pos, ",\"startAfter\":");
+                    pos = appendJsonQuoted(buf, cap, pos, gn);
+                } else {
+                    return append(buf, cap, pos, ",\"startAfter\":\"%u\"",
+                                  (unsigned)layer.startAfterGroupId);
+                }
 
-                return append(buf, cap, pos, ",\"startAfter\":\"%u\"",
-                              (unsigned)layer.startAfterGroupId);
+                return pos;
             }
 
             return pos;
@@ -307,7 +333,8 @@ namespace Lightnet {
             const char *gn = groupWireName(layer);
 
             if (gn) {
-                pos = append(buf, cap, pos, "\"group\":\"%s\"", gn);
+                pos = append(buf, cap, pos, "\"group\":");
+                pos = appendJsonQuoted(buf, cap, pos, gn);
             } else {
                 pos = append(buf, cap, pos, "\"group\":%u", (unsigned)layer.groupId);
             }
@@ -316,7 +343,7 @@ namespace Lightnet {
             pos = writePanelSelector(buf, cap, pos, layer.target);
 
             if (layer.palette[0] != '\0') {
-                pos = append(buf, cap, pos, ",\"palette\":\"%s\"", layer.palette);
+                pos = appendJsonStringField(buf, cap, pos, "palette", layer.palette, true);
             }
 
             if (layer.blend != COMPOSE_DEFAULT) {
@@ -356,10 +383,11 @@ namespace Lightnet {
         pos = append(buf, bufLen, pos, "{\"schemaVersion\":%u", (unsigned)record.schemaVersion);
 
         if (record.id[0] != '\0') {
-            pos = append(buf, bufLen, pos, ",\"id\":\"%s\"", record.id);
+            pos = appendJsonStringField(buf, bufLen, pos, "id", record.id, true);
         }
 
-        pos = append(buf, bufLen, pos, ",\"name\":\"%s\"", record.name);
+        pos = append(buf, bufLen, pos, ",\"name\":");
+        pos = appendJsonQuoted(buf, bufLen, pos, record.name);
 
         if (record.loop) pos = append(buf, bufLen, pos, ",\"loop\":true");
 
@@ -368,7 +396,7 @@ namespace Lightnet {
         }
 
         if (record.hasPalette) {
-            pos = append(buf, bufLen, pos, ",\"palette\":\"%s\"", record.palette);
+            pos = appendJsonStringField(buf, bufLen, pos, "palette", record.palette, true);
         }
 
         if (record.hasColors) {

@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include "SimpleJson.hpp"
 
@@ -50,16 +49,16 @@ namespace Lightnet {
             const char *valEnd = p;
             int prefixLen      = (int)(valStart - body);
             int suffixLen      = (int)(end - valEnd);
-            char quoted[96];
-
-            int quotedLen = snprintf(quoted, sizeof(quoted), "\"%s\"", value);
-
-            if (quotedLen <= 0 || quotedLen >= (int)sizeof(quoted)) return -1;
+            int quotedLen      = jsonQuotedLen(value);
 
             if (prefixLen + quotedLen + suffixLen + 1 > (int)outCap) return -1;
 
             memcpy(out, body, (size_t)prefixLen);
-            memcpy(out + prefixLen, quoted, (size_t)quotedLen);
+
+            if (jsonWriteQuotedString(out + prefixLen, outCap - (size_t)prefixLen, value) < 0) {
+                return -1;
+            }
+
             memcpy(out + prefixLen + (size_t)quotedLen, valEnd, (size_t)suffixLen);
             out[prefixLen + quotedLen + suffixLen] = '\0';
 
@@ -76,21 +75,32 @@ namespace Lightnet {
 
         jsonSkipWs(insertAt, end);
 
-        char insert[96];
-        int insertLen = snprintf(insert, sizeof(insert), "\"%s\":\"%s\",", field, value);
-
-        if (insertLen <= 0 || insertLen >= (int)sizeof(insert)) return -1;
-
+        size_t fieldLen = strlen(field);
+        size_t quotedValueLen = jsonQuotedLen(value);
+        size_t insertLen = 1 + fieldLen + 1 + 1 + quotedValueLen + 1;
         size_t prefixLen = (size_t)(insertAt - body);
         size_t suffixLen = (size_t)(end - insertAt);
 
-        if (prefixLen + (size_t)insertLen + suffixLen + 1 > outCap) return -1;
+        if (prefixLen + insertLen + suffixLen + 1 > outCap) return -1;
 
         memcpy(out, body, prefixLen);
-        memcpy(out + prefixLen, insert, (size_t)insertLen);
-        memcpy(out + prefixLen + (size_t)insertLen, insertAt, suffixLen);
-        out[prefixLen + insertLen + suffixLen] = '\0';
 
-        return (int)(prefixLen + (size_t)insertLen + suffixLen);
+        size_t pos = prefixLen;
+
+        out[pos++] = '"';
+        memcpy(out + pos, field, fieldLen);
+        pos += fieldLen;
+        out[pos++] = '"';
+        out[pos++] = ':';
+
+        if (jsonWriteQuotedString(out + pos, outCap - pos, value) < 0) return -1;
+
+        pos += quotedValueLen;
+        out[pos++] = ',';
+        memcpy(out + pos, insertAt, suffixLen);
+        pos += suffixLen;
+        out[pos] = '\0';
+
+        return (int)pos;
     }
 }  // namespace Lightnet

@@ -15,6 +15,7 @@
 #include <ESPAsyncWebServer.h>
 #include "HttpUrl.hpp"
 #include "../../../Utils/Debug.hpp"
+#include "../../../Utils/SimpleJson.hpp"
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -190,7 +191,10 @@ namespace Lightnet {
         {
             char buf[128];
 
-            snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg ? msg : "error");
+            if (jsonWriteErrorObject(buf, sizeof(buf), msg ? msg : "error") < 0) {
+                strcpy(buf, "{\"error\":\"error\"}");
+            }
+
             DEBUG_IF(DEBUG_API, detail::logResponse(req, code, buf));
             req->send(code, "application/json", buf);
         }

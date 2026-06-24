@@ -8,7 +8,7 @@
 namespace Lightnet {
     AppearanceServer::AppearanceServer(
         AsyncWebServer&    _server,
-        AppearanceService&   _appearance,
+        AppearanceService& _appearance,
         PaletteRepository& _palettes,
         ScenesService&     _animService,
         MainLoopQueue&     _queue
@@ -39,11 +39,27 @@ namespace Lightnet {
         jsonFormatHex(appearance.baseColor(1).r, appearance.baseColor(1).g, appearance.baseColor(1).b, h1);
         jsonFormatHex(appearance.baseColor(2).r, appearance.baseColor(2).g, appearance.baseColor(2).b, h2);
 
-        char buf[256];
+        char buf[320];
+        size_t pos = (size_t)snprintf(buf, sizeof(buf),
+                                      "{\"brightness\":%u,\"baseColors\":[\"%s\",\"%s\",\"%s\"],\"palette\":",
+                                      (unsigned)appearance.brightness(), h0, h1, h2);
 
-        snprintf(buf, sizeof(buf),
-                 "{\"brightness\":%u,\"baseColors\":[\"%s\",\"%s\",\"%s\"],\"palette\":\"%s\"}",
-                 (unsigned)appearance.brightness(), h0, h1, h2, appearance.paletteName());
+        if (pos >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        pos = jsonAppendQuotedString(buf, sizeof(buf), pos, appearance.paletteName());
+
+        if (pos == (size_t)-1 || pos + 2 >= sizeof(buf)) {
+            Http::sendError(req, 500, "response_overflow");
+
+            return;
+        }
+
+        buf[pos++] = '}';
+        buf[pos]   = '\0';
         Http::sendOkJson(req, buf);
     }
 
