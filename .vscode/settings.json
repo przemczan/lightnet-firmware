@@ -26,5 +26,8 @@
         "${workspaceFolder}/firmware/twiboot_for_arduino"
     ],
     "editor.defaultFormatter": "zachflower.uncrustify",
-    "C_Cpp.errorSquiggles": "disabled"
+    "C_Cpp.errorSquiggles": "disabled",
+    "[cpp]": {
+        "editor.defaultFormatter": "zachflower.uncrustify"
+    }
 }

@@ -136,7 +136,8 @@ void setupMDNS()
         mdnsGotIPHandler = WiFi.onStationModeGotIP(
             [](const WiFiEventStationModeGotIP &) {
         MDNS.notifyAPChange();
-    });
+    }
+        );
     #endif
 }
 
@@ -167,9 +168,15 @@ void selfTest()
     static const uint8_t SELF_TEST_GROUP = 1;
 
     Lightnet::emitLinearSweep(
-        *animScheduler, SELF_TEST_GROUP, addrs, panelCount,
-        /*durationMs=*/ 1000, /*width=*/ 3, /*rippleOriginIndex=*/ 0,
-        Protocol::ColorRGB{ 255, 255, 255 }, Lightnet::LinearSweepKind::Wave
+        *animScheduler,
+        SELF_TEST_GROUP,
+        addrs,
+        panelCount,
+        /*durationMs=*/ 1000, /*width=*/
+        3,                                  /*rippleOriginIndex=*/
+        0,
+        Protocol::ColorRGB{ 255, 255, 255 },
+        Lightnet::LinearSweepKind::Wave
     );
 
     delay(1050);
@@ -210,10 +217,13 @@ void setupOTA()
     #endif
 
     ArduinoOTA.setHostname(buffer);
-    ArduinoOTA.onStart([]() {
+    ArduinoOTA.onStart(
+        []() {
         DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] controller update starting"));
-    });
-    ArduinoOTA.onEnd([]() {
+    }
+    );
+    ArduinoOTA.onEnd(
+        []() {
         DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] controller update done — rebooting"));
 
         if (appearance)    appearance->flush();
@@ -221,10 +231,13 @@ void setupOTA()
         if (configStore)   configStore->flush();
 
         if (appStateStore) appStateStore->flush();
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
+    }
+    );
+    ArduinoOTA.onError(
+        [](ota_error_t error) {
         DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[OTA] error %u", error));
-    });
+    }
+    );
     ArduinoOTA.begin();
     DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] ArduinoOTA ready"));
 }
@@ -301,10 +314,12 @@ void setup()
 
     logBootDiagnostics();
 
-    LNPanelsInitializer.configure({ .sdaPinNo = IIC_SDA_PIN,
-                                    .sclPinNo = IIC_SCL_PIN,
-                                    .edgePinNo = INITIALIZER_EDGE_PIN_NO,
-                                    .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO });
+    LNPanelsInitializer.configure(
+        { .sdaPinNo = IIC_SDA_PIN,
+          .sclPinNo = IIC_SCL_PIN,
+          .edgePinNo = INITIALIZER_EDGE_PIN_NO,
+          .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO }
+    );
     LNPanelsInitializer.start();
 
     pinMode(LED_PIN, OUTPUT);
@@ -409,8 +424,14 @@ void loop()
                 }
 
                 #if DEMO_MODE
-                    initDemos(*animService, *sceneStore, *scenePlayer, *animScheduler,
-                              *panelsController, LNPanelsInitializer);
+                    initDemos(
+                        *animService,
+                        *sceneStore,
+                        *scenePlayer,
+                        *animScheduler,
+                        *panelsController,
+                        LNPanelsInitializer
+                    );
                 #endif
 
                 setupWiFi();
@@ -419,37 +440,60 @@ void loop()
                 appearanceServer->begin();
                 paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
                 paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(*webServer, *sceneStore, *scenePlayer, *animService, *appStateStore, *appearance,
-                                                        *mainLoopQueue);
+                sceneServer = new Lightnet::SceneServer(
+                    *webServer,
+                    *sceneStore,
+                    *scenePlayer,
+                    *animService,
+                    *appStateStore,
+                    *appearance,
+                    *mainLoopQueue
+                );
                 sceneServer->begin();
-                animServer = new Lightnet::AnimationServer(*webServer,
-                                                           *animService,
-                                                           *animScheduler,
-                                                           *appearance,
-                                                           *appStateStore,
-                                                           *mainLoopQueue);
+                animServer = new Lightnet::AnimationServer(
+                    *webServer,
+                    *animService,
+                    *animScheduler,
+                    *appearance,
+                    *appStateStore,
+                    *mainLoopQueue
+                );
                 animServer->begin();
                 panelServer = new Lightnet::PanelServer(*webServer, *panelsController, *mainLoopQueue);
                 panelServer->begin();
                 configServer = new Lightnet::ConfigurationServer(*webServer, *configStore, *topologyConfig, *scenePlayer, *mainLoopQueue);
                 configServer->begin();
-                stateServer = new Lightnet::StateServer(*webServer,
-                                                        *appStateStore,
-                                                        *panelsController,
-                                                        *animService,
-                                                        *animScheduler,
-                                                        *appearance,
-                                                        *mainLoopQueue,
-                                                        packetMirror);
+                stateServer = new Lightnet::StateServer(
+                    *webServer,
+                    *appStateStore,
+                    *panelsController,
+                    *animService,
+                    *animScheduler,
+                    *appearance,
+                    *mainLoopQueue,
+                    packetMirror
+                );
+
                 stateServer->begin();
 
                 appStateBroadcaster = new Lightnet::AppStateBroadcaster(
-                    *websocketServer, *appStateStore, *animService);
+                    *websocketServer,
+                    *appStateStore,
+                    *animService
+                );
 
                 #ifdef LIGHTNET_MQTT
                     mqttService = new Lightnet::MqttService(
-                        *mqttConfigStore, *appStateStore, *appearance, *animService, *sceneStore,
-                        *panelsController, LNPanelsInitializer, *animScheduler, *mainLoopQueue, packetMirror
+                        *mqttConfigStore,
+                        *appStateStore,
+                        *appearance,
+                        *animService,
+                        *sceneStore,
+                        *panelsController,
+                        LNPanelsInitializer,
+                        *animScheduler,
+                        *mainLoopQueue,
+                        packetMirror
                     );
                     mqttService->begin();
                     mqttServer = new Lightnet::MqttServer(*webServer, *mqttConfigStore, *mqttService);
@@ -471,7 +515,8 @@ void loop()
 
                 websocketServer->cleanup();
 
-                DEBUG_BLOCK({
+                DEBUG_BLOCK(
+            {
                 // Track heap over time to catch fragmentation-driven resets.
                 static uint32_t lastHeapLogMs = 0;
                 uint32_t now = millis();

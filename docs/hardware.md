@@ -20,7 +20,7 @@ graph TD
   D --> E[Panel E — edge 0]
 ```
 
-The firmware caps a single controller at **100 panels** on ESP32 (`LIGHTNET_MAX_PANELS` in `lib/Lightnet/Core/Common/LightnetConfig.hpp`; **32 on ESP8266** to fit heap/stack budgets). The I²C 7-bit address space allows up to 254 in theory; the cap leaves headroom in SRAM and on the bus.
+The firmware caps a single controller at **100 panels** on ESP32 (`LIGHTNET_MAX_PANELS` in `lib/Lightnet/Core/Common/LightnetConfig.hpp`; **32 on ESP8266** to fit heap/stack budgets). The I²C 7-bit address space allows up to 254 in theory. These caps are **SRAM** limits — note that at the current 400 kHz bus clock the **I²C bus capacitance** is usually the tighter real-world ceiling and tops out well below those numbers; see [I²C bus speed, capacitance, and panel count](#i2c-bus-speed-capacitance-and-panel-count).
 
 ---
 
@@ -49,6 +49,76 @@ The firmware caps a single controller at **100 panels** on ESP32 (`LIGHTNET_MAX_
     | LED data | — | PD5 |
     | I²C SDA | — | PC4 |
     | I²C SCL | — | PC5 |
+
+---
+
+## I²C bus speed, capacitance, and panel count
+
+Panels and the controller do **not** share a raw I²C bus. Each board's local I²C — 3.3 V on the
+controller's ESP, 5 V on the panel's ATmega — connects through a **P82B96 bus buffer**. The
+*buffered* sides are daisy-chained edge-to-edge across the cables into one shared bus running at
+**12 V**, pulled up by **1 kΩ** resistors on the controller (R13/R14). The number of panels you can
+actually put on one controller is usually limited by this bus, not by `LIGHTNET_MAX_PANELS`.
+
+### Why it's built this way
+
+- **P82B96 isolates capacitance.** Only each buffer's I/O-pin capacitance (~7–15 pF) plus the cable
+  appears on the shared bus — *not* the ATmega + `Wire` buffer capacitance of every panel. Without
+  the buffers a large tree's bus capacitance would be unusable.
+- **12 V bus = noise immunity** over long inter-panel cabling (larger absolute noise margin). It
+  does **not** buy speed (see below).
+- **Strong 1 kΩ pull-up** fights bus capacitance for faster edges, at the cost of higher sink
+  current (~12 mA when a line is held low — well within the P82B96).
+
+### The binding constraint: rise time
+
+The firmware clocks the bus at **400 kHz** — I²C Fast-mode — via `BUS_FREQUENCY` in
+[`lib/Lightnet/Common/LightnetBus.hpp`](../lib/Lightnet/Common/LightnetBus.hpp). Fast-mode allows a
+**300 ns** maximum rise time. An open-drain line rises as an RC curve from the pull-up; using the
+I²C 30 %→70 % input thresholds:
+
+```
+t_rise ≈ R · C · ln((V − 0.3·V)/(V − 0.7·V)) = R · C · ln(0.7/0.3) ≈ 0.85 · R · C
+```
+
+The `ln` term is independent of the rail voltage, so the 12 V bus has the **same speed budget** as a
+5 V one — the 12 V only helps noise margin. Solving for the total bus capacitance that still meets
+the 300 ns limit with R = 1 kΩ:
+
+```
+C_max ≈ 300 ns / (0.85 · 1 kΩ) ≈ 350 pF
+```
+
+### Estimate for the current config (400 kHz, 1 kΩ)
+
+| Contributor | Approx. |
+|---|---|
+| P82B96 buffered-pin capacitance | ~7–15 pF **per panel** |
+| Inter-panel cable | ~50–100 pF per metre (total tree length grows with panel count) |
+| **Total budget at 400 kHz** | **~350 pF** |
+
+Pin capacitance alone reaches the budget at roughly **~25–35 panels** *before counting any cable*,
+so in practice the bus tops out around **a couple of dozen panels with short cabling**. The
+`LIGHTNET_MAX_PANELS` caps (32 / 100) are SRAM limits; at 400 kHz the bus is the tighter ceiling,
+especially the ESP32's 100. Small/medium installs are unaffected — the symptom of overshooting is
+missed ACKs / corrupted I²C writes that get steadily worse as panels or cable length are added.
+Confirm on a scope: probe `OSCL`/`OSDA` and check the rise stays **< 300 ns** at the target panel
+count and real cabling.
+
+### Connecting more panels (raising the capacitance budget)
+
+To support more panels you need a larger capacitance budget. In order of leverage:
+
+| Change | Effect on budget | Trade-off |
+|---|---|---|
+| **Lower the I²C clock** (`BUS_FREQUENCY`) | 200 kHz ≈ 2×; 100 kHz (Standard-mode, 1000 ns rise) ≈ 3–4× (~1.2 nF, i.e. ~roughly 4× the panels) | Lower throughput — acceptable, since per-frame I²C traffic is light and discovery is one-time |
+| **Lower the pull-up R** (R13/R14) | ∝ 1/R — e.g. 560 Ω ≈ 2× budget | Higher sink current (12 V / 560 Ω ≈ 21 mA); keep within the P82B96 sink rating |
+| **Reduce per-node / cable C** | linear | Shorter, lower-capacitance cable; fewer/closer panels |
+| Raise the bus voltage | **no effect on speed** | Only improves noise margin — not a way to add panels |
+
+`BUS_FREQUENCY` is a compile-time constant, so it's the easiest lever: for a large tree, drop it to
+100–200 kHz and re-confirm the rise time on a scope. Lowering the clock and the pull-up together
+multiplies the budget (and the panel count) further.
 
 ---
 
@@ -82,7 +152,7 @@ check.
 | `AnimationPlayer` — palette + base colours | 73 B | `palette[PALETTE_STOPS=16]` (64 B) + `baseColors[BASE_COLORS_COUNT=3]` (9 B). Fixed, independent of slot count. |
 | `LNPanel` other fields | ~30 B | Address, flags, config, misc bookkeeping. |
 | 3 × `LightnetPanelEdge` + `LightnetPinger` | ~100 B | Per-edge state for the 3 physical connectors plus ping-pulse tracking (`LightnetPinger::StateEntry` is packed to 3 B/entry). |
-| Arduino Serial ring buffers (`SERIAL_RX=2` + `SERIAL_TX=32`) | ~34 B | Reduced from MiniCore defaults (64 B RX is overkill for 57600-baud debug output). |
+| Arduino Serial ring buffers (`SERIAL_RX=2` + `SERIAL_TX=64`) | ~34 B | Reduced from MiniCore defaults (64 B RX is overkill for 57600-baud debug output). |
 | **Fixed total** (above, excluding the `MAX_ANIM_SLOTS` line) | **roughly 650-700 B** | Get the exact figure for your build from `avr-size` / the `pio run` RAM line, not this table. |
 
 ### Sizing `MAX_ANIM_SLOTS`: call-stack headroom, not just `.bss`
