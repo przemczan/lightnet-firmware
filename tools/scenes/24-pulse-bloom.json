@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 8,
+  "name": "pulse-bloom",
+  "loop": true,
+  "background": "#0A000A",
+  "palette": "Party",
+  "layers": [
+    {
+      "group": "aura",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#0A000A", "colorTo": { "palette": 30 }, "duration": 7000, "loop": true }
+      ]
+    },
+    {
+      "group": "beat",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "RIPPLE", "directionality": "geometric", "source": "all", "color": { "palette": 200 }, "rippleWidth": 5, "count": 1, "duration": 1400 },
+        { "duration": 300 },
+        { "runner": "RIPPLE", "directionality": "geometric", "source": "all", "color": { "palette": 230 }, "rippleWidth": 5, "count": 1, "duration": 1400 },
+        { "duration": 1200 }
+      ]
+    }
+  ]
+}

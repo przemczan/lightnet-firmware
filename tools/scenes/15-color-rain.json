@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 8,
+  "name": "color-rain",
+  "loop": true,
+  "background": "#000300",
+  "palette": "Forest",
+  "layers": [
+    {
+      "group": "mist",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#000300", "colorTo": { "palette": 40 }, "duration": 9000, "loop": true }
+      ]
+    },
+    {
+      "group": "fall",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "MATRIX", "directionality": "geometric", "angle": 270, "color": { "palette": 200 }, "colorFrom": "#001000", "width": 4, "waves": 4, "speed": 2000, "duration": 0 }
+      ]
+    },
+    {
+      "group": "glint",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "runner": "SPARKLE", "color": "#E0FFE0", "width": 100, "waves": 1, "duration": 0 }
+      ]
+    }
+  ]
+}

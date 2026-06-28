@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 8,
+  "name": "ocean-breath",
+  "loop": true,
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "tide",
+      "panels": "all",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": { "palette": 20 }, "colorTo": { "palette": 210 }, "duration": 6500, "loop": true }
+      ]
+    }
+  ]
+}

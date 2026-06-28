@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 8,
+  "name": "breathing-strata",
+  "loop": true,
+  "background": "#040008",
+  "palette": "Aurora",
+  "layers": [
+    {
+      "group": "s0",
+      "panels": "depth:0-1",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#040008",
+          "colorTo": {
+            "palette": 40
+          },
+          "duration": 5000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "s1",
+      "panels": "depth:2",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#040008",
+          "colorTo": {
+            "palette": 90
+          },
+          "duration": 6000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "s2",
+      "panels": "depth:3",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#040008",
+          "colorTo": {
+            "palette": 150
+          },
+          "duration": 7000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "s3",
+      "panels": "depth:4-9",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#040008",
+          "colorTo": {
+            "palette": 210
+          },
+          "duration": 8000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "shimmer",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "animates": "brighten",
+          "amount": 80,
+          "rippleWidth": 5,
+          "duration": 6000,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

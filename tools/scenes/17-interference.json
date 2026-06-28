@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 8,
+  "name": "interference",
+  "loop": true,
+  "background": "#000000",
+  "palette": "Aurora",
+  "layers": [
+    {
+      "group": "wave-x",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 0,
+          "color": {
+            "palette": 60
+          },
+          "waveWidth": 4,
+          "duration": 5000,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "group": "wave-y",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 90,
+          "color": {
+            "palette": 150
+          },
+          "waveWidth": 4,
+          "duration": 6000,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "group": "pulse",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "color": {
+            "palette": 230
+          },
+          "rippleWidth": 3,
+          "duration": 7000,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

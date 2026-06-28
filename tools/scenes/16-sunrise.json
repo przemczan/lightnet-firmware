@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 8,
+  "name": "sunrise",
+  "loop": true,
+  "background": "#02030A",
+  "colors": { "primary": "#FFB060", "secondary": "#3010A0", "tertiary": "#000000" },
+  "layers": [
+    {
+      "group": "sky",
+      "panels": "all",
+      "sequence": [
+        { "id": "night", "type": "FADE", "colorFrom": "#02030A", "colorTo": "#1A0A40", "duration": 5000 },
+        { "id": "dawn", "type": "FADE", "colorFrom": "#1A0A40", "colorTo": "#C04020", "duration": 6000 },
+        { "type": "FADE", "colorFrom": "#C04020", "colorTo": "#FFC060", "duration": 5000 },
+        { "type": "FADE", "colorFrom": "#FFC060", "colorTo": "#60B0FF", "duration": 6000 },
+        { "type": "FADE", "colorFrom": "#60B0FF", "colorTo": "#02030A", "duration": 8000 }
+      ]
+    },
+    {
+      "group": "sun",
+      "startAfter": "sky:dawn",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "RIPPLE", "directionality": "geometric", "source": "panel:20", "color": "#FFD080", "rippleWidth": 6, "count": 1, "duration": 5000 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 8,
+  "name": "lighthouse",
+  "loop": true,
+  "background": "#000510",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "night",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#000510", "colorTo": { "palette": 40 }, "duration": 10000, "loop": true }
+      ]
+    },
+    {
+      "group": "beam",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "WHEEL", "source": "all", "color": "#FFF0C0", "lines": 1, "thickness": 40, "duration": 6000 }
+      ]
+    }
+  ]
+}

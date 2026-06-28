@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 8,
+  "name": "ocean-depths",
+  "loop": true,
+  "background": "#000308",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "abyss",
+      "panels": "depth:0-1",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 40
+          },
+          "duration": 9000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "mid",
+      "panels": "depth:2-3",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 120
+          },
+          "duration": 8000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "shallows",
+      "panels": "depth:4-9",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 200
+          },
+          "duration": 7000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "current",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "animates": "brighten",
+          "amount": 90,
+          "rippleWidth": 6,
+          "duration": 9000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "foam",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "SPARKLE",
+          "color": "#C0FFFF",
+          "width": 120,
+          "waves": 2,
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}

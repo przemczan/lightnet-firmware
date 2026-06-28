@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 8,
+  "name": "aurora-veil",
+  "loop": true,
+  "background": "#01030A",
+  "palette": "Aurora",
+  "layers": [
+    {
+      "group": "sky",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#01030A",
+          "colorTo": {
+            "palette": 70
+          },
+          "duration": 9000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "veil-a",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 70,
+          "color": {
+            "palette": 160
+          },
+          "waveWidth": 6,
+          "duration": 7000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "veil-b",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 110,
+          "color": {
+            "palette": 220
+          },
+          "waveWidth": 6,
+          "duration": 9000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "stars",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "SPARKLE",
+          "color": "#FFFFFF",
+          "width": 140,
+          "waves": 2,
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 8,
+  "name": "spectrum-drift",
+  "loop": true,
+  "palette": "Rainbow",
+  "layers": [
+    {
+      "group": "drift",
+      "panels": "all",
+      "sequence": [
+        { "type": "FADE", "colorFrom": { "palette": 0 }, "colorTo": { "palette": 85 }, "duration": 5000 },
+        { "type": "FADE", "colorFrom": { "palette": 85 }, "colorTo": { "palette": 170 }, "duration": 5000 },
+        { "type": "FADE", "colorFrom": { "palette": 170 }, "colorTo": { "palette": 255 }, "duration": 5000 }
+      ]
+    }
+  ]
+}

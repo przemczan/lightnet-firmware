@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 8,
+  "name": "cross-currents",
+  "loop": true,
+  "background": "#000000",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "flow-a",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 0,
+          "color": {
+            "palette": 80
+          },
+          "waveWidth": 5,
+          "duration": 5000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "flow-b",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 90,
+          "color": {
+            "palette": 200
+          },
+          "waveWidth": 5,
+          "duration": 6000,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

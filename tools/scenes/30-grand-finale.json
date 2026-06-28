@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 8,
+  "name": "grand-finale",
+  "loop": true,
+  "background": "#02010A",
+  "palette": "Aurora",
+  "colors": {
+    "primary": "#00FFD0",
+    "secondary": "#FF00A0",
+    "tertiary": "#1000FF"
+  },
+  "layers": [
+    {
+      "group": "ambient",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#02010A",
+          "colorTo": {
+            "palette": 70
+          },
+          "duration": 9000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "shimmer",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "animates": "brighten",
+          "amount": 70,
+          "rippleWidth": 6,
+          "duration": 8000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "stars",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "SPARKLE",
+          "color": "#FFFFFF",
+          "width": 130,
+          "waves": 1,
+          "duration": 0
+        }
+      ]
+    },
+    {
+      "group": "intro",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "id": "spark",
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "color": "#FFFFFF",
+          "rippleWidth": 3,
+          "count": 1,
+          "duration": 1600
+        }
+      ]
+    },
+    {
+      "group": "rise",
+      "startAfter": "intro:spark",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 90,
+          "color": {
+            "palette": 200
+          },
+          "waveWidth": 6,
+          "count": 1,
+          "duration": 3200
+        }
+      ]
+    },
+    {
+      "group": "bloom",
+      "startAfter": "rise",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "color": {
+            "palette": 150
+          },
+          "rippleWidth": 6,
+          "count": 2,
+          "duration": 4000
+        }
+      ]
+    },
+    {
+      "group": "sweep",
+      "startAfter": "bloom",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 0,
+          "color": {
+            "palette": 230
+          },
+          "waveWidth": 6,
+          "count": 1,
+          "duration": 3200
+        }
+      ]
+    },
+    {
+      "group": "finale",
+      "startAfter": "sweep",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WHEEL",
+          "source": "all",
+          "color": {
+            "palette": 120
+          },
+          "lines": 4,
+          "thickness": 28,
+          "duration": 4000
+        }
+      ]
+    }
+  ]
+}

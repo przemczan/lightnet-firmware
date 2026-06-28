@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "hypno-rings",
+  "loop": true,
+  "background": "#000000",
+  "palette": "Rainbow",
+  "layers": [
+    {
+      "group": "rings",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "color": {
+            "palette": 128
+          },
+          "rippleWidth": 4,
+          "duration": 6000,
+          "count": 4
+        }
+      ]
+    },
+    {
+      "group": "hue",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "animates": "hue",
+          "amount": 200,
+          "rippleWidth": 6,
+          "duration": 8000,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

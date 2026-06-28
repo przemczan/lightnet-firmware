@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 8,
+  "name": "monsoon",
+  "loop": true,
+  "background": "#01040A",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "clouds",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#01040A", "colorTo": { "palette": 30 }, "duration": 7000, "loop": true }
+      ]
+    },
+    {
+      "group": "rain",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "RAIN", "directionality": "geometric", "angle": 265, "color": { "palette": 180 }, "colorFrom": "#000510", "width": 4, "waves": 7, "speed": 1100, "duration": 0 }
+      ]
+    },
+    {
+      "group": "splash",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "runner": "SPARKLE", "color": "#A0D0FF", "width": 60, "waves": 2, "duration": 0 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 8,
+  "name": "borealis",
+  "loop": true,
+  "background": "#00060A",
+  "palette": "Aurora",
+  "layers": [
+    {
+      "group": "base",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#00060A",
+          "colorTo": {
+            "palette": 40
+          },
+          "duration": 12000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "curtain1",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 80,
+          "color": {
+            "palette": 120
+          },
+          "waveWidth": 7,
+          "duration": 10000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "curtain2",
+      "panels": "all",
+      "async": "loop",
+      "blend": "screen",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 95,
+          "color": {
+            "palette": 180
+          },
+          "waveWidth": 7,
+          "duration": 12000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "curtain3",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 100,
+          "color": {
+            "palette": 230
+          },
+          "waveWidth": 6,
+          "duration": 14000,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "group": "stars",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "SPARKLE",
+          "color": "#E0FFFF",
+          "width": 150,
+          "waves": 1,
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}

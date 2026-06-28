@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "firestorm",
+  "loop": true,
+  "background": "#0A0200",
+  "palette": "Lava",
+  "layers": [
+    {
+      "group": "furnace",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#0A0200", "colorTo": { "palette": 60 }, "duration": 5000, "loop": true }
+      ]
+    },
+    {
+      "group": "spin",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "runner": "WHEEL", "source": "all", "color": { "palette": 200 }, "lines": 4, "thickness": 25, "duration": 4000 }
+      ]
+    },
+    {
+      "group": "embers",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "RAIN", "directionality": "geometric", "angle": 90, "reverse": true, "color": { "palette": 230 }, "colorFrom": "#200800", "width": 3, "waves": 5, "speed": 1800, "duration": 0 }
+      ]
+    },
+    {
+      "group": "sparks",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "runner": "SPARKLE", "color": "#FFD060", "width": 50, "waves": 3, "duration": 0 }
+      ]
+    }
+  ]
+}

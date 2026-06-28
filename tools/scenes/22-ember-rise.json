@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 8,
+  "name": "ember-rise",
+  "loop": true,
+  "background": "#0A0200",
+  "palette": "Lava",
+  "layers": [
+    {
+      "group": "hearth",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#0A0200", "colorTo": { "palette": 60 }, "duration": 6000, "loop": true }
+      ]
+    },
+    {
+      "group": "embers",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "RAIN", "directionality": "geometric", "angle": 90, "reverse": true, "color": { "palette": 230 }, "colorFrom": "#1A0500", "width": 3, "waves": 5, "speed": 2200, "duration": 0 }
+      ]
+    }
+  ]
+}

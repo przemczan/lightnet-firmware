@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 8,
+  "name": "tidal-surge",
+  "loop": true,
+  "background": "#000610",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "depths",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#000610", "colorTo": { "palette": 90 }, "duration": 8000, "loop": true }
+      ]
+    },
+    {
+      "group": "surge",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "BOUNCE", "directionality": "geometric", "angle": 90, "color": { "palette": 220 }, "width": 6, "duration": 3000 }
+      ]
+    },
+    {
+      "group": "foam",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "runner": "SPARKLE", "color": "#C0F0FF", "width": 120, "waves": 2, "duration": 0 }
+      ]
+    }
+  ]
+}

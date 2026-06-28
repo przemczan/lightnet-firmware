@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 8,
+  "name": "spin-cycle",
+  "loop": true,
+  "layers": [
+    {
+      "group": "glow",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        { "type": "HUE_CYCLE", "duration": 0, "loop": true, "params": [2] }
+      ]
+    },
+    {
+      "group": "dim",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        { "type": "BREATHE", "animates": "dim", "from": 200, "to": 90, "duration": 5000, "loop": true }
+      ]
+    },
+    {
+      "group": "blades",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "WHEEL", "source": "all", "color": "#FFFFFF", "lines": 5, "thickness": 30, "duration": 5000 }
+      ]
+    }
+  ]
+}

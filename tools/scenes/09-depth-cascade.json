@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 8,
+  "name": "depth-cascade",
+  "loop": true,
+  "background": "#000308",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "d-in",
+      "panels": "depth:0-1",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 60
+          },
+          "duration": 6000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "d-mid",
+      "panels": "depth:2-3",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 130
+          },
+          "duration": 6000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "d-out",
+      "panels": "depth:4-9",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 210
+          },
+          "duration": 6000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "cascade",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "source": "root",
+          "color": "#FFFFFF",
+          "waveWidth": 4,
+          "duration": 4500,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

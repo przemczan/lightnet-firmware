@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 8,
+  "name": "comet-trail",
+  "loop": true,
+  "background": "#02000A",
+  "palette": "Party",
+  "layers": [
+    {
+      "group": "space",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#02000A",
+          "colorTo": {
+            "palette": 20
+          },
+          "duration": 9000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "comet",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "CHASE",
+          "directionality": "geometric",
+          "angle": 45,
+          "color": {
+            "palette": 200
+          },
+          "duration": 2600,
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

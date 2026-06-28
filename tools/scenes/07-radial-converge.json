@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "radial-converge",
+  "loop": true,
+  "background": "#020208",
+  "palette": "Forest",
+  "layers": [
+    {
+      "group": "moss",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#020208",
+          "colorTo": {
+            "palette": 50
+          },
+          "duration": 7000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "converge",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "leaves",
+          "color": {
+            "palette": 210
+          },
+          "rippleWidth": 4,
+          "duration": 4000,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

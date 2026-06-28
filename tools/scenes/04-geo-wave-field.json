@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "geo-wave-field",
+  "loop": true,
+  "background": "#000308",
+  "palette": "Aurora",
+  "layers": [
+    {
+      "group": "bg",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#000308",
+          "colorTo": {
+            "palette": 60
+          },
+          "duration": 7000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "waves",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 90,
+          "color": {
+            "palette": 200
+          },
+          "waveWidth": 5,
+          "duration": 4000,
+          "count": 3
+        }
+      ]
+    }
+  ]
+}

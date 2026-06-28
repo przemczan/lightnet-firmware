@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "nebula",
+  "loop": true,
+  "background": "#05000F",
+  "palette": "Sunset",
+  "layers": [
+    {
+      "group": "cloud-a",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#05000F", "colorTo": { "palette": 50 }, "duration": 9000, "loop": true }
+      ]
+    },
+    {
+      "group": "cloud-b",
+      "panels": { "not": "leaves" },
+      "async": "loop",
+      "blend": "screen",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#100018", "colorTo": { "palette": 160 }, "duration": 11000, "loop": true }
+      ]
+    },
+    {
+      "group": "cloud-c",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#000010", "colorTo": { "palette": 220 }, "duration": 7000, "loop": true }
+      ]
+    },
+    {
+      "group": "dust",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        { "runner": "SPARKLE", "color": "#FFE0FF", "width": 160, "waves": 1, "duration": 0 }
+      ]
+    }
+  ]
+}

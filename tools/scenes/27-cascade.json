@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "cascade",
+  "loop": true,
+  "background": "#02020A",
+  "palette": "Sunset",
+  "layers": [
+    {
+      "group": "ambient",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": "#02020A", "colorTo": { "palette": 40 }, "duration": 9000, "loop": true }
+      ]
+    },
+    {
+      "group": "rise",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "id": "up", "runner": "WAVE", "directionality": "geometric", "angle": 90, "color": { "palette": 150 }, "waveWidth": 6, "count": 1, "duration": 3500 }
+      ]
+    },
+    {
+      "group": "spread",
+      "startAfter": "rise:up",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "RIPPLE", "directionality": "geometric", "source": "all", "color": { "palette": 210 }, "rippleWidth": 5, "count": 2, "duration": 4000 }
+      ]
+    },
+    {
+      "group": "settle",
+      "startAfter": "spread",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        { "runner": "WAVE", "directionality": "geometric", "angle": 270, "color": { "palette": 90 }, "waveWidth": 6, "count": 1, "duration": 3500 }
+      ]
+    }
+  ]
+}

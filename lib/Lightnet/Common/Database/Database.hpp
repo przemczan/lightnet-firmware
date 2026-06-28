@@ -36,7 +36,7 @@ namespace Lightnet {
         public:
             typedef typename Codec::Model Model;
 
-            Database() : _backingStorage(nullptr), _liveRecordCount(0), _isOpen(false)
+            Database() : _backingStorage(nullptr), _isOpen(false)
             {
             }
 
@@ -45,9 +45,44 @@ namespace Lightnet {
                 return _isOpen;
             }
 
+            // Counts live (non-deleted) slots by scanning slot flags (1 byte/slot, no
+            // payload reads). Not cached: insert/remove never persist a running count
+            // (that write near the file start used to force LittleFS to copy-on-write
+            // every byte after it on every mutation). Called rarely — list-response
+            // sizing, compaction threshold — never from insert/remove, so mutations
+            // stay cheap.
             uint16_t liveCount() const
             {
-                return _liveRecordCount;
+                if (!_isOpen || !_backingStorage) return 0;
+
+                const size_t recordSlotByteSize = recordSlotSize();
+                const size_t fileSize           = _backingStorage->size();
+
+                if (fileSize < RECORDS_START_OFFSET) return 0;
+
+                if (_backingStorage->seek(RECORDS_START_OFFSET) != STORAGE_OK) return 0;
+
+                size_t slotOffset = RECORDS_START_OFFSET;
+                uint16_t live       = 0;
+
+                while (slotOffset + recordSlotByteSize <= fileSize) {
+                    RecordSlotFlags slotFlags = {};
+
+                    if (_backingStorage->read(&slotFlags, sizeof(slotFlags)) != sizeof(slotFlags)) {
+                        break;
+                    }
+
+                    if (!isRecordSlotDeleted(slotFlags)) live++;
+
+                    if (_backingStorage->seekForward(recordSlotByteSize - sizeof(slotFlags)) !=
+                        STORAGE_OK) {
+                        break;
+                    }
+
+                    slotOffset += recordSlotByteSize;
+                }
+
+                return live;
             }
 
             // Total on-disk record slots (live + tombstoned).
@@ -157,8 +192,7 @@ namespace Lightnet {
                     return DB_HEADER_WRITE_FAILED;
                 }
 
-                _liveRecordCount = 0;
-                _isOpen          = true;
+                _isOpen = true;
 
                 return DB_OK;
             }
@@ -193,8 +227,9 @@ namespace Lightnet {
                     return DB_MODEL_VERSION_MISMATCH;
                 }
 
-                _liveRecordCount = header.recordsCount;
-                _isOpen          = true;
+                // header.recordsCount is not trusted — liveCount() always derives the
+                // count fresh by scanning slot flags (see liveCount()).
+                _isOpen = true;
 
                 return DB_OK;
             }
@@ -394,12 +429,6 @@ namespace Lightnet {
 
                 if (writeResult != DB_OK) return writeResult;
 
-                _liveRecordCount++;
-
-                writeResult = persistLiveRecordCount();
-
-                if (writeResult != DB_OK) return writeResult;
-
                 if (outRecordRef) outRecordRef->offset = (uint32_t)targetSlotOffset;
 
                 return DB_OK;
@@ -438,8 +467,6 @@ namespace Lightnet {
             {
                 if (!_isOpen || !_backingStorage) return DB_NOT_OPEN;
 
-                if (_liveRecordCount == 0) return DB_NO_LIVE_RECORDS;
-
                 RecordSlotFlags slotFlags = {};
 
                 DatabaseResult readResult = readSlotFlagsAt(recordRef.offset, slotFlags);
@@ -450,39 +477,21 @@ namespace Lightnet {
 
                 slotFlags.value |= FLAG_DELETED;
 
-                DatabaseResult writeResult = writeSlotFlagsAt(recordRef.offset, slotFlags);
-
-                if (writeResult != DB_OK) return writeResult;
-
-                _liveRecordCount--;
-
-                return persistLiveRecordCount();
+                // Single 1-byte write at this slot's own offset — no header rewrite, so
+                // deleting the *last* slot costs nothing beyond this byte. Deleting an
+                // earlier slot still makes LittleFS copy-on-write everything after it,
+                // but that's now proportional to (fileSize - thisSlotOffset), not the
+                // whole file on every delete regardless of position.
+                return writeSlotFlagsAt(recordRef.offset, slotFlags);
             }
 
         private:
             IRandomAccessStorage *_backingStorage;
-            uint16_t _liveRecordCount;
             bool _isOpen;
 
             static size_t recordSlotSize()
             {
                 return sizeof(RecordSlotFlags) + Codec::RECORD_SIZE;
-            }
-
-            DatabaseResult persistLiveRecordCount()
-            {
-                DatabaseHeader header;
-
-                header.recordModelVersion = Codec::MODEL_VERSION;
-                header.recordsCount       = _liveRecordCount;
-
-                DatabaseFormatResult headerWriteResult = writeHeader(*_backingStorage, header);
-
-                if (headerWriteResult != DB_FORMAT_OK) {
-                    return DB_HEADER_WRITE_FAILED;
-                }
-
-                return DB_OK;
             }
 
             DatabaseResult readSlotFlagsAt(size_t slotOffset, RecordSlotFlags& slotFlagsOut) const

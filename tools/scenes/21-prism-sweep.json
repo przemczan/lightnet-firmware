@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 8,
+  "name": "prism-sweep",
+  "loop": true,
+  "background": "#050505",
+  "palette": "Rainbow",
+  "layers": [
+    {
+      "group": "wash",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#050505",
+          "colorTo": {
+            "palette": 128
+          },
+          "duration": 8000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "sweep",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 30,
+          "color": {
+            "palette": 200
+          },
+          "waveWidth": 8,
+          "duration": 6000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "hue",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "WAVE",
+          "directionality": "geometric",
+          "angle": 120,
+          "animates": "hue",
+          "amount": 180,
+          "waveWidth": 8,
+          "duration": 7000,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

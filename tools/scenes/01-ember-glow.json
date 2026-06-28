@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 8,
+  "name": "ember-glow",
+  "loop": true,
+  "palette": "Embers",
+  "layers": [
+    {
+      "group": "glow",
+      "panels": "all",
+      "sequence": [
+        { "type": "BREATHE", "colorFrom": { "palette": 30 }, "colorTo": { "palette": 200 }, "duration": 6000, "loop": true }
+      ]
+    }
+  ]
+}

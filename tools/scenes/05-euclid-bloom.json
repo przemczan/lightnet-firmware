@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 8,
+  "name": "euclid-bloom",
+  "loop": true,
+  "background": "#050010",
+  "palette": "Sunset",
+  "layers": [
+    {
+      "group": "haze",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#050010",
+          "colorTo": {
+            "palette": 40
+          },
+          "duration": 8000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "bloom",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "color": {
+            "palette": 200
+          },
+          "rippleWidth": 4,
+          "duration": 3500,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

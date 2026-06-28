@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 8,
+  "name": "deep-sea",
+  "loop": true,
+  "background": "#00040A",
+  "palette": "Ocean",
+  "layers": [
+    {
+      "group": "water",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#00040A",
+          "colorTo": {
+            "palette": 50
+          },
+          "duration": 10000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "current",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "animates": "brighten",
+          "amount": 70,
+          "rippleWidth": 6,
+          "duration": 9000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "plankton",
+      "panels": "all",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "MATRIX",
+          "directionality": "geometric",
+          "angle": 280,
+          "color": {
+            "palette": 170
+          },
+          "width": 2,
+          "waves": 2,
+          "speed": 3000,
+          "duration": 0
+        }
+      ]
+    },
+    {
+      "group": "foam",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "SPARKLE",
+          "color": "#80FFE0",
+          "width": 120,
+          "waves": 1,
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}

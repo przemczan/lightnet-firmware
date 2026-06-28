@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 8,
+  "name": "galaxy-spin",
+  "loop": true,
+  "background": "#03000A",
+  "palette": "Aurora",
+  "layers": [
+    {
+      "group": "void",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "type": "BREATHE",
+          "colorFrom": "#03000A",
+          "colorTo": {
+            "palette": 50
+          },
+          "duration": 9000,
+          "loop": true
+        }
+      ]
+    },
+    {
+      "group": "arms",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "WHEEL",
+          "source": "all",
+          "color": {
+            "palette": 200
+          },
+          "lines": 3,
+          "thickness": 35,
+          "duration": 7000
+        }
+      ]
+    },
+    {
+      "group": "ripple",
+      "panels": "all",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "RIPPLE",
+          "directionality": "geometric",
+          "source": "all",
+          "color": {
+            "palette": 150
+          },
+          "rippleWidth": 4,
+          "duration": 8000,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "group": "hue",
+      "panels": "all",
+      "async": "loop",
+      "sequence": [
+        {
+          "runner": "WHEEL",
+          "source": "all",
+          "animates": "hue",
+          "amount": 120,
+          "lines": 3,
+          "thickness": 35,
+          "duration": 7000
+        }
+      ]
+    },
+    {
+      "group": "stars",
+      "panels": "leaves",
+      "async": "loop",
+      "blend": "add",
+      "sequence": [
+        {
+          "runner": "SPARKLE",
+          "color": "#FFFFFF",
+          "width": 130,
+          "waves": 1,
+          "duration": 0
+        }
+      ]
+    }
+  ]
+}
