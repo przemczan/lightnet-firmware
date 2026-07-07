@@ -7,11 +7,10 @@
         #include "../Relay/ControllerRelayPacketSink.hpp"
 
         // RelayBootloaderClient — drives RelayBootloader.cpp (lib/Lightnet/Panel/bootloader/) over
-        // the relay trunk, the only OTA path this controller build supports (real hardware has no I2C
-        // wire to any panel at all). Addresses a panel by its own assigned index
-        // (PacketHeader.targetPanelIndex) rather than a fixed bus address — every panel's resident
-        // bootloader answers to its own index, not a shared constant, since there is no physical bus
-        // address to share.
+        // the relay trunk, the only OTA path this controller build supports.
+        // Addresses a panel by its own assigned index (PacketHeader.targetPanelIndex)
+        // rather than a fixed bus address — every panel's resident bootloader answers to its own index,
+        // not a shared constant, since there is no physical bus address to share.
         //
         // No read-back verify pass exists here — each chunk's own CRC-16 (checked by the bootloader
         // before it ever reaches boot_page_fill(), see PacketBootloaderWriteChunk's class comment) is

@@ -63,7 +63,7 @@ The matching HTTP endpoint is `GET /api/panels`.
 | Controller boots but `lightnet-XXXX.local` is unreachable | Try the IP shown in serial monitor; on Windows install Bonjour Print Services; on iOS allow local-network access |
 | `GET /api/panels` returns empty | Discovery timed out (5 s). Check edge wiring, panel power, and that panels are actually flashed |
 | Some panels missing after discovery | Edge cable on the missing branch, or panel flash. Power-cycle the controller to retry discovery |
-| Animations look glitchy with many panels | I²C bus quality — shorten cable runs or reduce panel count |
+| Animations look glitchy with many panels | Relay edge quality — check inter-panel cable connections, especially on deep branches |
 | Panel stuck in bootloop after OTA | Power-cycle once. If it persists, reflash that panel directly with USBasp (see [OTA & Updates](ota.md)) |
 
 If something doesn't fit any row above, search the serial log around the moment the symptom appears — every state transition and protocol packet is traced when `DEBUG=1`.

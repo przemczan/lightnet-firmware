@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Dumps MIRROR_BATCH frames from a live controller: per-batch counts of each inner
-// I²C packet type, plus the addresses seen for PREPARE/START. Diagnostic for the
+// packet type, plus the addresses seen for PREPARE/START. Diagnostic for the
 // live-preview pipeline. Usage: node mirror-dump.js <controller-ip> [seconds]
 //
 // Wire layout must match lib/Lightnet/Core/Common/MirrorBatch.h

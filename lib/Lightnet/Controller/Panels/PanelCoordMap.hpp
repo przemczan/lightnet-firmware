@@ -5,7 +5,7 @@
 namespace Lightnet {
     // Coordinate for a panel (fixed-point: 1/100 unit)
     struct PanelCoord {
-        uint8_t panelIndex; // panel I2C address
+        uint8_t panelIndex; // this panel's assigned index
         int16_t x;        // fixed-point, 1/100 unit  (-327 to +327 units)
         int16_t y;        // fixed-point, 1/100 unit
     };

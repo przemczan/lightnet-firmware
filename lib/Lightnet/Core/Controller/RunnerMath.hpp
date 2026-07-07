@@ -4,7 +4,7 @@
 // RunnerMath — pure brightness envelopes for the controller-side runners.
 //
 // Extracted from the runner tick() loops so the math is unit-testable natively
-// (tick() itself can't be — it calls LNBus). Every function maps a panel's
+// (tick() itself can't be — it calls IPacketSink::send()). Every function maps a panel's
 // spatial coordinate (graph hop-distance from the source, see PanelField.hpp)
 // and a time/sweep position to an 8-bit brightness.
 //

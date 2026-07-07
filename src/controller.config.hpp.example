@@ -11,7 +11,7 @@
 // Uncomment to disable a specific area:
 // #define DEBUG_API          0   // WebSocket / HTTP API logs
 // #define DEBUG_RGB_CTRL     0   // LED controller logs
-// #define DEBUG_LIGHTNET_BUS 0   // I²C bus logs
+// #define DEBUG_LIGHTNET_BUS 0   // sim panel dispatch logs (LightnetBus, SIM_MODE only)
 // #define DEBUG_FLASHER      0   // OTA / panel flash logs
 // #define DEBUG_DISCOVERY    0   // panel discovery / ping logs
 // #define DEBUG_INIT         0   // startup / init logs

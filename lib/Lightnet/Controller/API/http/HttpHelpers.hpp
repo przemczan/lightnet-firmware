@@ -200,7 +200,7 @@ namespace Lightnet {
 
         // 202 Accepted: the request validated and its work was queued onto the main
         // loop (see MainLoopQueue). Used by mutating endpoints whose side effects —
-        // I2C packet emission, ScenePlayer changes — must not run on the AsyncTCP task.
+        // packet emission, ScenePlayer changes — must not run on the AsyncTCP task.
         inline void sendAccepted(AsyncWebServerRequest *req)
         {
             DEBUG_IF(DEBUG_API, detail::logResponse(req, 202, "{\"ok\":true}"));

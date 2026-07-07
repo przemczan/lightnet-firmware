@@ -1,8 +1,8 @@
 #pragma once
 
-// OTA only exists on real hardware — the relay trunk replaced the shared I2C bus entirely, so
-// there is no bootloader transport of any kind under SIM_MODE (sim panels don't implement a
-// bootloader protocol either). See RelayBootloaderClient's own class comment for the wire side.
+// OTA only exists on real hardware over the relay trunk — there is no bootloader transport of
+// any kind under SIM_MODE (sim panels don't implement a bootloader protocol either). See
+// RelayBootloaderClient's own class comment for the wire side.
 #if defined(LIGHTNET_TARGET_CONTROLLER) && !defined(SIM_MODE)
 
     #include <Arduino.h>

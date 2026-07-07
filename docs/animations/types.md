@@ -10,7 +10,7 @@ Reference for every panel-local animation type and every controller runner. For 
 
 ## Panel-Local Animations
 
-All panel-local animations run entirely on the ATmega with **zero per-frame I²C traffic**. The controller sends a single `PACKET_ANIMATION_PREPARE` + `GENERAL CALL START` to set them in motion.
+All panel-local animations run entirely on the ATmega with **zero per-frame relay traffic**. The controller sends a single `PACKET_ANIMATION_PREPARE` + `GENERAL CALL START` to set them in motion.
 
 ### Common step fields
 

@@ -2,12 +2,11 @@
 
 // PacketFramer — reconstructs framed Protocol packets from a raw byte stream.
 //
-// I2C handed receivers packet boundaries for free: each bus transaction carries its own byte
-// count from the Wire/TWI layer, independent of packet content. The relay's shared UART has
-// no such out-of-band length — PacketMeta carries a header CRC but no length field — so a
-// byte-stream receiver has to recover framing itself. This class does that: feed it bytes one
-// at a time (or in any grouping) as they arrive off the wire; pushByte() returns true exactly
-// when a complete, CRC-valid frame has accumulated, and frame()/frameSize() expose it.
+// The relay's shared UART carries no out-of-band length — PacketMeta carries a header CRC but
+// no length field — so a byte-stream receiver has to recover framing itself. This class does
+// that: feed it bytes one at a time (or in any grouping) as they arrive off the wire; pushByte()
+// returns true exactly when a complete, CRC-valid frame has accumulated, and frame()/frameSize()
+// expose it.
 //
 // Resync strategy: the first byte of an unstarted frame is always interpreted as a packet
 // type and used to look up that type's fixed wire size (Protocol::packetSizeForType()) — an

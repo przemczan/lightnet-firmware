@@ -4,7 +4,7 @@ icon: material/book-open-outline
 
 # Concepts
 
-The Lightnet animation system lets you define multi-layer, palette-driven light shows in JSON and send them to panels over HTTP. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame I²C traffic. Most controller runners compile to per-panel local pulses at step start; RAIN, SPARKLE, and MATRIX spawn stochastic drops over the step window.
+The Lightnet animation system lets you define multi-layer, palette-driven light shows in JSON and send them to panels over HTTP. Panel-local animations run entirely on the ATmega after a single setup packet — zero per-frame relay traffic. Most controller runners compile to per-panel local pulses at step start; RAIN, SPARKLE, and MATRIX spawn stochastic drops over the step window.
 
 The palette and scene model draws inspiration from the [WLED](https://github.com/Aircoookie/WLED) project.
 
@@ -80,7 +80,7 @@ step (the named step, or the sequence's last step if none is named) is infinite
 
 A **step** is a single animation segment within a layer's sequence. Steps are executed in order, advancing automatically when `durationMs` elapses. A step can be:
 
-- A **panel-local animation** (`"type": "BREATHE"`, etc.) — runs entirely on the ATmega with zero per-frame I²C traffic
+- A **panel-local animation** (`"type": "BREATHE"`, etc.) — runs entirely on the ATmega with zero per-frame relay traffic
 - A **controller runner** (`"runner": "WAVE"`, etc.) — compiled to per-panel local pulses (WAVE/RIPPLE/CHASE/WHEEL/BOUNCE) or driven as a particle spawner over the step window (RAIN/SPARKLE/MATRIX)
 - A **gap** (no `type` and no `runner`, only `duration`) — a timed no-op used to offset a layer's start or pause between animations
 
@@ -338,7 +338,7 @@ A layer can specify its own palette, overriding the scene-level default for the 
 "panels": {"exclude": [3]}   // all panels except listed addresses
 ```
 
-Panel addresses are assigned during discovery in tree-traversal order, starting at **1** (address 0 is the I²C general-call broadcast and is rejected). Up to 32 panels per explicit targeting list.
+Panel addresses are assigned during discovery in tree-traversal order, starting at **1** (address 0 is the relay's general-call/broadcast target and is rejected). Up to 32 panels per explicit targeting list.
 
 Beyond these explicit forms, `panels` also accepts **graph selectors** (`"root"`, `"leaves"`,
 `"depth:1-2"`, `"subtree:N"`, `"fraction:0-0.5"`, …) and **composition** (`{"any":[…]}` /

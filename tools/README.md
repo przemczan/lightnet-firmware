@@ -6,8 +6,8 @@ Developer utilities for building, flashing, and testing Lightnet firmware.
 
 ## sim_logger.py
 
-Captures animation simulation output from the `controller_wemos_sim` firmware
-environment, decodes raw I²C packet bytes into human-readable form, and saves a
+Captures animation simulation output from the `controller_esp32_sim` firmware
+environment, decodes raw sim packet bytes into human-readable form, and saves a
 timestamped log file for protocol verification.
 
 **Requires:** `pip install pyserial`
@@ -23,7 +23,7 @@ python tools/sim_logger.py <port> [baud]
 | `baud` | 230400 | Must match `SIM_SERIAL_BAUD` in platformio.ini |
 
 **Workflow:**
-1. Flash the sim firmware: `pio run -e controller_wemos_sim -t upload`
+1. Flash the sim firmware: `pio run -e controller_esp32_sim -t upload`
 2. Run the logger: `python tools/sim_logger.py COM6`
 3. The script waits silently until it sees `[SIM:DEMO] start` on serial
 4. Captures all `[SIM:*]` lines until `[SIM:DEMO] end`, then saves and exits
@@ -35,7 +35,7 @@ Ctrl+C stops capture early and saves whatever was collected.
 
 | Prefix | Content |
 |---|---|
-| `[SIM:SEND]` | Every I²C packet the controller sent — timestamp, destination address, full packet decoded (animation type, group, colors, durations, etc.) |
+| `[SIM:SEND]` | Every packet the controller sent — timestamp, destination address, full packet decoded (animation type, group, colors, durations, etc.) |
 | `[SIM:LED]` | LED output computed by the panel-side `AnimationPlayer` — panel index, RGB, brightness, effective brightness (after global brightness multiply). Only emitted on change. |
 
 Scenes are delimited by `ANIM_CONTROL → ALL  cmd=CLEAR_QUEUE` markers (which `ScenePlayer::loadAndPlay` broadcasts before each scene).

@@ -78,7 +78,7 @@
 
                     // ---- Helpers ----
 
-                    // Resolve up to maxCount panel I²C addresses from the initializer.
+                    // Resolve up to maxCount panel indices from the initializer.
                     uint8_t resolvePanels(uint8_t *out, uint8_t maxCount) const;
 
                     // Set all panels (up to 3) to a solid colour and turn them on.

@@ -13,13 +13,13 @@
 #include "ProtocolTypes.hpp"
 
 namespace Protocol {
-    // I2C protocol version. Changing it requires flashing both controller and all
+    // Protocol version. Changing it requires flashing both controller and all
     // panels together. v6: layer compositing (composeMode/composeOrder/startDelayMs).
     // v7: FETCH_STATE/FETCH_ANIM_STATE replies use distinct wire types
     // (PACKET_FETCH_STATE_REPLY/PACKET_FETCH_ANIM_STATE_REPLY) instead of reusing the
     // request's type, and packetSizeForType() lets a byte-stream receiver size a frame from
-    // its type byte alone — both needed for the panel relay's shared UART transport, which
-    // has no per-transaction length the way I2C did.
+    // its type byte alone — needed for the panel relay's shared UART transport to recover
+    // framing from a raw byte stream.
     // v8: relay discovery control plane (PACKET_DISCOVERY_ADVANCE/PACKET_DISCOVERY_DONE) —
     // see Core/Relay/DiscoveryCoordinator.hpp / PanelDiscoveryDriver.hpp.
     // v9: PacketPanelConfiguration's colorTemperature/colorCorrection fields changed from
@@ -80,12 +80,25 @@ namespace Protocol {
         return &pkt.meta;
     }
 
-    // PACKET_RESET_DEVICE/PACKET_ENTER_BOOTLOADER must reach a panel regardless of protocolVersion
-    // — flashing (or a reset that clears the way for a fresh flash) is how a version mismatch
-    // gets resolved, so gating either packet on the version that mismatch created would make a
-    // stuck panel unrecoverable over the relay. validatePacket() consults this unconditionally
-    // (even when validateProtocolVersion=true, the default every normal RX path uses) — it is not
-    // something a caller opts into per call.
+    // Recovery-adjacent packet types that must keep working across a protocolVersion mismatch,
+    // so a stuck panel is never permanently unreachable over the relay:
+    //   - PACKET_RESET_DEVICE/PACKET_ENTER_BOOTLOADER: flashing (or a reset that clears the way
+    //     for one) is how a version mismatch gets resolved in the first place.
+    //   - PACKET_INITIALIZATION_PULL/PACKET_REGISTER_EDGE/PACKET_DISCOVERY_ADVANCE/
+    //     PACKET_DISCOVERY_DONE: a panel has to be discoverable (assigned an index, appear in
+    //     getPanels()) before ENTER_BOOTLOADER can ever be addressed to it. Without this, a
+    //     controller reboot that re-runs discovery at a newer protocolVersion than a
+    //     not-yet-flashed panel is still running would never even find that panel — it would
+    //     look identical to an empty, unwired port and drop out of the tree with no way back in.
+    // validatePacket() consults this unconditionally (even when validateProtocolVersion=true, the
+    // default every normal RX path uses) — it is not something a caller opts into per call.
+    //
+    // This only helps when the version bump doesn't change the *shape* of these structs
+    // themselves (true for a bump like v12, which only added unrelated packet types elsewhere).
+    // A bump that changes PacketHeader or the discovery structs' own layout (as v10/v11 did)
+    // isn't saved by this — an old panel's packetSizeForType()/field offsets would misparse the
+    // new layout regardless of the version-check bypass, which is exactly why such a change still
+    // requires flashing controller and all panels together with no partial state observed.
     bool isVersionExemptType(packetType_t type);
 
     // Validate a received packet's header. 0 = ok; 1 = too short; 2 = bad header CRC;
@@ -98,7 +111,6 @@ namespace Protocol {
     // included. Every packet type has exactly one wire shape (see the comment on
     // PACKET_FETCH_STATE_REPLY/PACKET_FETCH_ANIM_STATE_REPLY above for why request and reply
     // can't share a type). Returns 0 for a type this function doesn't recognize. Used to
-    // recover frame boundaries from a raw byte stream, which (unlike I2C) has no out-of-band
-    // length.
+    // recover frame boundaries from a raw byte stream.
     uint8_t packetSizeForType(packetType_t type);
 }  // namespace Protocol

@@ -3,7 +3,7 @@
 // MainLoopQueue — generic "run this on the main loop" deferred-execution queue.
 //
 // Why it exists:
-//   HTTP handlers run on the AsyncTCP task; several of them emit I2C packets, and
+//   HTTP handlers run on the AsyncTCP task; several of them emit relay packets, and
 //   PacketMirror::capture() assumes packets are only ever emitted from the main-loop
 //   task (it self-flushes on overflow, touching the WS client list). This queue lets
 //   a handler package its work as a function pointer + a small POD argument blob and

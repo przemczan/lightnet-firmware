@@ -125,7 +125,7 @@ MSG_ANIMATION_TRIGGER (type=8) payload:
 
 The controller broadcasts `PACKET_ANIMATION_UPDATE_PARAMS` with `PARAM_TRIGGER` to all panels in that group. Each panel running a REACTIVE animation on that group instantly jumps to `colorTo` and begins decaying toward `colorFrom` at its configured `decayRate`.
 
-For music sync, fire triggers on beat events. At 120 BPM the inter-beat window is 500 ms. The controller spends only ~140 µs of I²C time per trigger; between triggers there is zero I²C traffic.
+For music sync, fire triggers on beat events. At 120 BPM the inter-beat window is 500 ms. The controller broadcasts one small packet per trigger over the relay trunk; between triggers there is zero traffic.
 
 ---
 

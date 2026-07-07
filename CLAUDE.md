@@ -45,7 +45,7 @@ Build the mobile app from that repo: `.\gradlew.bat :composeApp:assembleDebug`. 
 
 | Document | Contents |
 |---|---|
-| [`docs/architecture.md`](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
+| [`docs/architecture.md`](docs/architecture.md) | Physical topology, library structure, relay protocol, animation framework internals, discovery sequence, controller boot |
 | [`docs/getting-started.md`](docs/getting-started.md) | PlatformIO environments, config files, build/upload commands |
 | [`docs/hardware.md`](docs/hardware.md) | Pin assignments for controllers and panels, topology rules, fuses |
 | [`docs/ota.md`](docs/ota.md) | Panel OTA over the relay, serial upload via controller, controller ArduinoOTA |
@@ -111,13 +111,13 @@ cd tools/api-shell && node api-shell.js <controller-ip>
 
 For one-shot queries from Claude Code, inline the protocol directly — `node -e "..."` from `tools/api-shell/` (so `require('ws')` resolves). The CRC is **CRC-16/IBM** (reflected, poly `0xA001`, init `0xFFFF`). Nonce must be `Date.now() % 0x100000000` (not raw `Date.now()` — overflows `writeUInt32LE`).
 
-Packet types (`WebsocketApi::packet_t` in `WebsocketApi.hpp`): `TOGGLE=1`, `SET_COLOR=3`, `GET_EDGES_LIST=4`, `GET_PANELS_STATES=5`, `PANELS_STATES=6`, `EDGES_LIST=7`, `ANIMATION_TRIGGER=8`, `MIRROR_BATCH=9`, `SET_MIRROR=10`, `PING=11`, `PONG=12`, `APP_STATE=13`. (`SET_BRIGHTNESS=2` was removed — use appearance/global-brightness HTTP or I²C `PACKET_SET_GLOBAL_BRIGHTNESS` instead.)
+Packet types (`WebsocketApi::packet_t` in `WebsocketApi.hpp`): `TOGGLE=1`, `SET_COLOR=3`, `GET_EDGES_LIST=4`, `GET_PANELS_STATES=5`, `PANELS_STATES=6`, `EDGES_LIST=7`, `ANIMATION_TRIGGER=8`, `MIRROR_BATCH=9`, `SET_MIRROR=10`, `PING=11`, `PONG=12`, `APP_STATE=13`. (`SET_BRIGHTNESS=2` was removed — use appearance/global-brightness HTTP or `PACKET_SET_GLOBAL_BRIGHTNESS` instead.)
 
 Response payload for `EDGES_LIST`: `u16 count` followed by `count × 8 bytes` (`panel u16`, `edge u16`, `connectedPanel u16`, `connectedEdge u16`). `connectedPanel=0` means unconnected.
 
 ### mirror-dump.js (`tools/api-shell/mirror-dump.js`)
 
-Diagnostic tool that connects to a live controller and prints a summary of each incoming `MIRROR_BATCH` frame — how many records of each I²C type arrived per batch, plus which panel addresses received `PREPARE` and `START` packets.
+Diagnostic tool that connects to a live controller and prints a summary of each incoming `MIRROR_BATCH` frame — how many records of each packet type arrived per batch, plus which panel addresses received `PREPARE` and `START` packets.
 
 ```bash
 cd tools/api-shell && node mirror-dump.js <controller-ip> [seconds]
@@ -230,5 +230,5 @@ wired in `main.cpp` case 0.
 - **Single-record config stores** (`AppearanceStore`, `ConfigurationStore`, `AppStateStore`) persist as binary `Database` records via `SingleRecordStore<Codec>` (`Common/Database/SingleRecordStore.hpp`) — one fixed-slot record per `.db` file (`/config/appearance.db`, `/config/configuration.db`, `/config/app_state.db`), sharing the same format as palettes/scenes. Their `*Codec`/`*Record` live under each store's `Store/` subdir.
 
 - **`BOOTLOADER_ENTRY_TOKEN = 0xB0`** — both sides of `PACKET_ENTER_BOOTLOADER` must agree on this value.
-- **`LNBus`/I²C survives only under `SIM_MODE`** (sim panels only ever respond to `LightnetBus`-routed commands). Real hardware has no I²C wire to any panel at all — `fetchState()`, turn-on/off and panel-configuration acks, and OTA all go over the relay trunk now: `ControllerRelayPacketSink::requestReply()`/`send(wantAck=true)` block (bounded by `ACK_TIMEOUT_MS`) for a reply routed back up the trunk via the ordinary `PanelRouter` upstream rule — no `PanelRouter` changes needed. `Protocol::isVersionExemptType()` (`PACKET_RESET_DEVICE`/`PACKET_ENTER_BOOTLOADER`) lets a version-mismatched panel still be reset/reflashed over the relay.
+- **`LNBus`/I²C survives only under `SIM_MODE`** (sim panels only ever respond to `LightnetBus`-routed commands). Real hardware has no I²C wire to any panel at all — `fetchState()`, turn-on/off and panel-configuration acks, and OTA all go over the relay trunk now: `ControllerRelayPacketSink::requestReply()`/`send(wantAck=true)` block (bounded by `ACK_TIMEOUT_MS`) for a reply routed back up the trunk via the ordinary `PanelRouter` upstream rule — no `PanelRouter` changes needed. `Protocol::isVersionExemptType()` (`PACKET_RESET_DEVICE`/`PACKET_ENTER_BOOTLOADER` plus the discovery control plane — `PACKET_INITIALIZATION_PULL`/`PACKET_REGISTER_EDGE`/`PACKET_DISCOVERY_ADVANCE`/`PACKET_DISCOVERY_DONE`) lets a version-mismatched panel still be discovered, reset, and reflashed over the relay.
 - **Debug macros** (`D_PRINTLN`, `D_PRINT`, `D_PRINTF` in `Utils/Debug.hpp`; typically wrapped in `DEBUG_IF(DEBUG_*, …)`) are no-ops when `DEBUG=0` in `controller.config.hpp` / `panel.config.hpp`. Serial baud is 57600 everywhere.

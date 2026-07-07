@@ -57,7 +57,8 @@ panel-local types for per-panel effects; use runners for motion or texture *acro
 
 To use targeting and directional effects well, you need the shape of the network.
 
-A Lightnet device is a **controller** driving a **tree** of panels over a single I²C bus.
+A Lightnet device is a **controller** driving a **tree** of panels over a point-to-point relay —
+every panel is a store-and-forward repeater with one parent edge and up to N child edges.
 During boot the controller *discovers* the panels and gives each a **1-based index**. Index
 **1** is always the panel wired to the controller (the **root**); the rest fan out from it.
 

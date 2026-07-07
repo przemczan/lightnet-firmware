@@ -1,9 +1,7 @@
 #pragma once
 
-// LightnetPanel — the panel-side entry point for the relay network (hardware redesign plan
-// §10/§11). Replaces the earlier I2C-based LightnetPanel/LightnetPanelEdge/LightnetPinger
-// entirely — panel and controller no longer share a physical bus, so there is nothing left to
-// preserve from the old ping-pulse + Wire flow. Only one panel firmware exists; this is it.
+// LightnetPanel — the panel-side entry point for the relay network. Wires together discovery,
+// routing, and packet dispatch over a point-to-point relay trunk.
 //
 // Wires together every pure piece built for this design: PanelDiscovery (per-edge topology
 // state) + PanelDiscoveryDriver (the discovery protocol) + PanelRouter (flood/route forwarding)
@@ -33,12 +31,17 @@
 // register-level code, but nothing in this design (here or on the now-also-cut-over controller
 // side) has been exercised on real silicon yet — no boards exist.
 //
-// PACKET_ENTER_BOOTLOADER/PACKET_RESET_DEVICE reach a panel regardless of protocolVersion —
+// PACKET_ENTER_BOOTLOADER/PACKET_RESET_DEVICE, and the discovery control plane
+// (PACKET_INITIALIZATION_PULL/PACKET_REGISTER_EDGE/PACKET_DISCOVERY_ADVANCE/PACKET_DISCOVERY_DONE
+// — see PanelDiscoveryDriver.hpp), reach a panel regardless of protocolVersion —
 // Protocol::isVersionExemptType() (ProtocolMeta.hpp) is consulted by validatePacket() itself, so
-// EdgeFrameReceiver's framer surfaces these two types as complete frames even when
-// header.protocolVersion doesn't match this build's, exactly like the old I2C-era LightnetPanel's
-// handleIncomingPackets() deliberately skipped that check for the same two types. Every other
-// type still needs a matching version to be trusted.
+// EdgeFrameReceiver's framer surfaces these types as complete frames even when
+// header.protocolVersion doesn't match this build's. This is what lets a panel still be
+// discovered (and so still addressable for ENTER_BOOTLOADER) after a controller reboot re-runs
+// discovery at a newer version than this panel is currently running — without it, a
+// version-mismatched panel would look identical to an empty, unwired port and drop out of the
+// tree with no way back in. Every other packet type still needs a matching version to be
+// trusted.
 
 #include <stdint.h>
 #include "../Core/Relay/PanelDiscovery.hpp"

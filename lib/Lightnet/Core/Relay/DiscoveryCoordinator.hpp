@@ -2,15 +2,8 @@
 
 // DiscoveryCoordinator — the controller's half of the relay discovery protocol.
 //
-// Today's I2C model gets away with a single fixed-address poll because electrical bus-segment
-// switching always makes exactly the right panel answer at that address (see
-// PanelDiscoveryDriver.hpp for the panel side of the story). The relay transport has no
-// physical segment to gate — every downstream packet is either flooded to every connected edge
-// or routed to a parent (PanelRouter), never addressed to one specific panel — so there is no
-// way to "poll whoever's currently registering" once discovery is more than one hop deep.
-//
-// This class is the fix: it keeps exactly one panel "active" at a time (the depth-first walk's
-// current frontier) and drives it forward one edge at a time via PACKET_DISCOVERY_ADVANCE,
+// Keeps exactly one panel "active" at a time (the depth-first walk's current frontier) and
+// drives it forward one edge at a time via PACKET_DISCOVERY_ADVANCE,
 // which is flooded downstream like any ordinary packet (no PanelRouter changes needed — only
 // the addressed panel acts on it) and address-filtered by the target's own panel index. A
 // successful registration (PacketRegisterEdge reaching the controller) pushes the current

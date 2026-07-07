@@ -54,10 +54,10 @@ void serviceMirror()
 //
 // activeSink is picked at compile time, not runtime: under SIM_MODE, sim panels only ever
 // respond to LightnetBus-routed commands (LightnetBusSim.cpp -> SimPanelManager), so the scene
-// engine and PanelsController must keep using ControllerPacketSink/LNBus there unchanged. Real
-// hardware has no I2C panels left to reach at all (the relay trunk replaces the shared bus
-// entirely) — LNBus survives only for fetchState/OTA, which haven't cut over yet (see
-// PanelsController.hpp / ControllerRelayPacketSink.hpp).
+// engine and PanelsController must keep using ControllerPacketSink/LNBus there. Every command
+// (color, on/off, configuration, fetchState, OTA) goes over the relay trunk via
+// ControllerRelayPacketSink (see PanelsController.hpp / ControllerRelayPacketSink.hpp).
+// LNBus only still exists as the SIM_MODE transport.
 #ifdef SIM_MODE
     Lightnet::ControllerPacketSink activeSink(LNBus);
 
@@ -84,8 +84,7 @@ Lightnet::ConfigurationServer *configServer  = nullptr;
 Lightnet::StateServer *stateServer           = nullptr;
 Lightnet::TopologyConfigStore *topologyConfig = nullptr;
 
-// OTA only exists on real hardware -- no I2C wire to any panel exists under SIM_MODE, and sim
-// panels don't implement any bootloader protocol either.
+// OTA only exists on real hardware
 #ifndef SIM_MODE
     RelayBootloaderClient *relayBootloaderClient = nullptr;
     PanelFlasher *panelFlasher     = nullptr;
@@ -251,9 +250,8 @@ void setupWiFi()
     mainLoopQueue = new Lightnet::MainLoopQueue();
 
     // Mirror outbound animation/color packets to WebSocket clients for live preview. Hooked onto
-    // whichever transport actually carries scene/animation traffic (see activeSink's own comment)
-    // — on real hardware that's the relay sink, not LNBus, which only still carries the rare
-    // fetchState/OTA traffic.
+    // whichever transport actually carries traffic (see activeSink's own comment) — the relay
+    // sink on real hardware, LNBus under SIM_MODE.
     packetMirror = new PacketMirror();
     packetMirror->setServer(websocketServer);  // enables flush-on-overflow in capture()
     #ifdef SIM_MODE
@@ -303,12 +301,6 @@ void setup()
     #endif
 
     logBootDiagnostics();
-
-    // I2C survives under SIM_MODE (sim panels only respond to LightnetBus-routed commands) and
-    // for the WebSocket command handlers that still call LNBus directly
-    // (API/websocket/WebsocketHandler.cpp) -- the relay trunk (below) replaces it for everything
-    // that has cut over. See PanelsController.hpp / ControllerRelayPacketSink.hpp.
-    LNBus.begin(IIC_SDA_PIN, IIC_SCL_PIN);
 
     LNPanelsInitializer.configure(
         // 1 Mbps matches Panel/LightnetPanel.cpp's own EdgeUartTransport::begin() baud -- needs

@@ -15,7 +15,7 @@
     //
     // The upload is streamed directly to /panel_fw.bin to avoid holding
     // the entire binary in RAM.  Once the upload completes, PanelFlasher::startFlashing()
-    // is called; the actual I2C programming runs asynchronously in the main loop.
+    // is called; the actual relay flashing runs asynchronously in the main loop.
     class FirmwareUpdateServer
     {
         public:

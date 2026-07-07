@@ -34,15 +34,13 @@ is rejected, so the discovered topology is guaranteed to be a genuine spanning t
 [Architecture §6](architecture.md#6-discovery-sequence) for the full sequence.
 
 Once discovered, ordinary traffic (`Core/Relay/PanelRouter`) floods downstream to every connected
-edge except the one it arrived on, and routes upstream to the parent edge only — "send to panel N"
-is a routing decision resolved by flooding with an address filter, not a direct electrical address
-the way flat I²C addressing allowed.
+edge except the one it arrived on, and routes upstream to the parent edge only. Reaching panel N
+means flooding a packet downstream with N as an address filter; every intermediate panel relays it
+one hop closer, and only the matching panel acts on it locally.
 
 The firmware caps a single controller at **100 panels** (`LIGHTNET_MAX_PANELS` in
 `lib/Lightnet/Core/Common/LightnetConfig.hpp`) — a purely **SRAM** limit, comfortable on any
-ESP32-class controller. See [Why point-to-point instead of a shared bus](#why-point-to-point-instead-of-a-shared-bus)
-for why panel count is no longer also bounded by anything electrical the way it was on the old
-shared-I²C-bus design.
+ESP32-class controller.
 
 !!! note "ESP8266 controller targets are retired"
     ESP8266 doesn't meet the relay design's requirements: no spare hardware UART for the trunk,
@@ -85,26 +83,14 @@ shared-I²C-bus design.
 
 ---
 
-## Why point-to-point instead of a shared bus
+## Latency & Topology Constraints
 
-Panels used to share a real electrical bus — a buffered, 12 V I²C bus daisy-chained across every
-panel — and the number of panels that bus could support was capped by its total capacitance. That
-whole electrical concern no longer applies: every inter-panel wire is now an independent
-point-to-point hop (~30 cm), carrying one hardware USART's TX/RX through the mux described above.
-No cable segment is ever longer than one inter-panel run, no matter how large or branchy the tree
-becomes — a hop that short has no meaningful reflection risk, so there is no cumulative shared-bus
-electrical limit left to budget for.
-
-What scales with tree size instead is **hop count (depth)** — a latency question, not a
-signal-integrity one: every packet is store-and-forward, so each hop's transit time adds up across
-depth. Multi-layer scene restarts have a real end-to-end latency budget that this transport has to
-hold at the worst-case topology depth; the current design has little slack in that budget and is
-unvalidated until measured on real hardware across a real chain of panels — treat any specific
-number as a working estimate, not a settled figure, until then.
-
-`LIGHTNET_MAX_PANELS` (100 on ESP32, 32 on ESP8266) is purely an SRAM limit again, for the same
-reason it always was for the controller's own in-memory topology structures — nothing electrical
-bounds panel count on this transport the way I²C bus capacitance used to.
+Every inter-panel link is a point-to-point hop (~30 cm of cable) carrying store-and-forward relay
+traffic. What scales with tree size is **hop count (depth)** — a latency question: each hop's transit
+time accumulates across the depth. Multi-layer scene restarts have a real end-to-end latency budget
+this transport must hold at the worst-case topology depth; the current design has little slack in
+that budget and is unvalidated until measured on real hardware across a real chain of panels — treat
+any specific number as a working estimate, not a settled figure, until then.
 
 ---
 

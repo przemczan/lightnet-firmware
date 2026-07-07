@@ -4,7 +4,7 @@ icon: material/sitemap
 
 # System Architecture
 
-Internal design reference for the Lightnet controller and panel firmware. Covers topology, library structure, I²C protocol, animation framework internals, discovery, and boot sequence.
+Internal design reference for the Lightnet controller and panel firmware. Covers topology, library structure, relay protocol, animation framework internals, discovery, and boot sequence.
 
 ---
 
@@ -40,11 +40,10 @@ graph TD
   D --> E[Panel E — edge 0]
 ```
 
-Panels are assigned sequential indices during discovery (§6), but that index is no longer a direct
-electrical address the way an I²C address was — reaching panel N means flooding a packet downstream
-with N attached as an address filter (`Core/Relay/PanelRouter`), and every intermediate panel between
-the controller and N relays it one hop closer. Only the panel whose own index matches acts on it;
-everyone else just relays it further and ignores it locally.
+Panels are assigned sequential indices during discovery (§6). Reaching panel N means flooding a
+packet downstream with N as an address filter (`Core/Relay/PanelRouter`), and every intermediate
+panel between the controller and N relays it one hop closer. Only the panel whose own index matches
+acts on it; everyone else just relays it further and ignores it locally.
 
 ---
 
@@ -71,7 +70,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `LightnetBus` | I²C wrapper: `sendPacketAck()` / `sendPacketNack()` / `sendResponsePacket()`, ISR callbacks. Controller-only now (`#if !defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)`) — the relay trunk replaced I²C for discovery, application traffic, `fetchState()`, and OTA; this survives only under `SIM_MODE` (sim panels only respond to `LightnetBus`-routed commands) and for the WebSocket command handlers that still call it directly (`API/websocket/WebsocketHandler.cpp`) (see §6, §7, §8.7). |
+| `LightnetBus` | In-memory dispatch to `SimPanelManager`: `sendPacketAck()` / `sendPacketNack()` / `sendPacketWithResponse()`. `SIM_MODE`-only now (`#ifdef SIM_MODE`) — the relay trunk replaced I²C for discovery, application traffic, `fetchState()`, and OTA on real hardware; this survives only because sim panels only respond to `LightnetBus`-routed commands (see §6, §7, §8.7). |
 | `Protocol` | All packet structs (`__packed__`), CRC validation, `setPacketMeta()` |
 | `LightnetConfig` | Cross-cutting constants in `Core/Common/LightnetConfig.hpp`: `LIGHTNET_MAX_PANELS` (100) |
 | `ColorRef` | 4-byte tagged union in `Core/Common/ColorRef.hpp`: `kind=0` inline RGB, `kind=1` palette position, `kind=2` base-color slot |
@@ -84,7 +83,7 @@ All firmware code lives under `lib/Lightnet/`.
 | File | Purpose |
 |---|---|
 | `PanelsInitializer` | Drives `ControllerDiscoveryService` over the relay trunk (`ControllerEdgeTransport`/`Serial1`) and converts the resulting `DiscoveryTreeBuilder` link list into the `Panel`/`Edge` graph below once discovery completes — the SIM_MODE build (`Sim/PanelsInitializerSim.cpp`) fabricates the same graph shape directly instead, with no wire protocol involved at all |
-| `PanelsController` | Per-panel commands (color, on/off, configuration, enter-bootloader) via the shared `IPacketSink` (`ControllerRelayPacketSink` on real hardware, `ControllerPacketSink`/`LNBus` under `SIM_MODE` — main.cpp picks one at compile time). `fetchState()` stays directly on `LNBus`: the relay has no reply-routing path yet for a request that needs a synchronous response |
+| `PanelsController` | Per-panel commands (color, on/off, configuration, enter-bootloader) via the shared `IPacketSink` (`ControllerRelayPacketSink` on real hardware, `ControllerPacketSink`/`LNBus` under `SIM_MODE` — main.cpp picks one at compile time). `fetchState()` needs a synchronous request/reply: on real hardware it uses `ControllerRelayPacketSink::requestReply()`, under `SIM_MODE` it stays directly on `LNBus` |
 | `Panel` / `Edge` | In-memory data model of discovered topology — same shape regardless of which side built it |
 
 **Animations/** (device glue — demos only)
@@ -139,7 +138,7 @@ All firmware code lives under `lib/Lightnet/`.
 | `ConfigurationServer` | `GET /api/configuration`, `PATCH /api/configuration` | Boot behaviour, logical root (`ConfigurationStore` + `TopologyConfigStore`) |
 
 !!! note "Mutating endpoints defer to the main loop (§8)"
-    Every handler that emits I²C packets (scene play/stop/speed, one-shot/trigger, appearance,
+    Every handler that emits packets (scene play/stop/speed, one-shot/trigger, appearance,
     per-panel on/color, power, configuration `logicalRoot`) **validates synchronously, then queues the
     packet-emitting work onto the main loop via `MainLoopQueue` and returns `202 Accepted`**.
     They are injected with a `MainLoopQueue&`. Read-only and pure filesystem/config endpoints stay
@@ -149,7 +148,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `RelayBootloaderClient` | Drives `RelayBootloader.cpp` over the relay trunk via `ControllerRelayPacketSink::requestReply()`. `connect()` / `writePage()` / `startApp()`. Real hardware only — no I2C wire to any panel exists, and OTA doesn't exist under `SIM_MODE` |
+| `RelayBootloaderClient` | Drives `RelayBootloader.cpp` over the relay trunk via `ControllerRelayPacketSink::requestReply()`. `connect()` / `writePage()` / `startApp()`. Real hardware only — no wire to any panel exists, and OTA doesn't exist under `SIM_MODE` |
 | `PanelFlasher` | Non-blocking OTA state machine: `ENTER_BL → WAIT_BL → FLASHING → NEXT_PANEL` |
 | `FirmwareUpdateServer` | `POST /api/firmware/panels`, `GET /api/firmware/status` |
 | `SerialFirmwareReceiver` | Firmware upload over 57600-baud USB serial (LNFW framing + CRC-16) |
@@ -158,8 +157,8 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `LightnetPanel` | Main panel state machine; handles I²C packets, drives edge registration |
-| `RGBController` | FastLED wrapper for the single WS2812 LED on PD5. `globalBrightness` multiplier on all output |
+| `LightnetPanel` | Main panel state machine; handles relay packets, drives edge registration |
+| `RGBController` | `ClockedLed` (bit-banged APA102/SK9822-style) wrapper for the panel's LED on `LED_SCK`/`LED_MOSI`. Applies gamma/tint/`globalBrightness` in explicit `scale8`-style passes |
 | `AnimationPlayer` | Layer compositor: `slots[MAX_ANIM_SLOTS]` composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
 | `BootloaderBridge` | Writes assigned index + parent edge + EEPROM boot-magic `0xB007` then software-jumps to `RelayBootloader.cpp` |
 
@@ -171,7 +170,7 @@ All firmware code lives under `lib/Lightnet/`.
 | `WebsocketHandler` | Decodes and dispatches commands: `TOGGLE`, `SET_COLOR`, `GET_PANELS_STATES`, `GET_EDGES_LIST`, `ANIMATION_TRIGGER`, `SET_MIRROR`, `PING` |
 | `AppStateBroadcaster` | Watches `GET /api/state` fields; broadcasts `APP_STATE` to all WS clients on change |
 | `WebsocketApi` | Binary packet structs and namespace for all commands/responses |
-| `PacketMirror` | Captures outbound I²C packets; maintains a live-stream ring (flushed at ~30 fps to mirroring clients) and a persistent snapshot (unicast to a client when it enables mirroring). `capture()` **flushes inline on overflow instead of dropping** — safe only because all callers now run on the main loop (§8); `setServer()` wires the WS server for that self-flush |
+| `PacketMirror` | Captures outbound packets; maintains a live-stream ring (flushed at ~30 fps to mirroring clients) and a persistent snapshot (unicast to a client when it enables mirroring). `capture()` **flushes inline on overflow instead of dropping** — safe only because all callers now run on the main loop (§8); `setServer()` wires the WS server for that self-flush |
 
 ### Utils/
 
@@ -185,11 +184,10 @@ All firmware code lives under `lib/Lightnet/`.
 
 Defined in `Common/Protocol.hpp` (structs) and `Core/Common/ProtocolMeta.hpp` (version,
 `packetSizeForType()`, CRC validation). All packets use `__attribute__((__packed__))` structs and
-are transport-agnostic — the same `PacketMeta`/CRC-16 framing carries them whether the physical
-layer underneath is I²C or the relay's shared UART (see [`docs/hardware.md`](hardware.md)). The
-relay adds one thing I²C never needed: since a UART byte stream has no out-of-band length the way
-an I²C bus transaction did, `Protocol::packetSizeForType()` gives a receiver each type's fixed wire
-size so `Core/Relay/PacketFramer` can recover frame boundaries from a raw byte stream.
+carry `PacketMeta`/CRC-16 framing over the relay's shared UART (see [`docs/hardware.md`](hardware.md)).
+Since a UART byte stream has no out-of-band length field, `Protocol::packetSizeForType()` gives a
+receiver each type's fixed wire size so `Core/Relay/PacketFramer` can recover frame boundaries from
+a raw byte stream.
 
 ### Versions
 
@@ -199,7 +197,7 @@ size so `Core/Relay/PacketFramer` can recover frame boundaries from a raw byte s
 | **v4** | scenes | `PacketAnimationPrepare`: `colorFrom`/`colorTo` changed from `ColorRGB` (3 B) to `ColorRef` (4 B). Three new appearance packets. |
 | **v5** | — | Per-panel brightness removed (animations express brightness through colour). |
 | **v6** | compositing | Layer compositor. `PacketAnimationPrepare` gains `composeMode` + `composeOrder` + `startDelayMs` (25 B); `PacketAnimationControl` gains `group_id` (per-slot, 7 B); new `SET_BACKGROUND` packet. Runners are compiled to per-panel local PULSEs. |
-| **v7** | relay | `FETCH_STATE`/`FETCH_ANIM_STATE` replies get their own wire types (`FETCH_STATE_REPLY`/`FETCH_ANIM_STATE_REPLY`) instead of reusing the request's — a byte-stream receiver can't otherwise size a frame from its type byte alone the way I²C's separate request/response bus phases let it. |
+| **v7** | relay | `FETCH_STATE`/`FETCH_ANIM_STATE` replies get their own wire types (`FETCH_STATE_REPLY`/`FETCH_ANIM_STATE_REPLY`) instead of reusing the request's — a byte-stream receiver can't otherwise size a frame from its type byte alone without knowing whether it's a request or reply. |
 | **v8** | relay | Discovery control plane: `PACKET_DISCOVERY_ADVANCE`/`PACKET_DISCOVERY_DONE` (see §6). |
 | **v9** | relay | `PacketPanelConfiguration`'s `colorTemperature`/`colorCorrection` changed from FastLED's `ColorTemperature`/`LEDColorCorrection` enums to raw `ColorRGB` — moves the struct into the portable core (no FastLED dependency) and lets `packetSizeForType()` size it like every other packet. |
 | **v10** | relay | `PacketHeader` gains `targetPanelIndex` (0 = broadcast, else one panel) — the relay's addressing field, since flooding has no physical-bus-address equivalent; without it a flooded `FETCH_STATE` query would make every panel reply at once. `PacketDiscoveryAdvance`'s own bespoke `targetPanelIndex` payload field folds into this. Every packet grows 2 B. |
@@ -212,9 +210,8 @@ size so `Core/Relay/PacketFramer` can recover frame boundaries from a raw byte s
 ### Packet catalogue
 
 Not exhaustive — see `Core/Common/ProtocolTypes.hpp`'s `packetType_t` enum for the full list. `Dir`
-is who *authors* a packet, not a raw address: over the relay, reaching a specific panel means
-flooding downstream with that panel's index as an address filter (`PanelRouter`), not addressing it
-electrically the way an I²C transaction did.
+is who *authors* a packet. Over the relay, reaching a specific panel means flooding downstream with
+that panel's index as an address filter (`PanelRouter`).
 
 | ID | Name | Dir | Size | Notes |
 |---|---|---|---|---|
@@ -251,25 +248,14 @@ regardless of this field (§1/§3's redundant-but-simple philosophy, not a routi
 is consulted only by the receiving panel's own dispatch, as a single type-independent "is this for
 me" gate before the type switch below.
 
-### Flood (was: General Call)
+### Broadcast (Flood)
 
-I²C address `0x00` used to broadcast to all panels in one bus transaction. Over the relay there is
-no single electrical broadcast — the same effect comes from `PanelRouter`'s ordinary flood rule
-(downstream to every connected edge except the one a packet arrived on), which every panel already
-does for any packet, addressed or not. Used for:
+Broadcast packets are delivered via `PanelRouter`'s ordinary flood rule (downstream to every
+connected edge except the one a packet arrived on). Used for:
 
 - `ANIMATION_START` — fires queued animations in lockstep
 - `ANIMATION_UPDATE_PARAMS` — reactive triggers, speed changes
 - `SET_PALETTE` / `SET_BASE_COLORS` / `SET_GLOBAL_BRIGHTNESS`
-
-!!! note "Duplicate guard — an I²C-era workaround, not carried over"
-    On the old shared bus, START/UPDATE_PARAMS packets were sent **twice** (300 µs apart) with a
-    `seq_id` duplicate guard, since a General Call transaction had no per-listener acknowledgement to
-    detect a panel that missed it. The relay's store-and-forward hops are individually CRC-validated
-    before being repeated (`PacketFramer`), so a corrupted frame is dropped at the hop it corrupts on
-    rather than silently reaching some panels and not others — the failure mode the duplicate send was
-    guarding against. Unvalidated on real hardware yet, but there's no longer a structural reason to
-    send twice.
 
 ---
 
@@ -354,7 +340,7 @@ these over the step window (`serviceSpawner()` in `tick()`): every `1000/waves` 
 | **Pattern** | SPARKLE = one random panel (instant-on + `width` fade); RAIN = a random source→leaf path (`spawnBuildPath`), head cascading via staggered `startDelayMs`, tail fading over `width` rings, `speed` = fall-time |
 | **Knobs** | `duration` = play **window** (soft — in-flight drops finish); `waves` = spawn **rate** (per second); `width`/`speed` per above; full `animates` set + `colorFrom`→`colorTo` |
 | **Group pool** | each drop takes one `group_id` (one slot per touched panel) from a per-layer pool reserved **above** all normal layer groups (`allocSpawnPools`); the round-robin cursor **persists** across the window re-fire so new drops use fresh ids while old ones drain |
-| **Slot reaping** | drop pulses set **`FLAG_REAP_ON_DONE`** (a new, backward-compatible AnimationFlags bit — no I²C protocol bump); the panel frees the slot the instant the one-shot finishes (`AnimationPlayer`), so panels never clog and a recycled broadcast START can't re-fire a drained drop. **All panels must be re-flashed** with this firmware — older panels ignore the flag and would clog. |
+| **Slot reaping** | drop pulses set **`FLAG_REAP_ON_DONE`** (a new, backward-compatible AnimationFlags bit — no protocol version bump); the panel frees the slot the instant the one-shot finishes (`AnimationPlayer`), so panels never clog and a recycled broadcast START can't re-fire a drained drop. **All panels must be re-flashed** with this firmware — older panels ignore the flag and would clog. |
 
 Pure helpers (`Animations/RunnerSpawn.hpp`: PRNG, rate accumulator, pool, path, drop timing) are
 natively tested in `test_runner_spawn`; the stateful real-time behaviour is verified on sim/device
@@ -362,7 +348,11 @@ natively tested in `test_runner_spawn`; the stateful real-time behaviour is veri
 
 ### Bandwidth budget
 
-| Scenario | I²C cost |
+The pattern below (which scenarios cost bandwidth vs. which are free between updates) holds
+regardless of transport. These estimates are unvalidated on real hardware and should be treated as
+working estimates, not settled figures (see [`docs/hardware.md`](hardware.md#latency--topology-constraints)).
+
+| Scenario | Estimated cost |
 |---|---|
 | N panels, all panel-local (BREATHE etc.) | **0 µs/frame** during animation |
 | 30 panels, REACTIVE, 120 BPM | **~140 µs per beat** (0 µs between beats) |
@@ -379,13 +369,9 @@ Implemented by `Core/Relay/DiscoveryCoordinator` (controller) and `Core/Relay/Pa
 against a real multi-node fabric with a deliberate wiring loop, not just each piece in isolation).
 Runs on each controller boot before WiFi.
 
-The old ping-handshake model (a GPIO pulse per edge, then a flat I²C pull address every panel could
-be reached at directly) relied on the controller and panels sharing one electrical bus — see
-[`docs/hardware.md`](hardware.md#topology). Over the relay there's no direct electrical path to a
-panel more than one hop away, so discovery is now a **controller-driven depth-first walk**: the
-controller keeps exactly one panel "active" at a time and steps it through its own edges one at a
-time, descending into any new child immediately (depth-first) and backtracking once a subtree is
-exhausted.
+Discovery is a **controller-driven depth-first walk** over the relay trunk: the controller keeps
+exactly one panel "active" at a time and steps it through its own edges one at a time, descending
+into any new child immediately (depth-first) and backtracking once a subtree is exhausted.
 
 ### Depth-first walk
 
@@ -521,9 +507,10 @@ tasks run concurrently and share no implicit synchronization.
 
 ### 8.2 The hazard: outbound packets must be single-task
 
-Every outbound I²C packet is captured by `PacketMirror::capture()` (registered via
-`LNBus.setOnPacketSent()`). `capture()` appends to a single shared ring buffer **with no locks** — it
-is written assuming exactly one caller. But `LNBus.sendPacket()` is reached from **both** tasks:
+Every outbound packet is captured by `PacketMirror::capture()` (registered on whichever sink is
+active — `activeSink.setOnPacketSent()` on real hardware, `LNBus.setOnPacketSent()` under
+`SIM_MODE`). `capture()` appends to a single shared ring buffer **with no locks** — it is written
+assuming exactly one caller. But packet emission is reached from **both** tasks:
 
 - **Main loop** — `scenePlayer->tick()` emits step PREPARE/START packets and services spawners;
   step PREPARE/START packets.
@@ -534,7 +521,7 @@ Left uncoordinated, `capture()` on the AsyncTCP task races `PacketMirror::flushT
 over the same buffer — a data race. The same AsyncTCP handlers also mutate `ScenePlayer` state that
 the main loop ticks. The invariant that removes the whole class of hazard:
 
-> **All I²C packet emission — and the `ScenePlayer` state it touches — happens on the main-loop task.**
+> **All packet emission — and the `ScenePlayer` state it touches — happens on the main-loop task.**
 
 WebSocket commands already obeyed this (see [§8.6](#86-ws-command-queue-sibling-mechanism)). HTTP
 handlers did not; `MainLoopQueue` brings them in line.
@@ -603,7 +590,7 @@ sequenceDiagram
   participant TCP as AsyncTCP task
   participant Q as MainLoopQueue
   participant Loop as Main loop
-  participant Bus as LNBus → PacketMirror
+  participant Sink as activeSink → PacketMirror
 
   Cl->>TCP: POST /api/scenes/play/one-shot
   TCP->>TCP: parse + validate (pure, no packets)
@@ -612,7 +599,7 @@ sequenceDiagram
   Note over Loop: next tick
   Loop->>Q: drain()
   Q->>Loop: playParsed(parsed*) (frees parsed*)
-  Loop->>Bus: PREPARE × N + START — capture() on main loop
+  Loop->>Sink: PREPARE × N + START — capture() on main loop
   Loop->>Loop: serviceMirror() → flush ring to WS clients
 ```
 
@@ -708,8 +695,8 @@ The panel side answers with the ordinary upstream routing rule (§6) — `Lightn
 ancestor's unmodified `PanelRouter` carries the reply the rest of the way, exactly like
 `PACKET_DISCOVERY_DONE`. No `PanelRouter`/`PanelFrameDispatcher` changes were needed.
 
-**`GET /api/panels` is deferred, not synchronous** (§8.4's table): `fetchState()` now costs a real
-relay round trip per panel instead of a sub-millisecond I²C transaction, so `PanelServer::
+**`GET /api/panels` is deferred, not synchronous** (§8.4's table): `fetchState()` costs a real
+relay round trip per panel, so `PanelServer::
 handleGetPanels()` posts the whole per-panel loop (build the response, then `Http::sendOkStream()`)
 to `MainLoopQueue` instead of running it on the AsyncTCP task — the same deferral mechanism §8.3
 describes, just used to defer a *read* that still returns its real payload once computed, rather
@@ -718,8 +705,12 @@ unreachable) still blocks the main loop for `panelCount × ACK_TIMEOUT_MS` — t
 single-active-flow design means no two fetches can ever be in flight at once, so this can't be
 parallelized away; an accepted, flagged cost of the transport, not an implementation shortcut.
 
-Also unaffected by this: `Protocol::isVersionExemptType()` (`PACKET_RESET_DEVICE`/
-`PACKET_ENTER_BOOTLOADER`, checked inside `validatePacket()` itself) lets a version-mismatched
-panel still be reset or told to enter its bootloader over the relay — the one case where a frame
-must complete despite `header.protocolVersion` not matching this build's `Protocol::VERSION`,
-without weakening that check for any other packet type.
+Also unaffected by this: `Protocol::isVersionExemptType()` (checked inside `validatePacket()`
+itself) lets a version-mismatched panel still be reset, told to enter its bootloader, or
+discovered over the relay — `PACKET_RESET_DEVICE`/`PACKET_ENTER_BOOTLOADER` and the discovery
+control plane (`PACKET_INITIALIZATION_PULL`/`PACKET_REGISTER_EDGE`/`PACKET_DISCOVERY_ADVANCE`/
+`PACKET_DISCOVERY_DONE`) are the only types that complete despite `header.protocolVersion` not
+matching this build's `Protocol::VERSION`, without weakening that check for any other packet
+type. See [OTA — Flashing order and reboot safety](ota.md#flashing-order-and-reboot-safety) for
+why discovery specifically needs this: without it, a controller reboot that re-runs discovery at
+a newer version than a not-yet-flashed panel is still running would never find that panel at all.

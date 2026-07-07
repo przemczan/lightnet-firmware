@@ -1,9 +1,8 @@
 #pragma once
 
 // ClockedLed — drives the single on-panel LED over a two-wire clock+data protocol
-// (APA102/SK9822-style), replacing the WS2812/FastLED NRZ-timing driver, per
-// docs/hardware/schematics/Panel.png: LED_SCK/LED_MOSI on PC4/PC5 (freed from I2C SDA/SCL by
-// the relay redesign).
+// (APA102/SK9822-style), replacing the WS2812/FastLED NRZ-timing driver. LED_SCK/LED_MOSI
+// on PC4/PC5 (see docs/hardware/schematics/Panel.png).
 //
 // Unlike WS2812, a clocked protocol samples data on the clock edge rather than decoding pulse
 // *widths*, so it needs no interrupt-disable window around the transmission — this is what

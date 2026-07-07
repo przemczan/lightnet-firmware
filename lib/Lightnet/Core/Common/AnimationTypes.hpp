@@ -96,7 +96,7 @@ namespace Lightnet {
         FLAG_EASING     = 0x04,// apply easing function (future)
 
         // "Ignore packet field, use current LED state instead."
-        // Resolved on the panel at START time — no extra I2C round-trip needed.
+        // Resolved on the panel at START time — no extra round trip needed.
         FLAG_CURRENT_COLOR_FROM = 0x08,// override colorFrom with current LED color
         FLAG_CURRENT_COLOR_TO   = 0x10,// override colorTo with current LED color
 

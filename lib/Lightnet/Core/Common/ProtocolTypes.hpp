@@ -37,9 +37,7 @@ namespace Protocol {
         PACKET_SET_BACKGROUND = 20,          // unicast or General Call — scene compositor base colour
         // FETCH_STATE/FETCH_ANIM_STATE requests are meta-only; the payload-bearing reply gets
         // its own type (rather than reusing the request's) so a byte-stream receiver can size
-        // a frame from its type byte alone. I2C never needed this — each bus transaction (query,
-        // then separate response read) carried its own byte count from the Wire layer; the
-        // relay's shared UART has no such out-of-band length.
+        // a frame from its type byte alone, without knowing whether it's a request or reply.
         PACKET_FETCH_STATE_REPLY = 21,
         PACKET_FETCH_ANIM_STATE_REPLY = 22,
         // Relay discovery control plane (see Core/Relay/DiscoveryCoordinator.hpp /
@@ -81,12 +79,11 @@ namespace Protocol {
 
     // BEGIN Common packet structures
     // targetPanelIndex is the relay network's addressing field: 0 means broadcast/general-call
-    // (every panel acts on it), any other value means only that one panel does — the wire
-    // equivalent of the I2C slave address the old shared-bus transport used instead. It lives
-    // here, not on individual packet structs, so every packet gets addressing for free and a
-    // receiver's "is this for me" check is one type-independent comparison before the type
-    // switch, not a per-type audit. headerCrc already covers the whole PacketHeader by size, so
-    // it protects this field with no extra code.
+    // (every panel acts on it), any other value means only that one panel does. It lives here,
+    // not on individual packet structs, so every packet gets addressing for free and a receiver's
+    // "is this for me" check is one type-independent comparison before the type switch, not a
+    // per-type audit. headerCrc already covers the whole PacketHeader by size, so it protects
+    // this field with no extra code.
     typedef struct PACK {
         packetType_t type;
         uint16_t     protocolVersion;

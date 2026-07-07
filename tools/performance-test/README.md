@@ -57,7 +57,7 @@ inline scene cannot be recreated — the tool replays the last-played slot inste
 ## Not tested
 
 `POST /api/firmware/panels` is deliberately skipped: it flashes panel firmware
-over I²C (slow, destructive, needs a real `.bin`) and is not a meaningful latency
+over the relay trunk (slow, destructive, needs a real `.bin`) and is not a meaningful latency
 measurement.
 
 ## Adding an endpoint

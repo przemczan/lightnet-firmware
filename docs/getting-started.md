@@ -45,13 +45,13 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     |---|---|
     | `DEBUG_API` | WebSocket / HTTP API logs |
     | `DEBUG_RGB_CTRL` | LED controller logs |
-    | `DEBUG_LIGHTNET_BUS` | I²C bus logs |
+    | `DEBUG_LIGHTNET_BUS` | Sim panel dispatch logs (`LightnetBus`, `SIM_MODE` only) |
     | `DEBUG_FLASHER` | OTA / panel flash logs |
     | `DEBUG_DISCOVERY` | Panel discovery / ping logs |
     | `DEBUG_INIT` | Startup / init logs |
     | `DEBUG_DEMO` | Demo logs |
 
-    Pin assignments (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN` for the relay trunk's `Serial1`, `IIC_SDA_PIN`/`IIC_SCL_PIN` for the I²C fallback still used by `fetchState`/OTA, etc.) have platform-specific defaults in `src/controller/config.hpp` and only need overriding for custom hardware.
+    Pin assignments (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN` for the relay trunk's `Serial1`, etc.) have platform-specific defaults in `src/controller/config.hpp` and only need overriding for custom hardware.
 
 === "panel.config.hpp"
 
@@ -159,5 +159,5 @@ pio test -e native
 
 - [Hardware](hardware.md) — pin assignments and panel connectivity
 - [Architecture](architecture.md) — source tree and internal design
-- [OTA & Updates](ota.md) — panel updates over I²C and controller self-update
+- [OTA & Updates](ota.md) — panel updates over the relay and controller self-update
 - [Testing](testing.md) — native unit tests and how to add new ones

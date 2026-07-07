@@ -89,36 +89,40 @@ buffered in RAM.
 
 ### Flashing order and reboot safety
 
-`PanelFlasher` flashes **leaves first, root last** — `currentPanelAddress()` walks the discovered
-panel list back to front. `getPanels()` is ordered by discovery (pre-order DFS: a panel is always
-discovered before any of its descendants — a child can only be found by probing through an
-already-registered parent), so walking it in reverse visits every panel *after* all of its own
-descendants, and the root last of all. This is a deliberate reboot-safety property, not an
-arbitrary ordering choice.
+Two complementary safeguards protect a campaign from a controller reboot partway through, which
+otherwise risks a not-yet-flashed panel becoming permanently unreachable.
 
-**Why order matters at all.** A protocol-version bump means a panel that hasn't been reflashed
-yet only accepts discovery/application traffic stamped with the `protocolVersion` it was compiled
-with — everything except `PACKET_RESET_DEVICE`/`PACKET_ENTER_BOOTLOADER` is silently rejected on a
-mismatch (`Protocol::isVersionExemptType()`). If the **controller** reboots mid-campaign — before
-it has been updated itself — rediscovery runs stamped with whatever version the controller
-currently has:
+**1. Discovery's own control plane is version-exempt.** `Protocol::isVersionExemptType()` covers
+`PACKET_INITIALIZATION_PULL`/`PACKET_REGISTER_EDGE`/`PACKET_DISCOVERY_ADVANCE`/
+`PACKET_DISCOVERY_DONE` alongside `PACKET_RESET_DEVICE`/`PACKET_ENTER_BOOTLOADER` — all six survive
+a `header.protocolVersion` mismatch (`validatePacket()` consults this unconditionally, even though
+every normal RX path validates the version by default). Without this, a controller reboot that
+re-runs discovery at a newer `protocolVersion` than a not-yet-flashed panel is still running would
+never even find that panel — a version-mismatched panel would look identical to an empty, unwired
+port, drop out of `getPanels()`, and become unreachable for `ENTER_BOOTLOADER` with no way back in.
 
-- **Root-last (adopted):** the controller and every *not-yet-flashed* panel still share the same
-  (old) version throughout the whole campaign, since the controller isn't touched until the very
-  end. A mid-campaign reboot's rediscovery walks the tree from the root outward and only stops
-  being able to reach a panel once it hits one that's *already* been updated — and by construction
-  (leaves → branches → root), everything past that point is also already done. The panels still
-  waiting to be flashed are never the ones a reboot can drop out of discovery.
-- **Root-first (discovery order — not what this code does):** the opposite happens. The first
-  not-yet-flashed panel a rediscovery reaches rejects the newer probe from its now-updated parent,
-  and — because discovery can't get past a non-responding edge — **its entire remaining subtree
-  disappears from the discovered panel list along with it.** That's exactly the set of panels
-  still needing the update, now unreachable over the relay with no recovery path short of
-  re-flashing them by hand over ISP.
+This only helps when the version bump doesn't change the *shape* of these structs themselves (true
+for a bump like v12, which only added unrelated packet types elsewhere). A bump that changes
+`PacketHeader` or the discovery structs' own layout (as v10/v11 did) isn't saved by this — an old
+panel's `packetSizeForType()`/field offsets would misparse the new layout regardless of the
+version-check bypass. That residual risk is exactly what the second safeguard covers.
 
-Ordinary application traffic (animations, scene commands) to already-flashed panels is frozen for
-the same version-mismatch reason for the rest of the campaign — cosmetic, not a reachability
-problem, and it resolves the moment the controller itself is updated at the end.
+**2. `PanelFlasher` flashes leaves first, root last** — `currentPanelAddress()` walks the
+discovered panel list back to front. `getPanels()` is ordered by discovery (pre-order DFS: a panel
+is always discovered before any of its descendants — a child can only be found by probing through
+an already-registered parent), so walking it in reverse visits every panel *after* all of its own
+descendants, and the root last of all. This keeps the controller and every *not-yet-flashed* panel
+on the *same* `protocolVersion` throughout almost the entire campaign, since the controller isn't
+updated until the very end — so a mid-campaign reboot's rediscovery never even needs the
+version-exemption above to reach the panels still waiting to be flashed, which is what makes this
+safe even for a struct-shape-changing bump. The reverse order (root-first, discovery order — not
+what this code does) would instead update the controller and root-ward panels first, so a reboot's
+rediscovery runs at a version only the *already-flashed* prefix shares — safe for a same-shape
+bump thanks to safeguard 1, but with no protection left for a shape-changing one.
+
+Ordinary application traffic (animations, scene commands) to already-flashed panels is frozen by
+the same version-mismatch check for the rest of the campaign regardless of order — cosmetic, not a
+reachability problem, and it resolves the moment the controller itself is updated at the end.
 
 !!! note "Not yet built: skip-if-already-at-target-version"
     Every campaign re-flashes every panel from scratch — `PanelFlasher::startFlashing()` always

@@ -21,7 +21,12 @@ namespace Protocol {
 
     bool isVersionExemptType(packetType_t type)
     {
-        return (type == PACKET_RESET_DEVICE) || (type == PACKET_ENTER_BOOTLOADER);
+        return (type == PACKET_RESET_DEVICE)
+               || (type == PACKET_ENTER_BOOTLOADER)
+               || (type == PACKET_INITIALIZATION_PULL)
+               || (type == PACKET_REGISTER_EDGE)
+               || (type == PACKET_DISCOVERY_ADVANCE)
+               || (type == PACKET_DISCOVERY_DONE);
     }
 
     uint8_t validatePacket(const PacketMeta *packet, uint8_t size, bool validateProtocolVersion)

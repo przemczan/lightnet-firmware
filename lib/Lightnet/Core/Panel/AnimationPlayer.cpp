@@ -442,8 +442,8 @@ namespace Lightnet {
     void AnimationPlayer::setOutput(const ::Protocol::ColorRGB& c)
     {
         // Skip redundant updates: a held/idle layer otherwise re-drives the LED every 16ms
-        // forever, which briefly disables interrupts and can perturb the I²C/pinger timing.
-        // Only mark dirty when the composited colour actually changes.
+        // forever, which costs main-loop time that could otherwise service the relay's UART/mux
+        // path. Only mark dirty when the composited colour actually changes.
         if (c.r == lastOutput.r && c.g == lastOutput.g && c.b == lastOutput.b) {
             return;
         }

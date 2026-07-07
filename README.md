@@ -69,7 +69,7 @@ See [docs/ota.md](docs/ota.md) for full bootloader setup and panel OTA process.
 |---|---|
 | [docs/getting-started.md](docs/getting-started.md) | PlatformIO environments, config files, build/upload commands |
 | [docs/hardware.md](docs/hardware.md) | Pin assignments for controllers and panels, topology rules, fuses |
-| [docs/architecture.md](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
+| [docs/architecture.md](docs/architecture.md) | Physical topology, library structure, relay protocol, animation framework internals, discovery sequence, controller boot |
 | [docs/ota.md](docs/ota.md) | Panel OTA over the relay, serial firmware upload, update flow |
 | [docs/api.md](docs/api.md) | WebSocket binary protocol + full HTTP API reference (appearance, palettes, scenes, animations, firmware) |
 | [docs/animations/index.md](docs/animations/index.md) | Animation system overview — panel-local types, controller runners, scene model |

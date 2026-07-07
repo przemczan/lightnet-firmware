@@ -3,7 +3,6 @@
 #include "WebsocketApi.hpp"
 #include "WebsocketServer.hpp"
 #include "../../../Common/Protocol.hpp"
-#include "../../../Common/LightnetBus.hpp"
 #include "../../../Utils/Debug.hpp"
 #include "../../../Utils/Crc.hpp"
 #include "../../../Utils/Mem.hpp"

@@ -20,7 +20,7 @@
 #endif
 
 typedef struct __attribute__((__packed__)) {
-    uint8_t address; /* I²C target; 0 = general call */
+    uint8_t address; /* target panel index; 0 = general call */
     uint8_t type;    /* Protocol::packetType_t */
     uint8_t size;    /* byte length of the following wire packet */
 } MirrorRecordHeader;

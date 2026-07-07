@@ -2,11 +2,12 @@
 
 // IPacketSink — the outbound-packet seam for the shared scene engine.
 //
-// AnimationScheduler builds fully-stamped wire packets and hands them
-// to a sink instead of touching the I2C bus directly. The controller impl wraps LNBus
-// (ack-retry + inter-packet pacing); the mobile/preview impl forwards the raw bytes to
-// the per-panel players (ack/pacing are no-ops). This is what lets the scene engine run
-// host-side and on mobile with no Arduino dependency.
+// AnimationScheduler builds fully-stamped wire packets and hands them to a sink instead of
+// touching a transport directly. The controller has two impls, picked at compile time
+// (src/controller/main.cpp): ControllerRelayPacketSink on real hardware, ControllerPacketSink
+// (ack-retry + inter-packet pacing, wraps LNBus) under SIM_MODE. The mobile/preview impl forwards
+// the raw bytes to the per-panel players (ack/pacing are no-ops). This is what lets the scene
+// engine run host-side and on mobile with no Arduino dependency.
 
 #include <stdint.h>
 #include "../Common/ProtocolTypes.hpp"  // Protocol::PacketMeta, packetType_t

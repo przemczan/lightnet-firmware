@@ -19,7 +19,6 @@
 // debug/log Serial port; see platformio.ini). Not a fixed GPIO pair on real hardware yet (no
 // boards exist) — these reuse the old ping-pulse edge/interrupt pin numbers, which are otherwise
 // unused now that discovery no longer has a separate GPIO phase (see docs/hardware.md).
-// IIC_SDA_PIN/IIC_SCL_PIN stay in use for the OTA/fetchState paths that remain on LNBus/Wire.
 #if defined(ARDUINO_LOLIN_S2_MINI)
     #ifndef CONTROLLER_TRUNK_RX_PIN
         #define CONTROLLER_TRUNK_RX_PIN 11
@@ -29,12 +28,6 @@
     #endif
     #ifndef LED_PIN
         #define LED_PIN 15
-    #endif
-    #ifndef IIC_SDA_PIN
-        #define IIC_SDA_PIN 33
-    #endif
-    #ifndef IIC_SCL_PIN
-        #define IIC_SCL_PIN 35
     #endif
     #ifndef PANELS_POWER_PIN
         #define PANELS_POWER_PIN 7
@@ -48,12 +41,6 @@
     #endif
     #ifndef LED_PIN
         #define LED_PIN 2
-    #endif
-    #ifndef IIC_SDA_PIN
-        #define IIC_SDA_PIN 4
-    #endif
-    #ifndef IIC_SCL_PIN
-        #define IIC_SCL_PIN 5
     #endif
     #ifndef PANELS_POWER_PIN
         #define PANELS_POWER_PIN 21

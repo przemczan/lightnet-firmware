@@ -24,7 +24,7 @@ namespace WebsocketApi
         PANELS_STATES = 6,
         EDGES_LIST = 7,
         ANIMATION_TRIGGER = 8,    // low-latency reactive trigger for music sync
-        MIRROR_BATCH = 9,         // controller→client: batch of mirrored outbound I2C packets
+        MIRROR_BATCH = 9,         // controller→client: batch of mirrored outbound panel packets
         SET_MIRROR = 10,          // client→controller: enable/disable MIRROR_BATCH streaming
         PING = 11,                // client→controller: liveness check
         PONG = 12,                // controller→client: reply to PING
@@ -73,7 +73,7 @@ namespace WebsocketApi
         } SetColor;
 
         // Low-latency trigger for REACTIVE animations. Broadcasts a peak value
-        // to a group via I²C General Call (handled by AnimationScheduler::triggerGroup).
+        // to a group (handled by AnimationScheduler::triggerGroup).
         typedef struct PACK {
             PacketMeta meta;
             uint8_t    groupId;

@@ -9,8 +9,7 @@
 //
 // PanelRouter floods every downstream packet to every connected edge unconditionally — there is
 // no per-edge routing table (§11.1 rejected that for the same SRAM reasons the broadcast-
-// descriptor lever was rejected in §6) — so a logical "address" no longer opens a bus transaction
-// the way I2C's did. Instead it has to travel inside the packet itself, in
+// descriptor lever was rejected in §6). The target address travels inside the packet itself, in
 // PacketHeader.targetPanelIndex (0 = broadcast). AnimationScheduler/ScenePlayer/PanelsController
 // all build packets via Protocol::makePacket<T>(type) with no target, since they only learn the
 // logical `address` at send() time (an existing, unchanged call pattern — see
@@ -41,7 +40,7 @@
 // setOnPacketSent() mirrors LightnetBus's own callback (Common/LightnetBus.hpp) so
 // mirrorOutboundPacket() (src/controller/main.cpp) can capture scene/animation traffic for the
 // live WebSocket preview (PacketMirror) regardless of which sink is active — without this, the
-// mirror would only ever see the rare fetchState/OTA traffic still left on LNBus.
+// mirror would see nothing at all on real hardware, since LNBus never carries any traffic there.
 //
 // Wired into the live boot path via src/controller/main.cpp's activeSink — not yet bench-tested,
 // see ControllerEdgeTransport.hpp.

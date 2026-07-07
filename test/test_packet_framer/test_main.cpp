@@ -1,6 +1,5 @@
-// Host test for PacketFramer — recovers packet framing from a raw byte stream, the piece
-// I2C never needed (each bus transaction carried its own length from the Wire layer) but the
-// relay's shared UART does. Also covers Protocol::packetSizeForType(), the size table the
+// Host test for PacketFramer — recovers packet framing from a raw byte stream.
+// Also covers Protocol::packetSizeForType(), the size table the
 // framer is built on.
 //
 // Run with: pio test -e native -f test_packet_framer
@@ -260,6 +259,99 @@ void test_framer_accepts_enter_bootloader_despite_version_mismatch_by_default()
     TEST_ASSERT_EQUAL_MEMORY(&enter, framer.frame(), sizeof(enter));
 }
 
+// Discovery's own control plane must also survive a version mismatch — otherwise a controller
+// reboot that re-runs discovery at a newer protocolVersion than a not-yet-flashed panel is still
+// running would never even find that panel: it would look identical to an empty, unwired port
+// and drop out of the discovered tree with no way back in (see docs/ota.md's "Flashing order and
+// reboot safety").
+
+void test_framer_accepts_initialization_pull_despite_version_mismatch_by_default()
+{
+    Protocol::PacketInitializationPull pull =
+        Protocol::makePacket<Protocol::PacketInitializationPull>(Protocol::PACKET_INITIALIZATION_PULL);
+
+    pull.panelIndex = 3;
+    pull.parentEdgeIndex = 1;
+    pull.meta.header.protocolVersion ^= 0xFF;
+    pull.meta.headerCrc = crc16(&pull.meta.header, sizeof(pull.meta.header));
+
+    const uint8_t *bytes = (const uint8_t *)&pull;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(pull); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "PACKET_INITIALIZATION_PULL must be exempt from version validation");
+    TEST_ASSERT_EQUAL_MEMORY(&pull, framer.frame(), sizeof(pull));
+}
+
+void test_framer_accepts_register_edge_despite_version_mismatch_by_default()
+{
+    Protocol::PacketRegisterEdge reply =
+        Protocol::makePacket<Protocol::PacketRegisterEdge>(Protocol::PACKET_REGISTER_EDGE);
+
+    reply.panelIndex = 3;
+    reply.edgeIndex = 0;
+    reply.parentEdgeIndex = 1;
+    reply.meta.header.protocolVersion ^= 0xFF;
+    reply.meta.headerCrc = crc16(&reply.meta.header, sizeof(reply.meta.header));
+
+    const uint8_t *bytes = (const uint8_t *)&reply;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(reply); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "PACKET_REGISTER_EDGE must be exempt from version validation");
+    TEST_ASSERT_EQUAL_MEMORY(&reply, framer.frame(), sizeof(reply));
+}
+
+void test_framer_accepts_discovery_advance_despite_version_mismatch_by_default()
+{
+    Protocol::PacketDiscoveryAdvance advance =
+        Protocol::makePacket<Protocol::PacketDiscoveryAdvance>(Protocol::PACKET_DISCOVERY_ADVANCE);
+
+    advance.assignIndex = 4;
+    advance.meta.header.protocolVersion ^= 0xFF;
+    advance.meta.headerCrc = crc16(&advance.meta.header, sizeof(advance.meta.header));
+
+    const uint8_t *bytes = (const uint8_t *)&advance;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(advance); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "PACKET_DISCOVERY_ADVANCE must be exempt from version validation");
+    TEST_ASSERT_EQUAL_MEMORY(&advance, framer.frame(), sizeof(advance));
+}
+
+void test_framer_accepts_discovery_done_despite_version_mismatch_by_default()
+{
+    Protocol::PacketDiscoveryDone done =
+        Protocol::makePacket<Protocol::PacketDiscoveryDone>(Protocol::PACKET_DISCOVERY_DONE);
+
+    done.panelIndex = 3;
+    done.meta.header.protocolVersion ^= 0xFF;
+    done.meta.headerCrc = crc16(&done.meta.header, sizeof(done.meta.header));
+
+    const uint8_t *bytes = (const uint8_t *)&done;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(done); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "PACKET_DISCOVERY_DONE must be exempt from version validation");
+    TEST_ASSERT_EQUAL_MEMORY(&done, framer.frame(), sizeof(done));
+}
+
 void test_framer_still_rejects_other_types_with_version_mismatch()
 {
     Protocol::PacketTurnOnOff packet =
@@ -297,6 +389,10 @@ int main(int argc, char **argv)
     RUN_TEST(test_framer_accepts_version_mismatch_when_bypassed);
     RUN_TEST(test_framer_accepts_reset_device_despite_version_mismatch_by_default);
     RUN_TEST(test_framer_accepts_enter_bootloader_despite_version_mismatch_by_default);
+    RUN_TEST(test_framer_accepts_initialization_pull_despite_version_mismatch_by_default);
+    RUN_TEST(test_framer_accepts_register_edge_despite_version_mismatch_by_default);
+    RUN_TEST(test_framer_accepts_discovery_advance_despite_version_mismatch_by_default);
+    RUN_TEST(test_framer_accepts_discovery_done_despite_version_mismatch_by_default);
     RUN_TEST(test_framer_still_rejects_other_types_with_version_mismatch);
 
     return UNITY_END();

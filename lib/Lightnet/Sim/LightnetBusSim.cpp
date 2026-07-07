@@ -37,40 +37,6 @@ LightnetBus::LightnetBus()
 {
 }
 
-void LightnetBus::begin(uint8_t)
-{
-}
-
-void LightnetBus::begin(uint8_t, uint8_t, uint8_t)
-{
-}
-
-void LightnetBus::begin()
-{
-}
-
-void LightnetBus::begin(uint8_t, uint8_t)
-{
-}
-
-void LightnetBus::end()
-{
-}
-
-void LightnetBus::flush()
-{
-}
-
-void LightnetBus::setOnPacketReceived(onPacketReceived_t cb)
-{
-    onPacketReceivedCallback = cb;
-}
-
-void LightnetBus::setOnPacketRequested(onPacketRequested_t cb)
-{
-    onPacketRequestedCallback = cb;
-}
-
 void LightnetBus::setOnPacketSent(onPacketSent_t cb)
 {
     onPacketSentCallback = cb;
@@ -150,26 +116,6 @@ uint8_t LightnetBus::sendPacketWithResponse(
         Protocol::setPacketMeta(respBuf, Protocol::PACKET_ACK);
     }
 
-    return 0;
-}
-
-uint8_t LightnetBus::sendResponsePacket(Protocol::PacketMeta *, uint8_t)
-{
-    return 0;
-}
-
-uint8_t LightnetBus::sendResponseData(const Protocol::PacketMeta *, uint8_t)
-{
-    return 0;
-}
-
-uint8_t LightnetBus::requestData(uint8_t, void *, uint8_t)
-{
-    return 0;
-}
-
-uint8_t LightnetBus::requestPacket(uint8_t, void *, uint8_t)
-{
     return 0;
 }
 

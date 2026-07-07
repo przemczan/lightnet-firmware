@@ -8,7 +8,7 @@ How the firmware is tested, what runs where, and how to add new coverage.
 
 Today the only automated layer is **native host-side unit tests** — pure C++ logic compiled and run on your PC. Fast (under 2 s), no device, no flashing. This is what `pio test -e native` runs.
 
-There is no in-device Unity runner today; hardware-only code paths (filesystem I/O, I²C, animation timing) are exercised by running the firmware on a real board and observing serial / WebSocket output.
+There is no in-device Unity runner today; hardware-only code paths (filesystem I/O, the relay transport, animation timing) are exercised by running the firmware on a real board and observing serial / WebSocket output.
 
 ---
 

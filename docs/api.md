@@ -112,7 +112,7 @@ No payload.
 
 #### ANIMATION_TRIGGER (type 8)
 
-Fire a low-latency reactive beat trigger. The controller broadcasts `PACKET_ANIMATION_UPDATE_PARAMS` via I²C General Call to all panels running a REACTIVE animation in the specified group. Round-trip from WebSocket frame to panels lighting up is typically under 5 ms.
+Fire a low-latency reactive beat trigger. The controller broadcasts `PACKET_ANIMATION_UPDATE_PARAMS` (general call) to all panels running a REACTIVE animation in the specified group. Round-trip from WebSocket frame to panels lighting up is typically under 5 ms.
 
 | Offset | Size | Field | Type | Description |
 |---|---|---|---|---|
@@ -198,7 +198,7 @@ Sent in reply to GET_EDGES_LIST. `payloadSize = 2 + N×8`.
 
 #### MIRROR_BATCH (type 9)
 
-Streamed **controller → client** at up to ~30 fps once the client has sent `SET_MIRROR(1)`. Each frame is a coalesced batch of all outbound I²C packets captured since the previous flush. The mobile app uses these to drive its per-panel `AnimationPlayer` for real-time preview.
+Streamed **controller → client** at up to ~30 fps once the client has sent `SET_MIRROR(1)`. Each frame is a coalesced batch of all outbound packets captured since the previous flush. The mobile app uses these to drive its per-panel `AnimationPlayer` for real-time preview.
 
 **Payload header (6 bytes):**
 
@@ -211,7 +211,7 @@ Streamed **controller → client** at up to ~30 fps once the client has sent `SE
 
 | Offset | Size | Field | Type | Description |
 |---|---|---|---|---|
-| 0 | 1 B | `address` | uint8 | I²C target panel index; `0` = General Call (all panels) |
+| 0 | 1 B | `address` | uint8 | Target panel index; `0` = General Call (all panels) |
 | 1 | 1 B | `type` | uint8 | `Protocol::packetType_t` value |
 | 2 | 1 B | `size` | uint8 | Byte length of `packet` |
 | 3 | N B | `packet` | bytes | Raw packet including 5-byte `PacketMeta` header |
@@ -263,7 +263,7 @@ To turn panel 3 on:
 
 All endpoints return `application/json`. All ports are 80.
 
-Mutating endpoints whose side effects emit I²C packets to panels — scene play/stop/speed, one-shot
+Mutating endpoints whose side effects emit packets to panels — scene play/stop/speed, one-shot
 play, animation trigger, appearance PATCH, per-panel on/color, power, and configuration `logicalRoot` — **validate
 synchronously then queue the work onto the main loop**, returning `202 Accepted`. The change is
 applied on the next main-loop tick (sub-millisecond later); validation failures (`4xx`) are still
@@ -450,9 +450,9 @@ Direct per-panel control. These endpoints bypass the animation system — any ru
 | `PUT` | `/api/panels/:address/on` | `{"value":1}` | `202 {}` |
 | `PUT` | `/api/panels/:address/color` | `{"color":"#FF0000"}` | `202 {}` |
 
-`:address` is the panel's I²C index as returned by `GET /api/panels`.
+`:address` is the panel's index as returned by `GET /api/panels`.
 
-`GET /api/panels` fetches the live state of each discovered panel over I²C. Panels that do not respond are omitted from the array. `connectedPanel` and `connectedEdge` in the edges response are `0` when an edge slot is unoccupied.
+`GET /api/panels` fetches the live state of each discovered panel over the relay trunk. Panels that do not respond are omitted from the array. `connectedPanel` and `connectedEdge` in the edges response are `0` when an edge slot is unoccupied.
 
 These are the HTTP equivalents of the WebSocket `TOGGLE`, `SET_COLOR`, `GET_PANELS_STATES`, and `GET_EDGES_LIST` commands.
 

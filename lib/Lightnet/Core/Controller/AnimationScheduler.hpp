@@ -22,8 +22,9 @@ namespace Lightnet {
     class AnimationScheduler
     {
         public:
-            // `sink` receives every outbound packet — the controller wraps the I2C bus,
-            // the mobile/preview build forwards bytes to the per-panel players.
+            // `sink` receives every outbound packet — the controller wraps the relay transport
+            // (or LNBus under SIM_MODE), the mobile/preview build forwards bytes to the
+            // per-panel players.
             AnimationScheduler(IPacketSink& sink, uint8_t maxPanels = LIGHTNET_MAX_PANELS);
 
             ~AnimationScheduler();
