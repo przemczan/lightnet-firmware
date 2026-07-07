@@ -49,9 +49,22 @@ void serviceMirror()
 }
 
 // Bus/topology seams between the shared scene engine and the controller hardware.
-// Hold only references (to the global LNBus / LNPanelsInitializer), so static-init order
-// across TUs is irrelevant — they're not dereferenced until runtime.
-Lightnet::ControllerPacketSink controllerPacketSink(LNBus);
+// Hold only references (to the global LNBus / LNPanelsInitializer / LNTrunkTransport), so
+// static-init order across TUs is irrelevant — they're not dereferenced until runtime.
+//
+// activeSink is picked at compile time, not runtime: under SIM_MODE, sim panels only ever
+// respond to LightnetBus-routed commands (LightnetBusSim.cpp -> SimPanelManager), so the scene
+// engine and PanelsController must keep using ControllerPacketSink/LNBus there unchanged. Real
+// hardware has no I2C panels left to reach at all (the relay trunk replaces the shared bus
+// entirely) — LNBus survives only for fetchState/OTA, which haven't cut over yet (see
+// PanelsController.hpp / ControllerRelayPacketSink.hpp).
+#ifdef SIM_MODE
+    Lightnet::ControllerPacketSink activeSink(LNBus);
+
+#else
+    Lightnet::ControllerRelayPacketSink activeSink(LNTrunkTransport);
+
+#endif
 Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
 
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
@@ -88,57 +101,23 @@ void logBootDiagnostics()
 {
     Serial.println();
     Serial.print("[BOOT] reset reason: ");
-    #ifdef ARDUINO_ARCH_ESP8266
-        Serial.println(ESP.getResetReason());
-        Serial.print("[BOOT] reset info: ");
-        Serial.println(ESP.getResetInfo());
-        Serial.print("[BOOT] free heap / frag% / maxBlock: ");
-        Serial.print(ESP.getFreeHeap());
-        Serial.print(" / ");
-        Serial.print(ESP.getHeapFragmentation());
-        Serial.print(" / ");
-        Serial.println(ESP.getMaxFreeBlockSize());
-    #else
-        Serial.println((int)esp_reset_reason());   // see esp_reset_reason_t enum
-        Serial.print("[BOOT] free heap / minFree / maxAlloc: ");
-        Serial.print(ESP.getFreeHeap());
-        Serial.print(" / ");
-        Serial.print(ESP.getMinFreeHeap());
-        Serial.print(" / ");
-        Serial.println(ESP.getMaxAllocHeap());
-    #endif
+    Serial.println((int)esp_reset_reason());   // see esp_reset_reason_t enum
+    Serial.print("[BOOT] free heap / minFree / maxAlloc: ");
+    Serial.print(ESP.getFreeHeap());
+    Serial.print(" / ");
+    Serial.print(ESP.getMinFreeHeap());
+    Serial.print(" / ");
+    Serial.println(ESP.getMaxAllocHeap());
 }
-
-#ifdef ARDUINO_ARCH_ESP8266
-    // Kept alive for the lifetime of the program so the callback stays registered.
-    WiFiEventHandler mdnsGotIPHandler;
-#endif
 
 void setupMDNS()
 {
     char buffer[20];
 
-    #ifdef ARDUINO_ARCH_ESP8266
-        sprintf(buffer, "lightnet-%04X", ESP.getChipId());
-    #else
-        sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
-    #endif
+    sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
 
     MDNS.begin(&buffer[0]);
     MDNS.addService("lightnet", "tcp", SERVER_PORT);
-
-    #ifdef ARDUINO_ARCH_ESP8266
-        // The ESP8266 mDNS responder silently stops answering after a STA
-        // reconnect (it loses its 224.0.0.251 multicast/IGMP membership), so
-        // `lightnet-XXXX.local` resolution dies while the device keeps running.
-        // Re-announce every time the station re-acquires an IP. (ESP32's mDNS
-        // task handles this itself, so this is not needed there.)
-        mdnsGotIPHandler = WiFi.onStationModeGotIP(
-            [](const WiFiEventStationModeGotIP &) {
-        MDNS.notifyAPChange();
-    }
-        );
-    #endif
 }
 
 void selfTest()
@@ -210,11 +189,7 @@ void setupOTA()
     // Reuse the same hostname already registered with MDNS
     char buffer[20];
 
-    #ifdef ARDUINO_ARCH_ESP8266
-        sprintf(buffer, "lightnet-%04X", ESP.getChipId());
-    #else
-        sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
-    #endif
+    sprintf(buffer, "lightnet-%08X", (uint32_t)ESP.getEfuseMac());
 
     ArduinoOTA.setHostname(buffer);
     ArduinoOTA.onStart(
@@ -257,7 +232,7 @@ void setupWiFi()
     webServer = new AsyncWebServer(SERVER_PORT);
     DefaultHeaders::Instance().addHeader("Connection", "close");
     // Ensure the DNS server is started on the standard DNS port 53
-    // pointing all traffic to the ESP8266 AP IP (192.168.4.1)
+    // pointing all traffic to the AP IP (192.168.4.1)
     wifiManager = new AsyncWiFiManager(webServer, &dns);
 
     webServer->begin();
@@ -269,10 +244,17 @@ void setupWiFi()
     // runs on the main loop (drained in case 1), keeping all capture() calls single-task.
     mainLoopQueue = new Lightnet::MainLoopQueue();
 
-    // Mirror outbound animation/color packets to WebSocket clients for live preview.
+    // Mirror outbound animation/color packets to WebSocket clients for live preview. Hooked onto
+    // whichever transport actually carries scene/animation traffic (see activeSink's own comment)
+    // — on real hardware that's the relay sink, not LNBus, which only still carries the rare
+    // fetchState/OTA traffic.
     packetMirror = new PacketMirror();
     packetMirror->setServer(websocketServer);  // enables flush-on-overflow in capture()
-    LNBus.setOnPacketSent(mirrorOutboundPacket);
+    #ifdef SIM_MODE
+        LNBus.setOnPacketSent(mirrorOutboundPacket);
+    #else
+        activeSink.setOnPacketSent(mirrorOutboundPacket);
+    #endif
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
@@ -290,9 +272,9 @@ void setupWiFi()
         Serial.println("Failed to connect and hit timeout");
     }
 
-    // mDNS must be started only once the station has an IP. Starting it before
-    // the connection (as it was before) leaves the ESP8266 responder bound to
-    // no address, which is a likely cause of intermittent `.local` failures.
+    // mDNS must be started only once the station has an IP — starting it before the
+    // connection leaves the responder bound to no address, a likely cause of
+    // intermittent `.local` failures.
     setupMDNS();
 
     setupOTA();
@@ -314,11 +296,17 @@ void setup()
 
     logBootDiagnostics();
 
+    // I2C survives only for fetchState/OTA (LNBus/TwibootClient) -- the relay trunk (below)
+    // replaces it for everything else. See PanelsController.hpp / ControllerRelayPacketSink.hpp.
+    LNBus.begin(IIC_SDA_PIN, IIC_SCL_PIN);
+
     LNPanelsInitializer.configure(
-        { .sdaPinNo = IIC_SDA_PIN,
-          .sclPinNo = IIC_SCL_PIN,
-          .edgePinNo = INITIALIZER_EDGE_PIN_NO,
-          .intPinNo = INITIALIZER_EDGE_INTERRUPT_PIN_NO }
+        // 1 Mbps matches Panel/LightnetPanel.cpp's own EdgeUartTransport::begin() baud -- needs
+        // real bench validation once boards exist, same caveat as every other timing constant in
+        // this design.
+        { .trunkRxPin = CONTROLLER_TRUNK_RX_PIN,
+          .trunkTxPin = CONTROLLER_TRUNK_TX_PIN,
+          .trunkBaud = 1000000UL }
     );
     LNPanelsInitializer.start();
 
@@ -334,11 +322,11 @@ void setup()
     delay(500);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
-    panelsController = new PanelsController();
+    panelsController = new PanelsController(activeSink);
 
     // not needed if panels power controll work
     // will send reset command to N devices to reset them if they are running
-    // panelsController->resetDevices(50);
+    // panelsController->resetDevices();
     // panels have 100ms delay on startup, we need to wait for them to initialize
     // additional time is needed if they were reset by command above (up to 100ms)
     // delay(300);
@@ -368,7 +356,7 @@ void loop()
 
                 sendConfiguration();
 
-                animScheduler = new Lightnet::AnimationScheduler(controllerPacketSink);
+                animScheduler = new Lightnet::AnimationScheduler(activeSink);
                 animScheduler->initialize();
 
                 selfTest();
@@ -377,9 +365,9 @@ void loop()
                 // can read /data/palettes.db and /config/ before the captive portal blocks.
                 Lightnet::Fs::begin();
 
-                // Ensure /config exists before the stores below write into it. ESP32's LittleFS
-                // (unlike ESP8266's) won't create a file whose parent directory is missing, so on
-                // a fresh filesystem every /config/*.json write would fail without this. Idempotent.
+                // Ensure /config exists before the stores below write into it. LittleFS won't
+                // create a file whose parent directory is missing, so on a fresh filesystem every
+                // /config/*.json write would fail without this. Idempotent.
                 Lightnet::Fs::mkdir("/config");
 
                 paletteStore = new Lightnet::PaletteRepository();
@@ -504,9 +492,6 @@ void loop()
                 break;
 
             case 1:
-                #ifdef ARDUINO_ARCH_ESP8266
-                    MDNS.update();
-                #endif
                 ArduinoOTA.handle();
 
                 if (serialFwReceiver) serialFwReceiver->run();
@@ -525,12 +510,6 @@ void loop()
                     lastHeapLogMs = now;
                     Serial.print("[HEAP] free: ");
                     Serial.print(ESP.getFreeHeap());
-                    #ifdef ARDUINO_ARCH_ESP8266
-                        Serial.print(" frag%: ");
-                        Serial.print(ESP.getHeapFragmentation());
-                        Serial.print(" maxBlock: ");
-                        Serial.print(ESP.getMaxFreeBlockSize());
-                    #endif
                     Serial.println();
                 }
             });

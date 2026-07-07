@@ -6,10 +6,6 @@
 #include "../Utils/Debug.hpp"
 #include "consts.hpp"
 
-#if IS_ESP8266
-    #include <twi.h>
-#endif
-
 class LightnetBus
 {
     const uint32_t BUS_FREQUENCY = 400000;

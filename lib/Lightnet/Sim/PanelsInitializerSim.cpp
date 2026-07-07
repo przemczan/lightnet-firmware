@@ -23,9 +23,6 @@ struct SimPlacementCandidate {
 };
 
 PanelsInitializer::PanelsInitializer()
-    : lastActiveEdge(nullptr), lastPacketType(0), pingEdge(nullptr),
-    pullBuffer(nullptr), nextPulling(0), currentPanelIndex(1),
-    interruptPinNo(0), nextPanelToSend(0), nextPanelEdgeToSend(0)
 {
     panels = new List<Panel *>();
 }
@@ -62,8 +59,7 @@ void PanelsInitializer::start()
     // Already-placed panels never move (new panels only attach as leaves, and the layout
     // anchor is the lowest panel index = panel 1), so a placement validated here stays valid
     // for the rest of the build. `static`: PanelGraph/PanelGeometry hold ~100-panel-sized
-    // arrays — too large for the ESP8266 stack (see CLAUDE.md "ESP8266 heap not stack");
-    // start() runs once at boot.
+    // arrays, kept off the stack; start() runs once at boot.
     randomSeed(micros());
 
     using namespace Lightnet;
@@ -175,10 +171,6 @@ bool PanelsInitializer::isFinished()
     return simReady;
 }
 
-void PanelsInitializer::updateEdgeState()
-{
-}
-
 List<Panel *> * PanelsInitializer::getPanels()
 {
     return panels;
@@ -191,31 +183,6 @@ Panel * PanelsInitializer::getPanelByIndex(uint16_t index)
     }
 
     return nullptr;
-}
-
-// Private stubs — never called in sim mode
-void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *)
-{
-}
-
-void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *)
-{
-}
-
-void PanelsInitializer::pull()
-{
-}
-
-void PanelsInitializer::onPacketResponded(Protocol::PacketMeta *)
-{
-}
-
-void PanelsInitializer::sendRegisterAck()
-{
-}
-
-void PanelsInitializer::onInterrupt()
-{
 }
 
 PanelsInitializer LNPanelsInitializer;

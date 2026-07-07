@@ -13,7 +13,7 @@ Internal design reference for the Lightnet controller and panel firmware. Covers
 1. [Physical Topology](#1-physical-topology)
 2. [Two-Build Source Tree](#2-two-build-source-tree)
 3. [Library Structure](#3-library-structure)
-4. [I²C Protocol (Internal)](#4-i2c-protocol-internal)
+4. [Wire Protocol (Internal)](#4-wire-protocol-internal)
 5. [Animation Framework Internals](#5-animation-framework-internals)
 6. [Discovery Sequence](#6-discovery-sequence)
 7. [Controller Boot & Startup](#7-controller-boot-startup)
@@ -23,7 +23,12 @@ Internal design reference for the Lightnet controller and panel firmware. Covers
 
 ## 1. Physical Topology
 
-Panels form a **tree structure** rooted at the controller. Each panel has up to 5 edges (physical connectors); edges carry both power and a single-wire ping line. The controller discovers the network by sequentially pinging each edge via GPIO, triggering PCINT interrupts on the receiving ATmega.
+Panels form a **tree structure** rooted at the controller, but each panel is a **store-and-forward
+repeater** rather than a node on a shared bus: it only ever talks to its own physical neighbours (up
+to 3 edges today), never directly to the controller or to a panel it isn't wired to. Every panel has
+a single hardware USART shared across all its edges through a `CD74HC4052` analog mux, carrying
+framed `Protocol` packets — there is no separate ping/handshake phase and no shared electrical bus
+anywhere in the tree (see [`docs/hardware.md`](hardware.md#topology) for the electrical rationale).
 
 ```mermaid
 graph TD
@@ -35,7 +40,11 @@ graph TD
   D --> E[Panel E — edge 0]
 ```
 
-After the ping handshake completes, all communication uses **I²C** (`LightnetBus`) carrying structured `Protocol` packets. Panels are assigned sequential indices during discovery and use those indices as I²C addresses for all subsequent unicast traffic.
+Panels are assigned sequential indices during discovery (§6), but that index is no longer a direct
+electrical address the way an I²C address was — reaching panel N means flooding a packet downstream
+with N attached as an address filter (`Core/Relay/PanelRouter`), and every intermediate panel between
+the controller and N relays it one hop closer. Only the panel whose own index matches acts on it;
+everyone else just relays it further and ignores it locally.
 
 ---
 
@@ -46,7 +55,7 @@ The firmware compiles to two completely different binaries from a single source 
 ```mermaid
 graph LR
   M["src/main.cpp"] --> CC{"LIGHTNET_TARGET_CONTROLLER?"}
-  CC -- defined --> ESP["src/controller/main.hpp\n(ESP8266 / ESP32)"]
+  CC -- defined --> ESP["src/controller/main.hpp\n(ESP32 only — see §3)"]
   CC -- not defined --> ATM["src/panel/main.hpp\n(ATmega)"]
 ```
 
@@ -62,26 +71,21 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `LightnetBus` | I²C wrapper: `sendPacketAck()` / `sendPacketNack()` / `sendResponsePacket()`, ISR callbacks |
-| `LightnetPanelEdge` | Per-edge state machine: `IDLE → WELCOME_SENT → BOOTING → READY`. `updateEdgeState()` is ISR-safe (enqueues to ring buffer); `processEdgeState()` drains in main loop |
-| `LightnetPinger` | GPIO ping pulses. `HANDSHAKE` = 500 µs, `DONE` = 2000 µs. Owns an 8-entry ring buffer. |
-| `Protocol` | All I²C packet structs (`__packed__`), CRC validation, `setPacketMeta()` |
-| `LightnetConfig` | Cross-cutting constants in `Core/Common/LightnetConfig.hpp`: `LIGHTNET_MAX_PANELS` (100 on ESP32, 32 on ESP8266), `PALETTE_STOPS=16`, `BASE_COLORS_COUNT=3` |
+| `LightnetBus` | I²C wrapper: `sendPacketAck()` / `sendPacketNack()` / `sendResponsePacket()`, ISR callbacks. Controller-only now (`#if !defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)`) — the relay trunk replaced I²C for panel discovery and application traffic; this survives only for `PanelsController::fetchState()` and OTA (`TwibootClient`), which haven't cut over to the relay yet (see §6, §7). |
+| `Protocol` | All packet structs (`__packed__`), CRC validation, `setPacketMeta()` |
+| `LightnetConfig` | Cross-cutting constants in `Core/Common/LightnetConfig.hpp`: `LIGHTNET_MAX_PANELS` (100) |
 | `ColorRef` | 4-byte tagged union in `Core/Common/ColorRef.hpp`: `kind=0` inline RGB, `kind=1` palette position, `kind=2` base-color slot |
 | `Palette` | `GradientStop` struct (pos+RGB, 4 B) and `samplePalette()` in `Core/Common/Palette.hpp` |
 
-!!! note "`busIsDisabled` is a static shared flag"
-    `LightnetPinger::busIsDisabled` is **static** — shared across all pinger instances. It is set during any ping so all pingers ignore ISR samples while a pulse is being driven. Do not instantiate multiple pingers that need independent bus control.
-
-### Controller/ — ESP8266/ESP32 only
+### Controller/ — ESP32 only (ESP8266 retired — didn't meet the relay design's requirements)
 
 **Panels/**
 
 | File | Purpose |
 |---|---|
-| `PanelsInitializer` | Discovery orchestrator; assigns panel indices, builds edge graph |
-| `PanelsController` | Unicast commands to panels: color, on/off, configuration, enter-bootloader |
-| `Panel` / `Edge` | In-memory data model of discovered topology |
+| `PanelsInitializer` | Drives `ControllerDiscoveryService` over the relay trunk (`ControllerEdgeTransport`/`Serial1`) and converts the resulting `DiscoveryTreeBuilder` link list into the `Panel`/`Edge` graph below once discovery completes — the SIM_MODE build (`Sim/PanelsInitializerSim.cpp`) fabricates the same graph shape directly instead, with no wire protocol involved at all |
+| `PanelsController` | Per-panel commands (color, on/off, configuration, enter-bootloader) via the shared `IPacketSink` (`ControllerRelayPacketSink` on real hardware, `ControllerPacketSink`/`LNBus` under `SIM_MODE` — main.cpp picks one at compile time). `fetchState()` stays directly on `LNBus`: the relay has no reply-routing path yet for a request that needs a synchronous response |
+| `Panel` / `Edge` | In-memory data model of discovered topology — same shape regardless of which side built it |
 
 **Animations/** (device glue — demos only)
 
@@ -177,9 +181,15 @@ All firmware code lives under `lib/Lightnet/`.
 
 ---
 
-## 4. I²C Protocol (Internal)
+## 4. Wire Protocol (Internal)
 
-Defined in `Common/Protocol.hpp`. All packets use `__attribute__((__packed__))` structs.
+Defined in `Common/Protocol.hpp` (structs) and `Core/Common/ProtocolMeta.hpp` (version,
+`packetSizeForType()`, CRC validation). All packets use `__attribute__((__packed__))` structs and
+are transport-agnostic — the same `PacketMeta`/CRC-16 framing carries them whether the physical
+layer underneath is I²C or the relay's shared UART (see [`docs/hardware.md`](hardware.md)). The
+relay adds one thing I²C never needed: since a UART byte stream has no out-of-band length the way
+an I²C bus transaction did, `Protocol::packetSizeForType()` gives a receiver each type's fixed wire
+size so `Core/Relay/PacketFramer` can recover frame boundaries from a raw byte stream.
 
 ### Versions
 
@@ -189,41 +199,71 @@ Defined in `Common/Protocol.hpp`. All packets use `__attribute__((__packed__))` 
 | **v4** | scenes | `PacketAnimationPrepare`: `colorFrom`/`colorTo` changed from `ColorRGB` (3 B) to `ColorRef` (4 B). Three new appearance packets. |
 | **v5** | — | Per-panel brightness removed (animations express brightness through colour). |
 | **v6** | compositing | Layer compositor. `PacketAnimationPrepare` gains `composeMode` + `composeOrder` + `startDelayMs` (25 B); `PacketAnimationControl` gains `group_id` (per-slot, 7 B); new `SET_BACKGROUND` packet. Runners are compiled to per-panel local PULSEs. |
+| **v7** | relay | `FETCH_STATE`/`FETCH_ANIM_STATE` replies get their own wire types (`FETCH_STATE_REPLY`/`FETCH_ANIM_STATE_REPLY`) instead of reusing the request's — a byte-stream receiver can't otherwise size a frame from its type byte alone the way I²C's separate request/response bus phases let it. |
+| **v8** | relay | Discovery control plane: `PACKET_DISCOVERY_ADVANCE`/`PACKET_DISCOVERY_DONE` (see §6). |
+| **v9** | relay | `PacketPanelConfiguration`'s `colorTemperature`/`colorCorrection` changed from FastLED's `ColorTemperature`/`LEDColorCorrection` enums to raw `ColorRGB` — moves the struct into the portable core (no FastLED dependency) and lets `packetSizeForType()` size it like every other packet. |
+| **v10** | relay | `PacketHeader` gains `targetPanelIndex` (0 = broadcast, else one panel) — the relay's addressing field, since flooding has no physical-bus-address equivalent; without it a flooded `FETCH_STATE` query would make every panel reply at once. `PacketDiscoveryAdvance`'s own bespoke `targetPanelIndex` payload field folds into this. Every packet grows 2 B. |
+| **v11** | relay | `PacketInitializationPull`/`PacketRegisterEdge` gain `parentEdgeIndex` — the probing panel's (or controller trunk's) own edge index for the link being offered, echoed back unchanged in the reply. Lets the controller learn *both* sides of every discovered link (needed to build `PanelGraph`'s `TopoLink[]`, see §6) without a second, independently-timed upstream frame that would race the single-active-flow invariant (§4). Both structs grow 2 B. |
 
 !!! warning "Protocol compatibility"
     Panel and controller must be flashed together when upgrading across protocol versions — versions are not interchangeable.
 
 ### Packet catalogue
 
+Not exhaustive — see `Core/Common/ProtocolTypes.hpp`'s `packetType_t` enum for the full list. `Dir`
+is who *authors* a packet, not a raw address: over the relay, reaching a specific panel means
+flooding downstream with that panel's index as an address filter (`PanelRouter`), not addressing it
+electrically the way an I²C transaction did.
+
 | ID | Name | Dir | Size | Notes |
 |---|---|---|---|---|
-| 2 | `INITIALIZATION_PULL` | C→P | 7 B | Pull address `0x78`; panel replies with `PacketRegisterEdge` |
-| 3 | `REGISTER_EDGE` | P→C | 9 B | Panel index + edge index |
-| 4 | `TURN_ON_OFF` | C→P | 6 B | |
-| 5 | `SET_COLOR` | C→P | 8 B | |
-| 11 | `PANEL_CONFIGURATION` | C→P | — | Gamma correction, color temp/correction |
-| 12 | `ANIMATION_PREPARE` | C→P | 25 B | Unicast; buffers a layer (incl. `composeMode`/`composeOrder`/`startDelayMs`), arms for group start |
-| 13 | `ANIMATION_START` | General Call | 7 B | Fires all panels with matching group_id |
-| 14 | `ANIMATION_CONTROL` | C→P | 7 B | STOP / PAUSE / RESUME / CLEAR_QUEUE; `group_id`=0 → all slots |
-| 15 | `FETCH_ANIM_STATE` | C→P | 5 B | Panel replies with 11 B status |
-| 16 | `ANIMATION_UPDATE_PARAMS` | General Call | 10 B | Trigger / brightness-mult / speed-scale |
-| 17 | `SET_PALETTE` | C→P or GC | 70 B | 16-stop gradient; GC = broadcast to all |
-| 18 | `SET_BASE_COLORS` | C→P or GC | 14 B | 3 × RGB base colors |
-| 19 | `SET_GLOBAL_BRIGHTNESS` | General Call | 6 B | 0–255 multiplier |
-| 20 | `SET_BACKGROUND` | C→P or GC | 8 B | Scene compositor base colour (sent once at scene start) |
-| 200 | `RESET_DEVICE` | C→P | 5 B | WDT reset |
-| 201 | `ENTER_BOOTLOADER` | C→P | 6 B | Token must be `0xB0` |
+| 2 | `INITIALIZATION_PULL` | C→P or P→P | 11 B | Direct, single-hop probe — never routed. Sent by whoever is currently exploring one of its own edges (the controller down its trunk, or a registered panel down its next `Unexplored` edge), carrying `parentEdgeIndex` = the sender's own edge for this link (v11); panel replies with `PacketRegisterEdge` on the same edge |
+| 3 | `REGISTER_EDGE` | P→P or P→C | 13 B | Reply to a probe: `panelIndex` = the assigned index (or `0` if this edge closes a wiring loop — see §6), `edgeIndex` = the replying panel's own edge for this link, `parentEdgeIndex` = echoed unchanged from the probe (v11) — together these give the controller both sides of the link for `DiscoveryTreeBuilder` |
+| 4 | `TURN_ON_OFF` | C→P | 8 B | |
+| 5 | `SET_COLOR` | C→P | 10 B | |
+| 10 | `FETCH_STATE` | C→P | 7 B | Meta-only request |
+| 11 | `PANEL_CONFIGURATION` | C→P | 14 B | Gamma correction + color temp/correction tint (raw RGB, v9) |
+| 12 | `ANIMATION_PREPARE` | C→P | 28 B | Unicast; buffers a layer (incl. `composeMode`/`composeOrder`/`startDelayMs`), arms for group start |
+| 13 | `ANIMATION_START` | Flood | 9 B | Fires all panels with matching group_id |
+| 14 | `ANIMATION_CONTROL` | C→P | 9 B | STOP / PAUSE / RESUME / CLEAR_QUEUE; `group_id`=0 → all slots |
+| 15 | `FETCH_ANIM_STATE` | C→P | 7 B | Meta-only request |
+| 16 | `ANIMATION_UPDATE_PARAMS` | Flood | 12 B | Trigger / brightness-mult / speed-scale |
+| 17 | `SET_PALETTE` | C→P or Flood | 72 B | 16-stop gradient; flood = all panels |
+| 18 | `SET_BASE_COLORS` | C→P or Flood | 16 B | 3 × RGB base colors |
+| 19 | `SET_GLOBAL_BRIGHTNESS` | Flood | 8 B | 0–255 multiplier |
+| 20 | `SET_BACKGROUND` | C→P or Flood | 10 B | Scene compositor base colour (sent once at scene start) |
+| 21 | `FETCH_STATE_REPLY` | P→C | 13 B | Panel state, in reply to `FETCH_STATE` |
+| 22 | `FETCH_ANIM_STATE_REPLY` | P→C | 14 B | Animation status, in reply to `FETCH_ANIM_STATE` |
+| 23 | `DISCOVERY_ADVANCE` | C→P | 9 B | Flooded; target now carried in `PacketHeader.targetPanelIndex` (v10) — see §6 |
+| 24 | `DISCOVERY_DONE` | P→C | 9 B | Routed upstream — see §6 |
+| 200 | `RESET_DEVICE` | C→P | 7 B | WDT reset |
+| 201 | `ENTER_BOOTLOADER` | C→P | 8 B | Token must be `0xB0` |
 
-### General Call
+Every packet above carries `PacketHeader.targetPanelIndex` (v10): `0` = broadcast/flood, any other
+value = one specific panel. `PanelRouter` still floods every downstream packet unconditionally
+regardless of this field (§1/§3's redundant-but-simple philosophy, not a routing table); the target
+is consulted only by the receiving panel's own dispatch, as a single type-independent "is this for
+me" gate before the type switch below.
 
-I²C address `0x00` broadcasts to all panels simultaneously (±2.5 µs jitter). Used for:
+### Flood (was: General Call)
+
+I²C address `0x00` used to broadcast to all panels in one bus transaction. Over the relay there is
+no single electrical broadcast — the same effect comes from `PanelRouter`'s ordinary flood rule
+(downstream to every connected edge except the one a packet arrived on), which every panel already
+does for any packet, addressed or not. Used for:
 
 - `ANIMATION_START` — fires queued animations in lockstep
 - `ANIMATION_UPDATE_PARAMS` — reactive triggers, speed changes
 - `SET_PALETTE` / `SET_BASE_COLORS` / `SET_GLOBAL_BRIGHTNESS`
 
-!!! note "Duplicate guard"
-    START and UPDATE_PARAMS packets are sent **twice** (300 µs apart) with a `seq_id` duplicate guard so the panel processes exactly one copy.
+!!! note "Duplicate guard — an I²C-era workaround, not carried over"
+    On the old shared bus, START/UPDATE_PARAMS packets were sent **twice** (300 µs apart) with a
+    `seq_id` duplicate guard, since a General Call transaction had no per-listener acknowledgement to
+    detect a panel that missed it. The relay's store-and-forward hops are individually CRC-validated
+    before being repeated (`PacketFramer`), so a corrupted frame is dropped at the hop it corrupts on
+    rather than silently reaching some panels and not others — the failure mode the duplicate send was
+    guarding against. Unvalidated on real hardware yet, but there's no longer a structural reason to
+    send twice.
 
 ---
 
@@ -327,42 +367,103 @@ natively tested in `test_runner_spawn`; the stateful real-time behaviour is veri
 
 ## 6. Discovery Sequence
 
-Triggered by `PanelsInitializer::start()`. Runs on each controller boot before WiFi.
+Implemented by `Core/Relay/DiscoveryCoordinator` (controller) and `Core/Relay/PanelDiscoveryDriver`
+(panel) — both pure/portable and natively tested (`test_discovery_coordinator`,
+`test_panel_discovery_driver`, and `test_discovery_end_to_end`, which proves the whole protocol
+against a real multi-node fabric with a deliberate wiring loop, not just each piece in isolation).
+Runs on each controller boot before WiFi.
 
-### Ping handshake (per edge)
+The old ping-handshake model (a GPIO pulse per edge, then a flat I²C pull address every panel could
+be reached at directly) relied on the controller and panels sharing one electrical bus — see
+[`docs/hardware.md`](hardware.md#topology). Over the relay there's no direct electrical path to a
+panel more than one hop away, so discovery is now a **controller-driven depth-first walk**: the
+controller keeps exactly one panel "active" at a time and steps it through its own edges one at a
+time, descending into any new child immediately (depth-first) and backtracking once a subtree is
+exhausted.
+
+### Depth-first walk
 
 ```mermaid
 sequenceDiagram
   participant C as Controller
-  participant P as Panel
+  participant P as Parent panel
+  participant N as New panel
 
-  C->>P: HANDSHAKE pulse (500 µs)
-  P->>C: HANDSHAKE ACK (500 µs)
-  Note over P: enters STATE_REGISTER_EDGES<br/>calls LNBus.begin(0x78)
-  C->>P: INITIALIZATION_PULL (I²C 0x78)
-  P->>C: PacketRegisterEdge (panel + edge index)
-  Note over P: repeats for each non-parent edge
-  P->>C: DONE pulse (2000 µs)
+  Note over C: DiscoveryCoordinator.begin()
+  C->>P: INITIALIZATION_PULL (assign index 1, direct on trunk edge)
+  P->>C: REGISTER_EDGE (panelIndex=1)
+  Note over C: push sentinel, frontier=1, nextIndex=2
+  C->>P: DISCOVERY_ADVANCE (target=1, assign=2) — flooded, address-filtered
+  Note over P: tries its own next Unexplored edge
+  P->>N: INITIALIZATION_PULL (assign index 2, direct, one hop)
+  N->>P: REGISTER_EDGE (panelIndex=2)
+  Note over P: relayed upstream via PanelRouter's ordinary rule
+  P->>C: REGISTER_EDGE (panelIndex=2)
+  Note over C: push 1, frontier=2, nextIndex=3
+  C->>N: DISCOVERY_ADVANCE (target=2, assign=3)
+  Note over N: no more Unexplored edges
+  N->>C: DISCOVERY_DONE (panelIndex=2) — routed upstream through P
+  Note over C: pop -> frontier=1, re-advance with the same assign=3
+  Note over C: ... continues until the resume stack unwinds to the sentinel
 ```
 
-The Panel ISR calls `LNPanel.updateEdgesStates((PINB >> 1) & 0x07, TCNT1)` directly. Timer1 runs free at prescaler 8 (0.5 µs/tick) for pulse-duration measurement.
+Every hop except the very first `INITIALIZATION_PULL`/`REGISTER_EDGE` exchange (a direct,
+single-hop probe onto an edge that isn't in the topology yet, so no router rule could know how to
+forward it) travels through completely unmodified `PanelRouter` flood/route rules —
+`DISCOVERY_ADVANCE` floods downstream like any other packet and is address-filtered by the target's
+own index; `DISCOVERY_DONE` and an accepted `REGISTER_EDGE` reply route upstream to the parent like
+any other reply.
+
+### Loop rejection
+
+A panel that already has a parent + index refuses a second one: if `INITIALIZATION_PULL` arrives on
+any edge other than its established parent edge (`Core/Relay/PanelDiscovery::onParentOffer()`), it
+replies with `panelIndex=0` (never a real assignment — indices start at 1) instead of accepting. The
+prober marks that edge `NotConnected` and moves on to its next edge, no controller round-trip needed.
+Since packets carry no hop-count/TTL/visited list, this discovery-time rejection is the **only**
+thing that guarantees the discovered topology is a genuine, cycle-free spanning tree — which is in
+turn what guarantees an ordinary flood (`ANIMATION_START` etc.) terminates instead of circulating
+forever through a physically-wired loop.
 
 ### Full discovery flow
 
-1. `PanelsInitializer::start()` — initialises I²C as master, attaches CHANGE interrupt on the edge GPIO
-2. `PanelsInitializer::boot()` runs every main-loop iteration:
-   - Drives `LightnetPanelEdge` state machines
-   - While a panel is in `STATE_BOOTING`, pulls address `0x78` every 20 ms
-3. Panel: detects HANDSHAKE → replies HANDSHAKE → enters `STATE_REGISTER_EDGES` → calls `LNBus.begin(0x78)`
-4. Controller pull delivers `PACKET_INITIALIZATION_PULL`; panel responds with `PacketRegisterEdge` (panel index + edge index)
-5. Panel repeats steps 3–4 for each non-parent edge, then sends DONE to its parent
-6. Controller detects DONE → `isReady()` returns true (5 s boot timeout)
+1. Controller: `DiscoveryCoordinator::begin()` sends `INITIALIZATION_PULL{panelIndex=1}` directly on
+   its single trunk edge.
+2. The directly-wired panel accepts, becomes panel 1, replies `REGISTER_EDGE`. The controller pushes
+   the sentinel frontier (`0`) onto its resume stack, sets frontier `= 1`, and sends
+   `DISCOVERY_ADVANCE{target=1, assign=2}`.
+3. Whichever panel matches `target` (found via the ordinary flood — every panel relays it regardless
+   of the target field; only the addressed one acts) tries its next `Unexplored` edge, skipping its
+   own parent edge: probes it directly, and either gets an accept (marks the edge `Connected`, then
+   **stops** — no further edge is tried until the controller comes back), a reject/timeout (marks
+   `NotConnected`, immediately tries the next edge, no controller round-trip), or runs out of edges
+   (sends `DISCOVERY_DONE` upstream).
+4. On an accepted registration, the controller pushes the current frontier, descends into the new
+   panel, and repeats step 3 — this is what makes the walk depth-first rather than breadth-first.
+5. On `DISCOVERY_DONE`, the controller pops its resume stack and re-`ADVANCE`s the popped panel with
+   the same pending index (it was never consumed) so it tries its own remaining edges. Popping back
+   to the sentinel means the whole tree is resolved.
+
+### Topology capture — `DiscoveryTreeBuilder`
+
+`DiscoveryCoordinator` itself only tracks DFS *sequencing* (the frontier + resume stack) — it has no
+notion of the discovered tree's shape. `Core/Relay/DiscoveryTreeBuilder` (pure, natively tested) is
+fed one `(parentIndex, parentEdge, childIndex, childEdge)` tuple per accepted registration (the
+parent index comes from the coordinator's own frontier; both edge indices come from the `v11`
+`parentEdgeIndex`/`edgeIndex` fields on the `REGISTER_EDGE` reply) and accumulates the same
+`indices[]`/`edgeCounts[]`/`TopoLink[]` shape `PanelGraph::build()` consumes. `PanelsInitializer`
+(the real, non-`SIM_MODE` device glue) drives `ControllerDiscoveryService` — which owns both the
+coordinator and the tree builder — and, once discovery completes, converts the accumulated links
+into the `Panel`/`Edge` list `getPanels()` returns, the same conversion `Sim/PanelsInitializerSim.cpp`
+already does directly (fabricating a random tree with no wire protocol at all) — so every consumer
+of `getPanels()` (`PanelsTopologyProvider`, `PanelFlasher`, demos, `MqttService`) is unaffected by
+which side actually built the tree.
 
 ---
 
 ## 7. Controller Boot & Startup
 
-Sequence after `LNPanelsInitializer.isReady() == true`:
+Sequence after `LNPanelsInitializer.isFinished() == true`:
 
 ```mermaid
 flowchart TD
@@ -392,7 +493,6 @@ mainLoopQueue->drain();                              // drain HTTP-deferred work
 if (appStateStore->isOn()) scenePlayer->tick(millis());    // multi-layer scene playback
 appearance->tick(millis()); configStore->tick(millis()); appStateStore->tick(millis());
 serviceMirror();                                    // ≤30 fps flush of the mirror ring
-MDNS.update();                                      // ESP8266 only
 ```
 
 The ordering matters — see [§8 Main-loop service order](#main-loop-service-order).
@@ -410,8 +510,7 @@ The controller firmware runs on **two concurrent tasks**:
 | **Main loop** (Arduino `loop()`) | The `case 1` body: scene/animation ticks, mirror flush, queue draining | `scenePlayer->tick()`, `serviceMirror()` |
 | **AsyncTCP task** | All `AsyncWebServer` / `AsyncWebSocket` callbacks — HTTP route handlers and WS event/message callbacks | `SceneServer::handlePostPlayScene()`, `WebsocketServer::onMessage()` |
 
-On **ESP32** these are separate FreeRTOS tasks, usually on different cores, preemptively scheduled.
-On **ESP8266** the AsyncTCP callbacks run in a context that can preempt `loop()`. Either way the two
+These are separate FreeRTOS tasks, usually on different cores, preemptively scheduled — the two
 tasks run concurrently and share no implicit synchronization.
 
 ### 8.2 The hazard: outbound packets must be single-task
@@ -453,10 +552,10 @@ handlers did not; `MainLoopQueue` brings them in line.
   (which decays to a `TaskFn`) plus a POD args struct, so there is **no central dispatch switch** —
   work stays defined at the call site and each server owns its own execute function.
 - **Storage** is a `SpscByteQueue` (the codebase's lock-free byte-record ring). Both `push` and `pop`
-  are wrapped in the **same critical section** `WebsocketServer` uses (`portENTER_CRITICAL` on ESP32,
-  `noInterrupts()` on ESP8266). That supplies the memory barrier a multi-core ESP32 needs —
-  `SpscByteQueue` alone is only lock-free-safe on a single in-order core — and serializes producer vs
-  consumer, so it is robust even if work is posted from the main loop itself.
+  are wrapped in the **same critical section** `WebsocketServer` uses (`portENTER_CRITICAL`). That
+  supplies the memory barrier a multi-core ESP32 needs — `SpscByteQueue` alone is only
+  lock-free-safe on a single in-order core — and serializes producer vs consumer, so it is robust
+  even if work is posted from the main loop itself.
 - **The task `fn()` runs outside the lock** — its record is copied out of the ring under the lock
   first — so a slow or packet-emitting task never blocks the producer.
 - **Args are copied by value** into the ring, so they must be self-contained POD with no pointers
@@ -540,8 +639,8 @@ loop (the demos).
 
 With `capture()` now guaranteed single-task, the mirror's live ring no longer has to hold an entire
 scene-start burst. When an append would overflow, `capture()` **flushes inline** (`flushTo()`) and
-then appends, so **no PREPARE/START packet is ever dropped**, and the ring shrank (ESP8266 2 KB → 1 KB,
-ESP32 25 KB → 6 KB, freeing scarce DRAM). This inline flush is safe **only because the [§8.2 invariant]
+then appends, so **no PREPARE/START packet is ever dropped**, and the ring can stay small (6 KB on
+ESP32, freeing scarce DRAM). This inline flush is safe **only because the [§8.2 invariant]
 (#82-the-hazard-outbound-packets-must-be-single-task) holds**: `flushTo()` touches the WS client list
 and calls `socket->binary()`, which must not race the periodic `serviceMirror()` flush — and now
 cannot, since both run on the main loop. A `WebsocketServer*` is wired into `PacketMirror` via

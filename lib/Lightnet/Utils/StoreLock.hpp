@@ -6,8 +6,6 @@
     #include <Arduino.h>
     #include <freertos/FreeRTOS.h>
     #include <freertos/semphr.h>
-#elif defined(ARDUINO_ARCH_ESP8266)
-    #include <Arduino.h>
 #elif !defined(NATIVE_TEST)
     #include <mutex>
 #endif
@@ -58,22 +56,6 @@ namespace Lightnet {
 
                     if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
 
-                #elif defined(ARDUINO_ARCH_ESP8266)
-
-                    for (;;) {
-                        noInterrupts();
-
-                        if (!_owner) {
-                            _owner = true;
-                            interrupts();
-
-                            return;
-                        }
-
-                        interrupts();
-                        yield();
-                    }
-
                 #else
                     _stdMutex.lock();
                 #endif
@@ -85,10 +67,6 @@ namespace Lightnet {
 
                     if (_mutex) xSemaphoreGive(_mutex);
 
-                #elif defined(ARDUINO_ARCH_ESP8266)
-                    noInterrupts();
-                    _owner = false;
-                    interrupts();
                 #else
                     _stdMutex.unlock();
                 #endif
@@ -97,9 +75,6 @@ namespace Lightnet {
         private:
             #if defined(ARDUINO_ARCH_ESP32)
                 SemaphoreHandle_t _mutex = nullptr;
-
-            #elif defined(ARDUINO_ARCH_ESP8266)
-                volatile bool _owner = false;
 
             #else
                 std::mutex _stdMutex;

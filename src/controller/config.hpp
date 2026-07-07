@@ -11,32 +11,21 @@
     #include "SimPanelManager.hpp"
 #endif
 
-// Platform-specific pin defaults (override in controller.config.hpp if needed)
-#if defined(ARDUINO_ARCH_ESP8266)
-    #ifndef INITIALIZER_EDGE_PIN_NO
-        #define INITIALIZER_EDGE_PIN_NO 13
+// Platform-specific pin defaults (override in controller.config.hpp if needed).
+//
+// CONTROLLER_TRUNK_RX_PIN/CONTROLLER_TRUNK_TX_PIN feed Serial1, the relay's single physical trunk
+// port (Controller/Relay/ControllerEdgeTransport) — a second, genuinely free hardware UART, which
+// is why ESP8266 controller targets are retired (only one usable hardware UART, already the
+// debug/log Serial port; see platformio.ini). Not a fixed GPIO pair on real hardware yet (no
+// boards exist) — these reuse the old ping-pulse edge/interrupt pin numbers, which are otherwise
+// unused now that discovery no longer has a separate GPIO phase (see docs/hardware.md).
+// IIC_SDA_PIN/IIC_SCL_PIN stay in use for the OTA/fetchState paths that remain on LNBus/Wire.
+#if defined(ARDUINO_LOLIN_S2_MINI)
+    #ifndef CONTROLLER_TRUNK_RX_PIN
+        #define CONTROLLER_TRUNK_RX_PIN 11
     #endif
-    #ifndef INITIALIZER_EDGE_INTERRUPT_PIN_NO
-        #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 12
-    #endif
-    #ifndef LED_PIN
-        #define LED_PIN 2
-    #endif
-    #ifndef IIC_SDA_PIN
-        #define IIC_SDA_PIN 4
-    #endif
-    #ifndef IIC_SCL_PIN
-        #define IIC_SCL_PIN 5
-    #endif
-    #ifndef PANELS_POWER_PIN
-        #define PANELS_POWER_PIN 14
-    #endif
-#elif defined(ARDUINO_LOLIN_S2_MINI)
-    #ifndef INITIALIZER_EDGE_PIN_NO
-        #define INITIALIZER_EDGE_PIN_NO 11
-    #endif
-    #ifndef INITIALIZER_EDGE_INTERRUPT_PIN_NO
-        #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 9
+    #ifndef CONTROLLER_TRUNK_TX_PIN
+        #define CONTROLLER_TRUNK_TX_PIN 9
     #endif
     #ifndef LED_PIN
         #define LED_PIN 15
@@ -51,11 +40,11 @@
         #define PANELS_POWER_PIN 7
     #endif
 #elif defined(ARDUINO_ARCH_ESP32)
-    #ifndef INITIALIZER_EDGE_PIN_NO
-        #define INITIALIZER_EDGE_PIN_NO 12
+    #ifndef CONTROLLER_TRUNK_RX_PIN
+        #define CONTROLLER_TRUNK_RX_PIN 12
     #endif
-    #ifndef INITIALIZER_EDGE_INTERRUPT_PIN_NO
-        #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 13
+    #ifndef CONTROLLER_TRUNK_TX_PIN
+        #define CONTROLLER_TRUNK_TX_PIN 13
     #endif
     #ifndef LED_PIN
         #define LED_PIN 2
@@ -70,22 +59,6 @@
         #define PANELS_POWER_PIN 21
     #endif
 #else
-    #ifndef INITIALIZER_EDGE_PIN_NO
-        #define INITIALIZER_EDGE_PIN_NO 8
-    #endif
-    #ifndef INITIALIZER_EDGE_INTERRUPT_PIN_NO
-        #define INITIALIZER_EDGE_INTERRUPT_PIN_NO 2
-    #endif
-    #ifndef LED_PIN
-        #define LED_PIN 13
-    #endif
-    #ifndef IIC_SDA_PIN
-        #define IIC_SDA_PIN 4
-    #endif
-    #ifndef IIC_SCL_PIN
-        #define IIC_SCL_PIN 5
-    #endif
-    #ifndef PANELS_POWER_PIN
-        #define PANELS_POWER_PIN 3
-    #endif
+    #error \
+    "Unsupported controller platform -- ESP8266 controller targets are retired (see platformio.ini); this codebase now targets ESP32-class boards only."
 #endif

@@ -1,12 +1,8 @@
-#ifndef SIM_MODE
+#if !defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)
 #include "LightnetBus.hpp"
 
 LightnetBus::LightnetBus()
 {
-    #if !IS_ESP
-        Wire.onReceive(LightnetBus::onReceiveService);
-        Wire.onRequest(LightnetBus::onRequestService);
-    #endif
 }
 
 void LightnetBus::onReceiveService(int size)
@@ -65,47 +61,24 @@ void LightnetBus::begin(uint8_t address)
 
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin, uint8_t address)
 {
-    #if IS_ESP32
-        Wire.begin(sdaPin, sclPin, address);
-    #else
-        Wire.begin(address);
-    #endif
+    Wire.begin(sdaPin, sclPin, address);
     Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::begin()
 {
-    #if IS_ESP
-        Wire.begin();
-        #if IS_ESP8266
-            Wire.setClockStretchLimit(1500);
-        #endif
-    #else
-        Wire.begin();
-    #endif
+    Wire.begin();
     Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::begin(uint8_t sdaPin, uint8_t sclPin)
 {
-    #if IS_ESP
-        Wire.begin(sdaPin, sclPin);
-        #if IS_ESP8266
-            Wire.setClockStretchLimit(1500);
-        #endif
-    #else
-        Wire.begin();
-    #endif
+    Wire.begin(sdaPin, sclPin);
     Wire.setClock(BUS_FREQUENCY);
 }
 
 void LightnetBus::end()
 {
-    #if IS_ESP8266
-        twi_stop();
-    #elif !IS_ESP
-        Wire.end();
-    #endif
 }
 
 uint8_t LightnetBus::sendPacket(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size, bool end)
@@ -221,4 +194,4 @@ void LightnetBus::flush()
 }
 
 LightnetBus LNBus;
-#endif  // SIM_MODE
+#endif  // !SIM_MODE, LIGHTNET_TARGET_CONTROLLER

@@ -29,7 +29,7 @@
 #include <string.h>
 #include "../Core/Common/SpscByteQueue.hpp"
 
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+#if defined(ARDUINO_ARCH_ESP32)
     #include <Arduino.h>
 #endif
 
@@ -108,8 +108,6 @@ namespace Lightnet {
             {
                 #if defined(ARDUINO_ARCH_ESP32)
                     portENTER_CRITICAL(&mux);
-                #elif defined(ARDUINO_ARCH_ESP8266)
-                    noInterrupts();
                 #endif
             }
 
@@ -117,8 +115,6 @@ namespace Lightnet {
             {
                 #if defined(ARDUINO_ARCH_ESP32)
                     portEXIT_CRITICAL(&mux);
-                #elif defined(ARDUINO_ARCH_ESP8266)
-                    interrupts();
                 #endif
             }
     };

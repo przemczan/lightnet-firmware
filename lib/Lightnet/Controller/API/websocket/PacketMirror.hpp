@@ -6,12 +6,11 @@
 
 class WebsocketServer;
 
-// Accumulates outbound I2C packets (captured from LightnetBus::sendPacket) for the
+// Accumulates outbound packets (captured from whichever IPacketSink is active) for the
 // current main-loop window and flushes them as a single MIRROR_BATCH WebSocket frame.
 //
-// Coalescing into one frame per flush keeps the per-client AsyncWebSocket send queue
-// (only 8 deep on ESP8266) from overflowing when runner animations push a SET_COLOR
-// to every panel each tick.
+// Coalescing into one frame per flush keeps the per-client AsyncWebSocket send queue from
+// overflowing when runner animations push a SET_COLOR to every panel each tick.
 //
 // Wire payload layout: see Core/Common/MirrorBatch.h
 class PacketMirror

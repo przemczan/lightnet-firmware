@@ -14,16 +14,12 @@
     #include "../../lib/Lightnet/Utils/MainLoopQueue.hpp"
     #include <ESPAsyncWebServer.h>
     #include <ESPAsyncWiFiManager.h>
-    #ifdef ARDUINO_ARCH_ESP8266
-        #include <ESP8266mDNS.h>
-    #endif
-    #ifdef ARDUINO_ARCH_ESP32
-        #include <ESPmDNS.h>
-    #endif
+    #include <ESPmDNS.h>
     #include "Protocol.hpp"
     #include "../../lib/Lightnet/Core/Controller/AnimationScheduler.hpp"
     #include "../../lib/Lightnet/Core/Controller/CompiledSweep.hpp"
     #include "Animations/ControllerPacketSink.hpp"
+    #include "Relay/ControllerRelayPacketSink.hpp"
     #include "Palettes/PaletteRepository.hpp"
     #include "Appearance/AppearanceService.hpp"
     #include "API/http/AppearanceServer.hpp"

@@ -10,7 +10,7 @@
         Serial.print(F("ms] "));
     }
 
-    #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+    #if defined(ARDUINO_ARCH_ESP32)
         #define D_PRINTF Serial.printf
         #define D_PRINTFLN(...) do { _debugPrintTimestamp(); Serial.printf(__VA_ARGS__); Serial.println(); } while (0)
     #else
@@ -33,7 +33,7 @@
     {
     }
 
-    #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+    #if defined(ARDUINO_ARCH_ESP32)
         // ESP has ample RAM: plain string literals (const char*) are fine.
         template<typename T>
         inline void D_PRINT(T first)
@@ -57,8 +57,10 @@
         template<typename T>
         inline void D_PRINT(T first)
         {
-            static_assert(!_DebugIsSameType<T, const char *>::value,
-                          "D_PRINT/D_PRINTLN string literals must be wrapped in F(...) on AVR to stay in flash");
+            static_assert(
+                !_DebugIsSameType<T, const char *>::value,
+                "D_PRINT/D_PRINTLN string literals must be wrapped in F(...) on AVR to stay in flash"
+            );
             Serial.print(first);
         }
 

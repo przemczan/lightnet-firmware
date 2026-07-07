@@ -124,7 +124,7 @@ Once the binary is saved the controller starts flashing panels exactly as with t
 
 ## Controller Self-Update (ArduinoOTA)
 
-`ArduinoOTA` is initialised after WiFi connects. Standard ports: 8266 (ESP8266), 3232 (ESP32). No password — intended for a trusted local network.
+`ArduinoOTA` is initialised after WiFi connects, on the standard ESP32 port 3232. No password — intended for a trusted local network.
 
 ```bash
 # Upload directly over WiFi

@@ -1,16 +1,12 @@
 #include "WebsocketServer.hpp"
 
 // Largest contiguous block the allocator can currently hand out. The firmware builds with C++
-// exceptions disabled (the ESP8266 Arduino default), so a failed `new`/`make_shared` aborts the
-// chip rather than throwing — we must not even attempt an allocation the fragmented heap can't
-// satisfy. Mirror sends gate on this and drop the frame instead; the client resyncs on the next
-// flush/snapshot.
+// exceptions disabled, so a failed `new`/`make_shared` aborts the chip rather than throwing — we
+// must not even attempt an allocation the fragmented heap can't satisfy. Mirror sends gate on this
+// and drop the frame instead; the client resyncs on the next flush/snapshot.
 static inline size_t largestFreeBlock()
 {
-    #if defined(ARDUINO_ARCH_ESP8266)
-
-        return ESP.getMaxFreeBlockSize();
-    #elif defined(ARDUINO_ARCH_ESP32)
+    #if defined(ARDUINO_ARCH_ESP32)
 
         return ESP.getMaxAllocHeap();
     #else
@@ -28,7 +24,8 @@ WebsocketServer::WebsocketServer(AsyncWebServer *server) : server(server)
     this->socket->onEvent(
         [ = ](AsyncWebSocket *ws, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
         this->onEvent(ws, client, type, arg, data, len);
-    });
+    }
+    );
 
     server->addHandler(this->socket);
 }
@@ -115,7 +112,9 @@ void WebsocketServer::sendToAllClients(const void *frame, size_t len)
     }
 
     auto buffer = std::make_shared<std::vector<uint8_t> >(
-        (const uint8_t *)frame, (const uint8_t *)frame + len);
+        (const uint8_t *)frame,
+        (const uint8_t *)frame + len
+    );
 
     for (uint8_t i = 0; i < count; i++) {
         this->socket->binary(targets[i], buffer);
@@ -161,7 +160,9 @@ void WebsocketServer::sendToMirroringClients(const void *frame, size_t len)
     }
 
     auto buffer = std::make_shared<std::vector<uint8_t> >(
-        (const uint8_t *)frame, (const uint8_t *)frame + len);
+        (const uint8_t *)frame,
+        (const uint8_t *)frame + len
+    );
 
     for (uint8_t i = 0; i < count; i++) {
         this->socket->binary(targets[i], buffer);

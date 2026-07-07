@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_ESP32)
+#if defined(ARDUINO_ARCH_ESP32)
 
     #include "FsStoreCore.hpp"
 
@@ -43,13 +43,19 @@
 
                     if (session.database().liveCount() == 0) {
                         return session.database().insert(
-                            record, session.scratchBuffer(), nullptr) == DB_OK;
+                            record,
+                            session.scratchBuffer(),
+                            nullptr
+                        ) == DB_OK;
                     }
 
                     RecordRef recordRef{ (uint32_t)RECORDS_START_OFFSET };
 
                     return session.database().replace(
-                        recordRef, record, session.scratchBuffer()) == DB_OK;
+                        recordRef,
+                        record,
+                        session.scratchBuffer()
+                    ) == DB_OK;
                 }
 
             private:

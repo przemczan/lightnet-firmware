@@ -22,7 +22,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this project is
 
-Lightnet is embedded firmware for a tree network of addressable-LED panels. A single ESP8266/ESP32 **controller** discovers and drives **panels** (ATmega328) over I²C — up to 32 on ESP8266, 100 on ESP32 (`LIGHTNET_MAX_PANELS` in `Core/Common/LightnetConfig.hpp`). The controller exposes WiFi APIs; panels run animations locally after a single setup packet.
+Lightnet is embedded firmware for a tree network of addressable-LED panels. A single ESP32-class **controller** (ESP8266 dropped — didn't meet the relay's requirements) discovers and drives **panels** (ATmega328) over a point-to-point UART relay — every panel is a store-and-forward repeater with one parent edge and up to N child edges, up to 100 panels total (`LIGHTNET_MAX_PANELS` in `Core/Common/LightnetConfig.hpp`). The controller exposes WiFi APIs; panels run animations locally after a single setup packet.
 
 Two distinct binaries are compiled from one source tree. `LIGHTNET_TARGET_CONTROLLER` (set in `platformio.ini`) selects the target; the preprocessor eliminates the unused half entirely.
 
@@ -59,16 +59,16 @@ Build the mobile app from that repo: `.\gradlew.bat :composeApp:assembleDebug`. 
 ## Build quick-reference
 
 ```bash
-pio run -e controller_wemos_d1_mini_pro              # build controller (Wemos D1 Mini)
-pio run -e controller_wemos_d1_mini_pro -t upload    # build + upload via USB
+pio run -e controller_s2_mini              # build controller (Lolin S2 Mini)
+pio run -e controller_s2_mini -t upload    # build + upload via USB
 pio run -e panel_atmega328pb -t upload    # build + upload panel via USBasp
-pio run -e controller_wemos_d1_mini_pro -t upload --upload-port lightnet-XXXX.local  # OTA
-pio device monitor -e controller_wemos_d1_mini_pro   # serial monitor (57600 baud)
+pio run -e controller_s2_mini -t upload --upload-port lightnet-XXXX.local  # OTA
+pio device monitor -e controller_s2_mini   # serial monitor (57600 baud)
 ```
 
-Environments: `controller_esp8266` / `controller_wemos_d1_mini_pro` / `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller; `panel_atmega328_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels; `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time twiboot burn. Per-machine `upload_port` / `monitor_port` overrides go in gitignored `platformio_local.ini` (copy from `platformio_local.ini.example`). See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
+Environments: `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller (ESP8266 targets retired — didn't meet the relay's requirements); `panel_atmega328_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels (bare-metal, no `framework = arduino` — see `docs/architecture.md` and the hardware redesign plan); `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time twiboot burn. Per-machine `upload_port` / `monitor_port` overrides go in gitignored `platformio_local.ini` (copy from `platformio_local.ini.example`). See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
 
-**MQTT (Home Assistant):** ESP32 controller targets only (`LIGHTNET_MQTT=1` in `platformio.ini`). Not built for ESP8266. Config via captive portal or `GET/PATCH /api/mqtt`; optional async broker discovery (`_mqtt._tcp` → HA host fallback). See [`docs/api.md`](docs/api.md) §2.9.
+**MQTT (Home Assistant):** ESP32 controller targets only (`LIGHTNET_MQTT=1` in `platformio.ini`). Config via captive portal or `GET/PATCH /api/mqtt`; optional async broker discovery (`_mqtt._tcp` → HA host fallback). See [`docs/api.md`](docs/api.md) §2.9.
 
 ## Tests
 
@@ -81,7 +81,7 @@ pio test -e native -f test_simplejson    # single suite
 
 On Windows, MinGW GCC must be on `PATH` (typically `C:\msys64\mingw64\bin`).
 
-Current suites: `test_simplejson`, `test_http_url`, `test_entry_id`, `test_json_inject`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_config_codecs`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_codec`, `test_scene_writer`, `test_scene_duration`, `test_scene_capi`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
+Current suites: `test_simplejson`, `test_http_url`, `test_entry_id`, `test_json_inject`, `test_palette_parser`, `test_palette_codec`, `test_database`, `test_config_codecs`, `test_panel_graph`, `test_topology`, `test_panel_selector`, `test_panel_selector_parser`, `test_panel_field`, `test_panel_geometry`, `test_runner_math`, `test_runner_compile`, `test_runner_spawn`, `test_compositor`, `test_panel_anim`, `test_spsc_queue`, `test_main_loop_queue`, `test_scene_player`, `test_scene_codec`, `test_scene_writer`, `test_scene_duration`, `test_scene_capi`, `test_panel_discovery`, `test_panel_router`, `test_packet_framer`, `test_discovery_coordinator`, `test_discovery_tree_builder`, `test_panel_discovery_driver`, `test_discovery_end_to_end`, `test_byte_ring`, `test_edge_frame_receiver`, `test_panel_frame_dispatcher`. When fixing a bug in a pure-logic module, add a regression test under `test/test_*/test_main.cpp`. See [`docs/testing.md`](docs/testing.md) for what's testable natively vs. what needs a device.
 
 ---
 
@@ -130,14 +130,14 @@ Use this to verify the mirror pipeline is alive, check that general-call START p
 
 ## Packet mirroring (live preview)
 
-The controller captures every outbound I²C packet into `PacketMirror`. Clients that opt in receive `MIRROR_BATCH` WebSocket frames so the mobile app can render a real-time preview without polling.
+The controller captures every outbound packet into `PacketMirror`. Clients that opt in receive `MIRROR_BATCH` WebSocket frames so the mobile app can render a real-time preview without polling.
 
 ### Firmware side
 
 | File | Role |
 |---|---|
 | `lib/Lightnet/Controller/API/websocket/PacketMirror.cpp/.hpp` | Captures records into a live-stream ring and a persistent snapshot; `flushTo()` broadcasts the ring, `flushSnapshotTo()` unicasts the snapshot to one client |
-| `src/controller/main.cpp` — `mirrorOutboundPacket()` | Plain function registered via `LNBus.setOnPacketSent()`; forwards every outbound packet to `PacketMirror::capture()` |
+| `src/controller/main.cpp` — `mirrorOutboundPacket()` | Plain function registered on whichever `IPacketSink` is actually carrying traffic — `activeSink.setOnPacketSent()` (`ControllerRelayPacketSink`) on real hardware, `LNBus.setOnPacketSent()` under `SIM_MODE` (see `main.cpp`'s compile-time sink selection); forwards every outbound packet to `PacketMirror::capture()` |
 | `src/controller/MirrorService.hpp` / `serviceMirror()` in `main.cpp` | Flush gate (~30 fps); also drains `pendingSnapshotClientId` to unicast the snapshot to newly-enabled clients |
 | `lib/Lightnet/Controller/API/websocket/WebsocketServer` — `ClientSettings` | Per-client `mirroringEnabled` flag; registered on connect, cleared on disconnect |
 
@@ -149,7 +149,7 @@ Snapshotted types: `PACKET_SET_GLOBAL_BRIGHTNESS`, `PACKET_SET_BASE_COLORS`, `PA
 
 **Power-off / power-on**: `PacketMirror::clearSnapshot()` is called when the controller turns off, so stale animation state is not replayed to clients that connect while it is off. On power-on, `ScenesService::resumeScene()` restarts the last-loaded scene from the beginning using data preserved in `ScenePlayer` (all scene state survives `stop()` in memory; `lCount > 0` is the resume guard).
 
-**Sim mode**: `lib/Lightnet/Sim/LightnetBusSim.cpp::sendPacket()` invokes `onPacketSentCallback` so the mirror pipeline works identically in SIM_MODE — outbound packets reach `PacketMirror::capture()` and the mobile live preview works without real hardware.
+**Sim mode**: `lib/Lightnet/Sim/LightnetBusSim.cpp::sendPacket()` invokes `onPacketSentCallback` so the mirror pipeline works identically in SIM_MODE — outbound packets reach `PacketMirror::capture()` and the mobile live preview works without real hardware. Sim panels only ever respond to `LightnetBus`-routed commands, so `SIM_MODE` keeps the whole scene-engine/`PanelsController` packet path on `ControllerPacketSink`/`LNBus` unchanged; only real hardware uses the relay sink.
 
 **Wire format of `MIRROR_BATCH` payload**:
 ```
@@ -157,7 +157,7 @@ u32 controllerMillis   (LE)
 u16 count
 count × { u8 address, u8 type, u8 size, u8[size] packet }
 ```
-`address=0` means general call (all panels). `type` is `Protocol::packetType_t`. `packet` includes the full `PacketMeta` header (5 bytes: type + protocolVersion + headerCrc).
+`address=0` means general call (all panels). `type` is `Protocol::packetType_t`. `packet` includes the full `PacketMeta` header (7 bytes: type + protocolVersion + targetPanelIndex + headerCrc, v10+).
 
 **Key**: all records in one flush share a single `controllerMillis` timestamp. Runner animations (SET_COLOR per panel at 60fps) and panel-local animations (PREPARE + START once) both go through the same path.
 
@@ -194,11 +194,16 @@ resolution (`rebuild()` + `resolvePanels()`); it pulls the tree through `ITopolo
 `setLogicalRoot()` / `setTagResolver()` to it, reads its views in `fireStep`, and emits packets via
 `AnimationScheduler` → `IPacketSink`.
 
-**Device glue** (`lib/Lightnet/Controller/`, implements the seams): `ControllerPacketSink` wraps
-`LNBus` (ack-retry + bus pacing); `PaletteRepository` is the `IPaletteResolver`; `PanelsTopologyProvider`
-flattens the live `PanelsInitializer` tree into the `ITopologyProvider` arrays;
-`Topology/TopologyConfigStore` persists `/config/topology.json` and is the `ITagResolver`. Endpoints
-live in `API/http/ConfigurationServer` (`GET /api/configuration`, `PATCH /api/configuration`),
+**Device glue** (`lib/Lightnet/Controller/`, implements the seams): `IPacketSink` is picked at
+compile time in `main.cpp` (`activeSink`) — `ControllerRelayPacketSink` (wraps the relay trunk,
+`Controller/Relay/ControllerEdgeTransport`) on real hardware, `ControllerPacketSink` (wraps
+`LNBus`, ack-retry + bus pacing) under `SIM_MODE`, where sim panels only respond to
+`LightnetBus`-routed commands; `PaletteRepository` is the `IPaletteResolver`; `PanelsTopologyProvider`
+flattens the live `PanelsInitializer` tree into the `ITopologyProvider` arrays — `PanelsInitializer`
+itself drives discovery over the relay trunk on real hardware, or fabricates a random tree directly
+under `SIM_MODE` (`Sim/PanelsInitializerSim.cpp`), with no wire protocol either way once `getPanels()`
+returns; `Topology/TopologyConfigStore` persists `/config/topology.json` and is the `ITagResolver`.
+Endpoints live in `API/http/ConfigurationServer` (`GET /api/configuration`, `PATCH /api/configuration`),
 wired in `main.cpp` case 0.
 
 - **No protocol change**: runners (incl. directionality math) run in float — they are **not** part of
@@ -219,11 +224,11 @@ wired in `main.cpp` case 0.
 ## Key facts for coding
 
 - **Source entry**: `src/main.cpp` selects the target via `LIGHTNET_TARGET_CONTROLLER`; `setup()`/`loop()` live in `src/controller/main.cpp` or `src/panel/main.cpp`.
-- **I²C protocol version**: v6 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
+- **Protocol version**: v11 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
 - **`scenePlayer->tick(millis())`** must be called in the main loop `case 1` when power is on.
 - **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.db`.
 - **Single-record config stores** (`AppearanceStore`, `ConfigurationStore`, `AppStateStore`) persist as binary `Database` records via `SingleRecordStore<Codec>` (`Common/Database/SingleRecordStore.hpp`) — one fixed-slot record per `.db` file (`/config/appearance.db`, `/config/configuration.db`, `/config/app_state.db`), sharing the same format as palettes/scenes. Their `*Codec`/`*Record` live under each store's `Store/` subdir.
 
 - **`BOOTLOADER_ENTRY_TOKEN = 0xB0`** — both sides of `PACKET_ENTER_BOOTLOADER` must agree on this value. Do not send `CMD_SWITCH_APPLICATION + BOOTTYPE_BOOTLOADER` (bytes `0x01 0x00`) to the twiboot fork — it WDT-resets the panel.
-- **`busIsDisabled` in `LightnetPinger` is static (shared)** — set while any ping pulse is being driven so all pingers drop ISR samples during that window, preventing self-detection.
+- **`LNBus`/I²C survives only for `PanelsController::fetchState()` and OTA (`TwibootClient`)** — the relay trunk replaced I²C for discovery and all other panel commands; both remaining uses are flagged gaps (no relay reply-routing path exists yet), not oversights.
 - **Debug macros** (`D_PRINTLN`, `D_PRINT`, `D_PRINTF` in `Utils/Debug.hpp`; typically wrapped in `DEBUG_IF(DEBUG_*, …)`) are no-ops when `DEBUG=0` in `controller.config.hpp` / `panel.config.hpp`. Serial baud is 57600 everywhere.

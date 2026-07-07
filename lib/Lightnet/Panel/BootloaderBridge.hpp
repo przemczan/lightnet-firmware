@@ -3,6 +3,8 @@
 #if !IS_ESP
 
     #include <avr/eeprom.h>
+    #include <avr/io.h>
+    #include <avr/interrupt.h>
     #include "../Common/Protocol.hpp"
 
     // Coordinates with twiboot_for_arduino (the fork).
@@ -32,7 +34,14 @@
             // Disable peripherals whose interrupts could fire after the fork calls sei().
             // With IVSEL=0 (default, not changed by a software jump), any enabled interrupt
             // would be dispatched to the *app's* IVT, which could corrupt fork state.
-            TWCR  = 0; // disable TWI
+            // ATmega328PB has two TWI peripherals, named TWCR0/TWCR1 in raw avr-libc (no
+            // single-TWI TWCR alias the way MiniCore provided); plain ATmega328P has only one,
+            // still named TWCR.
+            #if defined(__AVR_ATmega328PB__)
+                TWCR0 = 0; // disable TWI0
+            #else
+                TWCR  = 0; // disable TWI
+            #endif
             PCICR = 0; // disable pin-change interrupts
             TIMSK1 = 0; // disable Timer1 interrupts
 

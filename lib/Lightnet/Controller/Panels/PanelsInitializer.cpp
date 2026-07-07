@@ -1,19 +1,22 @@
 #ifndef SIM_MODE
 #include "PanelsInitializer.hpp"
 
+// Every relay panel has the same fixed edge count (Panel/EdgeUartTransport::EDGE_COUNT) --
+// duplicated here rather than shared across the panel/controller layer boundary, matching
+// Sim/PanelsInitializerSim.cpp's own SIM_EDGES_PER_PANEL.
+static const uint8_t PANEL_EDGE_COUNT = 3;
+
 PanelsInitializer::PanelsInitializer()
+    : panels(new List<Panel *>()),
+    discoveryService(LNTrunkTransport, PANEL_EDGE_COUNT),
+    treeConverted(false)
 {
-    this->pullBuffer = (uint8_t *)malloc(PULL_BUFFER_SIZE);
-    this->nextPulling = millis();
-    this->panels = new List<Panel *>();
 }
 
 PanelsInitializer::~PanelsInitializer()
 {
-    free(this->pullBuffer);
-
-    if (this->pingEdge) {
-        delete this->pingEdge;
+    for (uint16_t i = 0; i < this->panels->getSize(); i++) {
+        delete this->panels->get(i);
     }
 
     delete this->panels;
@@ -26,152 +29,69 @@ void PanelsInitializer::configure(configuration_t config)
 
 void PanelsInitializer::start()
 {
-    pinMode(this->config.intPinNo, INPUT);
+    Serial1.begin(this->config.trunkBaud, SERIAL_8N1, this->config.trunkRxPin, this->config.trunkTxPin);
 
-    this->pingEdge = new LightnetPanelEdge(this->config.edgePinNo);
-    this->pingEdge->setBootTimeout(BOOT_TIMEOUT_MS);
-
-    LNBus.begin(this->config.sdaPinNo, this->config.sclPinNo);
-
-    this->lastActiveEdge = NULL;
-    this->lastPacketType = 0;
-
-    attachInterrupt(digitalPinToInterrupt(this->config.intPinNo), PanelsInitializer::onInterrupt, CHANGE);
+    this->discoveryService.begin();
 }
 
 void PanelsInitializer::boot()
 {
-    if (this->pingEdge->isFinished()) {
+    if (this->treeConverted) {
         return;
     }
 
-    this->pingEdge->processEdgeState();
-    this->pingEdge->boot();
+    this->discoveryService.tick();
 
-    if (this->pingEdge->getState() == LightnetPanelEdge::STATE_BOOTING) {
-        if (millis() > this->nextPulling) {
-            this->pull();
+    if (this->discoveryService.isComplete()) {
+        this->convertDiscoveredTreeToPanels();
+        this->treeConverted = true;
+    }
+}
 
-            this->nextPulling = millis() + PULL_INTERVAL_MS;
+bool PanelsInitializer::isFinished()
+{
+    return this->treeConverted;
+}
+
+// Mirrors Sim/PanelsInitializerSim.cpp's own links[] -> Panel/Edge conversion (same TopoLink[]
+// input shape from DiscoveryTreeBuilder), so every existing getPanels() consumer
+// (PanelsTopologyProvider, PanelFlasher, demos, MqttService) keeps working unchanged regardless
+// of which side actually built the tree.
+void PanelsInitializer::convertDiscoveredTreeToPanels()
+{
+    const Lightnet::DiscoveryTreeBuilder &tree = this->discoveryService.tree();
+
+    for (uint8_t i = 0; i < tree.panelCount(); i++) {
+        Panel *panel = new Panel(tree.indices()[i]);
+
+        for (uint8_t e = 0; e < tree.edgeCounts()[i]; e++) {
+            panel->edges->push(new Edge(panel, e));
         }
-    }
-}
 
-void PanelsInitializer::updateEdgeState()
-{
-    // ISR context. micros()*2 gives 0.5 µs units — same scale as the panel's
-    // TCNT1 at prescaler 8. The edge enqueues; processEdgeState() in boot()
-    // does the transition decoding.
-    uint8_t state = digitalRead(this->config.intPinNo);
-    uint16_t timestamp = (uint16_t)(micros() * 2);
-
-    this->pingEdge->updateEdgeState(state, timestamp);
-}
-
-void PanelsInitializer::pull()
-{
-    Protocol::PacketInitializationPull pullPacket =
-        Protocol::makePacket<Protocol::PacketInitializationPull>(Protocol::PACKET_INITIALIZATION_PULL);
-
-    pullPacket.panelIndex = this->currentPanelIndex;
-    D_PRINTLN("[PULL] pulling panel", pullPacket.panelIndex);
-
-    uint8_t error = LNBus.sendPacketWithResponse(
-        Protocol::PULLING_ADDRESS,
-        Protocol::packetMeta(pullPacket),
-        sizeof(pullPacket),
-        (Protocol::PacketMeta *)this->pullBuffer,
-        sizeof(Protocol::PacketRegisterEdge)
-    );
-
-    if (error) {
-        D_PRINTLN("[PULL] error", error);
-
-        return;
+        this->panels->push(panel);
     }
 
-    this->onPacketResponded((Protocol::PacketMeta *)this->pullBuffer);
-}
+    for (uint8_t k = 0; k < tree.linkCount(); k++) {
+        const Lightnet::TopoLink &link = tree.links()[k];
 
-void PanelsInitializer::registerEdge(Protocol::PacketRegisterEdge *packet)
-{
-    Panel *panel = this->getPanelByIndex(packet->panelIndex);
+        Panel *parent = this->getPanelByIndex(link.panelA);
+        Panel *child  = this->getPanelByIndex(link.panelB);
 
-    if (!panel) {
-        return this->registerPanel(packet);
+        if (!parent || !child) {
+            continue;
+        }
+
+        Edge *parentEdge = parent->edges->get(link.edgeA);
+        Edge *childEdge  = child->edges->get(link.edgeB);
+
+        parentEdge->connectedEdge = childEdge;
+        childEdge->connectedEdge  = parentEdge;
     }
-
-    D_PRINTLN("[REGISTER] edge", packet->panelIndex, packet->edgeIndex);
-
-    Edge *edge = new Edge(panel, packet->edgeIndex);
-
-    panel->edges->push(edge);
-
-    this->lastActiveEdge = edge;
-}
-
-void PanelsInitializer::registerPanel(Protocol::PacketRegisterEdge *packet)
-{
-    if (!packet->panelIndex) {
-        D_PRINTLN("[ERROR] Got panel with index = 0.");
-    }
-
-    D_PRINTLN("[REGISTER] panel", packet->panelIndex, packet->edgeIndex);
-
-    Panel *panel = new Panel(packet->panelIndex);
-    Edge *edge = new Edge(panel, packet->edgeIndex);
-
-    panel->edges->push(edge);
-    this->panels->push(panel);
-
-    if (this->lastActiveEdge) {
-        this->lastActiveEdge->connectedEdge = edge;
-    }
-
-    this->lastActiveEdge = edge;
-    this->currentPanelIndex++;
-}
-
-void PanelsInitializer::onPacketResponded(Protocol::PacketMeta *packetMeta)
-{
-    this->lastPacketType = packetMeta->header.type;
-
-    switch (this->lastPacketType) {
-        case Protocol::PACKET_REGISTER_EDGE:
-            this->registerEdge((Protocol::PacketRegisterEdge *)packetMeta);
-            this->sendRegisterAck();
-            break;
-    }
-}
-
-void PanelsInitializer::sendRegisterAck()
-{
-    Protocol::PacketMeta ackPacket = Protocol::makeMeta(Protocol::PACKET_REGISTER_EDGE_ACK);
-
-    LNBus.sendPacket(
-        Protocol::PULLING_ADDRESS,
-        &ackPacket,
-        sizeof(ackPacket),
-        true
-    );
 }
 
 List<Panel *> *PanelsInitializer::getPanels()
 {
     return this->panels;
-}
-
-#if IS_ESP
-    ICACHE_RAM_ATTR
-#endif
-void PanelsInitializer::onInterrupt()
-{
-    LNPanelsInitializer.updateEdgeState();
-}
-
-bool PanelsInitializer::isFinished()
-{
-    return this->pingEdge->isFinished();
 }
 
 Panel *PanelsInitializer::getPanelByIndex(uint16_t panelIndex)

@@ -505,7 +505,7 @@ WebSocket clients receive an `APP_STATE` (type 13) broadcast whenever any field 
 
 ### 2.9 MQTT (Home Assistant)
 
-**ESP32 controllers only** (`controller_esp32`, `controller_s2_mini`). MQTT is not compiled for ESP8266 targets.
+Available on all controller targets (`controller_esp32`, `controller_s2_mini`).
 
 Optional integration with a local MQTT broker (no TLS in v1). When enabled, the controller publishes Home Assistant MQTT discovery configs and state topics, and subscribes to command topics. Configuration is stored in `/config/mqtt.db`.
 

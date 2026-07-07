@@ -2,12 +2,10 @@
 
 #include <Arduino.h>
 #include <FS.h>
-#include <LittleFS.h>   // present on both ESP8266 and ESP32 cores
+#include <LittleFS.h>
 
 namespace Lightnet {
-    // Thin facade over the platform LittleFS global. Hides the per-architecture
-    // mount signature; everything else forwards 1:1 to the shared fs::FS base.
-    // Implementations live in Fs_esp8266.cpp / Fs_esp32.cpp.
+    // Thin facade over the platform LittleFS global. Implementation lives in Fs_esp32.cpp.
     struct Fs {
         static bool   begin();
         static bool   exists(const char *path);
@@ -20,8 +18,7 @@ namespace Lightnet {
         static fs::FS &raw();
     };
 
-    // Portable directory iteration. ESP8266 uses Dir/openDir; ESP32 uses
-    // File/openNextFile. Both expose the same minimal interface here.
+    // Directory iteration over File/openNextFile.
     class FsDir
     {
         public:
@@ -32,12 +29,7 @@ namespace Lightnet {
             size_t fileSize() const;
 
         private:
-            #ifdef ARDUINO_ARCH_ESP32
-                File _dir;
-                mutable File _entry;
-
-            #else
-                mutable Dir _dir;
-            #endif
+            File _dir;
+            mutable File _entry;
     };
 }  // namespace Lightnet

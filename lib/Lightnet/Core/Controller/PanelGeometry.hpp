@@ -397,7 +397,7 @@ namespace Lightnet {
         float sa     = sinf(rad);
 
         // Two passes (centroidOf is a cheap lookup) so no per-panel scratch array is needed —
-        // keeps the ESP8266 stack lean alongside fireStep's own coord[]/panels[] buffers.
+        // keeps the stack lean alongside fireStep's own coord[]/panels[] buffers.
         float minP = 0.0f, maxP = 0.0f;
         bool any  = false;
 
@@ -505,7 +505,7 @@ namespace Lightnet {
     // (0 ⇒ uniform: no usable source centroid).
     //
     // No per-panel scratch array: two passes, each recomputing the (cheap) nearest-source distance,
-    // keeping the ESP8266 stack lean alongside fireStep's own coord[]/panels[] buffers.
+    // keeping the stack lean alongside fireStep's own coord[]/panels[] buffers.
     inline uint8_t computeGeometricCenterField(
         const PanelGeometry& geo,
         const TopologyIndex& topo,

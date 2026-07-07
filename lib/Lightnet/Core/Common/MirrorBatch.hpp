@@ -33,7 +33,7 @@ namespace Lightnet {
         memcpy(mirrorRecordPayload(rec), packet, size);
     }
 
-    // memcpy: batch header may sit at an odd offset inside the WS frame (ESP8266).
+    // memcpy: batch header may sit at an odd, unaligned offset inside the WS frame.
     inline void mirrorBatchWriteHeader(uint8_t *dst, uint32_t controllerMillis, uint16_t count)
     {
         MirrorBatchHeader hdr;

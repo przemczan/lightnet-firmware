@@ -1,32 +1,38 @@
 #pragma once
 
-#include <Arduino.h>
-#include "Macros.hpp"
-#include "Mem.hpp"
+// Controller-only — the panel build is superseded entirely by Core/Common/SpscByteQueue and
+// Core/Relay/EdgeFrameReceiver, and has no Arduino.h at all.
+#ifdef LIGHTNET_TARGET_CONTROLLER
 
-#define SIZE_BYTES sizeof(uint16_t)
+    #include <Arduino.h>
+    #include "Macros.hpp"
+    #include "Mem.hpp"
 
-class CircularQueue
-{
-    private:
-        uint8_t *head;
-        uint8_t *tail;
-        uint8_t *softTail;
-        uint8_t *writePointer;
-        uint8_t *readPointer;
-        volatile uint16_t itemsCount = 0;
-        uint16_t bufferSize;
+    #define SIZE_BYTES sizeof(uint16_t)
 
-        void writeData(void *data, uint16_t size);
-        void readData(void *&data, uint16_t &size);
+    class CircularQueue
+    {
+        private:
+            uint8_t *head;
+            uint8_t *tail;
+            uint8_t *softTail;
+            uint8_t *writePointer;
+            uint8_t *readPointer;
+            volatile uint16_t itemsCount = 0;
+            uint16_t bufferSize;
 
-    public:
-        CircularQueue(uint16_t bufferSize);
-        ~CircularQueue();
-        bool enqueue(void *data, uint16_t size);
-        bool dequeue(void *&data, uint16_t &size);
-        uint16_t size();
-        bool empty();
-        void reset();
-        void dumpMeta();
-};
+            void writeData(void *data, uint16_t size);
+            void readData(void *&data, uint16_t &size);
+
+        public:
+            CircularQueue(uint16_t bufferSize);
+            ~CircularQueue();
+            bool enqueue(void *data, uint16_t size);
+            bool dequeue(void *&data, uint16_t &size);
+            uint16_t size();
+            bool empty();
+            void reset();
+            void dumpMeta();
+    };
+
+#endif  // LIGHTNET_TARGET_CONTROLLER

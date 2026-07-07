@@ -1,12 +1,18 @@
 #include "PanelsController.hpp"
 
+PanelsController::PanelsController(Lightnet::IPacketSink &sink) : sink(sink)
+{
+}
+
 uint8_t PanelsController::setColor(uint8_t address, Protocol::Color color)
 {
     Protocol::PacketSetColor packet = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
 
     packet.color = color;
 
-    return LNBus.sendPacketAck(address, Protocol::packetMeta(packet), sizeof(packet));
+    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), false);
+
+    return 0;
 }
 
 uint8_t PanelsController::turnOnOff(uint8_t address, uint8_t on)
@@ -15,7 +21,11 @@ uint8_t PanelsController::turnOnOff(uint8_t address, uint8_t on)
 
     packet.on = on;
 
-    return LNBus.sendPacketAck(address, Protocol::packetMeta(packet), sizeof(packet));
+    // Rare, low-frequency operation -- kept acked in intent (hardware redesign plan §3), even
+    // though ControllerRelayPacketSink doesn't yet act on wantAck (flagged in its class comment).
+    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), true);
+
+    return 0;
 }
 
 uint8_t PanelsController::turnOn(uint8_t address)
@@ -28,15 +38,8 @@ uint8_t PanelsController::turnOff(uint8_t address)
     return this->turnOnOff(address, 0);
 }
 
-void PanelsController::resetDevices(uint16_t maxAddress)
-{
-    Protocol::PacketMeta resetPacket = Protocol::makeMeta(Protocol::PACKET_RESET_DEVICE);
-
-    do {
-        LNBus.sendPacketNack(maxAddress, &resetPacket, sizeof(resetPacket));
-    } while (maxAddress--);
-}
-
+// Still directly on LNBus -- needs a synchronous request/reply round trip, and the relay has no
+// reply-routing path built yet (see ControllerRelayPacketSink.hpp's class comment).
 uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
 {
     Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_FETCH_STATE);
@@ -64,7 +67,8 @@ void PanelsController::enterBootloader(uint8_t address)
     Protocol::PacketEnterBootloader packet = Protocol::makePacket<Protocol::PacketEnterBootloader>(Protocol::PACKET_ENTER_BOOTLOADER);
 
     packet.token = Protocol::BOOTLOADER_ENTRY_TOKEN;
-    LNBus.sendPacketNack(address, Protocol::packetMeta(packet), sizeof(packet));
+
+    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), false);
 }
 
 uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_t config)
@@ -72,9 +76,26 @@ uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_
     Protocol::PacketPanelConfiguration packet =
         Protocol::makePacket<Protocol::PacketPanelConfiguration>(Protocol::PACKET_PANEL_CONFIGURATION);
 
-    packet.useGammaCorrection = config.useGammaCorrection;
-    packet.colorTemperature = config.colorTemperature;
-    packet.colorCorrection = config.colorCorrection;
+    // The wire format carries raw RGB (Protocol::ColorRGB), not FastLED's ColorTemperature/
+    // LEDColorCorrection enums — those are just packed RGB hex constants under the hood, so
+    // CRGB's converting constructor extracts the same bytes FastLED itself would.
+    CRGB temperatureRgb = config.colorTemperature;
+    CRGB correctionRgb  = config.colorCorrection;
 
-    return LNBus.sendPacketAck(address, Protocol::packetMeta(packet), sizeof(packet));
+    packet.useGammaCorrection = config.useGammaCorrection;
+    packet.colorTemperature   = { temperatureRgb.r, temperatureRgb.g, temperatureRgb.b };
+    packet.colorCorrection    = { correctionRgb.r, correctionRgb.g, correctionRgb.b };
+
+    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), true);
+
+    return 0;
+}
+
+void PanelsController::resetDevices()
+{
+    // Header-level addressing (protocol v10) makes this a single broadcast flood instead of a
+    // unicast spray to every address from maxIndex down to 0 -- see the hardware redesign plan §11.3.
+    Protocol::PacketMeta resetPacket = Protocol::makeMeta(Protocol::PACKET_RESET_DEVICE);
+
+    this->sink.send(0, &resetPacket, sizeof(resetPacket), false);
 }

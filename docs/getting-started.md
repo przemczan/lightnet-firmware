@@ -53,21 +53,15 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     | `DEBUG_INIT` | Startup / init logs |
     | `DEBUG_DEMO` | Demo logs |
 
-    Pin assignments (`INITIALIZER_EDGE_PIN_NO`, `IIC_SDA_PIN`, etc.) have platform-specific defaults in `src/controller/config.hpp` and only need overriding for custom hardware.
+    Pin assignments (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN` for the relay trunk's `Serial1`, `IIC_SDA_PIN`/`IIC_SCL_PIN` for the I²C fallback still used by `fetchState`/OTA, etc.) have platform-specific defaults in `src/controller/config.hpp` and only need overriding for custom hardware.
 
 === "panel.config.hpp"
 
-    Located at `src/panel.config.hpp`, included by `src/panel/config.hpp`.
-
-    | Symbol | Default | Description |
-    |---|---|---|
-    | `NUMBER_OF_EDGES` | `3` | Physical edges on the panel (3–5) |
-    | `EDGE_1_PIN` … `EDGE_5_PIN` | 9–13 | Arduino pin for each edge output |
-
-    !!! note "6-edge panels"
-        Six edges require a separate pin-change ISR — not yet supported.
-
-    Panel builds have `DEBUG=0` by default. To enable, set `DEBUG=1` for your panel environment in `platformio.ini`, then uncomment `DEBUG_RGB_CTRL` in this file.
+    Located at `src/panel.config.hpp`, included by `src/panel/config.hpp`. The panel build is
+    bare-metal (no `framework = arduino` — see [Architecture](architecture.md)), with no
+    non-Arduino debug UART path built yet, so `DEBUG` stays `0`. Edge pins/count are fixed by
+    `Panel/EdgeUartTransport.hpp` (3 edges, matching the schematic's mux/USART wiring), not
+    configurable per-build the way the old GPIO ping-pulse edges were.
 
 ---
 
@@ -79,17 +73,18 @@ All environments are defined in `platformio.ini`.
 
     | Environment | Board | Notes |
     |---|---|---|
-    | `controller_esp8266` | ESP-12E (ESP8266) | USB upload at 230400 baud |
-    | `controller_wemos_d1_mini_pro` | Wemos D1 Mini Pro (ESP8266) | USB upload at 460800 baud |
     | `controller_esp32` | ESP32 DevKit | USB upload at 460800 baud |
     | `controller_s2_mini` | Lolin S2 Mini (ESP32-S2) | USB upload at 460800 baud |
-    | `controller_wemos_d1_mini_pro_sim` | Wemos D1 Mini (sim) | Host-side sim — no hardware; mirrors I²C over serial |
-    | `controller_esp32_sim` | ESP32 DevKit (sim) | Same as `_sim` above |
+    | `controller_esp32_sim` | ESP32 DevKit (sim) | Host-side sim — no hardware; fabricates a virtual panel tree directly (`Sim/PanelsInitializerSim.cpp`), no wire protocol involved |
     | `controller_s2_mini_sim` | Lolin S2 Mini (sim) | Same as `_sim` above |
 
-    All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE` and drive a virtual panel bus for development and live-preview testing without panels attached.
+    !!! note "ESP8266 controller targets are retired"
+        Dropped: it doesn't meet the relay design's requirements (no spare hardware UART for the
+        trunk, and RAM was already tight). See `platformio.ini`.
 
-    **MQTT / Home Assistant** is available on ESP32 controller targets only (`controller_esp32`, `controller_s2_mini`, and their `_sim` variants). ESP8266 builds do not include MQTT. Enable it via the WiFi captive portal (MQTT section) or `PATCH /api/mqtt` after the controller is on the network. By default the controller **auto-discovers** the broker (`_mqtt._tcp` mDNS, then `homeassistant.local` / `hassio.local`); set a manual broker host to skip discovery. Home Assistant discovers Lightnet entities automatically when its MQTT integration uses the same broker. See [`docs/api.md`](api.md) §2.9 for topic layout and discovery modes.
+    All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE`: the scene engine and `PanelsController` stay on `ControllerPacketSink`/`LNBus` (routed to `SimPanelManager`) since sim panels don't speak the relay's UART protocol, while real hardware uses `ControllerRelayPacketSink` over `Serial1` instead — see [Architecture](architecture.md) §3.
+
+    **MQTT / Home Assistant** is available on all controller targets (`LIGHTNET_MQTT=1`, ESP32-class only now). Enable it via the WiFi captive portal (MQTT section) or `PATCH /api/mqtt` after the controller is on the network. By default the controller **auto-discovers** the broker (`_mqtt._tcp` mDNS, then `homeassistant.local` / `hassio.local`); set a manual broker host to skip discovery. Home Assistant discovers Lightnet entities automatically when its MQTT integration uses the same broker. See [`docs/api.md`](api.md) §2.9 for topic layout and discovery modes.
 
 === "Native tests"
 
@@ -102,7 +97,7 @@ All environments are defined in `platformio.ini`.
     | Environment | Board | Uploader | Bootloader | Notes |
     |---|---|---|---|---|
     | `panel_atmega328_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
-    | `panel_atmega328pb` | ATmega328PB | USBasp | twiboot at `0x7000` | `-D` flag preserves bootloader on erase |
+    | `panel_atmega328pb` | ATmega328PB | USBasp | twiboot at `0x7000` | `-D` flag preserves bootloader on erase. **Bare-metal** (hardware redesign plan §10/§11) — no `framework = arduino`. Both panel and controller have cut over to the relay protocol; builds clean but is not yet bench-validated on real hardware. |
     | `panel_atmega328p` | ATmega328P | USBasp | twiboot at `0x7000` | Same binary as 328PB |
 
 === "Bootloader (one-time)"
@@ -144,13 +139,13 @@ After this, future panel updates are wireless via the controller. See [OTA & Upd
 pio run -e controller_esp32
 
 # Build + upload over USB
-pio run -e controller_wemos_d1_mini_pro -t upload
+pio run -e controller_s2_mini -t upload
 
 # Upload over Wi-Fi (controller OTA via ArduinoOTA + mDNS)
-pio run -e controller_wemos_d1_mini_pro -t upload --upload-port lightnet-XXXX.local
+pio run -e controller_s2_mini -t upload --upload-port lightnet-XXXX.local
 
 # Serial monitor — 57600 baud everywhere
-pio device monitor -e controller_wemos_d1_mini_pro
+pio device monitor -e controller_s2_mini
 
 # Build everything
 pio run

@@ -8,7 +8,12 @@ The physical side of Lightnet — topology, pin assignments, fuses. For wiring s
 
 ## Topology
 
-Panels form a **tree** rooted at the controller. Each panel exposes up to 5 edges (physical connectors); each edge carries power and a single-wire ping line. On boot the controller pings each edge over GPIO, triggering a PCINT on the receiving ATmega. After discovery completes, all communication runs over **I²C** (`LightnetBus`) carrying structured `Protocol` packets, addressed by the per-panel index assigned during discovery.
+Panels form a **tree** rooted at the controller, but unlike a shared bus, each panel is a
+**store-and-forward repeater**: it only ever talks to its own physical neighbours (up to 3 edges
+today), never directly to the controller or to a panel it isn't wired to. A single hardware USART
+per panel, shared across all its edges through a `CD74HC4052` analog mux, carries framed `Protocol`
+packets — there is no separate ping/handshake phase and no shared electrical bus anywhere in the
+tree.
 
 ```mermaid
 graph TD
@@ -20,105 +25,86 @@ graph TD
   D --> E[Panel E — edge 0]
 ```
 
-The firmware caps a single controller at **100 panels** on ESP32 (`LIGHTNET_MAX_PANELS` in `lib/Lightnet/Core/Common/LightnetConfig.hpp`; **32 on ESP8266** to fit heap/stack budgets). The I²C 7-bit address space allows up to 254 in theory. These caps are **SRAM** limits — note that at the current 400 kHz bus clock the **I²C bus capacitance** is usually the tighter real-world ceiling and tops out well below those numbers; see [I²C bus speed, capacitance, and panel count](#i2c-bus-speed-capacitance-and-panel-count).
+On boot, the controller and each panel run a **depth-first discovery walk**
+(`Core/Relay/DiscoveryCoordinator` on the controller, `Core/Relay/PanelDiscoveryDriver` on each
+panel): the controller hands out sequential panel indices one at a time, always descending into a
+newly-found child before trying the next sibling edge, backtracking once a subtree is exhausted. A
+panel that tries to register a second time via a different edge — closing a physical wiring loop —
+is rejected, so the discovered topology is guaranteed to be a genuine spanning tree. See
+[Architecture §6](architecture.md#6-discovery-sequence) for the full sequence.
+
+Once discovered, ordinary traffic (`Core/Relay/PanelRouter`) floods downstream to every connected
+edge except the one it arrived on, and routes upstream to the parent edge only — "send to panel N"
+is a routing decision resolved by flooding with an address filter, not a direct electrical address
+the way flat I²C addressing allowed.
+
+The firmware caps a single controller at **100 panels** (`LIGHTNET_MAX_PANELS` in
+`lib/Lightnet/Core/Common/LightnetConfig.hpp`) — a purely **SRAM** limit, comfortable on any
+ESP32-class controller. See [Why point-to-point instead of a shared bus](#why-point-to-point-instead-of-a-shared-bus)
+for why panel count is no longer also bounded by anything electrical the way it was on the old
+shared-I²C-bus design.
+
+!!! note "ESP8266 controller targets are retired"
+    ESP8266 doesn't meet the relay design's requirements: no spare hardware UART for the trunk,
+    and RAM was already tight. Controller targets are ESP32-class only — see `platformio.ini`.
 
 ---
 
 ## Pin assignments
 
+=== "Panel (ATmega328PB)"
+
+    | Signal | AVR pin | Role |
+    |---|---|---|
+    | Shared TX | PD1 (TXD0) | Hardware USART0 TX, fanned out to 3× `EM74LVC1G125GW` tri-state buffers |
+    | Shared RX | PD0 (RXD0) | Hardware USART0 RX, fed from the `CD74HC4052` mux common (`1Z`) |
+    | Edge 0 / 1 / 2 TX enable | PD2 / PD3 / PD4 | `PE1`/`PE2`/`PE3` — gates which edge the shared TX drives |
+    | Mux select | PC3 / PC2 | `S0`/`S1` on the `CD74HC4052` — chooses which edge's RX the shared USART reads |
+    | Edge 0 / 1 / 2 wake | PB1 / PB2 / PB3 | PCINT — "which edge is signalling," drives the mux select; not the data-sample path |
+    | LED clock / data | PC4 / PC5 | `LED_SCK`/`LED_MOSI` — clocked protocol (APA102/SK9822-style), no NRZ timing |
+
+    Matches [`docs/hardware/schematics/Panel.png`](hardware/schematics/Panel.png). Only USART0 is
+    used; USART1 is unused/spare.
+
 === "Controller"
 
-    | Signal | ESP8266 | ESP32 |
+    | Signal | ESP32 | S2 Mini |
     |---|---|---|
-    | Edge ping out | GPIO 13 | GPIO 12 |
-    | Edge interrupt in | GPIO 12 | GPIO 13 |
-    | Status LED (active low) | GPIO 2 | GPIO 2 |
-    | I²C SDA | GPIO 4 | GPIO 4 |
-    | I²C SCL | GPIO 5 | GPIO 5 |
-    | Panel power enable | GPIO 14 | GPIO 21 |
+    | Status LED (active low) | GPIO 2 | GPIO 15 |
+    | Panel power enable | GPIO 21 | GPIO 7 |
+    | Trunk RX (`Serial1`) | GPIO 12 | GPIO 11 |
+    | Trunk TX (`Serial1`) | GPIO 13 | GPIO 9 |
 
-    Defaults in `src/controller/config.hpp` (override in `src/controller.config.hpp`).
-
-=== "Panel (ATmega)"
-
-    | Signal | Arduino pin | AVR port |
-    |---|---|---|
-    | Edge 0 | Pin 9 | PB1 / PCINT1 |
-    | Edge 1 | Pin 10 | PB2 / PCINT2 |
-    | Edge 2 | Pin 11 | PB3 / PCINT3 |
-    | LED data | — | PD5 |
-    | I²C SDA | — | PC4 |
-    | I²C SCL | — | PC5 |
+    Defaults in `src/controller/config.hpp` (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN`;
+    override in `src/controller.config.hpp`). The trunk TX/RX pair (`PTX`/`PRX` on
+    [`docs/hardware/schematics/Controller.png`](hardware/schematics/Controller.png)) feeds `Serial1`.
+    `Controller/Relay/ControllerEdgeTransport` (`LNTrunkTransport`, the shared global instance) takes
+    an already-configured `HardwareSerial&`, so pin routing itself is `PanelsInitializer::start()`'s
+    call to `Serial1.begin(baud, SERIAL_8N1, rxPin, txPin)`, not baked into the transport class. Not
+    yet bench-validated — no boards exist yet.
 
 ---
 
-## I²C bus speed, capacitance, and panel count
+## Why point-to-point instead of a shared bus
 
-Panels and the controller do **not** share a raw I²C bus. Each board's local I²C — 3.3 V on the
-controller's ESP, 5 V on the panel's ATmega — connects through a **P82B96 bus buffer**. The
-*buffered* sides are daisy-chained edge-to-edge across the cables into one shared bus running at
-**12 V**, pulled up by **1 kΩ** resistors on the controller (R13/R14). The number of panels you can
-actually put on one controller is usually limited by this bus, not by `LIGHTNET_MAX_PANELS`.
+Panels used to share a real electrical bus — a buffered, 12 V I²C bus daisy-chained across every
+panel — and the number of panels that bus could support was capped by its total capacitance. That
+whole electrical concern no longer applies: every inter-panel wire is now an independent
+point-to-point hop (~30 cm), carrying one hardware USART's TX/RX through the mux described above.
+No cable segment is ever longer than one inter-panel run, no matter how large or branchy the tree
+becomes — a hop that short has no meaningful reflection risk, so there is no cumulative shared-bus
+electrical limit left to budget for.
 
-### Why it's built this way
+What scales with tree size instead is **hop count (depth)** — a latency question, not a
+signal-integrity one: every packet is store-and-forward, so each hop's transit time adds up across
+depth. Multi-layer scene restarts have a real end-to-end latency budget that this transport has to
+hold at the worst-case topology depth; the current design has little slack in that budget and is
+unvalidated until measured on real hardware across a real chain of panels — treat any specific
+number as a working estimate, not a settled figure, until then.
 
-- **P82B96 isolates capacitance.** Only each buffer's I/O-pin capacitance (~7–15 pF) plus the cable
-  appears on the shared bus — *not* the ATmega + `Wire` buffer capacitance of every panel. Without
-  the buffers a large tree's bus capacitance would be unusable.
-- **12 V bus = noise immunity** over long inter-panel cabling (larger absolute noise margin). It
-  does **not** buy speed (see below).
-- **Strong 1 kΩ pull-up** fights bus capacitance for faster edges, at the cost of higher sink
-  current (~12 mA when a line is held low — well within the P82B96).
-
-### The binding constraint: rise time
-
-The firmware clocks the bus at **400 kHz** — I²C Fast-mode — via `BUS_FREQUENCY` in
-[`lib/Lightnet/Common/LightnetBus.hpp`](../lib/Lightnet/Common/LightnetBus.hpp). Fast-mode allows a
-**300 ns** maximum rise time. An open-drain line rises as an RC curve from the pull-up; using the
-I²C 30 %→70 % input thresholds:
-
-```
-t_rise ≈ R · C · ln((V − 0.3·V)/(V − 0.7·V)) = R · C · ln(0.7/0.3) ≈ 0.85 · R · C
-```
-
-The `ln` term is independent of the rail voltage, so the 12 V bus has the **same speed budget** as a
-5 V one — the 12 V only helps noise margin. Solving for the total bus capacitance that still meets
-the 300 ns limit with R = 1 kΩ:
-
-```
-C_max ≈ 300 ns / (0.85 · 1 kΩ) ≈ 350 pF
-```
-
-### Estimate for the current config (400 kHz, 1 kΩ)
-
-| Contributor | Approx. |
-|---|---|
-| P82B96 buffered-pin capacitance | ~7–15 pF **per panel** |
-| Inter-panel cable | ~50–100 pF per metre (total tree length grows with panel count) |
-| **Total budget at 400 kHz** | **~350 pF** |
-
-Pin capacitance alone reaches the budget at roughly **~25–35 panels** *before counting any cable*,
-so in practice the bus tops out around **a couple of dozen panels with short cabling**. The
-`LIGHTNET_MAX_PANELS` caps (32 / 100) are SRAM limits; at 400 kHz the bus is the tighter ceiling,
-especially the ESP32's 100. Small/medium installs are unaffected — the symptom of overshooting is
-missed ACKs / corrupted I²C writes that get steadily worse as panels or cable length are added.
-Confirm on a scope: probe `OSCL`/`OSDA` and check the rise stays **< 300 ns** at the target panel
-count and real cabling.
-
-### Connecting more panels (raising the capacitance budget)
-
-To support more panels you need a larger capacitance budget. In order of leverage:
-
-| Change | Effect on budget | Trade-off |
-|---|---|---|
-| **Lower the I²C clock** (`BUS_FREQUENCY`) | 200 kHz ≈ 2×; 100 kHz (Standard-mode, 1000 ns rise) ≈ 3–4× (~1.2 nF, i.e. ~roughly 4× the panels) | Lower throughput — acceptable, since per-frame I²C traffic is light and discovery is one-time |
-| **Lower the pull-up R** (R13/R14) | ∝ 1/R — e.g. 560 Ω ≈ 2× budget | Higher sink current (12 V / 560 Ω ≈ 21 mA); keep within the P82B96 sink rating |
-| **Reduce per-node / cable C** | linear | Shorter, lower-capacitance cable; fewer/closer panels |
-| Raise the bus voltage | **no effect on speed** | Only improves noise margin — not a way to add panels |
-
-`BUS_FREQUENCY` is a compile-time constant, so it's the easiest lever: for a large tree, drop it to
-100–200 kHz and re-confirm the rise time on a scope. Lowering the clock and the pull-up together
-multiplies the budget (and the panel count) further.
+`LIGHTNET_MAX_PANELS` (100 on ESP32, 32 on ESP8266) is purely an SRAM limit again, for the same
+reason it always was for the controller's own in-memory topology structures — nothing electrical
+bounds panel count on this transport the way I²C bus capacitance used to.
 
 ---
 
@@ -146,14 +132,14 @@ check.
 
 | Consumer | Size | Notes |
 |---|---|---|
-| Wire/TWI buffers (`TWI_BUFFER_SIZE=80` × 4) | 320 B | `twi_rxBuffer`, `twi_txBuffer`, `TwoWire::rxBuffer`, `TwoWire::txBuffer`. Must be ≥ `Protocol::MAX_PACKET_SIZE` (80) — see above. |
-| RX packet ring (`RX_QUEUE_BYTES=80`, `SpscByteQueue`) | 80 B | Single lock-free ring (`.bss`). `handleIncomingPackets()` also uses an 80 B stack scratch buffer while draining it — but that's reused stack space, not a second standing allocation. |
 | `AnimationPlayer` — `MAX_ANIM_SLOTS × ~53 B` | scales with the constant | Each `Slot` holds two `AnimationState` (`cur` + `pending`, 23 B each) plus ~7 B of flags/timing/reactive fields. This is the **only per-slot cost** and the main lever for raising `MAX_ANIM_SLOTS`. `outColor`/`outValue` are *not* stored per slot — they're computed and consumed within a single `composite()` pass, so they live as locals instead of growing `.bss` per slot. |
 | `AnimationPlayer` — palette + base colours | 73 B | `palette[PALETTE_STOPS=16]` (64 B) + `baseColors[BASE_COLORS_COUNT=3]` (9 B). Fixed, independent of slot count. |
-| `LNPanel` other fields | ~30 B | Address, flags, config, misc bookkeeping. |
-| 3 × `LightnetPanelEdge` + `LightnetPinger` | ~100 B | Per-edge state for the 3 physical connectors plus ping-pulse tracking (`LightnetPinger::StateEntry` is packed to 3 B/entry). |
-| Arduino Serial ring buffers (`SERIAL_RX=2` + `SERIAL_TX=64`) | ~34 B | Reduced from MiniCore defaults (64 B RX is overkill for 57600-baud debug output). |
-| **Fixed total** (above, excluding the `MAX_ANIM_SLOTS` line) | **roughly 650-700 B** | Get the exact figure for your build from `avr-size` / the `pio run` RAM line, not this table. |
+| `Core/Relay/EdgeFrameReceiver` | ~88 B | Owns one `PacketFramer` (an 80 B frame buffer + 2 B of framing state) plus its own edge-claim/timeout bookkeeping (~6 B). Tags a completed frame with the edge it arrived on — see `docs/architecture.md` §6. |
+| `Panel/EdgeUartTransport` | ~22 B | A 16-byte `ByteRing` (RX) plus the `transmitting` self-echo-mask flag and mux/edge-enable state. |
+| `Core/Relay/PanelDiscovery` + `PanelDiscoveryDriver` | ~23 B | Per-edge topology state (parent/edge-link-state array, ~9 B) plus the driver's own assigned-index/probe-timeout bookkeeping (~14 B). |
+| `Core/Relay/PanelRouter` + `PanelFrameDispatcher` | ~8 B | Both hold only references into the objects above — no owned buffers. |
+| `LNPanel` other fields | ~30 B | Flags, config, misc bookkeeping. |
+| **Fixed total** (above, excluding the `MAX_ANIM_SLOTS` line) | **roughly 240-250 B** | A reasoning model, not ground truth — get the exact figure for your build from `avr-size` / the `pio run` RAM line. |
 
 ### Sizing `MAX_ANIM_SLOTS`: call-stack headroom, not just `.bss`
 
@@ -161,26 +147,26 @@ Raising `MAX_ANIM_SLOTS` grows `AnimationPlayer`'s static `.bss` (it's a member 
 `LNPanel`), which squeezes the gap between `.bss`/heap and the stack pointer growing down from
 the top of SRAM. **The static `.bss` percentage from `pio run` is necessary but not sufficient**
 — AVR ISRs share the main call stack, and the deepest call chain in the firmware is usually
-**discovery** (the boot-time I²C addressing/registration sequence), not normal animation
-playback. A panel can pass a static-RAM check with room to spare and still fail discovery if the
-real bottleneck is stack depth at that specific code path.
+**discovery** (the relay's depth-first walk, driven from `LightnetPanel::tick()` via
+`pollWake()`/`pollBytes()` — see `docs/architecture.md` §6), not normal animation playback. A
+panel can pass a static-RAM check with room to spare and still fail discovery if the real
+bottleneck is stack depth at that specific code path.
 
 Concretely, `AnimationPlayer::composite()` puts a transient `CompositeLayer
 contrib[MAX_ANIM_SLOTS]` array on the call stack every frame — call-stack pressure that scales
-with the same constant, on top of whatever the I²C ISR + FastLED's interrupt-driven output need.
-`LightnetBus::onReceive()` previously made this worse by allocating its receive buffer as a
-variable-length array on the stack inside the I²C ISR callback (now fixed — it uses a fixed-size
-`Protocol::MAX_PACKET_SIZE` buffer instead, clamped defensively) — that pattern is exactly the
-kind of stack consumer that can make a panel fail discovery well below the ceiling a pure `.bss`
-calculation would suggest.
+with the same constant, on top of whatever the USART RX ISR and `ClockedLed`'s bit-banged output
+need. `PacketFramer` (the relay's frame-boundary recovery) already uses a fixed-size
+`Protocol::MAX_PACKET_SIZE` buffer as a member, not a stack-resident variable-length array — but
+any *future* stack-resident buffer added to the RX/discovery call path is exactly the kind of
+consumer that can make a panel fail discovery well below the ceiling a pure `.bss` calculation
+would suggest.
 
 **Practical guidance:**
 - Don't just check the static RAM percentage after changing `MAX_ANIM_SLOTS` — flash a panel and
   confirm it actually completes discovery, since that's the highest-stack-watermark path.
-- If a panel starts crashing mid-init, dropping I²C packets, or printing garbage on serial after
-  raising `MAX_ANIM_SLOTS`, that's stack-corruption-by-overrun — lower it back down (or check
-  `TWI_BUFFER_SIZE` / `RX_QUEUE_BYTES`, the other two static-budget knobs, and watch for any new
-  stack-resident buffers in the ISR call paths).
+- If a panel starts crashing mid-init, dropping relay frames, or misbehaving after raising
+  `MAX_ANIM_SLOTS`, that's stack-corruption-by-overrun — lower it back down and watch for any new
+  stack-resident buffers added to the ISR/discovery call paths.
 - There's no on-device free-stack instrumentation in this codebase yet (no `freeRam()` /
   stack-painting helper) — worth adding if this needs revisiting again.
 
@@ -195,5 +181,5 @@ concurrent staged transitions. Not viable; per-slot `pending` stays.
 ---
 
 - [Build & Flash](getting-started.md) — Fuse values, bootloader install, and all flash commands
-- [Architecture](architecture.md) — Software structure and the internal I²C protocol
+- [Architecture](architecture.md) — Software structure and the internal wire protocol
 - [OTA & Updates](ota.md) — Panel OTA via twiboot

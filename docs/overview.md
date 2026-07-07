@@ -4,7 +4,7 @@ icon: material/information-outline
 
 # Firmware Overview
 
-Lightnet is embedded firmware for a tree network of addressable-LED panels. One ESP8266/ESP32 **controller** discovers and drives up to **100 ATmega panels** on ESP32 (**32** on ESP8266 — the firmware cap; the I²C address space allows more) over I²C. The controller exposes Wi-Fi APIs; panels run animations locally after a single setup packet.
+Lightnet is embedded firmware for a tree network of addressable-LED panels. One ESP32-class **controller** discovers and drives up to **100 ATmega panels** (`LIGHTNET_MAX_PANELS`) over a point-to-point UART relay — every panel is a store-and-forward repeater with one parent edge and up to 3 child edges. The controller exposes Wi-Fi APIs; panels run animations locally after a single setup packet.
 
 !!! info "New to Lightnet?"
     Start with the **[Get Started](../getting-started/index.md)** guide on the hub — it walks you through hardware, toolchain, and the first flash before you dive into these reference pages.
@@ -15,14 +15,14 @@ Two entirely different binaries are compiled from one source tree. The preproces
 
 | Target | MCU | Role |
 |---|---|---|
-| **Controller** | ESP8266 / ESP32 | Discovery, Wi-Fi, HTTP + WebSocket API, animation scheduling, panel OTA |
-| **Panel** | ATmega328P / 328PB | Local animation playback, single WS2812 LED, I²C slave |
+| **Controller** | ESP32 | Discovery, Wi-Fi, HTTP + WebSocket API, animation scheduling, panel OTA |
+| **Panel** | ATmega328P / 328PB | Local animation playback, single APA102/SK9822 LED, relay repeater |
 
 There is no runtime branching. Shared code lives in `lib/Lightnet/Common/`.
 
 ## Discovery & topology
 
-Panels form a **tree** rooted at the controller. Each panel has up to 3 physical edge connectors. On boot the controller pings each edge over GPIO — receiving panels respond and register over I²C, getting a sequential index for all later unicast traffic.
+Panels form a **tree** rooted at the controller. Each panel has up to 3 physical edge connectors. On boot the controller drives a depth-first walk over the relay itself (no separate GPIO phase) — each panel it reaches is assigned a sequential index and reports its own edges back upstream.
 
 ```mermaid
 graph TD
@@ -38,14 +38,14 @@ Deep dive: [Architecture → Discovery sequence](architecture.md#6-discovery-seq
 
 ## Animation system
 
-!!! success "Zero per-frame I²C for local animations"
-    Panel-local animations (BREATHE, PULSE, REACTIVE, …) run entirely on the ATmega after a single PREPARE packet. The bus is free between beats.
+!!! success "Zero per-frame traffic for local animations"
+    Panel-local animations (BREATHE, PULSE, REACTIVE, …) run entirely on the ATmega after a single PREPARE packet. The relay is free between beats.
 
-- **Panel-local animations** — BREATHE, FADE, PULSE, BLINK, HUE_CYCLE, STROBE, REACTIVE, TRANSITION, SOLID. Zero per-frame I²C traffic.
+- **Panel-local animations** — BREATHE, FADE, PULSE, BLINK, HUE_CYCLE, STROBE, REACTIVE, TRANSITION, SOLID. Zero per-frame traffic.
 - **Controller runners** — WAVE, RIPPLE, CHASE, WHEEL, BOUNCE compile to per-panel local pulses (one setup burst); RAIN, SPARKLE, MATRIX are particle spawners driven over the step window.
 - **Scenes** — multi-layer JSON containers stored on LittleFS, played back by `ScenePlayer`.
 - **Palettes** — 1–16 stop RGB gradients, sampled in 256 positions at frame time.
-- **Groups** — synchronisation units; panels in the same group fire simultaneously (±2.5 µs jitter via I²C General Call).
+- **Groups** — synchronisation units; panels in the same group fire simultaneously via a flooded broadcast.
 
 Full schema: [Animations & Scenes](animations/concepts.md).
 

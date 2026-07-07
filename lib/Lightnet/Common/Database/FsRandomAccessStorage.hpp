@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_ESP32)
+#if defined(ARDUINO_ARCH_ESP32)
 
     #include "IRandomAccessStorage.hpp"
 

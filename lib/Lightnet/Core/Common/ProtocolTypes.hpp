@@ -5,7 +5,7 @@
 // These packet/struct definitions carry NO Arduino or FastLED dependency, so the
 // portable animation core (and the mobile C ABI) can include them directly.
 // Common/Protocol.hpp includes this header and adds the hardware-coupled parts
-// (PacketPanelConfiguration's FastLED enums, version constants, validatePacket()).
+// (version constants, validatePacket()).
 
 #include <stdint.h>
 #include "LightnetConfig.hpp"
@@ -35,6 +35,19 @@ namespace Protocol {
         PACKET_SET_BASE_COLORS = 18,         // unicast or General Call — 3 RGB triples
         PACKET_SET_GLOBAL_BRIGHTNESS = 19,   // General Call — 1 byte multiplier
         PACKET_SET_BACKGROUND = 20,          // unicast or General Call — scene compositor base colour
+        // FETCH_STATE/FETCH_ANIM_STATE requests are meta-only; the payload-bearing reply gets
+        // its own type (rather than reusing the request's) so a byte-stream receiver can size
+        // a frame from its type byte alone. I2C never needed this — each bus transaction (query,
+        // then separate response read) carried its own byte count from the Wire layer; the
+        // relay's shared UART has no such out-of-band length.
+        PACKET_FETCH_STATE_REPLY = 21,
+        PACKET_FETCH_ANIM_STATE_REPLY = 22,
+        // Relay discovery control plane (see Core/Relay/DiscoveryCoordinator.hpp /
+        // PanelDiscoveryDriver.hpp). Only one panel in the tree is ever the active "frontier"
+        // exploring its own edges at a time — ADVANCE tells it to try its next one; DONE
+        // reports that its whole subtree is fully resolved so the controller can backtrack.
+        PACKET_DISCOVERY_ADVANCE = 23,
+        PACKET_DISCOVERY_DONE = 24,
         PACKET_RESET_DEVICE = 200,
         PACKET_ENTER_BOOTLOADER = 201,
     };
@@ -59,28 +72,66 @@ namespace Protocol {
     } PanelState;
 
     // BEGIN Common packet structures
+    // targetPanelIndex is the relay network's addressing field: 0 means broadcast/general-call
+    // (every panel acts on it), any other value means only that one panel does — the wire
+    // equivalent of the I2C slave address the old shared-bus transport used instead. It lives
+    // here, not on individual packet structs, so every packet gets addressing for free and a
+    // receiver's "is this for me" check is one type-independent comparison before the type
+    // switch, not a per-type audit. headerCrc already covers the whole PacketHeader by size, so
+    // it protects this field with no extra code.
     typedef struct PACK {
         packetType_t type;
         uint16_t     protocolVersion;
+        uint16_t     targetPanelIndex;
     } PacketHeader;
 
     typedef struct PACK {
         PacketHeader header;
         uint16_t     headerCrc;
-    } PacketMeta;
+    } PacketMeta;  // 7 bytes
     // END
 
     // BEGIN Packets definitions
+    // parentEdgeIndex is the sender's own edge this PULL travels out on (the controller's fixed
+    // trunk edge, or the probing panel's local edge — see PanelDiscoveryDriver::tryNextEdge()).
+    // The receiving panel has no other way to learn it (PanelRouter forwards frames verbatim, and
+    // the controller is several hops away from most panels) — it's echoed back unchanged in the
+    // PacketRegisterEdge reply below so the controller can learn both sides of the link it just
+    // discovered without a second, independently-timed frame (see DiscoveryCoordinator's topology
+    // accumulation and the hardware redesign plan §11 for why a separate report would race the
+    // single-active-flow invariant).
     typedef struct PACK {
         PacketMeta meta;
         uint16_t   panelIndex;
+        uint16_t   parentEdgeIndex;
     } PacketInitializationPull;
+
+    // A reply's panelIndex is never 0 (indices are assigned starting at 1) — a fresh panel
+    // registering reuses this field to mean "rejected, this edge closes a wiring loop" (see
+    // Core/Relay/PanelDiscovery's loop-rejection rule) instead of a genuine assignment.
+    const uint16_t DISCOVERY_REJECTED_INDEX = 0;
 
     typedef struct PACK {
         PacketMeta meta;
         uint16_t   panelIndex;
-        uint16_t   edgeIndex;
+        uint16_t   edgeIndex;        // the replying panel's own edge facing this link
+        uint16_t   parentEdgeIndex;  // echoed from the PacketInitializationPull that offered it
     } PacketRegisterEdge;
+
+    // Relay discovery control plane. Only the panel named by meta.header.targetPanelIndex acts
+    // on this; every panel still relays it downstream via the ordinary flood rule regardless (no
+    // PanelRouter changes needed — this is just another payload flowing through it).
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   assignIndex;
+    } PacketDiscoveryAdvance;  // 9 bytes
+
+    // A panel's whole subtree is fully resolved (every edge is Connected or NotConnected) —
+    // routes upstream to the controller via the ordinary parent-edge routing rule.
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   panelIndex;
+    } PacketDiscoveryDone;  // 9 bytes
 
     typedef struct PACK {
         PacketMeta meta;
@@ -91,6 +142,19 @@ namespace Protocol {
         PacketMeta meta;
         Color      color;
     } PacketSetColor;
+
+    // Gamma correction, color-temperature tint, and color-correction tint. The latter two travel
+    // as raw RGB (not FastLED's ColorTemperature/LEDColorCorrection enums, which are themselves
+    // just packed RGB hex constants under the hood — see CRGB's converting constructors) so this
+    // struct has no FastLED dependency; the panel reconstructs a CRGB from the raw bytes at the
+    // point it actually calls FastLED (RGBController), and the controller does the same
+    // conversion in the other direction when sending (PanelsController::sendConfiguration).
+    typedef struct PACK {
+        PacketMeta meta;
+        bool       useGammaCorrection;
+        ColorRGB   colorTemperature;
+        ColorRGB   colorCorrection;
+    } PacketPanelConfiguration;  // 7 + 1 + 3 + 3 = 14 bytes
 
     typedef struct PACK {
         PacketMeta meta;
@@ -120,19 +184,19 @@ namespace Protocol {
         uint8_t            composeOrder;     // layer array index — deterministic stacking
         uint16_t           startDelayMs;     // per-panel onset offset (runner sweep phase)
         uint8_t            animates;         // AnimateTarget — what this animation modulates (default TARGET_COLOR)
-    } PacketAnimationPrepare;  // 26 bytes
+    } PacketAnimationPrepare;  // 28 bytes
 
     typedef struct PACK {
         PacketMeta meta;
         uint8_t    seq_id;
         uint8_t    group_id;
-    } PacketAnimationStart;  // 7 bytes
+    } PacketAnimationStart;  // 9 bytes
 
     typedef struct PACK {
         PacketMeta meta;
         uint8_t    cmd;
         uint8_t    group_id;  // 0 = all slots; else the composited slot to target
-    } PacketAnimationControl;  // 7 bytes
+    } PacketAnimationControl;  // 9 bytes
 
     typedef struct PACK {
         PacketMeta meta;
@@ -141,7 +205,7 @@ namespace Protocol {
         uint8_t    param_type;
         uint8_t    value;
         uint8_t    transitionMs;
-    } PacketAnimationUpdateParams;  // 10 bytes
+    } PacketAnimationUpdateParams;  // 12 bytes
 
     typedef struct PACK {
         PacketMeta meta;
@@ -150,7 +214,7 @@ namespace Protocol {
         uint16_t   elapsedMs;
         uint16_t   durationMs;
         uint8_t    queueLen;
-    } PacketAnimationStatus;  // 11 bytes
+    } PacketAnimationStatus;  // 14 bytes
 
     // Replace the panel's current palette. Sent via General Call for scene-level
     // palette (all panels), or unicast for per-layer overrides.
@@ -159,20 +223,20 @@ namespace Protocol {
         PacketMeta             meta;
         uint8_t                count;
         Lightnet::GradientStop stops[Lightnet::PALETTE_STOPS];
-    } PacketSetPalette;  // 5 + 1 + 64 = 70 bytes
+    } PacketSetPalette;  // 7 + 1 + 64 = 72 bytes
 
     // Replace the panel's 3 base colors (primary, secondary, tertiary).
     typedef struct PACK {
         PacketMeta meta;
         ColorRGB   colors[Lightnet::BASE_COLORS_COUNT];
-    } PacketSetBaseColors;  // 5 + 9 = 14 bytes
+    } PacketSetBaseColors;  // 7 + 9 = 16 bytes
 
     // Replace the panel's global brightness multiplier (0..255).
     // Sent via General Call so all panels receive simultaneously.
     typedef struct PACK {
         PacketMeta meta;
         uint8_t    value;
-    } PacketSetGlobalBrightness;  // 6 bytes
+    } PacketSetGlobalBrightness;  // 8 bytes
 
     // Scene compositor base colour: the panel's layer fold starts from this colour
     // instead of black, and a panel with no active layers displays it. Sent once
@@ -180,7 +244,7 @@ namespace Protocol {
     typedef struct PACK {
         PacketMeta meta;
         ColorRGB   color;
-    } PacketSetBackground;  // 8 bytes
+    } PacketSetBackground;  // 10 bytes
 
     // END
 
@@ -193,9 +257,14 @@ namespace Protocol {
     typedef struct PACK {
         PacketMeta meta;
         uint8_t    token;
-    } PacketEnterBootloader;  // 6 bytes
+    } PacketEnterBootloader;  // 8 bytes
 
     const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);
+
+    // Largest wire packet (PacketSetPalette: 7 B meta + 1 + 64 = 72 B) plus margin. Lives in
+    // the portable core (not Common/Protocol.hpp) so the relay's byte-stream framer can size
+    // its buffer without pulling Arduino/FastLED.
+    const uint8_t MAX_PACKET_SIZE = 80;
 
     namespace Colors {
         const Color RED = { { 255, 0, 0 } };

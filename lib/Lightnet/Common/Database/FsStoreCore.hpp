@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_ESP32)
+#if defined(ARDUINO_ARCH_ESP32)
 
     #include "Database.hpp"
     #include "FsRandomAccessStorage.hpp"
@@ -27,7 +27,7 @@
             // Staging buffer for codecs that transform wire<->record (e.g. PaletteCodec).
             // Codecs whose on-disk form is the raw record (SceneCodec) set SCRATCH_SIZE = 0
             // and read/write directly — the [1] keeps a valid (unused) array in that case.
-            mutable uint8_t               scratchBuffer[Codec::SCRATCH_SIZE ? Codec::SCRATCH_SIZE : 1];
+            mutable uint8_t scratchBuffer[Codec::SCRATCH_SIZE ? Codec::SCRATCH_SIZE : 1];
 
             // Close storage and reset database to default state.
             void reset() const

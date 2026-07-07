@@ -4,7 +4,7 @@
 
 // ── Mode flags ────────────────────────────────────────────────────────────────
 #define DEMO_MODE 0
-// SIM_MODE is set via platformio.ini (controller_wemos_sim env only)
+// SIM_MODE is set via platformio.ini (controller_s2_mini_sim / controller_esp32_sim envs only)
 
 // ── Debug sub-switches ────────────────────────────────────────────────────────
 // All sub-switches default to 1 when DEBUG=1 (see lib/Lightnet/Utils/Debug.hpp).

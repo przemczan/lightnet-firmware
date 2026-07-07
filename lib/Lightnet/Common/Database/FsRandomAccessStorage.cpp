@@ -1,6 +1,6 @@
 #include "FsRandomAccessStorage.hpp"
 
-#if defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_ESP32)
+#if defined(ARDUINO_ARCH_ESP32)
 
     #include "../../Utils/Fs/Fs.hpp"
     #include <Arduino.h>

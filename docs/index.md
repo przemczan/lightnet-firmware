@@ -31,7 +31,7 @@ The Lightnet firmware lives in one source tree and compiles into **two binaries*
 
     ---
 
-    Pin assignments for ESP8266 / ESP32 controllers and for ATmega panels; topology rules and fuses.
+    Pin assignments for ESP32 controllers and for ATmega panels; topology rules and fuses.
 
     [:material-arrow-right: Hardware](hardware.md)
 
@@ -39,7 +39,7 @@ The Lightnet firmware lives in one source tree and compiles into **two binaries*
 
     ---
 
-    Library structure, the internal I²C protocol, the animation framework, discovery, and controller boot.
+    Library structure, the internal relay protocol, the animation framework, discovery, and controller boot.
 
     [:material-arrow-right: Architecture](architecture.md)
 

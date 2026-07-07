@@ -1,16 +1,9 @@
 #pragma once
 
-#define LED_DATA_PIN PD5
-
-#include <Arduino.h>
 #include "../Common/Protocol.hpp"
 #include "../Utils/Macros.hpp"
-#include "FastLED.h"
 #include "../Utils/Gamma.hpp"
-
-#ifdef ARDUINO_ARCH_ESP32
-    #include "analogWrite.h"
-#endif
+#include "ClockedLed.hpp"
 
 class RGBController
 {
@@ -18,10 +11,11 @@ class RGBController
         Protocol::ColorRGB colorValue = { .r = 0, .g = 0, .b = 0 };
         uint8_t globalBrightnessValue = 0xFF;  // applied to every output frame, 0..255
         bool isOn = false;
-        CRGB leds[1];
         bool useGammaCorrection = true;
-        LEDColorCorrection colorCorrection = UncorrectedColor;
-        ColorTemperature colorTemperature = UncorrectedTemperature;
+        // Raw RGB tint — not FastLED's ColorTemperature/LEDColorCorrection enums (dropped along
+        // with FastLED itself); { 255, 255, 255 } is a no-op tint (multiplies every channel by 1).
+        Protocol::ColorRGB colorCorrection = { 255, 255, 255 };
+        Protocol::ColorRGB colorTemperature = { 255, 255, 255 };
 
         // Tracking fields for delta-based debug logging (DEBUG_RGB_CTRL)
         Protocol::ColorRGB lastLogColor = { 0, 0, 0 };
@@ -31,13 +25,17 @@ class RGBController
         void updateOutputs();
         void maybeLog();
 
+        // 8-bit fixed-point channel scale (value * (scale+1)) >> 8 — the same formula FastLED's
+        // own scale8() used, kept so dropping FastLED doesn't change how dimming/tinting looks.
+        static uint8_t scaleChannel(uint8_t value, uint8_t scale);
+
     public:
         RGBController();
         void turnOn();
         void turnOff();
         void gammaCorrection(bool use);
-        void setColorCorrection(LEDColorCorrection colorCorrection);
-        void setColorTemperature(ColorTemperature colorTemperature);
+        void setColorCorrection(Protocol::ColorRGB colorCorrection);
+        void setColorTemperature(Protocol::ColorRGB colorTemperature);
         bool on();
         Protocol::ColorRGB color();
         void color(uint8_t r, uint8_t g, uint8_t b);

@@ -2,12 +2,12 @@
 
 Firmware for a self-discovering tree network of addressable LED panels.
 
-The network is made up of two device types that speak over I²C:
+The network is made up of two device types connected by a point-to-point UART relay:
 
-- **Controller** — ESP8266 or ESP32. Runs WiFi, panel discovery, a WebSocket API for low-latency triggers, and an HTTP REST API for appearance control, scene management, and firmware updates. Discoverable on the local network as `lightnet-<chipid>.local`.
-- **Panel** — ATmega328P/PB. Drives a single WS2812 LED. Registers itself into the tree by pinging its physical edges, receives an I²C address from the controller, then runs animations locally with zero per-frame traffic.
+- **Controller** — ESP32-class (ESP8266 dropped — no spare UART for the trunk, and RAM was already tight). Runs WiFi, panel discovery, a WebSocket API for low-latency triggers, and an HTTP REST API for appearance control, scene management, and firmware updates. Discoverable on the local network as `lightnet-<chipid>.local`.
+- **Panel** — ATmega328P/PB. Drives a single APA102/SK9822 LED. Every panel is a store-and-forward repeater with one parent edge and up to 3 child edges; it registers into the tree during discovery and then runs animations locally with zero per-frame traffic.
 
-Panels connect to each other through physical edges (triangular panels by default). The controller walks the tree during discovery, assigns addresses, and from then on is the only I²C master.
+Panels connect to each other through physical edges (triangular panels by default). The controller drives a depth-first walk over the relay itself during discovery, assigning each panel a sequential index.
 
 ---
 
@@ -39,14 +39,14 @@ cp src/panel.config.hpp.example       src/panel.config.hpp
 ## Quick start
 
 ```bash
-# Build controller (Wemos D1 Mini / ESP8266)
-pio run -e controller_wemos_d1_mini_pro
+# Build controller (Lolin S2 Mini)
+pio run -e controller_s2_mini
 
 # Build + upload via USB
-pio run -e controller_wemos_d1_mini_pro -t upload
+pio run -e controller_s2_mini -t upload
 
 # Build + upload over WiFi (OTA)
-pio run -e controller_wemos_d1_mini_pro -t upload --upload-port lightnet-XXXX.local
+pio run -e controller_s2_mini -t upload --upload-port lightnet-XXXX.local
 
 # Build panel firmware (ATmega328PB)
 pio run -e panel_atmega328pb
@@ -91,43 +91,12 @@ See [docs/ota.md](docs/ota.md) for full bootloader setup and panel OTA process.
 
 ## Panel SRAM constraints (ATmega328P/PB)
 
-The ATmega328P/PB has **2 KB SRAM**. These compile-time constants share that budget and must be sized together:
-
-| Constant | Location | Controls |
-|---|---|---|
-| `TWI_BUFFER_SIZE` | `platformio.ini` `build_flags_panel` | Size of each of the 4 Wire/TWI static buffers |
-| `RX_QUEUE_BYTES` | `LightnetPanel.hpp` | Size of the single lock-free RX packet ring (`SpscByteQueue`) |
-| `Protocol::MAX_PACKET_SIZE` | `Common/Protocol.hpp` | Largest packet in the protocol; sets the minimum safe `TWI_BUFFER_SIZE` |
-| `MAX_ANIM_SLOTS` | `Core/Common/AnimationTypes.hpp` | Concurrent animation layers per panel |
-
-**Rule: `TWI_BUFFER_SIZE` ≥ `MAX_PACKET_SIZE` (currently 80).**  
-A packet larger than `TWI_BUFFER_SIZE` is silently truncated — the CRC still validates, so the corrupted payload reaches the handler and corrupts state. Keep them equal.
-
-> `BUFFER_SIZE` and `BUFFER_LENGTH` are **not** used by MiniCore's Wire library. Only `TWI_BUFFER_SIZE` matters.
-
-### Known-good SRAM budget
-
-| Allocation | Size |
-|---|---|
-| Wire/TWI buffers (`TWI_BUFFER_SIZE=80` × 4) | 320 B |
-| RX packet ring (`RX_QUEUE_BYTES=80`, single `SpscByteQueue`) | 80 B |
-| `AnimationPlayer` (`MAX_ANIM_SLOTS` × 55 + palette × 16 + vars) | grows with slot count |
-| `LNPanel` other fields | ~30 B |
-| 3 × `LightnetPanelEdge` + `LightnetPinger` | ~125 B |
-| Arduino Serial ring buffers (`SERIAL_RX=2` + `SERIAL_TX=32`) | ~34 B |
-| Stack + heap metadata | ~200 B |
-
-The packet RX path is a single lock-free single-producer/single-consumer ring
-([`Core/Common/SpscByteQueue`](lib/Lightnet/Core/Common/SpscByteQueue.hpp)) — the I²C ISR pushes,
-the main loop pops into an 80 B stack scratch buffer in `handleIncomingPackets()`. It replaced
-the old double-buffered `CircularQueue` pair, where **both** buffers (plus per-object/heap
-overhead, ~190 B total) were permanently heap-allocated for the program's lifetime. The new
-scratch buffer only exists on the stack for the duration of `handleIncomingPackets()` — it's
-reused free space, not a second standing allocation — and the swap no longer needs
-`noInterrupts()`.
-
-If you see panels crashing mid-init, stopping after a few I²C packets, or printing garbage on
-serial — reduce `MAX_ANIM_SLOTS`, `TWI_BUFFER_SIZE`, or `RX_QUEUE_BYTES` first.
+The ATmega328P/PB has **2 KB SRAM**, shared statically between the relay stack
+(`EdgeUartTransport`, `PacketFramer`/`EdgeFrameReceiver`, discovery) and `AnimationPlayer`
+(`MAX_ANIM_SLOTS`, the one constant that scales freely). See
+[docs/hardware.md § Panel SRAM budget & `MAX_ANIM_SLOTS`](docs/hardware.md) for the full
+consumer-by-consumer breakdown and sizing guidance — kept there rather than duplicated here so it
+doesn't go stale in two places at once.
 
 ## License
 
