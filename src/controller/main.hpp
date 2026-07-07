@@ -37,10 +37,12 @@
     #include "../../lib/Lightnet/Core/Controller/SceneParser.hpp"
     #include "Scenes/Store/SceneStore.hpp"
     #include "Scenes/ScenesService.hpp"
-    #include "OTA/TwibootClient.hpp"
-    #include "OTA/PanelFlasher.hpp"
-    #include "OTA/FirmwareUpdateServer.hpp"
-    #include "OTA/SerialFirmwareReceiver.hpp"
+    // OTA only exists on real hardware -- see the guard on these classes' own definitions.
+    #ifndef SIM_MODE
+        #include "OTA/PanelFlasher.hpp"
+        #include "OTA/FirmwareUpdateServer.hpp"
+        #include "OTA/SerialFirmwareReceiver.hpp"
+    #endif
     #include <ArduinoOTA.h>
     #include "../../lib/Lightnet/Utils/Fs/Fs.hpp"
     #ifdef LIGHTNET_MQTT

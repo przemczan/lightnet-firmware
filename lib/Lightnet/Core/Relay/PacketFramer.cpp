@@ -1,8 +1,8 @@
 #include "PacketFramer.hpp"
 
 namespace Lightnet {
-    PacketFramer::PacketFramer()
-        : filled(0), expectedSize(0)
+    PacketFramer::PacketFramer(bool validateProtocolVersion)
+        : filled(0), expectedSize(0), validateProtocolVersion(validateProtocolVersion)
     {
     }
 
@@ -37,7 +37,11 @@ namespace Lightnet {
             return false;  // frame still incomplete
         }
 
-        bool valid = Protocol::validatePacket((const Protocol::PacketMeta *)this->buffer, this->filled) == 0;
+        bool valid = Protocol::validatePacket(
+            (const Protocol::PacketMeta *)this->buffer,
+            this->filled,
+            this->validateProtocolVersion
+                     ) == 0;
 
         if (!valid) {
             this->reset();

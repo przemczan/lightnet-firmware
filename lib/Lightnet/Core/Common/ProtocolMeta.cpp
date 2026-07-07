@@ -19,6 +19,11 @@ namespace Protocol {
         return meta;
     }
 
+    bool isVersionExemptType(packetType_t type)
+    {
+        return (type == PACKET_RESET_DEVICE) || (type == PACKET_ENTER_BOOTLOADER);
+    }
+
     uint8_t validatePacket(const PacketMeta *packet, uint8_t size, bool validateProtocolVersion)
     {
         if (size < sizeof(PacketMeta)) {
@@ -29,7 +34,9 @@ namespace Protocol {
             return 2;
         }
 
-        if (validateProtocolVersion && packet->header.protocolVersion != Protocol::VERSION) {
+        if (validateProtocolVersion
+            && packet->header.protocolVersion != Protocol::VERSION
+            && !isVersionExemptType(packet->header.type)) {
             return 3;
         }
 
@@ -64,6 +71,11 @@ namespace Protocol {
             case PACKET_DISCOVERY_DONE:           return sizeof(PacketDiscoveryDone);
             case PACKET_RESET_DEVICE:             return sizeof(PacketMeta);
             case PACKET_ENTER_BOOTLOADER:         return sizeof(PacketEnterBootloader);
+            case PACKET_BOOTLOADER_PING:          return sizeof(PacketMeta);
+            case PACKET_BOOTLOADER_PONG:          return sizeof(PacketBootloaderPong);
+            case PACKET_BOOTLOADER_WRITE_CHUNK:   return sizeof(PacketBootloaderWriteChunk);
+            case PACKET_BOOTLOADER_WRITE_ACK:     return sizeof(PacketBootloaderWriteAck);
+            case PACKET_BOOTLOADER_START_APP:     return sizeof(PacketMeta);
             default:                              return 0;
         }
     }

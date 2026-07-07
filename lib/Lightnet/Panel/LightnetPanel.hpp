@@ -33,14 +33,12 @@
 // register-level code, but nothing in this design (here or on the now-also-cut-over controller
 // side) has been exercised on real silicon yet — no boards exist.
 //
-// Known gap, inherited from PacketFramer rather than introduced here: the old LightnetPanel's
-// handleIncomingPackets() deliberately skipped protocol-version validation for
-// PACKET_ENTER_BOOTLOADER/PACKET_RESET_DEVICE, since flashing is how a version mismatch gets
-// resolved and must never itself be version-gated. PacketFramer (and so EdgeFrameReceiver) has no
-// equivalent per-type bypass — it validates the protocol version unconditionally before a frame
-// ever surfaces as complete, so a version-mismatched panel cannot currently be reset/reflashed
-// over the relay. Not fixed here: doing so means either teaching PacketFramer a bypass list or
-// changing what "complete" means for it — a real, separate change to shared, already-tested logic.
+// PACKET_ENTER_BOOTLOADER/PACKET_RESET_DEVICE reach a panel regardless of protocolVersion —
+// Protocol::isVersionExemptType() (ProtocolMeta.hpp) is consulted by validatePacket() itself, so
+// EdgeFrameReceiver's framer surfaces these two types as complete frames even when
+// header.protocolVersion doesn't match this build's, exactly like the old I2C-era LightnetPanel's
+// handleIncomingPackets() deliberately skipped that check for the same two types. Every other
+// type still needs a matching version to be trusted.
 
 #include <stdint.h>
 #include "../Core/Relay/PanelDiscovery.hpp"
@@ -96,6 +94,13 @@ class LightnetPanel
         void handleSetBaseColors(const Protocol::PacketSetBaseColors *packet);
         void handleSetGlobalBrightness(const Protocol::PacketSetGlobalBrightness *packet);
         void handleEnterBootloader(const Protocol::PacketEnterBootloader *packet);
+        void handleFetchState();
+
+        // Routes a reply one hop upstream (this panel's own parent edge) — ancestors' unmodified
+        // PanelRouter carries it the rest of the way to the controller, same as
+        // PACKET_DISCOVERY_DONE. Used for the rare, low-frequency operations the hardware
+        // redesign plan §3 says keep a real acknowledgment (turn on/off, panel configuration).
+        void sendAck();
 };
 
 extern LightnetPanel LNPanel;

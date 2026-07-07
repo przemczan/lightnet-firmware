@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "Core/Relay/PacketFramer.hpp"
+#include "Utils/Crc.hpp"
 
 using namespace Lightnet;
 
@@ -37,6 +38,17 @@ void test_packet_size_for_type_known_types()
 
     // Now fully portable (raw RGB, no FastLED enum types) — sized like everything else.
     TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketPanelConfiguration), Protocol::packetSizeForType(Protocol::PACKET_PANEL_CONFIGURATION));
+
+    // Relay OTA bootloader control plane — an intermediate app-mode panel must be able to size
+    // (and so correctly relay) these even though it never acts on them itself.
+    TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketMeta), Protocol::packetSizeForType(Protocol::PACKET_BOOTLOADER_PING));
+    TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketBootloaderPong), Protocol::packetSizeForType(Protocol::PACKET_BOOTLOADER_PONG));
+    TEST_ASSERT_EQUAL_UINT8(
+        sizeof(Protocol::PacketBootloaderWriteChunk),
+        Protocol::packetSizeForType(Protocol::PACKET_BOOTLOADER_WRITE_CHUNK)
+    );
+    TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketBootloaderWriteAck), Protocol::packetSizeForType(Protocol::PACKET_BOOTLOADER_WRITE_ACK));
+    TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketMeta), Protocol::packetSizeForType(Protocol::PACKET_BOOTLOADER_START_APP));
 }
 
 void test_packet_size_for_type_unknown_returns_zero()
@@ -164,6 +176,109 @@ void test_framer_back_to_back_frames_with_no_explicit_reset()
     TEST_ASSERT_EQUAL_MEMORY(&second, framer.frame(), sizeof(second));
 }
 
+// --- validateProtocolVersion bypass (relay OTA bootloader only) ----------------------------
+
+void test_framer_rejects_version_mismatch_by_default()
+{
+    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK);
+
+    ack.header.protocolVersion ^= 0xFF;
+    ack.headerCrc = crc16(&ack.header, sizeof(ack.header));  // keep the header CRC itself valid
+
+    const uint8_t *bytes = (const uint8_t *)&ack;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(ack); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_FALSE_MESSAGE(ready, "a protocol-version mismatch must be rejected by default");
+}
+
+void test_framer_accepts_version_mismatch_when_bypassed()
+{
+    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK);
+
+    ack.header.protocolVersion ^= 0xFF;
+    ack.headerCrc = crc16(&ack.header, sizeof(ack.header));
+
+    const uint8_t *bytes = (const uint8_t *)&ack;
+    PacketFramer framer(/* validateProtocolVersion = */ false);
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(ack); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "the relay bootloader must accept a frame regardless of protocolVersion");
+    TEST_ASSERT_EQUAL_MEMORY(&ack, framer.frame(), sizeof(ack));
+}
+
+// PACKET_RESET_DEVICE/PACKET_ENTER_BOOTLOADER must reach a version-mismatched panel even through
+// a *default*-constructed (validateProtocolVersion = true) framer, the one every normal RX path
+// uses — a stuck panel has to be resettable/reflashable without every other type also going
+// unchecked.
+
+void test_framer_accepts_reset_device_despite_version_mismatch_by_default()
+{
+    Protocol::PacketMeta reset = Protocol::makeMeta(Protocol::PACKET_RESET_DEVICE);
+
+    reset.header.protocolVersion ^= 0xFF;
+    reset.headerCrc = crc16(&reset.header, sizeof(reset.header));
+
+    const uint8_t *bytes = (const uint8_t *)&reset;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(reset); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "PACKET_RESET_DEVICE must be exempt from version validation");
+    TEST_ASSERT_EQUAL_MEMORY(&reset, framer.frame(), sizeof(reset));
+}
+
+void test_framer_accepts_enter_bootloader_despite_version_mismatch_by_default()
+{
+    Protocol::PacketEnterBootloader enter =
+        Protocol::makePacket<Protocol::PacketEnterBootloader>(Protocol::PACKET_ENTER_BOOTLOADER);
+
+    enter.token = Protocol::BOOTLOADER_ENTRY_TOKEN;
+    enter.meta.header.protocolVersion ^= 0xFF;
+    enter.meta.headerCrc = crc16(&enter.meta.header, sizeof(enter.meta.header));
+
+    const uint8_t *bytes = (const uint8_t *)&enter;
+    PacketFramer framer;  // default: validateProtocolVersion = true
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(enter); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(ready, "PACKET_ENTER_BOOTLOADER must be exempt from version validation");
+    TEST_ASSERT_EQUAL_MEMORY(&enter, framer.frame(), sizeof(enter));
+}
+
+void test_framer_still_rejects_other_types_with_version_mismatch()
+{
+    Protocol::PacketTurnOnOff packet =
+        Protocol::makePacket<Protocol::PacketTurnOnOff>(Protocol::PACKET_TURN_ON_OFF);
+
+    packet.meta.header.protocolVersion ^= 0xFF;
+    packet.meta.headerCrc = crc16(&packet.meta.header, sizeof(packet.meta.header));
+
+    const uint8_t *bytes = (const uint8_t *)&packet;
+    PacketFramer framer;
+    bool ready = false;
+
+    for (uint8_t i = 0; i < sizeof(packet); i++) {
+        ready = framer.pushByte(bytes[i]);
+    }
+
+    TEST_ASSERT_FALSE_MESSAGE(ready, "the version exemption must not leak to other packet types");
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -178,6 +293,11 @@ int main(int argc, char **argv)
     RUN_TEST(test_framer_corrupted_header_crc_resyncs);
     RUN_TEST(test_framer_skips_unrecognized_type_bytes);
     RUN_TEST(test_framer_back_to_back_frames_with_no_explicit_reset);
+    RUN_TEST(test_framer_rejects_version_mismatch_by_default);
+    RUN_TEST(test_framer_accepts_version_mismatch_when_bypassed);
+    RUN_TEST(test_framer_accepts_reset_device_despite_version_mismatch_by_default);
+    RUN_TEST(test_framer_accepts_enter_bootloader_despite_version_mismatch_by_default);
+    RUN_TEST(test_framer_still_rejects_other_types_with_version_mismatch);
 
     return UNITY_END();
 }

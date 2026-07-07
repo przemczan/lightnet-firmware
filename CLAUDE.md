@@ -48,7 +48,7 @@ Build the mobile app from that repo: `.\gradlew.bat :composeApp:assembleDebug`. 
 | [`docs/architecture.md`](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
 | [`docs/getting-started.md`](docs/getting-started.md) | PlatformIO environments, config files, build/upload commands |
 | [`docs/hardware.md`](docs/hardware.md) | Pin assignments for controllers and panels, topology rules, fuses |
-| [`docs/ota.md`](docs/ota.md) | Panel OTA (twiboot), serial upload via controller, controller ArduinoOTA |
+| [`docs/ota.md`](docs/ota.md) | Panel OTA over the relay, serial upload via controller, controller ArduinoOTA |
 | [`docs/api.md`](docs/api.md) | WebSocket binary protocol (WebsocketApi) + all HTTP endpoints, request/response format |
 | [`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md) | **Scene authoring guide** — every scene/layer/step prop, topology, panel targeting (selectors/tags), directionality (`source`), colours/palettes, logical root, and an example-scene library |
 | [`docs/animations/`](docs/animations/index.md) | Animation reference: [`concepts`](docs/animations/concepts.md) (model/palettes/timing), [`types`](docs/animations/types.md) (per-type & runner params), [`api`](docs/animations/api.md) (HTTP/WS + examples) |
@@ -66,7 +66,7 @@ pio run -e controller_s2_mini -t upload --upload-port lightnet-XXXX.local  # OTA
 pio device monitor -e controller_s2_mini   # serial monitor (57600 baud)
 ```
 
-Environments: `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller (ESP8266 targets retired — didn't meet the relay's requirements); `panel_atmega328_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels (bare-metal, no `framework = arduino` — see `docs/architecture.md` and the hardware redesign plan); `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time twiboot burn. Per-machine `upload_port` / `monitor_port` overrides go in gitignored `platformio_local.ini` (copy from `platformio_local.ini.example`). See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
+Environments: `controller_esp32` / `controller_s2_mini` (+ `_sim` variants) for the controller (ESP8266 targets retired — didn't meet the relay's requirements); `panel_atmega328_via_controller` / `panel_atmega328pb` / `panel_atmega328p` for panels (bare-metal, no `framework = arduino` — see `docs/architecture.md` and the hardware redesign plan); `atmega328p_bootloader` / `atmega328pb_bootloader` for one-time burn of the relay's own OTA bootloader (`lib/Lightnet/Panel/bootloader/` — see `docs/ota.md`). Per-machine `upload_port` / `monitor_port` overrides go in gitignored `platformio_local.ini` (copy from `platformio_local.ini.example`). See [`docs/getting-started.md`](docs/getting-started.md#platformio-environments) for full details.
 
 **MQTT (Home Assistant):** ESP32 controller targets only (`LIGHTNET_MQTT=1` in `platformio.ini`). Config via captive portal or `GET/PATCH /api/mqtt`; optional async broker discovery (`_mqtt._tcp` → HA host fallback). See [`docs/api.md`](docs/api.md) §2.9.
 
@@ -224,11 +224,11 @@ wired in `main.cpp` case 0.
 ## Key facts for coding
 
 - **Source entry**: `src/main.cpp` selects the target via `LIGHTNET_TARGET_CONTROLLER`; `setup()`/`loop()` live in `src/controller/main.cpp` or `src/panel/main.cpp`.
-- **Protocol version**: v11 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**.
+- **Protocol version**: v12 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**. Exception: the relay OTA bootloader's own control plane (`PACKET_BOOTLOADER_*`) deliberately skips protocol-version validation once resident — see `docs/ota.md`.
 - **`scenePlayer->tick(millis())`** must be called in the main loop `case 1` when power is on.
 - **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.db`.
 - **Single-record config stores** (`AppearanceStore`, `ConfigurationStore`, `AppStateStore`) persist as binary `Database` records via `SingleRecordStore<Codec>` (`Common/Database/SingleRecordStore.hpp`) — one fixed-slot record per `.db` file (`/config/appearance.db`, `/config/configuration.db`, `/config/app_state.db`), sharing the same format as palettes/scenes. Their `*Codec`/`*Record` live under each store's `Store/` subdir.
 
-- **`BOOTLOADER_ENTRY_TOKEN = 0xB0`** — both sides of `PACKET_ENTER_BOOTLOADER` must agree on this value. Do not send `CMD_SWITCH_APPLICATION + BOOTTYPE_BOOTLOADER` (bytes `0x01 0x00`) to the twiboot fork — it WDT-resets the panel.
-- **`LNBus`/I²C survives only for `PanelsController::fetchState()` and OTA (`TwibootClient`)** — the relay trunk replaced I²C for discovery and all other panel commands; both remaining uses are flagged gaps (no relay reply-routing path exists yet), not oversights.
+- **`BOOTLOADER_ENTRY_TOKEN = 0xB0`** — both sides of `PACKET_ENTER_BOOTLOADER` must agree on this value.
+- **`LNBus`/I²C survives only under `SIM_MODE`** (sim panels only ever respond to `LightnetBus`-routed commands). Real hardware has no I²C wire to any panel at all — `fetchState()`, turn-on/off and panel-configuration acks, and OTA all go over the relay trunk now: `ControllerRelayPacketSink::requestReply()`/`send(wantAck=true)` block (bounded by `ACK_TIMEOUT_MS`) for a reply routed back up the trunk via the ordinary `PanelRouter` upstream rule — no `PanelRouter` changes needed. `Protocol::isVersionExemptType()` (`PACKET_RESET_DEVICE`/`PACKET_ENTER_BOOTLOADER`) lets a version-mismatched panel still be reset/reflashed over the relay.
 - **Debug macros** (`D_PRINTLN`, `D_PRINT`, `D_PRINTF` in `Utils/Debug.hpp`; typically wrapped in `DEBUG_IF(DEBUG_*, …)`) are no-ops when `DEBUG=0` in `controller.config.hpp` / `panel.config.hpp`. Serial baud is 57600 everywhere.

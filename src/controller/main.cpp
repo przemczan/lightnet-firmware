@@ -83,10 +83,16 @@ Lightnet::AppStateStore *appStateStore       = nullptr;
 Lightnet::ConfigurationServer *configServer  = nullptr;
 Lightnet::StateServer *stateServer           = nullptr;
 Lightnet::TopologyConfigStore *topologyConfig = nullptr;
-TwibootClient *twibootClient    = nullptr;
-PanelFlasher *panelFlasher     = nullptr;
-FirmwareUpdateServer *fwUpdateServer   = nullptr;
-SerialFirmwareReceiver *serialFwReceiver = nullptr;
+
+// OTA only exists on real hardware -- no I2C wire to any panel exists under SIM_MODE, and sim
+// panels don't implement any bootloader protocol either.
+#ifndef SIM_MODE
+    RelayBootloaderClient *relayBootloaderClient = nullptr;
+    PanelFlasher *panelFlasher     = nullptr;
+    FirmwareUpdateServer *fwUpdateServer   = nullptr;
+    SerialFirmwareReceiver *serialFwReceiver = nullptr;
+
+#endif
 
 #ifdef LIGHTNET_MQTT
     Lightnet::MqttConfigStore *mqttConfigStore = nullptr;
@@ -279,10 +285,12 @@ void setupWiFi()
 
     setupOTA();
 
-    twibootClient    = new TwibootClient();
-    panelFlasher     = new PanelFlasher(panelsController, &LNPanelsInitializer, twibootClient);
-    fwUpdateServer   = new FirmwareUpdateServer(webServer, panelFlasher);
-    serialFwReceiver = new SerialFirmwareReceiver(panelFlasher);
+    #ifndef SIM_MODE
+        relayBootloaderClient = new RelayBootloaderClient(activeSink);
+        panelFlasher = new PanelFlasher(panelsController, &LNPanelsInitializer, relayBootloaderClient);
+        fwUpdateServer   = new FirmwareUpdateServer(webServer, panelFlasher);
+        serialFwReceiver = new SerialFirmwareReceiver(panelFlasher);
+    #endif
 }
 
 void setup()
@@ -296,8 +304,10 @@ void setup()
 
     logBootDiagnostics();
 
-    // I2C survives only for fetchState/OTA (LNBus/TwibootClient) -- the relay trunk (below)
-    // replaces it for everything else. See PanelsController.hpp / ControllerRelayPacketSink.hpp.
+    // I2C survives under SIM_MODE (sim panels only respond to LightnetBus-routed commands) and
+    // for the WebSocket command handlers that still call LNBus directly
+    // (API/websocket/WebsocketHandler.cpp) -- the relay trunk (below) replaces it for everything
+    // that has cut over. See PanelsController.hpp / ControllerRelayPacketSink.hpp.
     LNBus.begin(IIC_SDA_PIN, IIC_SCL_PIN);
 
     LNPanelsInitializer.configure(
@@ -322,7 +332,11 @@ void setup()
     delay(500);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
-    panelsController = new PanelsController(activeSink);
+    #ifdef SIM_MODE
+        panelsController = new PanelsController(activeSink);
+    #else
+        panelsController = new PanelsController(activeSink, activeSink);
+    #endif
 
     // not needed if panels power controll work
     // will send reset command to N devices to reset them if they are running
@@ -494,9 +508,13 @@ void loop()
             case 1:
                 ArduinoOTA.handle();
 
-                if (serialFwReceiver) serialFwReceiver->run();
+                #ifndef SIM_MODE
 
-                if (panelFlasher) panelFlasher->run();
+                    if (serialFwReceiver) serialFwReceiver->run();
+
+                    if (panelFlasher) panelFlasher->run();
+
+                #endif
 
                 websocketServer->cleanup();
 
@@ -514,46 +532,52 @@ void loop()
                 }
             });
 
-                if (!panelFlasher || !panelFlasher->isActive()) {
-                    websocketHandler->handleIncommingMessages();
+                #ifndef SIM_MODE
 
-                    // Run work deferred by HTTP handlers (scene play, power, appearance, …)
-                    // on the main loop so all packet emission stays single-task.
-                    if (mainLoopQueue) mainLoopQueue->drain();
+                    if (!panelFlasher || !panelFlasher->isActive()) {
+                #endif
+                websocketHandler->handleIncommingMessages();
 
-                    if (scenePlayer && appStateStore->isOn())   scenePlayer->tick(millis());
+                // Run work deferred by HTTP handlers (scene play, power, appearance, …)
+                // on the main loop so all packet emission stays single-task.
+                if (mainLoopQueue) mainLoopQueue->drain();
 
-                    if (appearance)    appearance->tick(millis());
+                if (scenePlayer && appStateStore->isOn())   scenePlayer->tick(millis());
 
-                    if (configStore)   configStore->tick(millis());
+                if (appearance)    appearance->tick(millis());
 
-                    if (appStateStore) appStateStore->tick(millis());
+                if (configStore)   configStore->tick(millis());
 
-                    if (appStateBroadcaster) appStateBroadcaster->tick();
+                if (appStateStore) appStateStore->tick(millis());
 
-                    #ifdef LIGHTNET_MQTT
+                if (appStateBroadcaster) appStateBroadcaster->tick();
 
-                        if (mqttService) mqttService->tick(millis());
+                #ifdef LIGHTNET_MQTT
 
-                    #endif
+                    if (mqttService) mqttService->tick(millis());
 
-                    serviceMirror();
+                #endif
 
-                    #ifdef SIM_MODE
-                        {
-                            static uint32_t lastSimTick = 0;
-                            uint32_t now = millis();
+                serviceMirror();
 
-                            if ((uint32_t)(now - lastSimTick) >= 16) {
-                                lastSimTick = now;
-                                SimPanels.tick();
-                            }
+                #ifdef SIM_MODE
+                    {
+                        static uint32_t lastSimTick = 0;
+                        uint32_t now = millis();
+
+                        if ((uint32_t)(now - lastSimTick) >= 16) {
+                            lastSimTick = now;
+                            SimPanels.tick();
                         }
-                    #endif
-                    #if DEMO_MODE
-                        runDemos();
-                    #endif
-                }
+                    }
+                #endif
+                #if DEMO_MODE
+                    runDemos();
+                #endif
+                #ifndef SIM_MODE
+        }
+
+                #endif
 
                 break;
         }

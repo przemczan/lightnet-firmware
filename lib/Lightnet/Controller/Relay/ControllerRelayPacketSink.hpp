@@ -18,16 +18,25 @@
 // recomputes the header CRC on a local mutable copy before writing it to the wire. The caller's
 // own buffer, and the IPacketSink interface itself, are untouched.
 //
-// Acks are NOT implemented here yet: `wantAck` is accepted but ignored, so every send is
-// currently fire-and-forget. Hardware redesign plan §3 says acks should be kept for rare,
-// low-frequency operations (e.g. turning panels on/off) — but *how* an ack travels back over the
-// relay (a reply packet routed upstream through PanelRouter, with the controller blocking on it —
-// similar in shape to DiscoveryCoordinator's synchronous request/reply, but for application
-// traffic) hasn't been designed yet. Treat this as a known, flagged gap, not a silent omission —
-// see the hardware redesign plan. pace() is likewise still the IPacketSink base-class no-op:
-// controller pacing between packets (§3/§5) is a real firmware responsibility on this transport,
-// not yet tuned — needs bench validation once boards exist, same as every other timing constant
-// in this design.
+// wantAck: a matching reply is a real, addressed unicast — arrives on this panel's ancestors'
+// non-parent edges and rides their own unmodified PanelRouter upstream rule (exactly like
+// PACKET_DISCOVERY_DONE), so no PanelRouter changes were needed to make replies reach the
+// controller. `send(wantAck=true)` blocks (bounded by ACK_TIMEOUT_MS) for a PACKET_ACK; on
+// timeout it simply returns, same as ControllerPacketSink's own best-effort retry loop —
+// IPacketSink::send() has no return value, so neither sink can surface a failure to the caller
+// either way. requestReply() is the same receive machinery exposed for callers that need the
+// reply's payload (PanelsController::fetchState(), the relay OTA client) rather than a bare ack.
+//
+// No correlation id exists on any reply type (PACKET_ACK is meta-only; the relay OTA replies
+// identify their sender via PacketHeader.targetPanelIndex, which requestReply() checks against
+// the caller's expected source). Safety instead comes from flushing any stray buffered bytes
+// immediately before every send — since the controller only ever waits for one reply at a time
+// (this call is synchronous/blocking), a stale reply from an already-abandoned previous wait is
+// the only realistic cross-talk, and flush-before-send discards it.
+//
+// requestReply()'s own outbound send deliberately does NOT go through onPacketSentCallback (the
+// live-preview mirror hook) — FETCH_STATE queries and OTA control traffic aren't scene/animation
+// state changes, so there's nothing for the mirror to usefully preview.
 //
 // setOnPacketSent() mirrors LightnetBus's own callback (Common/LightnetBus.hpp) so
 // mirrorOutboundPacket() (src/controller/main.cpp) can capture scene/animation traffic for the
@@ -38,9 +47,9 @@
 // see ControllerEdgeTransport.hpp.
 
 #include <stdint.h>
-#include <string.h>
 #include "../../Core/Controller/IPacketSink.hpp"
 #include "../../Core/Common/ProtocolMeta.hpp"
+#include "../../Core/Relay/PacketFramer.hpp"
 #include "ControllerEdgeTransport.hpp"
 
 namespace Lightnet {
@@ -49,10 +58,11 @@ namespace Lightnet {
         public:
             typedef void (*onPacketSent_t)(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
 
-            explicit ControllerRelayPacketSink(ControllerEdgeTransport &transport)
-                : transport(transport), onPacketSentCallback(nullptr)
-            {
-            }
+            // Not yet bench-validated — a placeholder generous enough for the plan's own
+            // worst-case depth-50 latency estimate (a few ms) plus real-world margin.
+            static const uint32_t ACK_TIMEOUT_MS = 300;
+
+            explicit ControllerRelayPacketSink(ControllerEdgeTransport &transport);
 
             void setOnPacketSent(onPacketSent_t callback)
             {
@@ -60,31 +70,38 @@ namespace Lightnet {
             }
 
             void send(
-            uint8_t                     address,
-            const Protocol::PacketMeta *packet,
-            uint8_t                     size,
-            bool                        wantAck
-            ) override
-            {
-                (void)wantAck;  // see class comment — acking over the relay is a known, unbuilt gap
+                uint8_t                     address,
+                const Protocol::PacketMeta *packet,
+                uint8_t                     size,
+                bool                        wantAck
+            ) override;
 
-                uint8_t buffer[Protocol::MAX_PACKET_SIZE];
-
-                memcpy(buffer, packet, size);
-
-                Protocol::PacketMeta *restamped = (Protocol::PacketMeta *)buffer;
-
-                Protocol::setPacketMeta(restamped, restamped->header.type, address);
-
-                if (this->onPacketSentCallback) {
-                    this->onPacketSentCallback(address, restamped, size);
-                }
-
-                this->transport.sendOnEdge(ControllerEdgeTransport::TRUNK_EDGE, restamped, size);
-            }
+            // Sends `request` to `targetPanelIndex`, then blocks (bounded by timeoutMs) for a
+            // frame of type `expectedReplyType`. On success, copies up to replyBufferSize bytes
+            // of the reply into replyBuffer and returns true. The caller is responsible for
+            // checking any identifying field in the reply payload (e.g.
+            // PacketPanelState::panelState::panelIndex) — this method only matches on type.
+            bool requestReply(
+                uint16_t                    targetPanelIndex,
+                const Protocol::PacketMeta *request,
+                uint8_t                     requestSize,
+                Protocol::packetType_t      expectedReplyType,
+                Protocol::PacketMeta *      replyBuffer,
+                uint8_t                     replyBufferSize,
+                uint32_t                    timeoutMs = ACK_TIMEOUT_MS
+            );
 
         private:
             ControllerEdgeTransport &transport;
             onPacketSent_t onPacketSentCallback;
+            Lightnet::PacketFramer replyFramer;
+
+            void flushStrayBytes();
+            bool awaitFrame(
+                Protocol::packetType_t expectedType,
+                Protocol::PacketMeta * outBuffer,
+                uint8_t                outBufferSize,
+                uint32_t               timeoutMs
+            );
     };
 }  // namespace Lightnet

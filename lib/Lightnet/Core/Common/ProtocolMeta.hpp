@@ -35,7 +35,14 @@ namespace Protocol {
     // unchanged in the reply so the controller can learn both sides of every discovered link
     // (needed to build PanelGraph's TopoLink[] — see Core/Relay/DiscoveryTreeBuilder.hpp) without
     // a second, independently-timed upstream frame.
-    const uint16_t VERSION = 11;
+    // v12: added the relay OTA bootloader control plane (PACKET_BOOTLOADER_PING/PONG/
+    // WRITE_CHUNK/WRITE_ACK/START_APP — see Core/Common/ProtocolTypes.hpp and
+    // lib/Lightnet/Panel/bootloader/). An intermediate panel still built before this version
+    // can't frame/relay these new types at all (its packetSizeForType() doesn't recognize them),
+    // so flashing a panel more than zero hops away still needs every panel between it and the
+    // controller updated — even though the bootloader itself, once resident, deliberately does
+    // not validate protocolVersion (flashing is how a version mismatch gets resolved).
+    const uint16_t VERSION = 12;
 
     // Stamp a packet's PacketMeta header in place: type + protocolVersion + targetPanelIndex +
     // headerCrc. targetPanelIndex defaults to 0 (broadcast/general-call); pass the destination
@@ -73,8 +80,18 @@ namespace Protocol {
         return &pkt.meta;
     }
 
+    // PACKET_RESET_DEVICE/PACKET_ENTER_BOOTLOADER must reach a panel regardless of protocolVersion
+    // — flashing (or a reset that clears the way for a fresh flash) is how a version mismatch
+    // gets resolved, so gating either packet on the version that mismatch created would make a
+    // stuck panel unrecoverable over the relay. validatePacket() consults this unconditionally
+    // (even when validateProtocolVersion=true, the default every normal RX path uses) — it is not
+    // something a caller opts into per call.
+    bool isVersionExemptType(packetType_t type);
+
     // Validate a received packet's header. 0 = ok; 1 = too short; 2 = bad header CRC;
-    // 3 = protocol-version mismatch.
+    // 3 = protocol-version mismatch. validateProtocolVersion=false (the relay OTA bootloader
+    // only, see PacketFramer's constructor) skips the version check for every type, not just the
+    // two isVersionExemptType() always exempts.
     uint8_t validatePacket(const PacketMeta *packet, uint8_t size, bool validateProtocolVersion = true);
 
     // The fixed wire size of a packet, given only its type byte — the whole struct, meta

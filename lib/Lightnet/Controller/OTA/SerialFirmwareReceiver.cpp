@@ -1,6 +1,6 @@
 #include "SerialFirmwareReceiver.hpp"
 
-#ifdef LIGHTNET_TARGET_CONTROLLER
+#if defined(LIGHTNET_TARGET_CONTROLLER) && !defined(SIM_MODE)
 
     const uint8_t SerialFirmwareReceiver::MAGIC[4]         = { 'L', 'N', 'F', 'W' };
     const char *SerialFirmwareReceiver::FIRMWARE_PATH     = "/panel_fw.bin";
@@ -185,4 +185,4 @@
         return crc;
     }
 
-#endif  // LIGHTNET_TARGET_CONTROLLER
+#endif  // LIGHTNET_TARGET_CONTROLLER && !SIM_MODE

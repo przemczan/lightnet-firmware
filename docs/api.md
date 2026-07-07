@@ -397,7 +397,7 @@ Content-Type: application/octet-stream
 [raw binary body — panel firmware .bin file]
 ```
 
-The body is streamed directly to `/panel_fw.bin` to avoid buffering in RAM. Once the upload completes, the controller starts flashing panels over I²C one by one in discovery order.
+The body is streamed directly to `/panel_fw.bin` to avoid buffering in RAM. Once the upload completes, the controller starts flashing panels over the relay trunk one by one, leaves first and the root last (see [OTA — Flashing order and reboot safety](ota.md#flashing-order-and-reboot-safety)).
 
 **Responses:**
 

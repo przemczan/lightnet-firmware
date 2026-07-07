@@ -63,7 +63,7 @@ The Lightnet firmware lives in one source tree and compiles into **two binaries*
 
     ---
 
-    Panel updates via the twiboot bootloader; serial firmware upload; controller self-update.
+    Panel updates over the relay trunk; serial firmware upload; controller self-update.
 
     [:material-arrow-right: OTA & Updates](ota.md)
 

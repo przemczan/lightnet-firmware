@@ -1,6 +1,6 @@
 #include "FirmwareUpdateServer.hpp"
 
-#ifdef LIGHTNET_TARGET_CONTROLLER
+#if defined(LIGHTNET_TARGET_CONTROLLER) && !defined(SIM_MODE)
 
     #include "../../Utils/Debug.hpp"
     #include "../../Utils/SimpleJson.hpp"
@@ -17,8 +17,11 @@
             // Request-complete handler: file is fully written, trigger flashing
             [this](AsyncWebServerRequest *request) {
         if (this->flasher->isActive()) {
-            request->send(409, "application/json",
-                          "{\"error\":\"flash already in progress\"}");
+            request->send(
+                409,
+                "application/json",
+                "{\"error\":\"flash already in progress\"}"
+            );
 
             return;
         }
@@ -38,8 +41,12 @@
             request->send(422, "application/json", body);
         } else {
             char body[64];
-            snprintf(body, sizeof(body),
-                     "{\"status\":\"flashing\",\"panels\":%d}", s.totalPanels);
+            snprintf(
+                body,
+                sizeof(body),
+                "{\"status\":\"flashing\",\"panels\":%d}",
+                s.totalPanels
+            );
             request->send(200, "application/json", body);
         }
     },
@@ -75,8 +82,11 @@
 
             if (!uploadFile) {
                 D_PRINTLN("[FW] ERROR: cannot open /panel_fw.bin for writing");
-                request->send(507, "application/json",
-                              "{\"error\":\"filesystem write failed\"}");
+                request->send(
+                    507,
+                    "application/json",
+                    "{\"error\":\"filesystem write failed\"}"
+                );
 
                 return;
             }
@@ -100,9 +110,13 @@
         char body[192];
 
         if (s.hasError) {
-            size_t pos = (size_t)snprintf(body, sizeof(body),
-                                          "{\"state\":\"error\",\"panel\":%d,\"total\":%d,\"error\":",
-                                          s.panelIdx, s.totalPanels);
+            size_t pos = (size_t)snprintf(
+                body,
+                sizeof(body),
+                "{\"state\":\"error\",\"panel\":%d,\"total\":%d,\"error\":",
+                s.panelIdx,
+                s.totalPanels
+            );
 
             if (pos < sizeof(body)) {
                 pos = Lightnet::jsonAppendQuotedString(body, sizeof(body), pos, s.errorMsg);
@@ -121,8 +135,6 @@
                     break;
                 case PanelFlasher::State::FLASHING:  stateStr = "flashing";
                     break;
-                case PanelFlasher::State::VERIFY:    stateStr = "verifying";
-                    break;
                 case PanelFlasher::State::NEXT_PANEL: stateStr = "flashing";
                     break;
                 case PanelFlasher::State::DONE:      stateStr = "done";
@@ -131,9 +143,15 @@
                     break;
             }
 
-            snprintf(body, sizeof(body),
-                     "{\"state\":\"%s\",\"panel\":%d,\"total\":%d,\"progress\":%d}",
-                     stateStr, s.panelIdx, s.totalPanels, s.progressPct);
+            snprintf(
+                body,
+                sizeof(body),
+                "{\"state\":\"%s\",\"panel\":%d,\"total\":%d,\"progress\":%d}",
+                stateStr,
+                s.panelIdx,
+                s.totalPanels,
+                s.progressPct
+            );
         }
 
         request->send(200, "application/json", body);

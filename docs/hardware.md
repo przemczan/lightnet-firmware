@@ -182,4 +182,4 @@ concurrent staged transitions. Not viable; per-slot `pending` stays.
 
 - [Build & Flash](getting-started.md) — Fuse values, bootloader install, and all flash commands
 - [Architecture](architecture.md) — Software structure and the internal wire protocol
-- [OTA & Updates](ota.md) — Panel OTA via twiboot
+- [OTA & Updates](ota.md) — Panel OTA over the relay

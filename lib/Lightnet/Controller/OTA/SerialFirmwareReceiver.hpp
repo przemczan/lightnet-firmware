@@ -1,6 +1,7 @@
 #pragma once
 
-#ifdef LIGHTNET_TARGET_CONTROLLER
+// OTA only exists on real hardware — see PanelFlasher.hpp's own guard comment.
+#if defined(LIGHTNET_TARGET_CONTROLLER) && !defined(SIM_MODE)
 
     #include <Arduino.h>
     #include "../../Utils/Fs/Fs.hpp"
@@ -69,4 +70,4 @@
             static uint16_t crc16Update(uint16_t crc, uint8_t byte);
     };
 
-#endif  // LIGHTNET_TARGET_CONTROLLER
+#endif  // LIGHTNET_TARGET_CONTROLLER && !SIM_MODE

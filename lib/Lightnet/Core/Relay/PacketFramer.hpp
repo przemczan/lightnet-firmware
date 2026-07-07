@@ -36,7 +36,11 @@ namespace Lightnet {
         public:
             static const uint8_t MAX_FRAME_SIZE = Protocol::MAX_PACKET_SIZE;
 
-            PacketFramer();
+            // validateProtocolVersion=false is for the relay OTA bootloader only (see
+            // lib/Lightnet/Panel/bootloader/) — flashing is how a protocolVersion mismatch gets
+            // resolved, so the resident bootloader must accept a frame regardless of which
+            // protocolVersion the sender stamped into it. Every other caller keeps the default.
+            explicit PacketFramer(bool validateProtocolVersion = true);
 
             // Feed one incoming byte. Returns true exactly when a complete, CRC-valid frame
             // is now buffered and ready to read via frame()/frameSize().
@@ -52,5 +56,6 @@ namespace Lightnet {
             uint8_t buffer[MAX_FRAME_SIZE] __attribute__((aligned(2)));
             uint8_t filled;
             uint8_t expectedSize;
+            bool validateProtocolVersion;
     };
 }  // namespace Lightnet

@@ -50,6 +50,14 @@ namespace Protocol {
         PACKET_DISCOVERY_DONE = 24,
         PACKET_RESET_DEVICE = 200,
         PACKET_ENTER_BOOTLOADER = 201,
+        // Relay OTA bootloader control plane (lib/Lightnet/Panel/bootloader/). Only exchanged
+        // with a panel that has already jumped into its resident bootloader — see the frozen
+        // wire contract note on PacketBootloaderWriteChunk below.
+        PACKET_BOOTLOADER_PING = 202,
+        PACKET_BOOTLOADER_PONG = 203,
+        PACKET_BOOTLOADER_WRITE_CHUNK = 204,
+        PACKET_BOOTLOADER_WRITE_ACK = 205,
+        PACKET_BOOTLOADER_START_APP = 206,
     };
 
     typedef struct PACK {
@@ -258,6 +266,46 @@ namespace Protocol {
         PacketMeta meta;
         uint8_t    token;
     } PacketEnterBootloader;  // 8 bytes
+
+    // Relay OTA bootloader wire contract (lib/Lightnet/Panel/bootloader/) — a deliberately
+    // frozen layout, exempt from this file's protocolVersion bump history above: flashing is how
+    // a protocolVersion mismatch gets resolved, so the resident bootloader must stay readable
+    // regardless of which app protocolVersion the controller was built with (it skips the
+    // version check every other packet type gets — see PacketFramer's validateProtocolVersion
+    // constructor parameter). headerCrc covers only PacketHeader (see PacketMeta above), so
+    // PacketBootloaderWriteChunk carries its own CRC over its data payload — a corrupted chunk
+    // must never reach boot_page_fill() unnoticed.
+    const uint8_t BOOTLOADER_CHUNK_SIZE = 64;
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint8_t    bootloaderVersion;
+        uint16_t   pageSize;   // bytes per flash page (SPM_PAGESIZE)
+        uint16_t   flashSize;  // programmable application bytes, i.e. BOOTLOADER_START
+    } PacketBootloaderPong;  // 7 + 1 + 2 + 2 = 12 bytes
+
+    enum bootloaderWriteStatus_t: uint8_t {
+        BOOTLOADER_WRITE_OK = 0,
+        BOOTLOADER_WRITE_BAD_CRC = 1,
+        BOOTLOADER_WRITE_BAD_ADDRESS = 2,
+    };
+
+    // One flash-write chunk. Chunked at BOOTLOADER_CHUNK_SIZE rather than a full SPM_PAGESIZE
+    // page so the whole struct still fits under MAX_PACKET_SIZE; the bootloader accumulates
+    // chunks into one page buffer and commits it once a chunk completes that page's SPM write.
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   address;                    // byte offset into flash, from 0
+        uint8_t    length;                      // 1..BOOTLOADER_CHUNK_SIZE valid bytes in data[]
+        uint8_t    data[BOOTLOADER_CHUNK_SIZE];
+        uint16_t   dataCrc;                     // CRC-16 over data[0..length-1]
+    } PacketBootloaderWriteChunk;  // 7 + 2 + 1 + 64 + 2 = 76 bytes
+
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   address;
+        uint8_t    status;  // bootloaderWriteStatus_t
+    } PacketBootloaderWriteAck;  // 7 + 2 + 1 = 10 bytes
 
     const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);
 

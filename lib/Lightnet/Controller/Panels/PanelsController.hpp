@@ -6,12 +6,19 @@
 #include "../../Core/Controller/IPacketSink.hpp"
 #include <FastLED.h>
 
+#ifndef SIM_MODE
+    #include "../Relay/ControllerRelayPacketSink.hpp"
+#endif
+
 // PanelsController — per-panel command API. setColor/turnOnOff/sendConfiguration/resetDevices/
 // enterBootloader are fire-and-forget (or best-effort-acked) and go through the shared
 // IPacketSink (ControllerRelayPacketSink on real hardware, ControllerPacketSink/LNBus under
-// SIM_MODE — see main.cpp's compile-time sink selection). fetchState stays directly on LNBus: it
-// needs a synchronous request/reply round trip, and the relay has no reply-routing path built yet
-// (ControllerRelayPacketSink's class comment) — a known, flagged gap, not an oversight.
+// SIM_MODE — see main.cpp's compile-time sink selection). fetchState needs a synchronous
+// request/reply round trip that IPacketSink's fire-and-forget send() doesn't offer: under
+// SIM_MODE it stays directly on LNBus (sim panels only ever respond to LightnetBus-routed
+// commands); on real hardware it uses ControllerRelayPacketSink::requestReply() — the concrete
+// relay sink, not the abstract IPacketSink, since the reply-waiting capability is relay-specific
+// and deliberately not part of the scene engine's IPacketSink seam.
 class PanelsController
 {
     typedef struct {
@@ -21,7 +28,11 @@ class PanelsController
     } panelConfiguration_t;
 
     public:
-        explicit PanelsController(Lightnet::IPacketSink &sink);
+        #ifdef SIM_MODE
+            explicit PanelsController(Lightnet::IPacketSink &sink);
+        #else
+            PanelsController(Lightnet::IPacketSink &sink, Lightnet::ControllerRelayPacketSink &relaySink);
+        #endif
 
         uint8_t setColor(uint8_t address, Protocol::Color color);
         uint8_t turnOnOff(uint8_t address, uint8_t on);
@@ -34,4 +45,8 @@ class PanelsController
 
     private:
         Lightnet::IPacketSink &sink;
+
+        #ifndef SIM_MODE
+            Lightnet::ControllerRelayPacketSink &relaySink;
+        #endif
 };

@@ -1,8 +1,17 @@
 #include "PanelsController.hpp"
 
-PanelsController::PanelsController(Lightnet::IPacketSink &sink) : sink(sink)
-{
-}
+#ifdef SIM_MODE
+    PanelsController::PanelsController(Lightnet::IPacketSink &sink) : sink(sink)
+    {
+    }
+
+#else
+    PanelsController::PanelsController(Lightnet::IPacketSink &sink, Lightnet::ControllerRelayPacketSink &relaySink)
+        : sink(sink), relaySink(relaySink)
+    {
+    }
+
+#endif
 
 uint8_t PanelsController::setColor(uint8_t address, Protocol::Color color)
 {
@@ -38,29 +47,56 @@ uint8_t PanelsController::turnOff(uint8_t address)
     return this->turnOnOff(address, 0);
 }
 
-// Still directly on LNBus -- needs a synchronous request/reply round trip, and the relay has no
-// reply-routing path built yet (see ControllerRelayPacketSink.hpp's class comment).
-uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
-{
-    Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_FETCH_STATE);
-    Protocol::PacketPanelState response;
+#ifdef SIM_MODE
+    // Sim panels only ever respond to LightnetBus-routed commands -- unchanged from before the
+    // controller cutover.
+    uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
+    {
+        Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_FETCH_STATE);
+        Protocol::PacketPanelState response;
 
-    uint8_t error = LNBus.sendPacketWithResponse(
-        address,
-        &packet,
-        sizeof(packet),
-        Protocol::packetMeta(response),
-        sizeof(response)
-    );
+        uint8_t error = LNBus.sendPacketWithResponse(
+            address,
+            &packet,
+            sizeof(packet),
+            Protocol::packetMeta(response),
+            sizeof(response)
+        );
 
-    if (!error) {
+        if (!error) {
+            memcpy(state, &response.panelState, sizeof(*state));
+
+            return 0;
+        }
+
+        return error;
+    }
+
+#else
+    uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
+    {
+        Protocol::PacketMeta request = Protocol::makeMeta(Protocol::PACKET_FETCH_STATE);
+        Protocol::PacketPanelState response;
+
+        bool ok = this->relaySink.requestReply(
+            address,
+            &request,
+            sizeof(request),
+            Protocol::PACKET_FETCH_STATE_REPLY,
+            Protocol::packetMeta(response),
+            sizeof(response)
+        );
+
+        if (!ok || response.panelState.panelIndex != address) {
+            return 1;
+        }
+
         memcpy(state, &response.panelState, sizeof(*state));
 
         return 0;
     }
 
-    return error;
-}
+#endif
 
 void PanelsController::enterBootloader(uint8_t address)
 {

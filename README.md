@@ -14,17 +14,9 @@ Panels connect to each other through physical edges (triangular panels by defaul
 
 ## Setup
 
-Clone with submodules to get the twiboot bootloader:
-
 ```bash
-git clone --recurse-submodules https://github.com/przemczan/lightnet-firmware.git
+git clone https://github.com/przemczan/lightnet-firmware.git
 cd lightnet-firmware
-```
-
-Or if you already cloned without submodules:
-
-```bash
-git submodule update --init --recursive
 ```
 
 Copy the example config files before your first build (defaults work out of the box):
@@ -55,18 +47,15 @@ pio run -e panel_atmega328pb
 pio run -e panel_atmega328pb -t upload
 
 # Serial monitor (57600 baud)
-pio device monitor -e controller_wemos_d1_mini_pro
+pio device monitor -e controller_s2_mini
 
 # Run native host-side unit tests (no device needed)
 pio test -e native
 ```
 
-**Panel bootloader** — Use precompiled or compile your own:
+**Panel bootloader** — one-time burn per panel (fuses + bootloader):
 ```bash
-# Flash precompiled bootloader (fastest)
-avrdude -c usbasp -p m328pb -U flash:w:twiboot/pre-compiled_bootloaders/pre-compiled_atmega328pb_16mhz_twiboot.hex:i
-
-# Or compile from source
+pio run -e atmega328pb_bootloader -t fuses
 pio run -e atmega328pb_bootloader -t upload
 ```
 
@@ -81,7 +70,7 @@ See [docs/ota.md](docs/ota.md) for full bootloader setup and panel OTA process.
 | [docs/getting-started.md](docs/getting-started.md) | PlatformIO environments, config files, build/upload commands |
 | [docs/hardware.md](docs/hardware.md) | Pin assignments for controllers and panels, topology rules, fuses |
 | [docs/architecture.md](docs/architecture.md) | Physical topology, library structure, I²C protocol, animation framework internals, discovery sequence, controller boot |
-| [docs/ota.md](docs/ota.md) | Panel OTA (twiboot bootloader — precompiled + compilation), serial firmware upload, update flow |
+| [docs/ota.md](docs/ota.md) | Panel OTA over the relay, serial firmware upload, update flow |
 | [docs/api.md](docs/api.md) | WebSocket binary protocol + full HTTP API reference (appearance, palettes, scenes, animations, firmware) |
 | [docs/animations/index.md](docs/animations/index.md) | Animation system overview — panel-local types, controller runners, scene model |
 | [docs/animations/scene-authoring.md](docs/animations/scene-authoring.md) | Scene authoring guide — layers, steps, panel selectors, directionality, palettes, examples |

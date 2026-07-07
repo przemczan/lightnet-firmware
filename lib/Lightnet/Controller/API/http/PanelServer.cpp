@@ -65,43 +65,79 @@ namespace Lightnet {
         // Specific routes must be registered before the wildcard.
         Http::onRequest(server, "/api/panels/edges", HTTP_GET, this, &PanelServer::handleGetEdges);
         Http::onRequest(server, "/api/panels", HTTP_GET, this, &PanelServer::handleGetPanels);
-        Http::onBody(server, "/api/panels/*", HTTP_PUT, Http::MAX_BODY_SMALL,
-                     this, &PanelServer::handlePutPanel);
+        Http::onBody(
+            server,
+            "/api/panels/*",
+            HTTP_PUT,
+            Http::MAX_BODY_SMALL,
+            this,
+            &PanelServer::handlePutPanel
+        );
     }
 
+    // fetchState() does a real relay round-trip per panel (bounded by
+    // ControllerRelayPacketSink::ACK_TIMEOUT_MS, not the sub-millisecond I2C transaction it used
+    // to be), so this can no longer run synchronously on the AsyncTCP task -- deferred to the
+    // main loop, same as handlePutPanel()'s packet emission and for the same reason
+    // (MainLoopQueue's own class comment). Worst case (every panel unreachable) still blocks the
+    // main loop for panelCount * ACK_TIMEOUT_MS: the relay's single-active-flow design means no
+    // two fetches can ever be in flight at once, so this loop can't be parallelized away --
+    // an accepted, flagged cost of the transport, not an implementation shortcut.
     void PanelServer::handleGetPanels(AsyncWebServerRequest *req)
     {
-        List<Panel *> *panels = LNPanelsInitializer.getPanels();
-        AsyncResponseStream *response = req->beginResponseStream("application/json");
+        struct Args {
+            PanelServer *          self;
+            AsyncWebServerRequest *req;
+        } args{ this, req };
 
-        response->print("[");
+        bool queued = queue.post(
+            +[](const uint8_t *a, uint16_t) {
+            Args x;
 
-        bool first = true;
+            memcpy(&x, a, sizeof(x));
 
-        for (uint16_t i = 0; i < panels->getSize(); i++) {
-            Panel *panel = panels->get(i);
-            Protocol::PanelState state;
+            List<Panel *> *panels = LNPanelsInitializer.getPanels();
+            AsyncResponseStream *response = x.req->beginResponseStream("application/json");
 
-            if (panelsController.fetchState(panel->index, &state)) continue;
+            response->print("[");
 
-            char hex[8];
+            bool first = true;
 
-            jsonFormatHex(state.color.r, state.color.g, state.color.b, hex);
+            for (uint16_t i = 0; i < panels->getSize(); i++) {
+                Panel *panel = panels->get(i);
+                Protocol::PanelState state;
 
-            char entry[72];
+                if (x.self->panelsController.fetchState(panel->index, &state)) continue;
 
-            snprintf(entry, sizeof(entry),
-                     "%s{\"address\":%u,\"on\":%s,\"color\":\"%s\"}",
-                     first ? "" : ",",
-                     (unsigned)panel->index,
-                     state.state ? "true" : "false",
-                     hex);
-            response->print(entry);
-            first = false;
+                char hex[8];
+
+                jsonFormatHex(state.color.r, state.color.g, state.color.b, hex);
+
+                char entry[72];
+
+                snprintf(
+                    entry,
+                    sizeof(entry),
+                    "%s{\"address\":%u,\"on\":%s,\"color\":\"%s\"}",
+                    first ? "" : ",",
+                    (unsigned)panel->index,
+                    state.state ? "true" : "false",
+                    hex
+                );
+                response->print(entry);
+                first = false;
+            }
+
+            response->print("]");
+            Http::sendOkStream(x.req, response);
+        },
+            &args,
+            sizeof(args)
+        );
+
+        if (!queued) {
+            Http::sendError(req, 503, "busy");
         }
-
-        response->print("]");
-        Http::sendOkStream(req, response);
     }
 
     void PanelServer::handleGetEdges(AsyncWebServerRequest *req)
@@ -123,13 +159,16 @@ namespace Lightnet {
 
                 char entry[96];
 
-                snprintf(entry, sizeof(entry),
-                         "%s{\"panel\":%u,\"edge\":%u,\"connectedPanel\":%u,\"connectedEdge\":%u}",
-                         first ? "" : ",",
-                         (unsigned)panel->index,
-                         (unsigned)edge->index,
-                         (unsigned)connPanel,
-                         (unsigned)connEdge);
+                snprintf(
+                    entry,
+                    sizeof(entry),
+                    "%s{\"panel\":%u,\"edge\":%u,\"connectedPanel\":%u,\"connectedEdge\":%u}",
+                    first ? "" : ",",
+                    (unsigned)panel->index,
+                    (unsigned)edge->index,
+                    (unsigned)connPanel,
+                    (unsigned)connEdge
+                );
                 response->print(entry);
                 first = false;
             }
@@ -201,7 +240,8 @@ namespace Lightnet {
             return;
         }
 
-        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+        bool queued = queue.post(
+            +[](const uint8_t *a, uint16_t) {
             Args x;
 
             memcpy(&x, a, sizeof(x));
@@ -214,7 +254,10 @@ namespace Lightnet {
             } else {
                 x.self->panelsController.turnOnOff(x.addr, x.on);
             }
-        }, &args, sizeof(args));
+        },
+            &args,
+            sizeof(args)
+        );
 
         if (!queued) {
             Http::sendError(req, 503, "busy");

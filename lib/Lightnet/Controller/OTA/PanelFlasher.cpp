@@ -1,6 +1,6 @@
 #include "PanelFlasher.hpp"
 
-#ifdef LIGHTNET_TARGET_CONTROLLER
+#if defined(LIGHTNET_TARGET_CONTROLLER) && !defined(SIM_MODE)
 
     #include "../../Utils/Debug.hpp"
 
@@ -9,11 +9,11 @@
     #define FLOG(fmt, ...) Serial.printf("[FLASHER] " fmt "\n", ## __VA_ARGS__)
 
     PanelFlasher::PanelFlasher(
-        PanelsController * ctrl,
-        PanelsInitializer *init,
-        TwibootClient *    twiboot
+        PanelsController *     ctrl,
+        PanelsInitializer *    init,
+        RelayBootloaderClient *relayBoot
     )
-        : ctrl(ctrl), init(init), twiboot(twiboot)
+        : ctrl(ctrl), init(init), relayBoot(relayBoot)
     {
         memset(&status, 0, sizeof(status));
         status.state = State::IDLE;
@@ -53,8 +53,12 @@
             return;
         }
 
-        FLOG("start: %u panels, %u bytes, %u pages",
-             status.totalPanels, (unsigned)firmwareSize, totalPages);
+        FLOG(
+            "start: %u panels, %u bytes, %u pages",
+            status.totalPanels,
+            (unsigned)firmwareSize,
+            totalPages
+        );
 
         transition(State::ENTER_BL);
     }
@@ -82,19 +86,14 @@
             case State::WAIT_BL:
             {
                 if (now - stateEnteredAt < ENTER_BL_SETTLE_MS) {
-                    return; // wait for watchdog reset to fire
+                    return; // wait for the ENTER_BOOTLOADER packet to reach the panel
                 }
 
-                // twiboot always responds at its hardcoded address (0x29), regardless
-                // of the panel's app-mode I²C index.
-                TwibootClient::ChipInfo info;
+                uint8_t addr = currentPanelAddress();
 
-                if (twiboot->connect(TwibootClient::TWIBOOT_ADDRESS, &info, 1, 0)) {
-                    FLOG("twiboot ready @ 0x%02X", TwibootClient::TWIBOOT_ADDRESS);
+                if (relayBoot->connect(addr, 1, 0)) {
+                    FLOG("bootloader ready @ panel %u", addr);
                     currentPage = 0;
-                    // Open firmware file immediately before transitioning so the
-                    // read latency is paid while twiboot is alive (timeout reset
-                    // by connect(); timer won't fire while we're communicating).
                     flashFile = Lightnet::Fs::open(firmwarePath, "r");
 
                     if (!flashFile) {
@@ -103,8 +102,8 @@
                     }
 
                     transition(State::FLASHING);
-                } else if (now - stateEnteredAt > TWIBOOT_WAIT_TIMEOUT_MS) {
-                    setError("twiboot connect timeout");
+                } else if (now - stateEnteredAt > WAIT_TIMEOUT_MS) {
+                    setError("bootloader connect timeout");
                 }
 
                 break;
@@ -124,8 +123,7 @@
                     break;
                 }
 
-                bool ok = twiboot->writePage(TwibootClient::TWIBOOT_ADDRESS,
-                                             currentPage * 128, pageBuf);
+                bool ok = relayBoot->writePage(currentPanelAddress(), currentPage * 128, pageBuf);
 
                 if (!ok) {
                     flashFile.close();
@@ -137,71 +135,20 @@
                     break;
                 }
 
-                D_PRINTFLN("[TWIBOOT] page %u/%u", currentPage + 1, totalPages);
+                D_PRINTFLN("[FLASHER] page %u/%u", currentPage + 1, totalPages);
                 currentPage++;
                 status.progressPct = (uint8_t)((uint32_t)currentPage * 100 / totalPages);
 
                 if (currentPage >= totalPages) {
                     flashFile.close();
-                    FLOG("write done (%u pages), verifying", totalPages);
-                    transition(State::VERIFY);
+
+                    // No read-back verify over the relay (see RelayBootloaderClient's class
+                    // comment) — each page's own chunk CRCs are already the integrity check.
+                    FLOG("write done (%u pages)", totalPages);
+                    relayBoot->startApp(currentPanelAddress());
+                    transition(State::NEXT_PANEL);
                 }
 
-                break;
-            }
-
-            case State::VERIFY:
-            {
-                File f = Lightnet::Fs::open(firmwarePath, "r");
-                bool ok = true;
-
-                if (!f) {
-                    // Verification skipped if file not accessible — log and continue
-                    D_PRINTLN("[FLASHER] verify skipped (file unavailable)");
-                } else {
-                    uint8_t fileBuf[128], flashBuf[128];
-
-                    for (uint16_t p = 0; p < totalPages && ok; p++) {
-                        memset(fileBuf, 0xFF, sizeof(fileBuf));
-                        f.read(fileBuf, 128);
-
-                        bool readOk = twiboot->readPage(TwibootClient::TWIBOOT_ADDRESS, p * 128, flashBuf);
-                        bool match  = readOk && (memcmp(fileBuf, flashBuf, 128) == 0);
-
-                        if (!match) {
-                            if (!readOk) {
-                                D_PRINTFLN("[FLASHER] verify: read failed page %u", p);
-                            } else {
-                                // log first mismatched byte so we can diagnose
-                                for (int i = 0; i < 128; i++) {
-                                    if (fileBuf[i] != flashBuf[i]) {
-                                        D_PRINTFLN("[FLASHER] verify mismatch page %u byte %d: file=0x%02X flash=0x%02X",
-                                                 p, i, fileBuf[i], flashBuf[i]);
-                                        break;
-                                    }
-                                }
-                            }
-
-                            ok = false;
-                        }
-                    }
-
-                    f.close();
-                }
-
-                // Always attempt startApp so the panel boots regardless of verify result.
-                // If verify failed, log the mismatch but still boot — the panel will likely
-                // run correctly (the fork's own SPM write is reliable).
-                if (!twiboot->startApp(TwibootClient::TWIBOOT_ADDRESS)) {
-                    setError("startApp failed");
-                    break;
-                }
-
-                if (!ok) {
-                    FLOG("verify mismatch — panel booted anyway, check logs for details");
-                }
-
-                transition(State::NEXT_PANEL);
                 break;
             }
 
@@ -248,11 +195,16 @@
         transition(State::ENTER_BL);
     }
 
+    // getPanels() is ordered by discovery (pre-order DFS: a panel is always discovered before
+    // any of its descendants), so this walks it back to front -- leaves first, root last. See
+    // the class comment for why that order, not discovery order, is what keeps a mid-campaign
+    // reboot from orphaning the panels still waiting to be flashed.
     uint8_t PanelFlasher::currentPanelAddress() const
     {
-        Panel *panel = init->getPanels()->get(status.panelIdx);
+        uint16_t reverseIdx = status.totalPanels - 1 - status.panelIdx;
+        Panel *panel = init->getPanels()->get(reverseIdx);
 
         return panel ? (uint8_t)panel->index : 0;
     }
 
-#endif  // LIGHTNET_TARGET_CONTROLLER
+#endif  // LIGHTNET_TARGET_CONTROLLER && !SIM_MODE

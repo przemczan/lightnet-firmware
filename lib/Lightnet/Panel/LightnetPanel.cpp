@@ -153,6 +153,10 @@ void LightnetPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t siz
             this->handleEnterBootloader((const Protocol::PacketEnterBootloader *)packet);
             break;
 
+        case Protocol::PACKET_FETCH_STATE:
+            this->handleFetchState();
+            break;
+
         default:
             break;
     }
@@ -165,6 +169,8 @@ void LightnetPanel::handleTurnOnOff(const Protocol::PacketTurnOnOff *packet)
     } else {
         this->rgbController.turnOff();
     }
+
+    this->sendAck();
 }
 
 void LightnetPanel::handleSetColor(const Protocol::PacketSetColor *packet)
@@ -178,6 +184,8 @@ void LightnetPanel::handlePanelConfiguration(const Protocol::PacketPanelConfigur
     this->rgbController.gammaCorrection(packet->useGammaCorrection);
     this->rgbController.setColorTemperature(packet->colorTemperature);
     this->rgbController.setColorCorrection(packet->colorCorrection);
+
+    this->sendAck();
 }
 
 void LightnetPanel::handleAnimationPrepare(const Protocol::PacketAnimationPrepare *packet)
@@ -222,18 +230,36 @@ void LightnetPanel::handleSetGlobalBrightness(const Protocol::PacketSetGlobalBri
     this->rgbController.globalBrightness(packet->value);
 }
 
+void LightnetPanel::handleFetchState()
+{
+    uint16_t myIndex = this->driver.assignedPanelIndex();
+    Protocol::PacketPanelState reply =
+        Protocol::makePacket<Protocol::PacketPanelState>(Protocol::PACKET_FETCH_STATE_REPLY, myIndex);
+
+    reply.panelState.panelIndex = myIndex;
+    reply.panelState.state      = this->rgbController.on() ? 1 : 0;
+    reply.panelState.color      = this->rgbController.color();
+
+    LNEdgeTransport.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(reply), sizeof(reply));
+}
+
+void LightnetPanel::sendAck()
+{
+    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK, this->driver.assignedPanelIndex());
+
+    LNEdgeTransport.sendOnEdge(this->discovery.parentEdge(), &ack, sizeof(ack));
+}
+
 void LightnetPanel::handleEnterBootloader(const Protocol::PacketEnterBootloader *packet)
 {
     if (packet->token != BootloaderBridge::ENTRY_TOKEN) {
         return;
     }
 
-    // NOTE: the relay's own UART-speaking bootloader (hardware redesign plan §8 step 5) is
-    // scoped, not written -- this hands off to the existing twiboot fork, which only speaks TWI,
-    // not this panel's relay edges, so it can't actually be reached/flashed over the relay yet.
-    // Kept as-is so this path at least compiles and documents the real remaining piece rather
-    // than silently omitting it.
-    BootloaderBridge::prepareAndReset(0);
+    // The relay bootloader (lib/Lightnet/Panel/bootloader/RelayBootloader.cpp) has no topology
+    // of its own -- it needs this panel's own assigned index and parent edge handed to it before
+    // the jump (see BootloaderProtocol.hpp for why).
+    BootloaderBridge::prepareAndReset(this->discovery.parentEdge(), this->driver.assignedPanelIndex());
     // execution never reaches here
 }
 

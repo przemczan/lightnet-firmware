@@ -1,6 +1,7 @@
 #pragma once
 
-#ifdef LIGHTNET_TARGET_CONTROLLER
+// OTA only exists on real hardware — see PanelFlasher.hpp's own guard comment.
+#if defined(LIGHTNET_TARGET_CONTROLLER) && !defined(SIM_MODE)
 
     #include <Arduino.h>
     #include <ESPAsyncWebServer.h>
@@ -35,4 +36,4 @@
             void handleStatusRequest(AsyncWebServerRequest *request);
     };
 
-#endif  // LIGHTNET_TARGET_CONTROLLER
+#endif  // LIGHTNET_TARGET_CONTROLLER && !SIM_MODE

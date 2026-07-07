@@ -54,7 +54,7 @@ Scenes are delimited by `ANIM_CONTROL → ALL  cmd=CLEAR_QUEUE` markers (which `
 
 Uploads a compiled panel firmware binary to all discovered panels via the
 controller's serial port. The controller receives the file, stores it to LittleFS,
-then flashes each panel over I²C using twiboot.
+then flashes each panel over the relay trunk (see [`docs/ota.md`](../docs/ota.md)).
 
 **Requires:** `pip install pyserial`
 

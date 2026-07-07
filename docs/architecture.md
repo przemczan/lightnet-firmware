@@ -71,7 +71,7 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `LightnetBus` | I²C wrapper: `sendPacketAck()` / `sendPacketNack()` / `sendResponsePacket()`, ISR callbacks. Controller-only now (`#if !defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)`) — the relay trunk replaced I²C for panel discovery and application traffic; this survives only for `PanelsController::fetchState()` and OTA (`TwibootClient`), which haven't cut over to the relay yet (see §6, §7). |
+| `LightnetBus` | I²C wrapper: `sendPacketAck()` / `sendPacketNack()` / `sendResponsePacket()`, ISR callbacks. Controller-only now (`#if !defined(SIM_MODE) && defined(LIGHTNET_TARGET_CONTROLLER)`) — the relay trunk replaced I²C for discovery, application traffic, `fetchState()`, and OTA; this survives only under `SIM_MODE` (sim panels only respond to `LightnetBus`-routed commands) and for the WebSocket command handlers that still call it directly (`API/websocket/WebsocketHandler.cpp`) (see §6, §7, §8.7). |
 | `Protocol` | All packet structs (`__packed__`), CRC validation, `setPacketMeta()` |
 | `LightnetConfig` | Cross-cutting constants in `Core/Common/LightnetConfig.hpp`: `LIGHTNET_MAX_PANELS` (100) |
 | `ColorRef` | 4-byte tagged union in `Core/Common/ColorRef.hpp`: `kind=0` inline RGB, `kind=1` palette position, `kind=2` base-color slot |
@@ -149,8 +149,8 @@ All firmware code lives under `lib/Lightnet/`.
 
 | File | Purpose |
 |---|---|
-| `TwibootClient` | twiboot host protocol over raw Wire (bypasses LNBus). `connect()` / `writePage()` / `startApp()` |
-| `PanelFlasher` | Non-blocking OTA state machine: `ENTER_BL → WAIT_BL → FLASHING → VERIFY → NEXT_PANEL` |
+| `RelayBootloaderClient` | Drives `RelayBootloader.cpp` over the relay trunk via `ControllerRelayPacketSink::requestReply()`. `connect()` / `writePage()` / `startApp()`. Real hardware only — no I2C wire to any panel exists, and OTA doesn't exist under `SIM_MODE` |
+| `PanelFlasher` | Non-blocking OTA state machine: `ENTER_BL → WAIT_BL → FLASHING → NEXT_PANEL` |
 | `FirmwareUpdateServer` | `POST /api/firmware/panels`, `GET /api/firmware/status` |
 | `SerialFirmwareReceiver` | Firmware upload over 57600-baud USB serial (LNFW framing + CRC-16) |
 
@@ -161,7 +161,7 @@ All firmware code lives under `lib/Lightnet/`.
 | `LightnetPanel` | Main panel state machine; handles I²C packets, drives edge registration |
 | `RGBController` | FastLED wrapper for the single WS2812 LED on PD5. `globalBrightness` multiplier on all output |
 | `AnimationPlayer` | Layer compositor: `slots[MAX_ANIM_SLOTS]` composited each ~16 ms tick (blend modes + `animates` modifier targets + background base). Resolves `ColorRef` → RGB against panel's current palette + base colors |
-| `BootloaderBridge` | Writes EEPROM boot-magic `0xB007` then software-jumps to twiboot |
+| `BootloaderBridge` | Writes assigned index + parent edge + EEPROM boot-magic `0xB007` then software-jumps to `RelayBootloader.cpp` |
 
 ### Controller/API/websocket/ — WebSocket (controller only)
 
@@ -204,6 +204,7 @@ size so `Core/Relay/PacketFramer` can recover frame boundaries from a raw byte s
 | **v9** | relay | `PacketPanelConfiguration`'s `colorTemperature`/`colorCorrection` changed from FastLED's `ColorTemperature`/`LEDColorCorrection` enums to raw `ColorRGB` — moves the struct into the portable core (no FastLED dependency) and lets `packetSizeForType()` size it like every other packet. |
 | **v10** | relay | `PacketHeader` gains `targetPanelIndex` (0 = broadcast, else one panel) — the relay's addressing field, since flooding has no physical-bus-address equivalent; without it a flooded `FETCH_STATE` query would make every panel reply at once. `PacketDiscoveryAdvance`'s own bespoke `targetPanelIndex` payload field folds into this. Every packet grows 2 B. |
 | **v11** | relay | `PacketInitializationPull`/`PacketRegisterEdge` gain `parentEdgeIndex` — the probing panel's (or controller trunk's) own edge index for the link being offered, echoed back unchanged in the reply. Lets the controller learn *both* sides of every discovered link (needed to build `PanelGraph`'s `TopoLink[]`, see §6) without a second, independently-timed upstream frame that would race the single-active-flow invariant (§4). Both structs grow 2 B. |
+| **v12** | relay | Relay OTA bootloader control plane: `PACKET_BOOTLOADER_PING/PONG/WRITE_CHUNK/WRITE_ACK/START_APP` (see [`docs/ota.md`](ota.md)). An intermediate panel built before v12 can't frame/relay these new types at all (`packetSizeForType()` doesn't recognize them), so this still needs every panel between the controller and the flash target updated — even though the bootloader itself, once resident, deliberately skips `protocolVersion` validation (flashing is how a version mismatch gets resolved). |
 
 !!! warning "Protocol compatibility"
     Panel and controller must be flashed together when upgrading across protocol versions — versions are not interchangeable.
@@ -238,6 +239,11 @@ electrically the way an I²C transaction did.
 | 24 | `DISCOVERY_DONE` | P→C | 9 B | Routed upstream — see §6 |
 | 200 | `RESET_DEVICE` | C→P | 7 B | WDT reset |
 | 201 | `ENTER_BOOTLOADER` | C→P | 8 B | Token must be `0xB0` |
+| 202 | `BOOTLOADER_PING` | C→bootloader | 7 B | Meta-only; presence check once a panel is resident in `RelayBootloader.cpp` (v12) |
+| 203 | `BOOTLOADER_PONG` | bootloader→C | 12 B | Bootloader version + flash page size + `BOOTLOADER_START` |
+| 204 | `BOOTLOADER_WRITE_CHUNK` | C→bootloader | 76 B | 64 B of flash data + its own CRC-16 (`headerCrc` covers only `PacketHeader`, not payload) — two chunks per 128 B page |
+| 205 | `BOOTLOADER_WRITE_ACK` | bootloader→C | 10 B | Per-chunk result: ok / bad CRC / bad address |
+| 206 | `BOOTLOADER_START_APP` | C→bootloader | 7 B | Meta-only; commits any pending page then jumps to the application |
 
 Every packet above carries `PacketHeader.targetPanelIndex` (v10): `0` = broadcast/flood, any other
 value = one specific panel. `PanelRouter` still floods every downstream packet unconditionally
@@ -630,10 +636,12 @@ loop (the demos).
 
 | Synchronous → `200` | Reason |
 |---|---|
-| All `GET`s | read-only |
+| All other `GET`s | read-only |
 | `POST /api/scenes`, `PATCH /api/scenes/:id`, `DELETE /api/scenes/:id` | database only |
 | `POST /api/palettes`, `PUT /api/palettes/:name`, `DELETE /api/palettes/:name` | filesystem only |
 | `PATCH /api/configuration` (without `logicalRoot`) | config store only — no packets, no `ScenePlayer` |
+
+`GET /api/panels` is the one `GET` that isn't synchronous — see §8.7.
 
 ### 8.5 PacketMirror flush-on-overflow
 
@@ -669,3 +677,49 @@ serviceMirror();                                    // 3. ≤30 fps flush of the
 Draining HTTP work **before** the ticks means a scene queued this iteration is played and then ticked
 in the same pass. `serviceMirror()` runs **last** so any packets emitted by the drained work (or by an
 inline overflow flush during it) reach mirroring clients in the same iteration.
+
+### 8.7 Request/reply over the relay trunk (`ControllerRelayPacketSink`)
+
+Real (non-SIM) hardware has no I²C wire to any panel — `fetchState()`, turn-on/off and panel-
+configuration acks, and OTA all now go over the relay trunk, and all three need a genuine
+request/reply round trip that plain `IPacketSink::send()` doesn't offer (fire-and-forget only).
+`ControllerRelayPacketSink` (already the `IPacketSink` implementation, already holding the trunk
+transport) grows two extra, non-virtual capabilities for this rather than a separate class:
+
+- **`send(wantAck=true)`** blocks (bounded by `ACK_TIMEOUT_MS`) for a `PACKET_ACK` reply after
+  sending — `PanelsController::turnOnOff()`/`sendConfiguration()` needed **no changes at all**,
+  since they already called `sink.send(address, ..., true)`; only the sink's own behavior changed.
+- **`requestReply(targetPanelIndex, request, expectedReplyType, replyBuffer, timeoutMs)`** is the
+  same machinery exposed for callers that need the reply's *payload*, not just a bare ack —
+  `PanelsController::fetchState()` (`PACKET_FETCH_STATE_REPLY`) and `RelayBootloaderClient`
+  (`PACKET_BOOTLOADER_PONG`/`WRITE_ACK`) both use it directly.
+
+Both flush any stray buffered bytes immediately before sending, then poll the trunk transport
+(with `yield()` each iteration, so blocking doesn't starve WiFi/TCP or trip the task watchdog)
+through a private `PacketFramer`, matching on the frame's type. There is no correlation id on any
+reply (`PACKET_ACK` is meta-only), so this relies on the relay's own single-active-flow invariant
+(§4) — the controller only ever waits for one reply at a time by construction — with
+flush-before-send as the guard against a stale, already-timed-out reply confusing the next call.
+`requestReply()`'s own send deliberately does not go through the `onPacketSentCallback` mirror
+hook — queries and OTA control traffic aren't scene state changes, so there's nothing to preview.
+
+The panel side answers with the ordinary upstream routing rule (§6) — `LightnetPanel::sendAck()`/
+`handleFetchState()` call `sendOnEdge(discovery.parentEdge(), ...)` directly, one hop, and every
+ancestor's unmodified `PanelRouter` carries the reply the rest of the way, exactly like
+`PACKET_DISCOVERY_DONE`. No `PanelRouter`/`PanelFrameDispatcher` changes were needed.
+
+**`GET /api/panels` is deferred, not synchronous** (§8.4's table): `fetchState()` now costs a real
+relay round trip per panel instead of a sub-millisecond I²C transaction, so `PanelServer::
+handleGetPanels()` posts the whole per-panel loop (build the response, then `Http::sendOkStream()`)
+to `MainLoopQueue` instead of running it on the AsyncTCP task — the same deferral mechanism §8.3
+describes, just used to defer a *read* that still returns its real payload once computed, rather
+than to acknowledge a write immediately and let it land later. Worst case (every panel
+unreachable) still blocks the main loop for `panelCount × ACK_TIMEOUT_MS` — the relay's
+single-active-flow design means no two fetches can ever be in flight at once, so this can't be
+parallelized away; an accepted, flagged cost of the transport, not an implementation shortcut.
+
+Also unaffected by this: `Protocol::isVersionExemptType()` (`PACKET_RESET_DEVICE`/
+`PACKET_ENTER_BOOTLOADER`, checked inside `validatePacket()` itself) lets a version-mismatched
+panel still be reset or told to enter its bootloader over the relay — the one case where a frame
+must complete despite `header.protocolVersion` not matching this build's `Protocol::VERSION`,
+without weakening that check for any other packet type.

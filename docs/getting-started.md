@@ -9,11 +9,9 @@ This page is the PlatformIO reference: every environment, the fuses, and the day
 ## Repository
 
 ```bash
-git clone --recurse-submodules https://github.com/przemczan/lightnet-firmware.git
+git clone https://github.com/przemczan/lightnet-firmware.git
 cd lightnet-firmware
 ```
-
-The twiboot bootloader lives in a submodule. If you already cloned without `--recurse-submodules`, run `git submodule update --init --recursive`.
 
 The same source tree builds both controller and panel binaries — the active PlatformIO environment selects which one.
 
@@ -97,14 +95,14 @@ All environments are defined in `platformio.ini`.
     | Environment | Board | Uploader | Bootloader | Notes |
     |---|---|---|---|---|
     | `panel_atmega328_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
-    | `panel_atmega328pb` | ATmega328PB | USBasp | twiboot at `0x7000` | `-D` flag preserves bootloader on erase. **Bare-metal** (hardware redesign plan §10/§11) — no `framework = arduino`. Both panel and controller have cut over to the relay protocol; builds clean but is not yet bench-validated on real hardware. |
-    | `panel_atmega328p` | ATmega328P | USBasp | twiboot at `0x7000` | Same binary as 328PB |
+    | `panel_atmega328pb` | ATmega328PB | USBasp | relay bootloader at `0x7000` | `-D` flag preserves bootloader on erase. **Bare-metal** (hardware redesign plan §10/§11) — no `framework = arduino`. Both panel and controller have cut over to the relay protocol; builds clean but is not yet bench-validated on real hardware. |
+    | `panel_atmega328p` | ATmega328P | USBasp | relay bootloader at `0x7000` | Same binary as 328PB |
 
 === "Bootloader (one-time)"
 
     | Environment | Purpose |
     |---|---|
-    | `atmega328p_bootloader` | Flash fuses + burn twiboot bootloader onto a 328P panel |
+    | `atmega328p_bootloader` | Flash fuses + burn the relay's own OTA bootloader (`lib/Lightnet/Panel/bootloader/`) onto a 328P panel — see [`docs/ota.md`](ota.md) |
     | `atmega328pb_bootloader` | Same, for 328PB panels |
 
 ---
@@ -124,7 +122,7 @@ One-time sequence per panel:
 
 ```bash
 pio run -e atmega328p_bootloader -t fuses    # set fuses
-pio run -e atmega328p_bootloader -t upload   # burn twiboot
+pio run -e atmega328p_bootloader -t upload   # burn the relay bootloader
 pio run -e panel_atmega328pb  -t upload      # burn panel application
 ```
 
