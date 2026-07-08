@@ -4,7 +4,7 @@ icon: material/rocket-launch-outline
 
 # Build & Flash Reference
 
-This page is the PlatformIO reference: every environment, the fuses, and the day-to-day commands. For a guided first-time walkthrough, see the hub's **[Get Started](../getting-started/index.md)** instead.
+This page is the PlatformIO reference: every environment, the fuses, and the day-to-day commands. For a guided first-time walkthrough, see the hub's **[Get Started](../getting-started/index.md)** instead. For schematics and PCB layouts, see [Hardware → Schematics & PCB](hardware.md#schematics-pcb).
 
 ## Repository
 

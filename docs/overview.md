@@ -30,7 +30,7 @@ graph TD
   C --> A[Panel A — edge 0]
   A --> B[Panel B — edge 1]
   A --> Pc[Panel C — edge 2]
-  C --> D[Panel D — edge 1]
+  B --> D[Panel D — edge 1]
   D --> E[Panel E — edge 0]
 ```
 
