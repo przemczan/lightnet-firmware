@@ -17,6 +17,7 @@ class PanelsInitializer
     typedef struct {
         uint8_t  trunkRxPin;
         uint8_t  trunkTxPin;
+        uint8_t  trunkOutputEnablePin;
         uint32_t trunkBaud;
     } configuration_t;
 

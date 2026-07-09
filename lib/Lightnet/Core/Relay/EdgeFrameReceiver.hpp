@@ -71,6 +71,7 @@ namespace Lightnet {
             uint8_t activeEdge;
             uint8_t completedEdge;
             uint32_t lastActivityMs;
+            bool dropLogged;
 
             void release();
     };

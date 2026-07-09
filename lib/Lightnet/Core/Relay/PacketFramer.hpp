@@ -56,5 +56,6 @@ namespace Lightnet {
             uint8_t filled;
             uint8_t expectedSize;
             bool validateProtocolVersion;
+            bool unsyncedLogged;
     };
 }  // namespace Lightnet

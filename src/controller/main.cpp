@@ -100,6 +100,30 @@ Lightnet::TopologyConfigStore *topologyConfig = nullptr;
 
 #endif
 
+// Task-watchdog culprit capture. The TWDT panic backtrace goes to the ROM console (UART0),
+// which the S2 Mini doesn't even break out — over USB CDC a watchdog reset looks like a silent
+// reboot. This hook (a weak symbol in esp_system, called from the TWDT ISR before the panic)
+// snapshots the name of the task that was running — after 5 s of continuous starvation, that IS
+// the task hogging the core — into RTC noinit RAM, which survives everything short of a power
+// cycle, so logBootDiagnostics() can print it on the next boot.
+RTC_NOINIT_ATTR static char wdtHogTaskName[configMAX_TASK_NAME_LEN];
+RTC_NOINIT_ATTR static uint32_t wdtHogMarker;
+static const uint32_t WDT_HOG_MARKER_VALID = 0x57444748;  // "WDGH"
+
+extern "C" void esp_task_wdt_isr_user_handler(void)
+{
+    const char *name = pcTaskGetName(NULL);
+
+    for (size_t i = 0; i < sizeof(wdtHogTaskName) - 1; i++) {
+        wdtHogTaskName[i] = name[i];
+
+        if (name[i] == '\0') break;
+    }
+
+    wdtHogTaskName[sizeof(wdtHogTaskName) - 1] = '\0';
+    wdtHogMarker = WDT_HOG_MARKER_VALID;
+}
+
 // Always-on (not gated by DEBUG) so rare production resets can be diagnosed
 // from the serial log: the reset reason is printed once at every boot.
 void logBootDiagnostics()
@@ -107,6 +131,13 @@ void logBootDiagnostics()
     Serial.println();
     Serial.print("[BOOT] reset reason: ");
     Serial.println((int)esp_reset_reason());   // see esp_reset_reason_t enum
+
+    if (wdtHogMarker == WDT_HOG_MARKER_VALID) {
+        Serial.print("[BOOT] task watchdog fired while task was running: ");
+        Serial.println(wdtHogTaskName);
+        wdtHogMarker = 0;
+    }
+
     Serial.print("[BOOT] free heap / minFree / maxAlloc: ");
     Serial.print(ESP.getFreeHeap());
     Serial.print(" / ");
@@ -222,14 +253,6 @@ void setupOTA()
     DEBUG_IF(DEBUG_FLASHER, D_PRINTLN("[OTA] ArduinoOTA ready"));
 }
 
-#ifdef LIGHTNET_MQTT
-    static void onMqttPortalSaved()
-    {
-        if (mqttService) mqttService->notifyConfigChanged();
-    }
-
-#endif
-
 void setupWiFi()
 {
     WiFi.mode(WIFI_STA);
@@ -262,14 +285,6 @@ void setupWiFi()
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
-    #ifdef LIGHTNET_MQTT
-
-        if (mqttConfigStore) {
-            Lightnet::mqttPortalSetup(wifiManager, mqttConfigStore, onMqttPortalSaved);
-        }
-
-    #endif
-
     // This will block for 30 seconds if it can't connect.
     // If you want it non-blocking, you'd need to use startConfigPortal() instead.
     if (!wifiManager->autoConnect("Lightnet-Controller")) {
@@ -300,21 +315,32 @@ void setup()
         Serial.begin(57600);
     #endif
 
-    logBootDiagnostics();
+    Serial.setDebugOutput(true);
 
-    LNPanelsInitializer.configure(
-        // 1 Mbps matches Panel/LightnetPanel.cpp's own EdgeUartTransport::begin() baud -- needs
-        // real bench validation once boards exist, same caveat as every other timing constant in
-        // this design.
-        { .trunkRxPin = CONTROLLER_TRUNK_RX_PIN,
-          .trunkTxPin = CONTROLLER_TRUNK_TX_PIN,
-          .trunkBaud = 1000000UL }
-    );
-    LNPanelsInitializer.start();
+    #if ARDUINO_USB_CDC_ON_BOOT
+        // Native USB CDC has no hardware DTR/RTS line tied to reset, so the app starts
+        // running (and printing) as soon as flashing finishes, independent of whether a
+        // monitor has reattached to the new port yet. Block briefly on the host actually
+        // opening the port so the earliest boot diagnostics aren't lost to that race; give up
+        // after the timeout so a unit with no monitor attached still boots normally.
+        unsigned long serialWaitStart = millis();
+
+        while (!Serial && millis() - serialWaitStart < 3000) {
+            delay(10);
+        }
+
+    #else
+        delay(500);
+    #endif
+
+    logBootDiagnostics();
 
     pinMode(LED_PIN, OUTPUT);
     // digitalWrite(LED_PIN, LOW);
 
+    // Panels must be powered (and their relay UART listening) before the discovery probe below
+    // is sent -- it's a one-shot send with no retry, so firing it before any panel can hear it
+    // means discovery times out empty even with a panel attached.
     pinMode(PANELS_POWER_PIN, OUTPUT);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("reseting panels power..."));
     digitalWrite(PANELS_POWER_PIN, LOW);
@@ -323,6 +349,17 @@ void setup()
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panels to boot"));
     delay(500);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
+
+    LNPanelsInitializer.configure(
+        // 500kbps -- see Panel/LightnetPanel.cpp's own EdgeUartTransport::begin() comment for why
+        // this is lower than the hardware redesign plan's original 1Mbps assumption. Must match
+        // its baud.
+        { .trunkRxPin = CONTROLLER_TRUNK_RX_PIN,
+          .trunkTxPin = CONTROLLER_TRUNK_TX_PIN,
+          .trunkOutputEnablePin = CONTROLLER_TRUNK_OE_PIN,
+          .trunkBaud = 500000UL }
+    );
+    LNPanelsInitializer.start();
 
     #ifdef SIM_MODE
         panelsController = new PanelsController(activeSink);
@@ -343,6 +380,15 @@ void setup()
 void loop()
 {
     LNPanelsInitializer.boot();
+
+    if (!LNPanelsInitializer.isFinished()) {
+        static unsigned long lastWaitingLog = 0;
+
+        if (millis() - lastWaitingLog >= 2000) {
+            DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panel discovery to complete..."));
+            lastWaitingLog = millis();
+        }
+    }
 
     if (LNPanelsInitializer.isFinished()) {
         // IMPORTANT: WiFiManager needs the DNS server to process requests

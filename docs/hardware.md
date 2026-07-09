@@ -71,6 +71,7 @@ ESP32-class controller.
     | Mux select | PC3 / PC2 | `S0`/`S1` on the `CD74HC4052` — chooses which edge's RX the shared USART reads |
     | Edge 0 / 1 / 2 wake | PB1 / PB2 / PB3 | PCINT — "which edge is signalling," drives the mux select; not the data-sample path |
     | LED clock / data | PC4 / PC5 | `LED_SCK`/`LED_MOSI` — clocked protocol (APA102/SK9822-style), no NRZ timing |
+    | Debug TX | PD7 | Bit-banged, TX-only debug UART (`DebugSerial`, 9600 8N1) — the only spare port-D pin, since USART0 is owned by the relay trunk |
 
     Matches [`docs/hardware/schematics/Panel.png`](hardware/schematics/Panel.png). Only USART0 is
     used; USART1 is unused/spare.
@@ -81,16 +82,18 @@ ESP32-class controller.
     |---|---|---|
     | Status LED (active low) | GPIO 2 | GPIO 15 |
     | Panel power enable | GPIO 21 | GPIO 7 |
-    | Trunk RX (`Serial1`) | GPIO 12 | GPIO 11 |
-    | Trunk TX (`Serial1`) | GPIO 13 | GPIO 9 |
+    | Trunk RX (`Serial1`) | GPIO 12 | GPIO 3 |
+    | Trunk TX (`Serial1`) | GPIO 13 | GPIO 5 |
+    | Trunk output-enable (OE#, gates U4 onto the shared wire) | GPIO 14 | GPIO 9 |
 
-    Defaults in `src/controller/config.hpp` (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN`;
-    override in `src/controller.config.hpp`). The trunk TX/RX pair (`PTX`/`PRX` on
-    [`docs/hardware/schematics/Controller.png`](hardware/schematics/Controller.png)) feeds `Serial1`.
-    `Controller/Relay/ControllerEdgeTransport` (`LNTrunkTransport`, the shared global instance) takes
-    an already-configured `HardwareSerial&`, so pin routing itself is `PanelsInitializer::start()`'s
-    call to `Serial1.begin(baud, SERIAL_8N1, rxPin, txPin)`, not baked into the transport class. Not
-    yet bench-validated — no boards exist yet.
+    Defaults in `src/controller/config.hpp` (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN`/
+    `CONTROLLER_TRUNK_OE_PIN`; override in `src/controller.config.hpp`). The trunk TX/RX pair
+    (`PTX`/`PRX` on [`docs/hardware/schematics/Controller.png`](hardware/schematics/Controller.png))
+    feeds `Serial1`. `Controller/Relay/ControllerEdgeTransport` (`LNTrunkTransport`, the shared
+    global instance) takes an already-configured `HardwareSerial&`, so pin routing itself is
+    `PanelsInitializer::start()`'s call to `Serial1.begin(baud, SERIAL_8N1, rxPin, txPin)`, not
+    baked into the transport class. The S2 Mini pins above are bench-verified against a populated
+    board; the ESP32 pins are not yet bench-validated — no populated board of that variant exists.
 
 ---
 

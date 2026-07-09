@@ -28,18 +28,36 @@ namespace Lightnet {
             // The controller has exactly one physical trunk edge.
             static const uint8_t TRUNK_EDGE = 0;
 
+            // How long to wait for a reply to the very first probe before giving up on there
+            // being any panel at all and completing with an empty tree.
+            static const uint32_t ROOT_TIMEOUT_MS = 3000;
+
+            // How often to resend the root probe while nothing has replied yet. The very first
+            // pull can easily lose the race against a panel's own boot time (power-on reset +
+            // USART init), and it's a broadcast onto a currently-idle trunk, so resending costs
+            // nothing but another 0xFF-prefixed frame -- see DiscoveryCoordinator.cpp's tick().
+            static const uint32_t ROOT_RETRY_INTERVAL_MS = 500;
+
             // `treeBuilder` is optional (nullptr = don't accumulate a topology, e.g. tests that
             // only care about the DFS sequencing) — see DiscoveryTreeBuilder.hpp.
             explicit DiscoveryCoordinator(IEdgeLink &trunkLink, DiscoveryTreeBuilder *treeBuilder = nullptr);
 
-            // Sends the very first probe (assigning index 1) directly on the trunk edge.
-            void begin();
+            // Sends the very first probe (assigning index 1) directly on the trunk edge. `nowMs`
+            // seeds the root-registration timeout; callers that don't care about the timeout
+            // (most existing tests) can omit it.
+            void begin(uint32_t nowMs = 0);
 
             // Feed every frame that arrives on the trunk edge here.
             void onFrameArrived(const Protocol::PacketMeta *frame, uint8_t size);
 
+            // Resends the root probe every ROOT_RETRY_INTERVAL_MS until it registers, and gives
+            // up with an empty tree after ROOT_TIMEOUT_MS. Call regularly regardless of whether a
+            // frame arrived; a no-op once the root has registered or the tree is complete.
+            void tick(uint32_t nowMs);
+
             // True once the whole tree has been walked (the root's own subtree reports done and
-            // the resume stack is empty).
+            // the resume stack is empty) — or the root-registration timeout elapsed with no
+            // panel ever replying, in which case the tree is complete but empty.
             bool isComplete() const;
 
         private:
@@ -50,7 +68,10 @@ namespace Lightnet {
             uint16_t stack[Lightnet::LIGHTNET_MAX_PANELS];
             uint8_t stackDepth;
             bool complete;
+            uint32_t beginMs;
+            uint32_t lastRootPullMs;
 
+            void sendRootPull(uint32_t nowMs);
             void handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply);
             void handleDiscoveryDone();
             void sendAdvance(uint16_t target);

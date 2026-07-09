@@ -240,6 +240,73 @@ void test_unrelated_packet_type_is_ignored()
     TEST_ASSERT_FALSE(coordinator.isComplete());
 }
 
+void test_no_reply_completes_empty_after_root_timeout()
+{
+    MockEdgeLink link;
+    DiscoveryTreeBuilder treeBuilder(3);
+    DiscoveryCoordinator coordinator(link, &treeBuilder);
+
+    coordinator.begin(1000);
+
+    coordinator.tick(1000 + DiscoveryCoordinator::ROOT_TIMEOUT_MS - 1);
+    TEST_ASSERT_FALSE(coordinator.isComplete());
+
+    coordinator.tick(1000 + DiscoveryCoordinator::ROOT_TIMEOUT_MS);
+    TEST_ASSERT_TRUE(coordinator.isComplete());
+    TEST_ASSERT_EQUAL_UINT8(0, treeBuilder.panelCount());
+}
+
+void test_late_reply_after_root_registers_is_not_treated_as_a_timeout()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply));
+
+    coordinator.tick(DiscoveryCoordinator::ROOT_TIMEOUT_MS + 1000);
+    TEST_ASSERT_FALSE(coordinator.isComplete());  // still waiting on the root's own subtree, not timed out
+}
+
+void test_root_pull_is_resent_while_unanswered()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);
+    TEST_ASSERT_EQUAL(1, link.count);  // the initial pull from begin()
+
+    coordinator.tick(DiscoveryCoordinator::ROOT_RETRY_INTERVAL_MS - 1);
+    TEST_ASSERT_EQUAL(1, link.count);  // too soon to resend
+
+    coordinator.tick(DiscoveryCoordinator::ROOT_RETRY_INTERVAL_MS);
+    TEST_ASSERT_EQUAL(2, link.count);  // first retry
+
+    coordinator.tick(2 * DiscoveryCoordinator::ROOT_RETRY_INTERVAL_MS);
+    TEST_ASSERT_EQUAL(3, link.count);  // second retry
+    TEST_ASSERT_EQUAL_UINT8(Protocol::PACKET_INITIALIZATION_PULL, link.frameAt(2)->header.type);
+}
+
+void test_root_pull_stops_being_resent_once_root_registers()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply));
+
+    int countAfterRegistration = link.count;
+
+    coordinator.tick(10 * DiscoveryCoordinator::ROOT_RETRY_INTERVAL_MS);
+    TEST_ASSERT_EQUAL(countAfterRegistration, link.count);  // no more root pulls once registered
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -254,6 +321,10 @@ int main(int argc, char **argv)
     RUN_TEST(test_tree_builder_records_root_and_link_when_provided);
     RUN_TEST(test_rejected_reply_is_never_recorded_by_tree_builder);
     RUN_TEST(test_unrelated_packet_type_is_ignored);
+    RUN_TEST(test_no_reply_completes_empty_after_root_timeout);
+    RUN_TEST(test_late_reply_after_root_registers_is_not_treated_as_a_timeout);
+    RUN_TEST(test_root_pull_is_resent_while_unanswered);
+    RUN_TEST(test_root_pull_stops_being_resent_once_root_registers);
 
     return UNITY_END();
 }

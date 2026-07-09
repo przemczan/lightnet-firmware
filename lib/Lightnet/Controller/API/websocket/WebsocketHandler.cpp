@@ -25,6 +25,11 @@ void WebsocketHandler::handleIncommingMessages()
     uint16_t size;
 
     while (queue->dequeue((void *&)message, size)) {
+        DEBUG_IF(DEBUG_API, {
+            D_PRINT("[CMD SRV] message:");
+            dumpMem(message->payload, message->payloadSize);
+        });
+
         this->handleMessage(message, size);
     }
 
@@ -165,6 +170,17 @@ uint8_t WebsocketHandler::cmdGetEdgesList(uint32_t clientId)
 
     for (uint16_t idx = 0; idx < panelsCount; idx++) {
         edgesTotalCount += panels->get(idx)->edges->getSize();
+    }
+
+    // Sanity cap before sizing the buffer below (a VLA on the call stack) -- LIGHTNET_MAX_PANELS
+    // panels at up to 5 edges each (panel.config.hpp.example's supported range) is already the
+    // legitimate worst case; anything past that means the discovered panel tree is corrupted, and
+    // trusting it to size a stack allocation would silently overrun the stack instead of failing
+    // loudly.
+    static const uint16_t MAX_PLAUSIBLE_EDGES = Lightnet::LIGHTNET_MAX_PANELS * 5;
+
+    if (edgesTotalCount > MAX_PLAUSIBLE_EDGES) {
+        return ERROR_EDGES_LIST_TOO_LARGE;
     }
 
     uint16_t bufferSize =

@@ -16,9 +16,11 @@ LightnetPanel::LightnetPanel()
 
 void LightnetPanel::begin()
 {
-    // 1 Mbps per the hardware redesign plan §5's latency-budget assumption -- needs real bench
-    // validation once boards exist, same caveat as every other timing constant in this design.
-    LNEdgeTransport.begin(1000000UL);
+    // 500kbps -- an exact 16MHz divisor (UBRR=1, 0% baud error). The hardware redesign plan's §5
+    // latency budget assumes 1Mbps, but this bus's physical margin (mux settling + buffer
+    // propagation + wake latency + cabling) doesn't hold up at that speed on real hardware; 500kbps
+    // is the fastest exact divisor below it. Must match src/controller/main.cpp's trunkBaud.
+    LNEdgeTransport.begin(500000UL);
 }
 
 void LightnetPanel::onEdgeWakeIsr(uint8_t edgeIndex)
@@ -43,6 +45,15 @@ void LightnetPanel::pollWake(uint32_t nowMs)
         return;
     }
 
+    if (LNEdgeTransport.isTransmitting()) {
+        // Our own edge's drive can couple onto a neighbouring edge's separate wake-sense line
+        // (PB1/PB2/PB3 sense each edge directly, not through the mux -- see
+        // EdgeUartTransport.hpp's pin map), producing a wake with no real frame behind it. Left
+        // unguarded, claiming it steals the mux onto the wrong edge until the next real wake
+        // fixes it -- discard instead, exactly like onRxByte()'s own self-echo mask for bytes.
+        return;
+    }
+
     if (this->receiver.onEdgeWake(edge, nowMs)) {
         LNEdgeTransport.selectRxEdge(edge);
     }
@@ -51,6 +62,13 @@ void LightnetPanel::pollWake(uint32_t nowMs)
 void LightnetPanel::pollBytes(uint32_t nowMs)
 {
     while (LNEdgeTransport.available()) {
+        // Re-check for a pending wake before every byte, not just once per tick() -- otherwise a
+        // wake that lands while this loop is still draining (e.g. a slow handler, or traffic
+        // arriving faster than one tick()) never gets claimed: pollWake() only runs once at the
+        // top of tick(), so a claim released mid-drain would starve until this loop empties out
+        // entirely, which incoming traffic can defer indefinitely.
+        this->pollWake(nowMs);
+
         uint8_t value = LNEdgeTransport.readByte();
 
         if (this->receiver.onByte(value, nowMs)) {

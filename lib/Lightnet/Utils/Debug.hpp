@@ -1,39 +1,34 @@
 #pragma once
 
 #if DEBUG
-    #include <Arduino.h>
-
-    inline void _debugPrintTimestamp()
-    {
-        Serial.print('[');
-        Serial.print(millis());
-        Serial.print(F("ms] "));
-    }
-
     #if defined(ARDUINO_ARCH_ESP32)
-        #define D_PRINTF Serial.printf
-        #define D_PRINTFLN(...) do { _debugPrintTimestamp(); Serial.printf(__VA_ARGS__); Serial.println(); } while (0)
-    #else
-        // Define a template that will deliberately fail compilation if called
-        template<typename ... Args>
-        void _unsupported_printf(Args...)
+        #include <Arduino.h>
+
+        inline void _debugPrintTimestamp()
         {
-            static_assert(sizeof...(Args) == -1, "D_PRINTF is not supported on this microcontroller architecture!");
+            Serial.print('[');
+            Serial.print(millis());
+            Serial.print(F("ms] "));
         }
 
-        // Accept any arguments, but pass them to our failing function
-        #define D_PRINTF // (...) _unsupported_printf(__VA_ARGS__)
-        #define D_PRINTFLN // (...) _unsupported_printf(__VA_ARGS__)
-    #endif
+        inline void _debugPrintSpace()
+        {
+            Serial.print(' ');
+        }
 
-    #define DEBUG_BLOCK(...) do { __VA_ARGS__; } while (0)
-    #define DEBUG_IF(flag, ...) do { if (flag) { __VA_ARGS__; } } while (0)
+        inline void _debugPrintNewline()
+        {
+            Serial.println();
+        }
 
-    inline void D_PRINT()
-    {
-    }
+        // Portable flash-string literal for code shared between the controller (ESP32/Arduino)
+        // and the panel (bare-metal AVR) builds, e.g. Core/Relay/PanelDiscoveryDriver.cpp's own
+        // debug logging -- DPF(x) is F(x) here, PF(x) (see Panel/DebugSerial.hpp) there.
+        #define DPF(x) F(x)
 
-    #if defined(ARDUINO_ARCH_ESP32)
+        #define D_PRINTF Serial.printf
+        #define D_PRINTFLN(...) do { _debugPrintTimestamp(); Serial.printf(__VA_ARGS__); Serial.println(); } while (0)
+
         // ESP has ample RAM: plain string literals (const char*) are fine.
         template<typename T>
         inline void D_PRINT(T first)
@@ -41,9 +36,40 @@
             Serial.print(first);
         }
 
-    #else
-        // AVR has ~2KB RAM: a plain "literal" (const char*) gets copied into RAM at
-        // boot. Force callers through F(...) instead, which keeps the string in flash.
+    #elif defined(__AVR__)
+        // Bare-metal AVR (the panel build -- no Arduino core at all, see PanelClock.hpp/main.cpp).
+        // Debug output goes out DebugSerial's bit-banged PD7 TX instead of a hardware USART --
+        // both of the panel's real USARTs (well, its one USART0) are owned by the relay trunk.
+        #include "../Panel/DebugSerial.hpp"
+        #include "../Runtime/PanelClock.hpp"
+
+        // Portable flash-string literal -- see the ESP32 branch's own DPF(x) comment above.
+        #define DPF(x) PF(x)
+
+        inline void _debugPrintTimestamp()
+        {
+            Lightnet::debugSerialWrite('[');
+            Lightnet::debugSerialWrite((long)Lightnet::millis());
+            Lightnet::debugSerialWrite(PF("ms] "));
+        }
+
+        inline void _debugPrintSpace()
+        {
+            Lightnet::debugSerialWrite(' ');
+        }
+
+        inline void _debugPrintNewline()
+        {
+            Lightnet::debugSerialWrite(PF("\r\n"));
+        }
+
+        // No vararg formatting backend on the panel -- D_PRINT/D_PRINTLN's fixed-argument
+        // dispatch below covers what's actually logged there.
+        #define D_PRINTF(...)
+        #define D_PRINTFLN(...)
+
+        // AVR has ~2KB RAM: a plain "literal" (const char*) gets copied into RAM at boot. Force
+        // callers through PF(...) instead, which keeps the string in flash.
         template<typename T, typename U>
         struct _DebugIsSameType {
             static constexpr bool value = false;
@@ -59,30 +85,39 @@
         {
             static_assert(
                 !_DebugIsSameType<T, const char *>::value,
-                "D_PRINT/D_PRINTLN string literals must be wrapped in F(...) on AVR to stay in flash"
+                "D_PRINT/D_PRINTLN string literals must be wrapped in PF(...) on the panel to stay in flash"
             );
-            Serial.print(first);
+            Lightnet::debugSerialWrite(first);
         }
 
-        inline void D_PRINT(const __FlashStringHelper *first)
+        inline void D_PRINT(const Lightnet::FlashStringHelper *first)
         {
-            Serial.print(first);
+            Lightnet::debugSerialWrite(first);
         }
 
+    #else
+        #error "DEBUG=1 has no backend for this architecture -- see Debug.hpp"
     #endif
+
+    #define DEBUG_BLOCK(...) do { __VA_ARGS__; } while (0)
+    #define DEBUG_IF(flag, ...) do { if (flag) { __VA_ARGS__; } } while (0)
+
+    inline void D_PRINT()
+    {
+    }
 
     template<typename T, typename ... Args>
     inline void D_PRINT(T first, Args... args)
     {
         D_PRINT(first);
-        Serial.print(' ');
+        _debugPrintSpace();
         D_PRINT(args ...);
     }
 
     inline void D_PRINTLN()
     {
         _debugPrintTimestamp();
-        Serial.println();
+        _debugPrintNewline();
     }
 
     template<typename ... Args>
@@ -90,7 +125,7 @@
     {
         _debugPrintTimestamp();
         D_PRINT(args ...);
-        Serial.println();
+        _debugPrintNewline();
     }
 
     // Sub-switch defaults — each defaults to 1 unless pre-defined (e.g. via build flag or config override)

@@ -6,11 +6,21 @@ namespace {
     const uint8_t ENABLE_BITS[EdgeUartTransport::EDGE_COUNT] = {
         (1 << PD2), (1 << PD3), (1 << PD4)
     };
+
+    // How many throwaway 0xFF bytes precede every real frame -- see sendOnEdge()'s own comment.
+    // One byte (10us @ 1Mbps, ~160 cycles @ 16MHz) is a tight budget for a *polled* mux switch
+    // (LightnetPanel::pollWake(), called once per main-loop tick() rather than from the wake ISR
+    // itself -- see LightnetPanel.hpp's threading-model note); 4 bytes gives ~4x the slack.
+    // Unvalidated on real hardware -- needs a bench spike to tune for real.
+    const uint8_t PREAMBLE_BYTE_COUNT = 4;
 }
 
 void EdgeUartTransport::begin(uint32_t baud)
 {
-    uint16_t ubrr = (uint16_t)((F_CPU / (16UL * baud)) - 1);
+    // Rounds to nearest instead of truncating (adding half the divisor before the integer
+    // division) -- plain truncation is exact at 1Mbps (16MHz/16 divides evenly) but is off by one
+    // at e.g. 115200 (UBRR=7, +8.5% actual baud, vs the correctly-rounded UBRR=8, -3.55%).
+    uint16_t ubrr = (uint16_t)(((F_CPU + 8UL * baud) / (16UL * baud)) - 1);
 
     UBRR0H = (uint8_t)(ubrr >> 8);
     UBRR0L = (uint8_t)ubrr;
@@ -27,8 +37,12 @@ void EdgeUartTransport::begin(uint32_t baud)
     DDRC |= (1 << PC3) | (1 << PC2);
     PORTC &= ~((1 << PC3) | (1 << PC2));
 
-    DDRD |= (1 << PD2) | (1 << PD3) | (1 << PD4);
-    PORTD &= ~((1 << PD2) | (1 << PD3) | (1 << PD4));
+    // PD2/PD3/PD4 gate the EM74LVC1G125GW tri-state buffers via an active-low OE -- bench-confirmed
+    // (see setEdgeEnable()'s own comment): idle must be HIGH (deasserted/Hi-Z). Set the output
+    // latch HIGH before DDRD goes output, so the pins never glitch through a driven LOW (all three
+    // buffers momentarily enabled) at boot.
+    PORTD |= (1 << PD2) | (1 << PD3) | (1 << PD4);
+    DDRD  |= (1 << PD2) | (1 << PD3) | (1 << PD4);
 }
 
 void EdgeUartTransport::selectRxEdge(uint8_t edgeIndex)
@@ -51,10 +65,17 @@ void EdgeUartTransport::selectRxEdge(uint8_t edgeIndex)
 
 void EdgeUartTransport::setEdgeEnable(uint8_t edgeIndex, bool enabled)
 {
+    // Active-low OE (bench-confirmed: PB3 -- edge 2's own wake-sense line -- stayed dark during a
+    // continuous edge-2 transmission probe while the *other* two edges' wake lines picked up the
+    // leaked data, which is exactly what backwards polarity with no hardware inverter produces:
+    // the target edge's buffer goes Hi-Z when "enabled", and the idle edges' buffers -- driven low,
+    // which this inverted logic treated as disabled -- sit continuously enabled instead, passing
+    // through whatever's on the shared TXD0 line). Mirrors ControllerEdgeTransport's own
+    // active-low OE# for the same EM74LVC1G125GW part.
     if (enabled) {
-        PORTD |= ENABLE_BITS[edgeIndex];
-    } else {
         PORTD &= ~ENABLE_BITS[edgeIndex];
+    } else {
+        PORTD |= ENABLE_BITS[edgeIndex];
     }
 }
 
@@ -78,14 +99,17 @@ void EdgeUartTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta
     // finished shifting out — truncating it. Caught in review, not by any build/link check.
     UCSR0A |= (1 << TXC0);
 
-    // Throwaway preamble byte: absorbs the receiver's mux-settling time plus its wake-to-claim
+    // Throwaway preamble bytes: absorb the receiver's mux-settling time plus its wake-to-claim
     // reaction latency (see EdgeFrameReceiver's class comment) before the real frame starts.
     // Needs no special handling on the receive side — PacketFramer's own resync already treats
-    // an unrecognized leading type byte as noise and skips it, so long as the preamble's value
-    // doesn't itself collide with a real packetType_t (0x00 would — it's PACKET_NOOP, a
-    // recognized, sized type, and would desync the real frame right behind it). 0xFF is not a
-    // valid packetType_t, so packetSizeForType() returns 0 and the framer skips exactly one byte.
-    this->sendByte(0xFF);
+    // each unrecognized leading byte as noise and skips it one at a time (PacketFramer::pushByte()
+    // stays at filled=0 until it sees a byte that looks like a valid packetType_t), so long as the
+    // preamble's value doesn't itself collide with a real packetType_t (0x00 would — it's
+    // PACKET_NOOP, a recognized, sized type, and would desync the real frame right behind it).
+    // 0xFF is not a valid packetType_t, so packetSizeForType() returns 0 for each one.
+    for (uint8_t i = 0; i < PREAMBLE_BYTE_COUNT; i++) {
+        this->sendByte(0xFF);
+    }
 
     const uint8_t *bytes = (const uint8_t *)packet;
 
@@ -121,6 +145,11 @@ void EdgeUartTransport::onRxByte(uint8_t value)
     }
 
     this->rxRing.push(value);  // ring full: byte dropped, self-heals like any other corrupt frame
+}
+
+bool EdgeUartTransport::isTransmitting() const
+{
+    return this->transmitting;
 }
 
 EdgeUartTransport LNEdgeTransport;

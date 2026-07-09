@@ -509,10 +509,7 @@ Available on all controller targets (`controller_esp32`, `controller_s2_mini`).
 
 Optional integration with a local MQTT broker (no TLS in v1). When enabled, the controller publishes Home Assistant MQTT discovery configs and state topics, and subscribes to command topics. Configuration is stored in `/config/mqtt.db`.
 
-**Configure via:**
-
-1. **Captive portal** — WiFi setup form includes an *MQTT (Home Assistant)* section (`Enable MQTT`, broker discovery mode, broker host, port, username, password).
-2. **HTTP** — `GET/PATCH /api/mqtt`.
+**Configure via HTTP** — `GET/PATCH /api/mqtt` (not exposed in the WiFi captive portal — the AsyncWiFiManagerParameter path for it crashes the async_tcp task with the vendored ESPAsyncWiFiManager/ESPAsyncWebServer combination, so it's HTTP-only).
 
 | Method | Path | Body | Response |
 |---|---|---|---|

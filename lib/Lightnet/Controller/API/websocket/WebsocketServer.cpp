@@ -270,11 +270,10 @@ void WebsocketServer::onEvent(AsyncWebSocket *ws, AsyncWebSocketClient *client, 
 
         if (info->final && info->index == 0 && info->len == len) {
             if (info->opcode == WS_BINARY) {
-                DEBUG_IF(DEBUG_API, {
-                    D_PRINT("[CMD SRV] message:");
-                    dumpMem(data, len);
-                });
-
+                // No logging here: this runs on the async_tcp task, and Serial/USB-CDC output
+                // from that context contends with the main loop's own printing right when both
+                // sides are inside the WS library — the incoming frame is dumped from the main
+                // loop instead (WebsocketHandler::handleIncommingMessages).
                 this->onMessage(client, data, len);
             }
         }
@@ -329,15 +328,18 @@ void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, 
 
     memcpy(message->payload, payload, size);
 
+    bool enqueued;
+
     #ifdef ARDUINO_ARCH_ESP32
         portENTER_CRITICAL(&this->queueMux);
     #else
         noInterrupts();
     #endif
 
-    if (!this->cmdQueue->enqueue(message, messageSize)) {
+    enqueued = this->cmdQueue->enqueue(message, messageSize);
+
+    if (!enqueued) {
         this->droppedCount++;
-        DEBUG_IF(DEBUG_API, D_PRINTLN("[CMD SRV][ERROR] queue full"));
     }
 
     #ifdef ARDUINO_ARCH_ESP32
@@ -345,4 +347,10 @@ void WebsocketServer::onMessage(AsyncWebSocketClient *client, uint8_t *payload, 
     #else
         interrupts();
     #endif
+
+    // Outside the critical section: Serial/USB-CDC output takes a FreeRTOS semaphore and needs
+    // interrupts to drain, so printing with the spinlock held freezes a single-core chip solid.
+    if (!enqueued) {
+        DEBUG_IF(DEBUG_API, D_PRINTLN("[CMD SRV][ERROR] queue full"));
+    }
 }

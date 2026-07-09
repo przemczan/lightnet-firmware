@@ -80,8 +80,19 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         // ISR(USART0_RX_vect)/ISR(USART_RX_vect). Not for application use.
         void onRxByte(uint8_t value);
 
+        // True for the whole duration of sendOnEdge() -- lets LightnetPanel::pollWake() discard a
+        // PCINT wake latched during our own transmission (see the crosstalk note in
+        // LightnetPanel.cpp: our own edge's drive can couple onto a neighbouring edge's separate
+        // wake-sense line, stealing the mux for a claim that has no real frame behind it).
+        // onRxByte()'s own self-echo mask covers the byte path; this covers the wake path.
+        bool isTransmitting() const;
+
     private:
-        static const uint16_t RX_RING_BYTES = 16;
+        // ByteRing keeps one slot permanently unused (empty/full disambiguation), so this holds
+        // 63 usable bytes -- comfortable margin over one frame (4-byte preamble + up to
+        // Protocol::MAX_PACKET_SIZE payload), where 16 left only 15 usable against a 15-byte
+        // frame: zero margin, so a single stray byte silently overflowed and dropped mid-frame.
+        static const uint16_t RX_RING_BYTES = 64;
 
         void setEdgeEnable(uint8_t edgeIndex, bool enabled);
         void sendByte(uint8_t value);

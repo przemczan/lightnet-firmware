@@ -13,6 +13,8 @@
 #include "PanelClock.hpp"
 #include "LightnetPanel.hpp"
 #include "EdgeUartTransport.hpp"
+#include "DebugSerial.hpp"
+#include "Debug.hpp"
 
 // PB1/PB2/PB3 -> edges 0/1/2 (docs/hardware/schematics/Panel.png, EdgeUartTransport.hpp's pin
 // map). Identifies which edge transitioned and hands off to LightnetPanel::onEdgeWakeIsr() —
@@ -48,6 +50,12 @@ ISR(PCINT0_vect)
 {
     uint8_t value = UDR0;
 
+    // Writing 1 to a PINx bit (not PORTx) toggles that output pin in one instruction on AVR --
+    // negligible ISR overhead, used here as a trunk-RX activity indicator on the same LED
+    // LightnetPanel.cpp's PACKET_RESET_DEVICE handler blinks before it reboots the panel (PD6
+    // otherwise idles low the rest of the time -- see main()'s own setup below).
+    PIND = (1 << PD6);
+
     LNEdgeTransport.onRxByte(value);
 }
 
@@ -56,6 +64,11 @@ int main()
     wdt_disable();
 
     Lightnet::clockInit();
+
+    #if DEBUG
+        Lightnet::debugSerialBegin();
+        DEBUG_IF(DEBUG_INIT, D_PRINTLN(PF("[PANEL] boot")));
+    #endif
 
     // PD6: reset-pulse pin PACKET_RESET_DEVICE drives.
     DDRD  |= (1 << PD6);

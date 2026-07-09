@@ -1,5 +1,6 @@
 #include "PanelDiscoveryDriver.hpp"
 #include "../Common/ProtocolMeta.hpp"
+#include "../../Utils/Debug.hpp"
 
 namespace Lightnet {
     PanelDiscoveryDriver::PanelDiscoveryDriver(PanelDiscovery &discovery, IEdgeLink &link)
@@ -59,6 +60,8 @@ namespace Lightnet {
         this->probingEdge = NO_EDGE;
         this->discovery.onChildProbeFailed(timedOutEdge);
         this->tryNextEdge(nowMs);
+
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] probe timeout edge"), timedOutEdge));
     }
 
     void PanelDiscoveryDriver::handleInitializationPull(
@@ -85,6 +88,8 @@ namespace Lightnet {
         }
 
         this->link.sendOnEdge(fromEdge, Protocol::packetMeta(reply), sizeof(reply));
+
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] pull edge"), fromEdge, DPF("-> idx"), reply.panelIndex));
     }
 
     void PanelDiscoveryDriver::handleRegisterEdgeReply(
@@ -98,6 +103,8 @@ namespace Lightnet {
         if (reply->panelIndex != Protocol::DISCOVERY_REJECTED_INDEX) {
             this->discovery.onChildProbeAccepted(fromEdge);
 
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] child accepted edge"), fromEdge));
+
             // Stop here -- do NOT relay the reply upstream ourselves. PanelRouter's upstream
             // rule ("arrived on any non-parent edge -> route to parent") doesn't check whether
             // that edge was Connected before this frame arrived, so as long as the caller also
@@ -110,6 +117,8 @@ namespace Lightnet {
 
         this->discovery.onChildProbeFailed(fromEdge);
         this->tryNextEdge(nowMs);
+
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] child rejected edge"), fromEdge));
     }
 
     void PanelDiscoveryDriver::handleAdvance(const Protocol::PacketDiscoveryAdvance *advance, uint32_t nowMs)
@@ -120,6 +129,8 @@ namespace Lightnet {
 
         this->pendingAssignIndex = advance->assignIndex;
         this->tryNextEdge(nowMs);
+
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] advance assign idx"), advance->assignIndex));
     }
 
     void PanelDiscoveryDriver::tryNextEdge(uint32_t nowMs)
@@ -143,6 +154,8 @@ namespace Lightnet {
             this->probeStartedMs = nowMs;
             this->link.sendOnEdge(edge, Protocol::packetMeta(pull), sizeof(pull));
 
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] probing edge"), edge));
+
             return;
         }
 
@@ -153,5 +166,7 @@ namespace Lightnet {
         done.panelIndex = this->assignedIndex;
 
         this->link.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(done), sizeof(done));
+
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] subtree done idx"), this->assignedIndex));
     }
 }  // namespace Lightnet

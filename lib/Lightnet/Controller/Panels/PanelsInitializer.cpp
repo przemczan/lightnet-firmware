@@ -30,8 +30,9 @@ void PanelsInitializer::configure(configuration_t config)
 void PanelsInitializer::start()
 {
     Serial1.begin(this->config.trunkBaud, SERIAL_8N1, this->config.trunkRxPin, this->config.trunkTxPin);
+    LNTrunkTransport.begin(this->config.trunkOutputEnablePin);
 
-    this->discoveryService.begin();
+    this->discoveryService.begin(millis());
 }
 
 void PanelsInitializer::boot()
@@ -40,7 +41,7 @@ void PanelsInitializer::boot()
         return;
     }
 
-    this->discoveryService.tick();
+    this->discoveryService.tick(millis());
 
     if (this->discoveryService.isComplete()) {
         this->convertDiscoveredTreeToPanels();

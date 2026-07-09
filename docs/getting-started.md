@@ -82,7 +82,7 @@ All environments are defined in `platformio.ini`.
 
     All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE`: the scene engine and `PanelsController` stay on `ControllerPacketSink`/`LNBus` (routed to `SimPanelManager`) since sim panels don't speak the relay's UART protocol, while real hardware uses `ControllerRelayPacketSink` over `Serial1` instead — see [Architecture](architecture.md) §3.
 
-    **MQTT / Home Assistant** is available on all controller targets (`LIGHTNET_MQTT=1`, ESP32-class only now). Enable it via the WiFi captive portal (MQTT section) or `PATCH /api/mqtt` after the controller is on the network. By default the controller **auto-discovers** the broker (`_mqtt._tcp` mDNS, then `homeassistant.local` / `hassio.local`); set a manual broker host to skip discovery. Home Assistant discovers Lightnet entities automatically when its MQTT integration uses the same broker. See [`docs/api.md`](api.md) §2.9 for topic layout and discovery modes.
+    **MQTT / Home Assistant** is available on all controller targets (`LIGHTNET_MQTT=1`, ESP32-class only now). Enable it via `PATCH /api/mqtt` after the controller is on the network. By default the controller **auto-discovers** the broker (`_mqtt._tcp` mDNS, then `homeassistant.local` / `hassio.local`); set a manual broker host to skip discovery. Home Assistant discovers Lightnet entities automatically when its MQTT integration uses the same broker. See [`docs/api.md`](api.md) §2.9 for topic layout and discovery modes.
 
 === "Native tests"
 
@@ -95,7 +95,7 @@ All environments are defined in `platformio.ini`.
     | Environment | Board | Uploader | Bootloader | Notes |
     |---|---|---|---|---|
     | `panel_atmega328_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
-    | `panel_atmega328pb` | ATmega328PB | USBasp | relay bootloader at `0x7000` | `-D` flag preserves bootloader on erase. **Bare-metal** (hardware redesign plan §10/§11) — no `framework = arduino`. Both panel and controller have cut over to the relay protocol; builds clean but is not yet bench-validated on real hardware. |
+    | `panel_atmega328pb` | ATmega328PB | USBasp | relay bootloader at `0x7000` | Every upload chip-erases (wiping any resident bootloader — re-burn via the bootloader envs when OTA testing needs it): skipping the erase with avrdude's `-D` corrupts every re-flash, since ISP writes can only clear bits and chip erase is the only erase ISP has. **Bare-metal** (hardware redesign plan §10/§11) — no `framework = arduino`. Both panel and controller have cut over to the relay protocol; builds clean but is not yet bench-validated on real hardware. |
     | `panel_atmega328p` | ATmega328P | USBasp | relay bootloader at `0x7000` | Same binary as 328PB |
 
 === "Bootloader (one-time)"
@@ -110,13 +110,18 @@ All environments are defined in `platformio.ini`.
 ## Panel fuses (ATmega328PB / 328P)
 
 !!! warning "Flash fuses through the bootloader environment"
-    Wrong fuse values can lock the microcontroller. Use `pio run -e atmega328p_bootloader -t fuses` — don't set them by hand unless you know exactly what you're doing.
+    Wrong fuse values can lock the microcontroller. Use `pio run -e atmega328p_bootloader -t fuses` (or the `pb` variant) — don't set them by hand unless you know exactly what you're doing. If ISP stops responding to a chip right after a fuse write (works fine before, dead after — on old *and* brand-new chips), suspect an invalid `CKSEL`/clock-source fuse before anything else: with no working system clock, the target can't run the SPI programming state machine at all, so even reading the device signature times out. Standard ISP cannot recover from this — either inject an external clock signal into XTAL1 (often enough to revive ISP long enough to rewrite fuses) or use high-voltage/parallel programming, which doesn't depend on the target's own clock.
 
 ```
-lfuse = 0xF7  — 16 MHz external full-swing crystal
+lfuse = 0xF7  — 328P: Full Swing Crystal Oscillator (0.4-20 MHz, rail-to-rail XTAL2 swing, robust
+                to board noise), slowest/safest start-up ramp
+lfuse = 0xF7  — 328PB: Full Swing isn't defined on this variant's datasheet — Low Power Crystal
+                Oscillator (8-16 MHz band) instead, same start-up ramp
 hfuse = 0xD8  — SPIEN, EESAVE, BOOTRST (4 KB boot section at 0x7000)
-efuse = 0xFC  — BOD 4.3 V
+efuse = 0xFD  — BOD 2.7 V
 ```
+
+328P and 328PB take different `lfuse` values (`panel_fuses_328` / `env:panel_atmega328pb` / `env:atmega328pb_bootloader` in `platformio.ini`) — don't copy one variant's fuse bytes onto the other.
 
 One-time sequence per panel:
 
@@ -126,7 +131,14 @@ pio run -e atmega328p_bootloader -t upload   # burn the relay bootloader
 pio run -e panel_atmega328pb  -t upload      # burn panel application
 ```
 
-After this, future panel updates are wireless via the controller. See [OTA & Updates](ota.md).
+After this, future panel updates are wireless via the controller — see [OTA & Updates](ota.md).
+
+!!! warning "Every ISP app upload wipes the bootloader — re-burn it"
+    `panel_atmega328p`/`panel_atmega328pb` chip-erase before writing (ISP has no partial erase, and
+    a flash write can only clear bits, never set them, so skipping erase corrupts the app the
+    moment a different image is written over the old one). A full chip erase also wipes whatever
+    was at `0x7000`. If you ever flash the app again over ISP (bench testing, recovery), re-run the
+    `atmega328p_bootloader -t upload` step afterward, or the panel won't boot into the app at all.
 
 ---
 

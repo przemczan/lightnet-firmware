@@ -3,6 +3,7 @@
 #include "WebsocketApi.hpp"
 #include "WebsocketServer.hpp"
 #include "../../../Common/Protocol.hpp"
+#include "../../../Core/Common/LightnetConfig.hpp"
 #include "../../../Utils/Debug.hpp"
 #include "../../../Utils/Crc.hpp"
 #include "../../../Utils/Mem.hpp"
@@ -17,6 +18,7 @@ class WebsocketHandler
     static const uint8_t ERROR_MESSAGE_SIZE_TOO_SMALL = 0x01;
     static const uint8_t ERROR_MESSAGE_SIZE_MISMATCH = 0x02;
     static const uint8_t ERROR_MESSAGE_INVALID_COMMAND = 0x03;
+    static const uint8_t ERROR_EDGES_LIST_TOO_LARGE = 0x04;
 
     private:
         WebsocketServer *websocketServer;

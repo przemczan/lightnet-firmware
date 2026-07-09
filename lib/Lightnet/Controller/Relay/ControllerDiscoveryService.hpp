@@ -20,16 +20,21 @@
 class ControllerDiscoveryService
 {
     public:
+        // Upper bound on bytes drained per tick() call -- see tick()'s own comment.
+        static const uint16_t MAX_BYTES_PER_TICK = 64;
+
         // edgeCountPerPanel: the uniform per-panel edge count (see DiscoveryTreeBuilder.hpp) —
         // needed to fill in the discovered tree's edgeCounts[] for PanelGraph::build().
         ControllerDiscoveryService(ControllerEdgeTransport &transport, uint8_t edgeCountPerPanel);
 
         // Sends the first probe down the trunk.
-        void begin();
+        void begin(uint32_t nowMs);
 
         // Drains whatever bytes have arrived since the last call through the framer, feeding
-        // any completed frame to the coordinator.
-        void tick();
+        // any completed frame to the coordinator; also advances the root-registration timeout
+        // (see DiscoveryCoordinator::tick()) so discovery still completes, empty, with no panel
+        // attached at all.
+        void tick(uint32_t nowMs);
 
         bool isComplete() const;
 

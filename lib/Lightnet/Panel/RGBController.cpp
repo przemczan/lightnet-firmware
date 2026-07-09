@@ -122,13 +122,13 @@ void RGBController::maybeLog()
         lastLogOn     = isOn;
 
         D_PRINTLN(
-            F("[RGB]"),
+            PF("[RGB]"),
             colorValue.r,
             colorValue.g,
             colorValue.b,
-            F("gl:"),
+            PF("gl:"),
             globalBrightnessValue,
-            F("on:"),
+            PF("on:"),
             isOn
         );
     });

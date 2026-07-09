@@ -54,6 +54,43 @@ The matching HTTP endpoint is `GET /api/panels`.
 
 ---
 
+## Panel ISP programming issues
+
+### "Target doesn't answer" (avrdude)
+
+`avrdude` reports something like `Target doesn't answer. 1` (or `initialization failed`) when
+flashing a panel over USBasp (`pio run -e panel_atmega328p -t upload` /
+`panel_atmega328pb`). This might mean the target AVR's core clock isn't running at all, so it can never
+service the ISP (SPI) handshake — ISP inherently needs the target's own clock to respond, unlike a
+bootloader-based UART upload.
+
+The near-universal cause on these boards is a fuse/crystal mismatch: `panel_fuses_328` in
+`platformio.ini` sets the low fuse to select an external crystal oscillator (`0xF7` for the 328P's
+Full Swing Crystal Oscillator, `0xFF`/Low Power Crystal for the 328PB variant — see that section's
+own comment). If `X2` (the 16MHz crystal) isn't actually oscillating — missing, dead, a cold
+solder joint, or wrong load caps — the chip is fused to wait on a clock source that never arrives,
+and it's effectively bricked from ISP's point of view even though the silicon itself is fine.
+
+**Fix — inject an external clock**: a second, known-good AVR can generate a clock signal for the
+bricked target to run on, just long enough to rewrite its fuses back to something that works.
+
+1. Flash `tools/recovery/ckout_divider.cpp` (via `pio run -e donor_ckout_slowclock -t upload`) onto
+   a spare ATmega328P. It divides the donor's own 16MHz system clock by 16 (`CLKPR`) before it
+   reaches the `CKOUT`/PB0 pin — a clean ~1MHz square wave is easier to couple in and less likely
+   to fight the bricked panel's own dead oscillator amplifier bias than the raw 16MHz would be.
+2. Enable the donor's own `CKOUT` fuse so PB0 actually outputs the system clock — it's low-fuse bit
+   6 (active-low), so cleared relative to `panel_fuses_328`'s normal `0xF7`: write lfuse `0xB7` on
+   the donor specifically (`avrdude ... -U lfuse:w:0xB7:m`), not on the bricked target.
+3. Feed the donor's `CKOUT`/PB0 output into the bricked target's `XTAL1` pin through a coupling
+   capacitor (a small ceramic, a few nF–10s of nF works well) — this is `X2`'s pin 1/PB6 on
+   `Panel.png`.
+4. With the injected clock running, `avrdude` should be able to talk to the target again. Rewrite
+   its fuses back to the correct crystal-based values (`panel_fuses_328`, or the matching 328PB
+   override) and reflash normally, then remove the donor clock and confirm the panel boots on its
+   own crystal.
+
+---
+
 ## Common user-facing issues
 
 | Symptom | What to check |
