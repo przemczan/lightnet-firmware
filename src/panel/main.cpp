@@ -50,12 +50,6 @@ ISR(PCINT0_vect)
 {
     uint8_t value = UDR0;
 
-    // Writing 1 to a PINx bit (not PORTx) toggles that output pin in one instruction on AVR --
-    // negligible ISR overhead, used here as a trunk-RX activity indicator on the same LED
-    // LightnetPanel.cpp's PACKET_RESET_DEVICE handler blinks before it reboots the panel (PD6
-    // otherwise idles low the rest of the time -- see main()'s own setup below).
-    PIND = (1 << PD6);
-
     LNEdgeTransport.onRxByte(value);
 }
 
@@ -70,7 +64,7 @@ int main()
         DEBUG_IF(DEBUG_INIT, D_PRINTLN(PF("[PANEL] boot")));
     #endif
 
-    // PD6: reset-pulse pin PACKET_RESET_DEVICE drives.
+    // PD6: trunk-activity LED (EdgeUartTransport) and reset-pulse pin for PACKET_RESET_DEVICE.
     DDRD  |= (1 << PD6);
     PORTD &= ~(1 << PD6);
 

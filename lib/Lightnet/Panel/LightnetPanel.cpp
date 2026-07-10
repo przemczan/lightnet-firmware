@@ -93,10 +93,6 @@ void LightnetPanel::flushPendingRxBusLogs()
 
 void LightnetPanel::pollBytes(uint32_t nowMs)
 {
-    #if DEBUG
-        this->pendingRxBusLogCount = 0;
-    #endif
-
     while (LNEdgeTransport.available()) {
         // Re-check for a pending wake before every byte, not just once per tick() -- otherwise a
         // wake that lands while this loop is still draining (e.g. a slow handler, or traffic
@@ -176,11 +172,13 @@ void LightnetPanel::tick(uint32_t nowMs)
     if (LNEdgeTransport.available()) {
         this->pollWake(nowMs);
         this->pollBytes(nowMs);
+        LNEdgeTransport.pollTrunkActivityLed(nowMs);
 
         return;
     }
 
     this->flushIdleDebugLogs(nowMs);
+    LNEdgeTransport.pollTrunkActivityLed(nowMs);
 }
 
 void LightnetPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t size)

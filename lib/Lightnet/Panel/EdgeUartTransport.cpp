@@ -90,6 +90,7 @@ void EdgeUartTransport::sendByte(uint8_t value)
 void EdgeUartTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta *packet, uint8_t size)
 {
     this->transmitting = true;
+    PORTD |= (1 << PD6);
     this->setEdgeEnable(edgeIndex, true);
 
     // TXC0 is cleared only by writing a 1 to it (or by a TXC ISR, unused here) — clear any stale
@@ -122,6 +123,10 @@ void EdgeUartTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta
 
     this->setEdgeEnable(edgeIndex, false);
     this->transmitting = false;
+
+    if (!this->available()) {
+        PORTD &= ~(1 << PD6);
+    }
 }
 
 bool EdgeUartTransport::available()
@@ -144,12 +149,41 @@ void EdgeUartTransport::onRxByte(uint8_t value)
         return;  // self-echo — see the class comment
     }
 
+    PORTD |= (1 << PD6);
+    this->rxActivityStamp++;
     this->rxRing.push(value);  // ring full: byte dropped, self-heals like any other corrupt frame
 }
 
 bool EdgeUartTransport::isTransmitting() const
 {
     return this->transmitting;
+}
+
+void EdgeUartTransport::pollTrunkActivityLed(uint32_t nowMs)
+{
+    static uint8_t seenStamp = 0;
+
+    if (this->rxActivityStamp != seenStamp) {
+        seenStamp = this->rxActivityStamp;
+        this->lastRxActivityMs = nowMs;
+    }
+
+    if (this->transmitting) {
+        return;
+    }
+
+    if (this->available()) {
+        PORTD |= (1 << PD6);
+        this->lastRxActivityMs = nowMs;
+
+        return;
+    }
+
+    if ((uint32_t)(nowMs - this->lastRxActivityMs) < TRUNK_LED_IDLE_MS) {
+        return;
+    }
+
+    PORTD &= ~(1 << PD6);
 }
 
 EdgeUartTransport LNEdgeTransport;

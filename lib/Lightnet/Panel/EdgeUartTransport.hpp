@@ -87,7 +87,11 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         // onRxByte()'s own self-echo mask covers the byte path; this covers the wake path.
         bool isTransmitting() const;
 
+        // PD6 trunk-activity LED: on for the whole RX burst or sendOnEdge() window, off after idle.
+        void pollTrunkActivityLed(uint32_t nowMs);
+
     private:
+        static const uint32_t TRUNK_LED_IDLE_MS = 2;
         // ByteRing keeps one slot permanently unused (empty/full disambiguation), so this holds
         // 63 usable bytes -- comfortable margin over one frame (4-byte preamble + up to
         // Protocol::MAX_PACKET_SIZE payload), where 16 left only 15 usable against a 15-byte
@@ -99,6 +103,8 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
 
         Lightnet::ByteRing<RX_RING_BYTES> rxRing;
         volatile bool transmitting = false;
+        volatile uint8_t rxActivityStamp = 0;
+        uint32_t lastRxActivityMs = 0;
 };
 
 extern EdgeUartTransport LNEdgeTransport;
