@@ -32,6 +32,18 @@ namespace Lightnet {
             // being any panel at all and completing with an empty tree.
             static const uint32_t ROOT_TIMEOUT_MS = 3000;
 
+            // After the root has registered, how long to wait without any further
+            // REGISTER_EDGE or DISCOVERY_DONE before giving up and booting with the partial
+            // tree discovered so far. Override via DISCOVERY_WALK_STALL_TIMEOUT_MS in
+            // controller.config.hpp (see controller.config.hpp.example).
+            #ifndef DISCOVERY_WALK_STALL_TIMEOUT_MS
+                static const uint32_t WALK_STALL_TIMEOUT_MS = 5000;
+
+            #else
+                static const uint32_t WALK_STALL_TIMEOUT_MS = DISCOVERY_WALK_STALL_TIMEOUT_MS;
+
+            #endif
+
             // How often to resend the root probe while nothing has replied yet. The very first
             // pull can easily lose the race against a panel's own boot time (power-on reset +
             // USART init), and it's a broadcast onto a currently-idle trunk, so resending costs
@@ -47,18 +59,25 @@ namespace Lightnet {
             // (most existing tests) can omit it.
             void begin(uint32_t nowMs = 0);
 
-            // Feed every frame that arrives on the trunk edge here.
-            void onFrameArrived(const Protocol::PacketMeta *frame, uint8_t size);
+            // Feed every frame that arrives on the trunk edge here. `nowMs` is used to track
+            // walk-progress for WALK_STALL_TIMEOUT_MS; callers may pass 0 in tests that do not
+            // exercise the stall timeout.
+            void onFrameArrived(const Protocol::PacketMeta *frame, uint8_t size, uint32_t nowMs = 0);
 
-            // Resends the root probe every ROOT_RETRY_INTERVAL_MS until it registers, and gives
-            // up with an empty tree after ROOT_TIMEOUT_MS. Call regularly regardless of whether a
-            // frame arrived; a no-op once the root has registered or the tree is complete.
+            // Resends the root probe every ROOT_RETRY_INTERVAL_MS until it registers, gives
+            // up with an empty tree after ROOT_TIMEOUT_MS, and abandons an in-progress walk
+            // after WALK_STALL_TIMEOUT_MS with no REGISTER_EDGE/DISCOVERY_DONE progress. Call
+            // regularly regardless of whether a frame arrived.
             void tick(uint32_t nowMs);
 
             // True once the whole tree has been walked (the root's own subtree reports done and
-            // the resume stack is empty) — or the root-registration timeout elapsed with no
-            // panel ever replying, in which case the tree is complete but empty.
+            // the resume stack is empty), the root-registration timeout elapsed with no panel
+            // ever replying (empty tree), or the walk stall timeout fired (partial tree).
             bool isComplete() const;
+
+            // True when isComplete() because WALK_STALL_TIMEOUT_MS elapsed mid-walk — the
+            // accumulated tree is partial but still usable.
+            bool walkStalled() const;
 
         private:
             IEdgeLink &trunkLink;
@@ -68,8 +87,10 @@ namespace Lightnet {
             uint16_t stack[Lightnet::LIGHTNET_MAX_PANELS];
             uint8_t stackDepth;
             bool complete;
+            bool walkStalledFlag;
             uint32_t beginMs;
             uint32_t lastRootPullMs;
+            uint32_t lastProgressMs;
 
             void sendRootPull(uint32_t nowMs);
             void handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply);

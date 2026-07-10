@@ -3,8 +3,7 @@
 
 namespace Lightnet {
     PacketFramer::PacketFramer(bool validateProtocolVersion)
-        : filled(0), expectedSize(0), validateProtocolVersion(validateProtocolVersion),
-        unsyncedLogged(false)
+        : filled(0), expectedSize(0), validateProtocolVersion(validateProtocolVersion)
     {
     }
 
@@ -26,20 +25,10 @@ namespace Lightnet {
             uint8_t size = Protocol::packetSizeForType((Protocol::packetType_t)value);
 
             if (size == 0) {
-                // One line per unsynced run, not per byte -- a preamble is several bytes long and
-                // each print is a blocking bit-banged call (see DebugSerial.hpp) that competes
-                // with the ISR draining the rest of the same frame off the wire.
-                if (!this->unsyncedLogged) {
-                    DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[FRAMER] unsynced byte"), value));
-
-                    this->unsyncedLogged = true;
-                }
-
                 return false;  // unrecognized type byte — noise, stay unsynced
             }
 
-            this->expectedSize   = size;
-            this->unsyncedLogged = false;
+            this->expectedSize = size;
         }
 
         this->buffer[this->filled] = value;
@@ -49,47 +38,39 @@ namespace Lightnet {
             return false;  // frame still incomplete
         }
 
-        uint8_t validationResult = Protocol::validatePacket(
-            (const Protocol::PacketMeta *)this->buffer,
-            this->filled,
-            this->validateProtocolVersion
-        );
+        const Protocol::PacketMeta *meta = (const Protocol::PacketMeta *)this->buffer;
 
-        if (validationResult != 0) {
-            // One dump per failed frame (not per byte) -- see the unsynced-byte log above for why
-            // per-byte prints in this path are off the table.
-            DEBUG_IF(DEBUG_DISCOVERY, {
-                D_PRINTLN(
-                    DPF("[FRAMER] frame invalid type"),
-                    this->buffer[0],
-                    DPF("size"),
-                    this->filled,
-                    DPF("reason"),
-                    validationResult
-                );
+        bool valid = Protocol::validatePacket(meta, this->filled, this->validateProtocolVersion) == 0;
 
-                _debugPrintTimestamp();
-                D_PRINT(DPF("[FRAMER] bytes:"));
+        #ifndef __AVR__
+            // Panel RX bus logs are deferred to LightnetPanel::flushIdleDebugLogs() -- see
+            // DebugSerial.hpp on why pushByte() must not print on the panel build.
+            DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(
+                         DPF("[BUS] rx type"),
+                         this->buffer[0],
+                         DPF("panel"),
+                         meta->header.targetPanelIndex,
+                         valid ? DPF("valid") : DPF("invalid")
+            ));
 
-                for (uint8_t i = 0; i < this->filled; i++) {
-                    _debugPrintSpace();
-                    D_PRINT(this->buffer[i]);
-                }
+            DEBUG_IF(DEBUG_LIGHTNET_BUS_PACKET_CONTENT, {
+            _debugPrintTimestamp();
+            D_PRINT(DPF("[BUS] rx bytes:"));
 
-                _debugPrintNewline();
-            });
+            for (uint8_t i = 0; i < this->filled; i++) {
+                _debugPrintSpace();
+                D_PRINT(this->buffer[i]);
+            }
 
+            _debugPrintNewline();
+        });
+        #endif
+
+        if (!valid) {
             this->reset();
 
             return false;
         }
-
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(
-                     DPF("[FRAMER] frame ok type"),
-                     this->buffer[0],
-                     DPF("size"),
-                     this->filled
-        ));
 
         return true;
     }

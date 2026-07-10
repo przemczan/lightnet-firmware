@@ -307,6 +307,57 @@ void test_root_pull_stops_being_resent_once_root_registers()
     TEST_ASSERT_EQUAL(countAfterRegistration, link.count);  // no more root pulls once registered
 }
 
+void test_walk_stall_timeout_completes_with_partial_tree()
+{
+    MockEdgeLink link;
+    DiscoveryTreeBuilder treeBuilder(3);
+    DiscoveryCoordinator coordinator(link, &treeBuilder);
+
+    coordinator.begin(0);
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), 0);
+
+    Protocol::PacketRegisterEdge childReply = makeReply(2, 1);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(childReply), sizeof(childReply), 100);
+
+    TEST_ASSERT_EQUAL_UINT8(2, treeBuilder.panelCount());
+    TEST_ASSERT_FALSE(coordinator.isComplete());
+
+    coordinator.tick(100 + DiscoveryCoordinator::WALK_STALL_TIMEOUT_MS - 1);
+    TEST_ASSERT_FALSE(coordinator.isComplete());
+
+    coordinator.tick(100 + DiscoveryCoordinator::WALK_STALL_TIMEOUT_MS);
+    TEST_ASSERT_TRUE(coordinator.isComplete());
+    TEST_ASSERT_TRUE(coordinator.walkStalled());
+    TEST_ASSERT_EQUAL_UINT8(2, treeBuilder.panelCount());
+}
+
+void test_progress_resets_walk_stall_timeout()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), 0);
+
+    coordinator.tick(DiscoveryCoordinator::WALK_STALL_TIMEOUT_MS - 1);
+    TEST_ASSERT_FALSE(coordinator.isComplete());
+
+    Protocol::PacketDiscoveryDone rootDone = makeDone(1);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootDone), sizeof(rootDone), DiscoveryCoordinator::WALK_STALL_TIMEOUT_MS);
+
+    coordinator.tick(2 * DiscoveryCoordinator::WALK_STALL_TIMEOUT_MS);
+    TEST_ASSERT_TRUE(coordinator.isComplete());
+    TEST_ASSERT_FALSE(coordinator.walkStalled());
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -325,6 +376,8 @@ int main(int argc, char **argv)
     RUN_TEST(test_late_reply_after_root_registers_is_not_treated_as_a_timeout);
     RUN_TEST(test_root_pull_is_resent_while_unanswered);
     RUN_TEST(test_root_pull_stops_being_resent_once_root_registers);
+    RUN_TEST(test_walk_stall_timeout_completes_with_partial_tree);
+    RUN_TEST(test_progress_resets_walk_stall_timeout);
 
     return UNITY_END();
 }

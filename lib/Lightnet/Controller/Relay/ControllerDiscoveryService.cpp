@@ -22,20 +22,23 @@ void ControllerDiscoveryService::tick(uint32_t nowMs)
 
     while (this->transport.available() && drained < MAX_BYTES_PER_TICK) {
         if (this->framer.pushByte(this->transport.readByte())) {
-            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] frame type"), this->framer.frame()->header.type));
-
-            this->coordinator.onFrameArrived(this->framer.frame(), this->framer.frameSize());
+            this->coordinator.onFrameArrived(this->framer.frame(), this->framer.frameSize(), nowMs);
         }
 
         drained++;
     }
 
-    DEBUG_IF(DEBUG_DISCOVERY && drained > 0, D_PRINTLN(DPF("[DISC] drained bytes"), drained));
-
     this->coordinator.tick(nowMs);
 
     if (!wasComplete && this->coordinator.isComplete()) {
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] complete, panels found"), this->treeBuilder.panelCount()));
+        if (this->coordinator.walkStalled()) {
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(
+                         DPF("[DISC] stalled, panels found"),
+                         this->treeBuilder.panelCount()
+            ));
+        } else {
+            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] complete, panels found"), this->treeBuilder.panelCount()));
+        }
     }
 }
 

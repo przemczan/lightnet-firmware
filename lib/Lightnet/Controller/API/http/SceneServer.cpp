@@ -1,7 +1,6 @@
 #include "SceneServer.hpp"
 #include "HttpHelpers.hpp"
 #include "HttpJsonCapacity.hpp"
-#include "../../../Utils/AgentDebugLog.hpp"
 #include "../../../Utils/EntryId.hpp"
 #include "../../../Core/Controller/SceneWriter.hpp"
 #include "../../../Utils/SimpleJson.hpp"
@@ -175,9 +174,6 @@ namespace Lightnet {
 
     void SceneServer::handleListScenes(AsyncWebServerRequest *req)
     {
-        AgentDebugLog::setOp("http:list_scenes");
-        AgentDebugLog::logJson("H4", "SceneServer.cpp:handleListScenes", "start");
-
         size_t cap = HttpJson::sceneListCapacity(scenes.count());
 
         char *buf = (char *)malloc(cap);
@@ -206,9 +202,6 @@ namespace Lightnet {
 
         Http::sendOkJson(req, buf);
         free(buf);
-
-        AgentDebugLog::logJson("H4", "SceneServer.cpp:handleListScenes", "done");
-        AgentDebugLog::clearOp();
     }
 
     void SceneServer::handleGetSceneById(AsyncWebServerRequest *req)
@@ -339,9 +332,6 @@ namespace Lightnet {
 
         bool queued = queue.post(
             +[](const uint8_t *a, uint16_t) {
-            AgentDebugLog::setOp("scene:play_by_id");
-            AgentDebugLog::logJson("H3", "SceneServer.cpp:deferPlayById", "start");
-
             Args x;
 
             memcpy(&x, a, sizeof(x));
@@ -350,9 +340,6 @@ namespace Lightnet {
                 x.self->appearance.paletteName(),
                 x.self->appearance.baseColors()
             );
-
-            AgentDebugLog::logJson("H3", "SceneServer.cpp:deferPlayById", "done");
-            AgentDebugLog::clearOp();
         },
             &args,
             sizeof(args)

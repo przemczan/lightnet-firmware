@@ -51,12 +51,19 @@ void ControllerEdgeTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::Pack
 
     digitalWrite(this->outputEnablePin, HIGH);  // back to tri-stated -- free the wire for a reply
 
-    // Dumps exactly what was just handed to the UART. Deliberately after the OE# release: with
-    // a USB CDC host attached these prints take milliseconds, and holding the wire driven
-    // through them collides with the panel's immediate reply, destroying it.
-    DEBUG_IF(DEBUG_DISCOVERY, {
+    // Logging deliberately after the OE# release: with a USB CDC host attached these prints take
+    // milliseconds, and holding the wire driven through them collides with the panel's immediate
+    // reply, destroying it.
+    DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(
+                 DPF("[BUS] tx type"),
+                 (uint8_t)packet->header.type,
+                 DPF("panel"),
+                 packet->header.targetPanelIndex
+    ));
+
+    DEBUG_IF(DEBUG_LIGHTNET_BUS_PACKET_CONTENT, {
         _debugPrintTimestamp();
-        D_PRINT(DPF("[TRUNK TX] type"), ((const uint8_t *)packet)[0], DPF("bytes:"));
+        D_PRINT(DPF("[BUS] tx bytes:"));
 
         const uint8_t *bytes = (const uint8_t *)packet;
 

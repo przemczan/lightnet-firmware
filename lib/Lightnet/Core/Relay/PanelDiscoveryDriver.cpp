@@ -5,8 +5,85 @@
 namespace Lightnet {
     PanelDiscoveryDriver::PanelDiscoveryDriver(PanelDiscovery &discovery, IEdgeLink &link)
         : discovery(discovery), link(link), assignedIndex(0), pendingAssignIndex(0),
-        probingEdge(NO_EDGE), probeStartedMs(0)
+        probingEdge(NO_EDGE), probeStartedMs(0), deferredLogCount(0)
     {
+    }
+
+    void PanelDiscoveryDriver::deferLog(DeferredDiscLog code, uint16_t a, uint16_t b)
+    {
+        if (this->deferredLogCount >= DEFERRED_LOG_CAP) {
+            return;
+        }
+
+        this->deferredLogs[this->deferredLogCount].code = code;
+        this->deferredLogs[this->deferredLogCount].a    = a;
+        this->deferredLogs[this->deferredLogCount].b    = b;
+        this->deferredLogCount++;
+    }
+
+    void PanelDiscoveryDriver::printDeferredLog(const DeferredLogEntry &entry)
+    {
+        switch (entry.code) {
+            case DeferredDiscLog::Pull:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(
+                             DPF("[DISC] pull edge"),
+                             (uint8_t)entry.a,
+                             DPF("-> idx"),
+                             entry.b
+                ));
+                break;
+
+            case DeferredDiscLog::AdvAccept:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] advance assign idx"), entry.a));
+                break;
+
+            case DeferredDiscLog::Probe:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] probing edge"), (uint8_t)entry.a));
+                break;
+
+            case DeferredDiscLog::DoneSend:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] subtree done idx"), entry.a));
+                break;
+
+            case DeferredDiscLog::ChildAccepted:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] child accepted edge"), (uint8_t)entry.a));
+                break;
+
+            case DeferredDiscLog::ChildRejected:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] child rejected edge"), (uint8_t)entry.a));
+                break;
+
+            case DeferredDiscLog::ProbeTimeout:
+                DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] probe timeout edge"), (uint8_t)entry.a));
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    bool PanelDiscoveryDriver::flushOneDeferredLog()
+    {
+        if (this->deferredLogCount == 0) {
+            return false;
+        }
+
+        this->printDeferredLog(this->deferredLogs[0]);
+
+        for (uint8_t i = 1; i < this->deferredLogCount; i++) {
+            this->deferredLogs[i - 1] = this->deferredLogs[i];
+        }
+
+        this->deferredLogCount--;
+
+        return this->deferredLogCount > 0;
+    }
+
+    void PanelDiscoveryDriver::flushDeferredLogs()
+    {
+        while (this->deferredLogCount > 0) {
+            this->flushOneDeferredLog();
+        }
     }
 
     void PanelDiscoveryDriver::onFrameArrived(
@@ -45,6 +122,11 @@ namespace Lightnet {
         return this->assignedIndex;
     }
 
+    bool PanelDiscoveryDriver::isProbing() const
+    {
+        return this->probingEdge != NO_EDGE;
+    }
+
     void PanelDiscoveryDriver::tick(uint32_t nowMs)
     {
         if (this->probingEdge == NO_EDGE) {
@@ -60,8 +142,7 @@ namespace Lightnet {
         this->probingEdge = NO_EDGE;
         this->discovery.onChildProbeFailed(timedOutEdge);
         this->tryNextEdge(nowMs);
-
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] probe timeout edge"), timedOutEdge));
+        this->deferLog(DeferredDiscLog::ProbeTimeout, timedOutEdge);
     }
 
     void PanelDiscoveryDriver::handleInitializationPull(
@@ -88,8 +169,7 @@ namespace Lightnet {
         }
 
         this->link.sendOnEdge(fromEdge, Protocol::packetMeta(reply), sizeof(reply));
-
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] pull edge"), fromEdge, DPF("-> idx"), reply.panelIndex));
+        this->deferLog(DeferredDiscLog::Pull, fromEdge, reply.panelIndex);
     }
 
     void PanelDiscoveryDriver::handleRegisterEdgeReply(
@@ -102,8 +182,7 @@ namespace Lightnet {
 
         if (reply->panelIndex != Protocol::DISCOVERY_REJECTED_INDEX) {
             this->discovery.onChildProbeAccepted(fromEdge);
-
-            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] child accepted edge"), fromEdge));
+            this->deferLog(DeferredDiscLog::ChildAccepted, fromEdge);
 
             // Stop here -- do NOT relay the reply upstream ourselves. PanelRouter's upstream
             // rule ("arrived on any non-parent edge -> route to parent") doesn't check whether
@@ -117,8 +196,7 @@ namespace Lightnet {
 
         this->discovery.onChildProbeFailed(fromEdge);
         this->tryNextEdge(nowMs);
-
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] child rejected edge"), fromEdge));
+        this->deferLog(DeferredDiscLog::ChildRejected, fromEdge);
     }
 
     void PanelDiscoveryDriver::handleAdvance(const Protocol::PacketDiscoveryAdvance *advance, uint32_t nowMs)
@@ -128,9 +206,8 @@ namespace Lightnet {
         }
 
         this->pendingAssignIndex = advance->assignIndex;
+        this->deferLog(DeferredDiscLog::AdvAccept, advance->assignIndex);
         this->tryNextEdge(nowMs);
-
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] advance assign idx"), advance->assignIndex));
     }
 
     void PanelDiscoveryDriver::tryNextEdge(uint32_t nowMs)
@@ -150,11 +227,10 @@ namespace Lightnet {
             pull.panelIndex       = this->pendingAssignIndex;
             pull.parentEdgeIndex  = edge;
 
-            this->probingEdge   = edge;
+            this->probingEdge    = edge;
             this->probeStartedMs = nowMs;
             this->link.sendOnEdge(edge, Protocol::packetMeta(pull), sizeof(pull));
-
-            DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] probing edge"), edge));
+            this->deferLog(DeferredDiscLog::Probe, edge);
 
             return;
         }
@@ -166,7 +242,6 @@ namespace Lightnet {
         done.panelIndex = this->assignedIndex;
 
         this->link.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(done), sizeof(done));
-
-        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] subtree done idx"), this->assignedIndex));
+        this->deferLog(DeferredDiscLog::DoneSend, this->assignedIndex, this->discovery.parentEdge());
     }
 }  // namespace Lightnet

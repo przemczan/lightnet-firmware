@@ -171,6 +171,11 @@
     #ifndef DEBUG_LIGHTNET_BUS
         #define DEBUG_LIGHTNET_BUS 1
     #endif
+    // Full byte dumps of every bus packet — verbose, so this one defaults to 0 even with
+    // DEBUG_LIGHTNET_BUS on.
+    #ifndef DEBUG_LIGHTNET_BUS_PACKET_CONTENT
+        #define DEBUG_LIGHTNET_BUS_PACKET_CONTENT 0
+    #endif
     #ifndef DEBUG_FLASHER
         #define DEBUG_FLASHER 1
     #endif
@@ -208,6 +213,8 @@
     #define DEBUG_RGB_CTRL 0
     #undef  DEBUG_LIGHTNET_BUS
     #define DEBUG_LIGHTNET_BUS 0
+    #undef  DEBUG_LIGHTNET_BUS_PACKET_CONTENT
+    #define DEBUG_LIGHTNET_BUS_PACKET_CONTENT 0
     #undef  DEBUG_FLASHER
     #define DEBUG_FLASHER 0
     #undef  DEBUG_DISCOVERY

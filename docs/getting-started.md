@@ -46,19 +46,22 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     |---|---|
     | `DEBUG_API` | WebSocket / HTTP API logs |
     | `DEBUG_RGB_CTRL` | LED controller logs |
-    | `DEBUG_LIGHTNET_BUS` | Sim panel dispatch logs (`LightnetBus`, `SIM_MODE` only) |
+    | `DEBUG_LIGHTNET_BUS` | Bus packet logs — one line per packet sent/received (type + panel index, valid/invalid); also gates the sim panel dispatch logs (`LightnetBus`, `SIM_MODE`) |
     | `DEBUG_FLASHER` | OTA / panel flash logs |
-    | `DEBUG_DISCOVERY` | Panel discovery / ping logs |
+    | `DEBUG_DISCOVERY` | Panel discovery logs |
     | `DEBUG_INIT` | Startup / init logs |
     | `DEBUG_DEMO` | Demo logs |
+
+    `DEBUG_LIGHTNET_BUS_PACKET_CONTENT` additionally dumps every packet's raw bytes. It is the one sub-switch that defaults to `0` — set it to `1` explicitly when you need packet content.
 
     Pin assignments (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN` for the relay trunk's `Serial1`, etc.) have platform-specific defaults in `src/controller/config.hpp` and only need overriding for custom hardware.
 
 === "panel.config.hpp"
 
     Located at `src/panel.config.hpp`, included by `src/panel/config.hpp`. The panel build is
-    bare-metal (no `framework = arduino` — see [Architecture](architecture.md)), with no
-    non-Arduino debug UART path built yet, so `DEBUG` stays `0`. Edge pins/count are fixed by
+    bare-metal (no `framework = arduino` — see [Architecture](architecture.md)); with `DEBUG=1`
+    its debug output goes out a bit-banged, TX-only UART on PD7 (`Panel/DebugSerial.hpp`,
+    9600 8N1), since USART0 is owned by the relay trunk. Edge pins/count are fixed by
     `Panel/EdgeUartTransport.hpp` (3 edges, matching the schematic's mux/USART wiring), not
     configurable per-build the way the old GPIO ping-pulse edges were.
 

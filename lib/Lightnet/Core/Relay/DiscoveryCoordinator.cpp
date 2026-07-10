@@ -5,13 +5,16 @@
 namespace Lightnet {
     DiscoveryCoordinator::DiscoveryCoordinator(IEdgeLink &trunkLink, DiscoveryTreeBuilder *treeBuilder)
         : trunkLink(trunkLink), treeBuilder(treeBuilder), nextPanelIndex(1), frontierPanelIndex(0),
-        stackDepth(0), complete(false), beginMs(0), lastRootPullMs(0)
+        stackDepth(0), complete(false), walkStalledFlag(false), beginMs(0), lastRootPullMs(0),
+        lastProgressMs(0)
     {
     }
 
     void DiscoveryCoordinator::begin(uint32_t nowMs)
     {
-        this->beginMs = nowMs;
+        this->beginMs         = nowMs;
+        this->lastProgressMs  = nowMs;
+        this->walkStalledFlag = false;
 
         this->sendRootPull(nowMs);
     }
@@ -31,16 +34,25 @@ namespace Lightnet {
         DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] root pull sent, assigning idx"), pull.panelIndex));
     }
 
-    void DiscoveryCoordinator::onFrameArrived(const Protocol::PacketMeta *frame, uint8_t size)
+    void DiscoveryCoordinator::onFrameArrived(const Protocol::PacketMeta *frame, uint8_t size, uint32_t nowMs)
     {
         (void)size;
 
         switch (frame->header.type) {
             case Protocol::PACKET_REGISTER_EDGE:
-                this->handleRegisterEdgeReply((const Protocol::PacketRegisterEdge *)frame);
+            {
+                const Protocol::PacketRegisterEdge *reply = (const Protocol::PacketRegisterEdge *)frame;
+
+                if (reply->panelIndex != Protocol::DISCOVERY_REJECTED_INDEX) {
+                    this->lastProgressMs = nowMs;
+                }
+
+                this->handleRegisterEdgeReply(reply);
                 break;
+            }
 
             case Protocol::PACKET_DISCOVERY_DONE:
+                this->lastProgressMs = nowMs;
                 this->handleDiscoveryDone();
                 break;
 
@@ -51,24 +63,38 @@ namespace Lightnet {
 
     void DiscoveryCoordinator::tick(uint32_t nowMs)
     {
-        if (this->complete || this->frontierPanelIndex != 0) {
-            return;  // root already registered, or the tree is already resolved
+        if (this->complete) {
+            return;
         }
 
-        if ((nowMs - this->beginMs) >= ROOT_TIMEOUT_MS) {
-            this->complete = true;  // no panel ever replied to the root probe -- empty tree
+        if (this->frontierPanelIndex == 0) {
+            if ((nowMs - this->beginMs) >= ROOT_TIMEOUT_MS) {
+                this->complete = true;  // no panel ever replied to the root probe -- empty tree
+
+                return;
+            }
+
+            if ((nowMs - this->lastRootPullMs) >= ROOT_RETRY_INTERVAL_MS) {
+                this->sendRootPull(nowMs);  // still no reply -- the first pull may have lost the race
+            }
 
             return;
         }
 
-        if ((nowMs - this->lastRootPullMs) >= ROOT_RETRY_INTERVAL_MS) {
-            this->sendRootPull(nowMs);  // still no reply -- the first pull may have lost the race
+        if ((nowMs - this->lastProgressMs) >= WALK_STALL_TIMEOUT_MS) {
+            this->complete        = true;
+            this->walkStalledFlag = true;
         }
     }
 
     bool DiscoveryCoordinator::isComplete() const
     {
         return this->complete;
+    }
+
+    bool DiscoveryCoordinator::walkStalled() const
+    {
+        return this->walkStalledFlag;
     }
 
     void DiscoveryCoordinator::handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply)

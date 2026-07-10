@@ -2,6 +2,7 @@
 #include "LightnetPanel.hpp"
 #include "BootloaderBridge.hpp"
 #include "../Runtime/PanelClock.hpp"
+#include "../Utils/Debug.hpp"
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
@@ -10,7 +11,11 @@ LightnetPanel::LightnetPanel()
     driver(discovery, LNEdgeTransport),
     router(discovery, LNEdgeTransport),
     dispatcher(driver, router),
-    pendingWakeEdge(NO_EDGE)
+    pendingWakeEdge(NO_EDGE),
+    lastRelayActivityMs(0)
+#if DEBUG
+        , pendingRxBusLogCount(0)
+#endif
 {
 }
 
@@ -59,8 +64,39 @@ void LightnetPanel::pollWake(uint32_t nowMs)
     }
 }
 
+void LightnetPanel::flushPendingRxBusLogs()
+{
+    #if DEBUG
+
+        if (this->pendingRxBusLogCount == 0) {
+            return;
+        }
+
+        const PendingRxBusLog &entry = this->pendingRxBusLogs[0];
+
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(
+                     DPF("[BUS] rx type"),
+                     entry.type,
+                     DPF("panel"),
+                     entry.panel,
+                     DPF("valid")
+        ));
+
+        for (uint8_t i = 1; i < this->pendingRxBusLogCount; i++) {
+            this->pendingRxBusLogs[i - 1] = this->pendingRxBusLogs[i];
+        }
+
+        this->pendingRxBusLogCount--;
+
+    #endif
+}
+
 void LightnetPanel::pollBytes(uint32_t nowMs)
 {
+    #if DEBUG
+        this->pendingRxBusLogCount = 0;
+    #endif
+
     while (LNEdgeTransport.available()) {
         // Re-check for a pending wake before every byte, not just once per tick() -- otherwise a
         // wake that lands while this loop is still draining (e.g. a slow handler, or traffic
@@ -71,19 +107,55 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
 
         uint8_t value = LNEdgeTransport.readByte();
 
+        this->lastRelayActivityMs = nowMs;
+
         if (this->receiver.onByte(value, nowMs)) {
+            const Protocol::PacketMeta *frame = this->receiver.frame();
+            uint8_t size  = this->receiver.frameSize();
+
             bool actLocally = this->dispatcher.onFrameArrived(
                 this->receiver.fromEdge(),
-                this->receiver.frame(),
-                this->receiver.frameSize(),
+                frame,
+                size,
                 nowMs
             );
 
+            this->lastRelayActivityMs = nowMs;
+
             if (actLocally) {
-                this->handlePacket(this->receiver.frame(), this->receiver.frameSize());
+                this->handlePacket(frame, size);
             }
+
+            #if DEBUG
+
+                if (DEBUG_LIGHTNET_BUS && this->pendingRxBusLogCount < PENDING_RX_BUS_LOG_CAP) {
+                    this->pendingRxBusLogs[this->pendingRxBusLogCount].type  = (uint8_t)frame->header.type;
+                    this->pendingRxBusLogs[this->pendingRxBusLogCount].panel = frame->header.targetPanelIndex;
+                    this->pendingRxBusLogCount++;
+                }
+
+            #endif
         }
     }
+}
+
+void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
+{
+    if (LNEdgeTransport.available() || this->driver.isProbing()) {
+        return;
+    }
+
+    if ((uint32_t)(nowMs - this->lastRelayActivityMs) < RELAY_QUIET_MS) {
+        return;
+    }
+
+    this->driver.flushOneDeferredLog();
+
+    if (LNEdgeTransport.available()) {
+        return;
+    }
+
+    this->flushPendingRxBusLogs();
 }
 
 void LightnetPanel::tick(uint32_t nowMs)
@@ -99,6 +171,16 @@ void LightnetPanel::tick(uint32_t nowMs)
 
         this->rgbController.color(c.r, c.g, c.b);
     }
+
+    // Bytes can land during the above -- drain them before any bit-banged debug output.
+    if (LNEdgeTransport.available()) {
+        this->pollWake(nowMs);
+        this->pollBytes(nowMs);
+
+        return;
+    }
+
+    this->flushIdleDebugLogs(nowMs);
 }
 
 void LightnetPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t size)

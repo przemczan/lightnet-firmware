@@ -1,5 +1,4 @@
 #include "WebsocketHandler.hpp"
-#include "../../../Utils/AgentDebugLog.hpp"
 
 WebsocketHandler::WebsocketHandler(
     WebsocketServer *             websocketServer,
@@ -20,7 +19,7 @@ void WebsocketHandler::handleIncommingMessages()
         return;
     }
 
-    D_PRINTLN("[CMD HANDLER] processing messages", queue->size());
+    DEBUG_IF(DEBUG_API, D_PRINTLN("[CMD HANDLER] processing messages", queue->size()));
 
     WebsocketApi::Internal::Message *message;
     uint16_t size;
@@ -34,18 +33,17 @@ void WebsocketHandler::handleIncommingMessages()
         this->handleMessage(message, size);
     }
 
-    uint32_t now = millis();
+    DEBUG_IF(DEBUG_API, {
+        uint32_t now = millis();
 
-    if (now - this->lastLogMs >= 1000) {
-        auto counts = this->websocketServer->getAndResetReceivedCount();
+        if (now - this->lastLogMs >= 1000) {
+            auto counts = this->websocketServer->getAndResetReceivedCount();
 
-        Serial.print("[MSG HANDLER] handled/received: ");
-        Serial.print(counts.receivedCount);
-        Serial.print(" / ");
-        Serial.println(counts.droppedCount);
+            D_PRINTLN("[MSG HANDLER] handled/received:", counts.receivedCount, "/", counts.droppedCount);
 
-        this->lastLogMs = now;
-    }
+            this->lastLogMs = now;
+        }
+    });
 }
 
 uint8_t WebsocketHandler::handleMessage(WebsocketApi::Internal::Message *message, uint16_t size)
@@ -130,9 +128,6 @@ uint8_t WebsocketHandler::cmdSetColor(WebsocketApi::Cmd::SetColor *command)
 
 uint8_t WebsocketHandler::cmdGetPanelsStates(uint32_t clientId)
 {
-    AgentDebugLog::setOp("ws:get_panels_states");
-    AgentDebugLog::logJson("H1", "WebsocketHandler.cpp:cmdGetPanelsStates", "start");
-
     List<Panel *> *panels = LNPanelsInitializer.getPanels();
     uint16_t panelsCount = panels->getSize();
     uint16_t bufferSize = sizeof(WebsocketApi::Internal::PanelsStates) + sizeof(WebsocketApi::PanelState) * panelsCount;
@@ -149,9 +144,6 @@ uint8_t WebsocketHandler::cmdGetPanelsStates(uint32_t clientId)
         panel = panels->get(idx);
 
         if (this->panelsController->fetchState(panel->index, &message->panelsStates.states[idx])) {
-            AgentDebugLog::logJson("H1", "WebsocketHandler.cpp:cmdGetPanelsStates", "fetch_failed");
-            AgentDebugLog::clearOp();
-
             return 1;
         }
     }
@@ -164,17 +156,11 @@ uint8_t WebsocketHandler::cmdGetPanelsStates(uint32_t clientId)
 
     this->websocketServer->sendMessage(&message->meta);
 
-    AgentDebugLog::logJson("H1", "WebsocketHandler.cpp:cmdGetPanelsStates", "done");
-    AgentDebugLog::clearOp();
-
     return 0;
 }
 
 uint8_t WebsocketHandler::cmdGetEdgesList(uint32_t clientId)
 {
-    AgentDebugLog::setOp("ws:get_edges_list");
-    AgentDebugLog::logJson("H2", "WebsocketHandler.cpp:cmdGetEdgesList", "start");
-
     List<Panel *> *panels = LNPanelsInitializer.getPanels();
     uint16_t panelsCount = panels->getSize();
     uint16_t edgesTotalCount = 0;
@@ -240,9 +226,6 @@ uint8_t WebsocketHandler::cmdGetEdgesList(uint32_t clientId)
     );
 
     this->websocketServer->sendMessage(&message->meta);
-
-    AgentDebugLog::logJson("H2", "WebsocketHandler.cpp:cmdGetEdgesList", "done");
-    AgentDebugLog::clearOp();
 
     return 0;
 }

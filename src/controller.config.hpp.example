@@ -11,16 +11,23 @@
 // Uncomment to disable a specific area:
 // #define DEBUG_API          0   // WebSocket / HTTP API logs
 // #define DEBUG_RGB_CTRL     0   // LED controller logs
-// #define DEBUG_LIGHTNET_BUS 0   // sim panel dispatch logs (LightnetBus, SIM_MODE only)
+// #define DEBUG_LIGHTNET_BUS 0   // bus packet logs: one line per packet sent/received (type + panel)
 // #define DEBUG_FLASHER      0   // OTA / panel flash logs
 // #define DEBUG_DISCOVERY    0   // panel discovery / ping logs
 // #define DEBUG_INIT         0   // startup / init logs
 // #define DEBUG_DEMO         0   // demo logs
+// Full packet byte dumps (defaults to 0 — verbose). Enable to see packet content:
+// #define DEBUG_LIGHTNET_BUS_PACKET_CONTENT 1
 
 // ── Relay trunk ───────────────────────────────────────────────────────────────
 // UART baud of the relay trunk (Serial1). Must match the panels' LIGHTNET_TRUNK_BAUD -- flash
 // both sides together after changing it.
 #define LIGHTNET_TRUNK_BAUD 500000UL
+
+// ── Discovery ─────────────────────────────────────────────────────────────────
+// After the root panel registers, give up on the walk and boot with the partial
+// tree if no REGISTER_EDGE or DISCOVERY_DONE arrives within this window (ms).
+// #define DISCOVERY_WALK_STALL_TIMEOUT_MS 5000
 
 // ── Server settings ───────────────────────────────────────────────────────────
 #define CONFIG_PORTAL_TIMEOUT 120

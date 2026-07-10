@@ -81,9 +81,26 @@ class LightnetPanel
         RGBController rgbController;
 
         volatile uint8_t pendingWakeEdge;
+        uint32_t lastRelayActivityMs;
+
+        static const uint32_t RELAY_QUIET_MS = 80;
+
+        #if DEBUG
+            struct PendingRxBusLog {
+                uint8_t  type;
+                uint16_t panel;
+            };
+
+            static const uint8_t PENDING_RX_BUS_LOG_CAP = 4;
+
+            PendingRxBusLog pendingRxBusLogs[PENDING_RX_BUS_LOG_CAP];
+            uint8_t pendingRxBusLogCount;
+        #endif
 
         void pollWake(uint32_t nowMs);
         void pollBytes(uint32_t nowMs);
+        void flushPendingRxBusLogs();
+        void flushIdleDebugLogs(uint32_t nowMs);
         void handlePacket(const Protocol::PacketMeta *packet, uint8_t size);
 
         void handleTurnOnOff(const Protocol::PacketTurnOnOff *packet);

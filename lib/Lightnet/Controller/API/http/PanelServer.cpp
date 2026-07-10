@@ -1,6 +1,5 @@
 #include "PanelServer.hpp"
 #include "HttpHelpers.hpp"
-#include "../../../Utils/AgentDebugLog.hpp"
 #include "../../../Utils/SimpleJson.hpp"
 #include "../../../Common/Protocol.hpp"
 #include "../../Panels/PanelsInitializer.hpp"
@@ -92,9 +91,6 @@ namespace Lightnet {
 
         bool queued = queue.post(
             +[](const uint8_t *a, uint16_t) {
-            AgentDebugLog::setOp("http:get_panels");
-            AgentDebugLog::logJson("H1", "PanelServer.cpp:handleGetPanels", "start");
-
             Args x;
 
             memcpy(&x, a, sizeof(x));
@@ -133,9 +129,6 @@ namespace Lightnet {
 
             response->print("]");
             Http::sendOkStream(x.req, response);
-
-            AgentDebugLog::logJson("H1", "PanelServer.cpp:handleGetPanels", "done");
-            AgentDebugLog::clearOp();
         },
             &args,
             sizeof(args)

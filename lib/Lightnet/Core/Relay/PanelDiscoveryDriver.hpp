@@ -34,6 +34,10 @@
 //      controller descends into the new child first, and only tells this panel to continue
 //      once that child's whole subtree is resolved. On rejection or a local timeout, this panel
 //      tries its next edge immediately with no controller round-trip.
+//
+// On the panel build, discovery debug lines are queued via deferLog() and flushed from
+// LightnetPanel::flushIdleDebugLogs() -- never from the frame handler itself, since each
+// bit-banged print blocks long enough to overflow the relay RX ring (see DebugSerial.hpp).
 
 #include <stdint.h>
 #include "IEdgeLink.hpp"
@@ -60,14 +64,41 @@ namespace Lightnet {
             // accepted.
             uint16_t assignedPanelIndex() const;
 
+            bool isProbing() const;
+            void flushDeferredLogs();
+            bool flushOneDeferredLog();
+
         private:
+            enum class DeferredDiscLog : uint8_t {
+                None = 0,
+                Pull,
+                AdvAccept,
+                Probe,
+                DoneSend,
+                ChildAccepted,
+                ChildRejected,
+                ProbeTimeout,
+            };
+
+            struct DeferredLogEntry {
+                DeferredDiscLog code;
+                uint16_t        a;
+                uint16_t        b;
+            };
+
+            static const uint8_t DEFERRED_LOG_CAP = 4;
+
             PanelDiscovery &discovery;
             IEdgeLink &link;
             uint16_t assignedIndex;              // 0 until this panel itself has been assigned one
             uint16_t pendingAssignIndex;          // index to hand out, from the most recent ADVANCE
             uint8_t probingEdge;                  // NO_EDGE when not currently probing
             uint32_t probeStartedMs;
+            DeferredLogEntry deferredLogs[DEFERRED_LOG_CAP];
+            uint8_t deferredLogCount;
 
+            void deferLog(DeferredDiscLog code, uint16_t a = 0, uint16_t b = 0);
+            void printDeferredLog(const DeferredLogEntry &entry);
             void handleInitializationPull(uint8_t fromEdge, const Protocol::PacketInitializationPull *pull);
             void handleRegisterEdgeReply(uint8_t fromEdge, const Protocol::PacketRegisterEdge *reply, uint32_t nowMs);
             void handleAdvance(const Protocol::PacketDiscoveryAdvance *advance, uint32_t nowMs);

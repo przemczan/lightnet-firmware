@@ -9,9 +9,13 @@
 // All sub-switches default to 1 when DEBUG=1 (see lib/Lightnet/Utils/Debug.hpp). Set DEBUG=1 and
 // uncomment a line below to disable a specific area:
 // #define DEBUG 1
-// #define DEBUG_INIT      0   // startup/boot logs
-// #define DEBUG_DISCOVERY 0   // relay discovery protocol logs
-// #define DEBUG_RGB_CTRL  0   // LED output logs
+// #define DEBUG_INIT         0   // startup/boot logs
+// #define DEBUG_DISCOVERY    0   // relay discovery protocol logs
+// #define DEBUG_LIGHTNET_BUS 0   // bus packet logs: one line per packet sent/received (type + panel)
+// #define DEBUG_RGB_CTRL     0   // LED output logs
+// Full packet byte dumps (defaults to 0 — verbose, and each bit-banged line blocks for
+// milliseconds, which perturbs relay timing). Enable to see packet content:
+// #define DEBUG_LIGHTNET_BUS_PACKET_CONTENT 1
 
 // ── Relay trunk ───────────────────────────────────────────────────────────────
 // UART baud of the panel's edge links. Must match the controller's LIGHTNET_TRUNK_BAUD and the

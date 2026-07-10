@@ -1,7 +1,6 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
 #include "main.hpp"
-#include "../../lib/Lightnet/Utils/AgentDebugLog.hpp"
 
 uint8_t state = 0;
 DNSServer dns;
@@ -125,18 +124,48 @@ extern "C" void esp_task_wdt_isr_user_handler(void)
     wdtHogMarker = WDT_HOG_MARKER_VALID;
 }
 
+static const char *resetReasonName(esp_reset_reason_t reason)
+{
+    switch (reason) {
+        case ESP_RST_POWERON:   return "POWERON";
+        case ESP_RST_EXT:       return "EXT";
+        case ESP_RST_SW:        return "SW";
+        case ESP_RST_PANIC:     return "PANIC";
+        case ESP_RST_INT_WDT:   return "INT_WDT";
+        case ESP_RST_TASK_WDT:  return "TASK_WDT";
+        case ESP_RST_WDT:       return "WDT";
+        case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT:  return "BROWNOUT";
+        case ESP_RST_SDIO:      return "SDIO";
+        default:                return "UNKNOWN";
+    }
+}
+
 // Always-on (not gated by DEBUG) so rare production resets can be diagnosed
 // from the serial log: the reset reason is printed once at every boot.
 void logBootDiagnostics()
 {
-    AgentDebugLog::initSession();
-    AgentDebugLog::logBootSummary();
+    esp_reset_reason_t reason = esp_reset_reason();
+
+    Serial.println();
+    Serial.print("[BOOT] reset reason: ");
+    Serial.print((int)reason);
+    Serial.print(" (");
+    Serial.print(resetReasonName(reason));
+    Serial.println(")");
 
     if (wdtHogMarker == WDT_HOG_MARKER_VALID) {
         Serial.print("[BOOT] TWDT hog task (ISR snapshot): ");
         Serial.println(wdtHogTaskName);
         wdtHogMarker = 0;
     }
+
+    Serial.print("[BOOT] free heap / minFree / maxAlloc: ");
+    Serial.print(ESP.getFreeHeap());
+    Serial.print(" / ");
+    Serial.print(ESP.getMinFreeHeap());
+    Serial.print(" / ");
+    Serial.println(ESP.getMaxAllocHeap());
 }
 
 void setupMDNS()
@@ -545,9 +574,6 @@ void loop()
                 break;
 
             case 1:
-            {
-                uint32_t loopIterStartMs = millis();
-
                 ArduinoOTA.handle();
 
                 #ifndef SIM_MODE
@@ -561,18 +587,18 @@ void loop()
                 websocketServer->cleanup();
 
                 DEBUG_BLOCK(
-                {
-                    // Track heap over time to catch fragmentation-driven resets.
-                    static uint32_t lastHeapLogMs = 0;
-                    uint32_t now = millis();
+            {
+                // Track heap over time to catch fragmentation-driven resets.
+                static uint32_t lastHeapLogMs = 0;
+                uint32_t now = millis();
 
-                    if ((uint32_t)(now - lastHeapLogMs) >= 1000) {
-                        lastHeapLogMs = now;
-                        Serial.print("[HEAP] free: ");
-                        Serial.print(ESP.getFreeHeap());
-                        Serial.println();
-                    }
-                });
+                if ((uint32_t)(now - lastHeapLogMs) >= 1000) {
+                    lastHeapLogMs = now;
+                    Serial.print("[HEAP] free: ");
+                    Serial.print(ESP.getFreeHeap());
+                    Serial.println();
+                }
+            });
 
                 #ifndef SIM_MODE
 
@@ -617,18 +643,9 @@ void loop()
                     runDemos();
                 #endif
                 #ifndef SIM_MODE
-            }
+        }
 
                 #endif
-
-                uint32_t loopIterMs = millis() - loopIterStartMs;
-
-                if (loopIterMs >= 4500) {
-                    AgentDebugLog::logJson("H1", "main.cpp:loop", "twdt_risk_loop_iteration");
-                } else if (loopIterMs >= 2000) {
-                    AgentDebugLog::logJson("H1", "main.cpp:loop", "slow_loop_iteration");
-                }
-            }
 
                 break;
         }
