@@ -35,7 +35,9 @@ namespace BootloaderProtocol {
 
     const uint8_t NO_PARENT_EDGE = 0xFF;
 
-    // Must match EdgeUartTransport::begin()'s app-mode baud (LightnetPanel::begin()) — the
-    // bootloader shares the wire with panels still running the application.
-    const uint32_t UART_BAUD = 1000000UL;
+    // Same LIGHTNET_TRUNK_BAUD as EdgeUartTransport::begin()'s app-mode baud (src/panel.config.hpp,
+    // force-included in both the app and bootloader envs -- see platformio.ini) — the bootloader
+    // shares the wire with panels still running the application, so the two can never diverge.
+    // Changing the config baud requires re-burning the bootloader, not just reflashing the app.
+    const uint32_t UART_BAUD = LIGHTNET_TRUNK_BAUD;
 }  // namespace BootloaderProtocol

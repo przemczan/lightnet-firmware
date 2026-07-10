@@ -1,6 +1,7 @@
 #ifdef LIGHTNET_TARGET_CONTROLLER
 
 #include "main.hpp"
+#include "../../lib/Lightnet/Utils/AgentDebugLog.hpp"
 
 uint8_t state = 0;
 DNSServer dns;
@@ -128,22 +129,14 @@ extern "C" void esp_task_wdt_isr_user_handler(void)
 // from the serial log: the reset reason is printed once at every boot.
 void logBootDiagnostics()
 {
-    Serial.println();
-    Serial.print("[BOOT] reset reason: ");
-    Serial.println((int)esp_reset_reason());   // see esp_reset_reason_t enum
+    AgentDebugLog::initSession();
+    AgentDebugLog::logBootSummary();
 
     if (wdtHogMarker == WDT_HOG_MARKER_VALID) {
-        Serial.print("[BOOT] task watchdog fired while task was running: ");
+        Serial.print("[BOOT] TWDT hog task (ISR snapshot): ");
         Serial.println(wdtHogTaskName);
         wdtHogMarker = 0;
     }
-
-    Serial.print("[BOOT] free heap / minFree / maxAlloc: ");
-    Serial.print(ESP.getFreeHeap());
-    Serial.print(" / ");
-    Serial.print(ESP.getMinFreeHeap());
-    Serial.print(" / ");
-    Serial.println(ESP.getMaxAllocHeap());
 }
 
 void setupMDNS()
@@ -318,14 +311,22 @@ void setup()
     Serial.setDebugOutput(true);
 
     #if ARDUINO_USB_CDC_ON_BOOT
-        // Native USB CDC has no hardware DTR/RTS line tied to reset, so the app starts
-        // running (and printing) as soon as flashing finishes, independent of whether a
-        // monitor has reattached to the new port yet. Block briefly on the host actually
-        // opening the port so the earliest boot diagnostics aren't lost to that race; give up
-        // after the timeout so a unit with no monitor attached still boots normally.
+        // With a host terminal attached, each CDC write blocks up to the TX timeout waiting
+        // for the host to drain the endpoint, stalling the main loop and breaking relay UART
+        // timing (with no host attached, writes drop immediately). Zero timeout makes debug
+        // output lossy-but-nonblocking in both cases.
+        Serial.setTxTimeoutMs(0);
+
+        // Native USB CDC drops all writes until the host asserts DTR, and the app starts
+        // running as soon as flashing finishes, independent of whether a monitor has
+        // reattached to the new port yet. Block briefly on DTR so the earliest boot
+        // diagnostics aren't lost to that race; give up after the timeout so a unit with no
+        // monitor attached still boots normally. availableForWrite() is the DTR proxy --
+        // operator bool additionally requires RTS, which the monitor deliberately never
+        // asserts (see platformio.ini).
         unsigned long serialWaitStart = millis();
 
-        while (!Serial && millis() - serialWaitStart < 3000) {
+        while (Serial.availableForWrite() == 0 && millis() - serialWaitStart < 3000) {
             delay(10);
         }
 
@@ -351,13 +352,13 @@ void setup()
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
     LNPanelsInitializer.configure(
-        // 500kbps -- see Panel/LightnetPanel.cpp's own EdgeUartTransport::begin() comment for why
-        // this is lower than the hardware redesign plan's original 1Mbps assumption. Must match
-        // its baud.
+        // Baud comes from src/controller.config.hpp -- see Panel/LightnetPanel.cpp's own
+        // EdgeUartTransport::begin() comment for why the default is lower than the hardware
+        // redesign plan's original 1Mbps assumption.
         { .trunkRxPin = CONTROLLER_TRUNK_RX_PIN,
           .trunkTxPin = CONTROLLER_TRUNK_TX_PIN,
           .trunkOutputEnablePin = CONTROLLER_TRUNK_OE_PIN,
-          .trunkBaud = 500000UL }
+          .trunkBaud = LIGHTNET_TRUNK_BAUD }
     );
     LNPanelsInitializer.start();
 
@@ -544,6 +545,9 @@ void loop()
                 break;
 
             case 1:
+            {
+                uint32_t loopIterStartMs = millis();
+
                 ArduinoOTA.handle();
 
                 #ifndef SIM_MODE
@@ -557,18 +561,18 @@ void loop()
                 websocketServer->cleanup();
 
                 DEBUG_BLOCK(
-            {
-                // Track heap over time to catch fragmentation-driven resets.
-                static uint32_t lastHeapLogMs = 0;
-                uint32_t now = millis();
+                {
+                    // Track heap over time to catch fragmentation-driven resets.
+                    static uint32_t lastHeapLogMs = 0;
+                    uint32_t now = millis();
 
-                if ((uint32_t)(now - lastHeapLogMs) >= 1000) {
-                    lastHeapLogMs = now;
-                    Serial.print("[HEAP] free: ");
-                    Serial.print(ESP.getFreeHeap());
-                    Serial.println();
-                }
-            });
+                    if ((uint32_t)(now - lastHeapLogMs) >= 1000) {
+                        lastHeapLogMs = now;
+                        Serial.print("[HEAP] free: ");
+                        Serial.print(ESP.getFreeHeap());
+                        Serial.println();
+                    }
+                });
 
                 #ifndef SIM_MODE
 
@@ -613,9 +617,18 @@ void loop()
                     runDemos();
                 #endif
                 #ifndef SIM_MODE
-        }
+            }
 
                 #endif
+
+                uint32_t loopIterMs = millis() - loopIterStartMs;
+
+                if (loopIterMs >= 4500) {
+                    AgentDebugLog::logJson("H1", "main.cpp:loop", "twdt_risk_loop_iteration");
+                } else if (loopIterMs >= 2000) {
+                    AgentDebugLog::logJson("H1", "main.cpp:loop", "slow_loop_iteration");
+                }
+            }
 
                 break;
         }

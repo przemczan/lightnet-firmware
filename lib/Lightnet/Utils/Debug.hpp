@@ -4,21 +4,54 @@
     #if defined(ARDUINO_ARCH_ESP32)
         #include <Arduino.h>
 
+        // Debug output must never block the calling task: HTTP/WS handlers log from the
+        // async_tcp task, and a stalled write there starves IDLE on a single-core chip until
+        // the task watchdog resets the whole controller. Both Serial backends can stall --
+        // USB CDC (USBCDC::write) busy-spins with no timeout while the host leaves the TX
+        // FIFO full, and UART waits for FIFO space at baud-rate pace. This wrapper drops
+        // whatever doesn't fit instead of waiting for space.
+        class NonBlockingDebugOutput : public Print
+        {
+            public:
+                size_t write(uint8_t value) override
+                {
+                    return this->write(&value, 1);
+                }
+
+                size_t write(const uint8_t *buffer, size_t size) override
+                {
+                    // The margin absorbs writers that bypass this wrapper (e.g. IDF log output
+                    // routed to the same port) landing between the space check and the write.
+                    if (Serial.availableForWrite() < (int)(size + 16)) {
+                        return size; // dropped -- lossy debug output beats a blocked task
+                    }
+
+                    return Serial.write(buffer, size);
+                }
+        };
+
+        inline NonBlockingDebugOutput &_debugOutput()
+        {
+            static NonBlockingDebugOutput output;
+
+            return output;
+        }
+
         inline void _debugPrintTimestamp()
         {
-            Serial.print('[');
-            Serial.print(millis());
-            Serial.print(F("ms] "));
+            _debugOutput().print('[');
+            _debugOutput().print(millis());
+            _debugOutput().print(F("ms] "));
         }
 
         inline void _debugPrintSpace()
         {
-            Serial.print(' ');
+            _debugOutput().print(' ');
         }
 
         inline void _debugPrintNewline()
         {
-            Serial.println();
+            _debugOutput().println();
         }
 
         // Portable flash-string literal for code shared between the controller (ESP32/Arduino)
@@ -26,14 +59,14 @@
         // debug logging -- DPF(x) is F(x) here, PF(x) (see Panel/DebugSerial.hpp) there.
         #define DPF(x) F(x)
 
-        #define D_PRINTF Serial.printf
-        #define D_PRINTFLN(...) do { _debugPrintTimestamp(); Serial.printf(__VA_ARGS__); Serial.println(); } while (0)
+        #define D_PRINTF(...) _debugOutput().printf(__VA_ARGS__)
+        #define D_PRINTFLN(...) do { _debugPrintTimestamp(); _debugOutput().printf(__VA_ARGS__); _debugOutput().println(); } while (0)
 
         // ESP has ample RAM: plain string literals (const char*) are fine.
         template<typename T>
         inline void D_PRINT(T first)
         {
-            Serial.print(first);
+            _debugOutput().print(first);
         }
 
     #elif defined(__AVR__)

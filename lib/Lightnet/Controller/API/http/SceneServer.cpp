@@ -1,6 +1,7 @@
 #include "SceneServer.hpp"
 #include "HttpHelpers.hpp"
 #include "HttpJsonCapacity.hpp"
+#include "../../../Utils/AgentDebugLog.hpp"
 #include "../../../Utils/EntryId.hpp"
 #include "../../../Core/Controller/SceneWriter.hpp"
 #include "../../../Utils/SimpleJson.hpp"
@@ -48,19 +49,43 @@ namespace Lightnet {
     void SceneServer::registerRoutes()
     {
         Http::onRequest(server, "/api/scenes/stop", HTTP_POST, this, &SceneServer::handlePostStopScene);
-        Http::onBody(server, "/api/scenes/speed", HTTP_POST, Http::MAX_BODY_LARGE,
-                     this, &SceneServer::handlePostSetSpeed);
-        Http::onBody(server, "/api/scenes/play/one-shot", HTTP_POST, Http::MAX_BODY_LARGE,
-                     this, &SceneServer::handlePostPlayOneShotScene);
+        Http::onBody(
+            server,
+            "/api/scenes/speed",
+            HTTP_POST,
+            Http::MAX_BODY_LARGE,
+            this,
+            &SceneServer::handlePostSetSpeed
+        );
+        Http::onBody(
+            server,
+            "/api/scenes/play/one-shot",
+            HTTP_POST,
+            Http::MAX_BODY_LARGE,
+            this,
+            &SceneServer::handlePostPlayOneShotScene
+        );
         Http::onRequest(server, "/api/scenes/play", HTTP_POST, this, &SceneServer::handlePostPlayLastScene);
         Http::onRequest(server, "/api/scenes/*", HTTP_GET, this, &SceneServer::handleGetSceneById);
         Http::onRequest(server, "/api/scenes/*", HTTP_DELETE, this, &SceneServer::handleDeleteScene);
         Http::onRequest(server, "/api/scenes/*", HTTP_POST, this, &SceneServer::handlePostPlaySceneById);
-        Http::onBody(server, "/api/scenes/*", HTTP_PATCH, Http::MAX_BODY_LARGE,
-                     this, &SceneServer::handlePatchUpdateScene);
+        Http::onBody(
+            server,
+            "/api/scenes/*",
+            HTTP_PATCH,
+            Http::MAX_BODY_LARGE,
+            this,
+            &SceneServer::handlePatchUpdateScene
+        );
         Http::onRequest(server, "/api/scenes", HTTP_GET, this, &SceneServer::handleListScenes);
-        Http::onBody(server, "/api/scenes", HTTP_POST, Http::MAX_BODY_LARGE,
-                     this, &SceneServer::handlePostCreateScene);
+        Http::onBody(
+            server,
+            "/api/scenes",
+            HTTP_POST,
+            Http::MAX_BODY_LARGE,
+            this,
+            &SceneServer::handlePostCreateScene
+        );
     }
 
     namespace {
@@ -88,8 +113,11 @@ namespace Lightnet {
 
             size_t pos = ctx->pos;
 
-            pos += (size_t)snprintf(ctx->buf + pos, ctx->cap - pos,
-                                    "{\"schemaVersion\":1,\"id\":");
+            pos += (size_t)snprintf(
+                ctx->buf + pos,
+                ctx->cap - pos,
+                "{\"schemaVersion\":1,\"id\":"
+            );
 
             if (pos >= ctx->cap) {
                 ctx->ok = false;
@@ -119,9 +147,13 @@ namespace Lightnet {
                 return false;
             }
 
-            int n = snprintf(ctx->buf + pos, ctx->cap - pos,
-                             ",\"layerCount\":%u,\"duration\":%lu}",
-                             (unsigned)meta.layerCount, (unsigned long)meta.duration);
+            int n = snprintf(
+                ctx->buf + pos,
+                ctx->cap - pos,
+                ",\"layerCount\":%u,\"duration\":%lu}",
+                (unsigned)meta.layerCount,
+                (unsigned long)meta.duration
+            );
 
             if (n <= 0 || pos + (size_t)n >= ctx->cap) {
                 ctx->ok = false;
@@ -143,6 +175,9 @@ namespace Lightnet {
 
     void SceneServer::handleListScenes(AsyncWebServerRequest *req)
     {
+        AgentDebugLog::setOp("http:list_scenes");
+        AgentDebugLog::logJson("H4", "SceneServer.cpp:handleListScenes", "start");
+
         size_t cap = HttpJson::sceneListCapacity(scenes.count());
 
         char *buf = (char *)malloc(cap);
@@ -171,6 +206,9 @@ namespace Lightnet {
 
         Http::sendOkJson(req, buf);
         free(buf);
+
+        AgentDebugLog::logJson("H4", "SceneServer.cpp:handleListScenes", "done");
+        AgentDebugLog::clearOp();
     }
 
     void SceneServer::handleGetSceneById(AsyncWebServerRequest *req)
@@ -299,14 +337,26 @@ namespace Lightnet {
 
         strncpy(args.id, id, sizeof(args.id) - 1);
 
-        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+        bool queued = queue.post(
+            +[](const uint8_t *a, uint16_t) {
+            AgentDebugLog::setOp("scene:play_by_id");
+            AgentDebugLog::logJson("H3", "SceneServer.cpp:deferPlayById", "start");
+
             Args x;
 
             memcpy(&x, a, sizeof(x));
-            x.self->animService.playSceneById(x.id,
-                                              x.self->appearance.paletteName(),
-                                              x.self->appearance.baseColors());
-        }, &args, sizeof(args));
+            x.self->animService.playSceneById(
+                x.id,
+                x.self->appearance.paletteName(),
+                x.self->appearance.baseColors()
+            );
+
+            AgentDebugLog::logJson("H3", "SceneServer.cpp:deferPlayById", "done");
+            AgentDebugLog::clearOp();
+        },
+            &args,
+            sizeof(args)
+        );
 
         if (!queued) {
             Http::sendError(req, 503, "busy");
@@ -412,12 +462,16 @@ namespace Lightnet {
             SceneServer *self;
         } args { this };
 
-        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+        bool queued = queue.post(
+            +[](const uint8_t *a, uint16_t) {
             Args x;
 
             memcpy(&x, a, sizeof(x));
             x.self->animService.stopScene();
-        }, &args, sizeof(args));
+        },
+            &args,
+            sizeof(args)
+        );
 
         if (!queued) {
             Http::sendError(req, 503, "busy");
@@ -474,12 +528,16 @@ namespace Lightnet {
             float        speed;
         } args { this, speed };
 
-        bool queued = queue.post(+[](const uint8_t *a, uint16_t) {
+        bool queued = queue.post(
+            +[](const uint8_t *a, uint16_t) {
             Args x;
 
             memcpy(&x, a, sizeof(x));
             x.self->animService.setSceneSpeed(x.speed);
-        }, &args, sizeof(args));
+        },
+            &args,
+            sizeof(args)
+        );
 
         if (!queued) {
             Http::sendError(req, 503, "busy");

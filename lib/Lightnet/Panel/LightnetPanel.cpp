@@ -16,11 +16,11 @@ LightnetPanel::LightnetPanel()
 
 void LightnetPanel::begin()
 {
-    // 500kbps -- an exact 16MHz divisor (UBRR=1, 0% baud error). The hardware redesign plan's §5
-    // latency budget assumes 1Mbps, but this bus's physical margin (mux settling + buffer
-    // propagation + wake latency + cabling) doesn't hold up at that speed on real hardware; 500kbps
-    // is the fastest exact divisor below it. Must match src/controller/main.cpp's trunkBaud.
-    LNEdgeTransport.begin(500000UL);
+    // Baud comes from src/panel.config.hpp -- must match the controller's LIGHTNET_TRUNK_BAUD.
+    // The hardware redesign plan's §5 latency budget assumes 1Mbps, but this bus's physical margin
+    // (mux settling + buffer propagation + wake latency + cabling) doesn't hold up at that speed
+    // on real hardware; 500kbps (UBRR=1, 0% baud error) is the fastest exact divisor below it.
+    LNEdgeTransport.begin(LIGHTNET_TRUNK_BAUD);
 }
 
 void LightnetPanel::onEdgeWakeIsr(uint8_t edgeIndex)

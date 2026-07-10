@@ -31,6 +31,7 @@
 
 #if defined(ARDUINO_ARCH_ESP32)
     #include <Arduino.h>
+    #include "AgentDebugLog.hpp"
 #endif
 
 namespace Lightnet {
@@ -75,6 +76,10 @@ namespace Lightnet {
             {
                 uint8_t blob[sizeof(TaskFn) + MAX_ARGS];
 
+                #if defined(ARDUINO_ARCH_ESP32)
+                    AgentDebugLog::setOp("queue:drain");
+                #endif
+
                 for (;;) {
                     lock();
 
@@ -93,8 +98,30 @@ namespace Lightnet {
                     TaskFn fn;
 
                     memcpy(&fn, blob, sizeof(TaskFn));
+
+                    #if defined(ARDUINO_ARCH_ESP32)
+                        uint32_t taskStartMs = millis();
+
+                        AgentDebugLog::logJson("H3", "MainLoopQueue.hpp:drain", "task_start");
+                    #endif
+
                     fn(blob + sizeof(TaskFn), (uint16_t)(n - sizeof(TaskFn)));
+
+                    #if defined(ARDUINO_ARCH_ESP32)
+                        uint32_t taskMs = millis() - taskStartMs;
+
+                        if (taskMs >= 4500) {
+                            AgentDebugLog::logJson("H3", "MainLoopQueue.hpp:drain", "twdt_risk_task");
+                        } else if (taskMs >= 2000) {
+                            AgentDebugLog::logJson("H3", "MainLoopQueue.hpp:drain", "slow_task");
+                        }
+
+                    #endif
                 }
+
+                #if defined(ARDUINO_ARCH_ESP32)
+                    AgentDebugLog::clearOp();
+                #endif
             }
 
         private:

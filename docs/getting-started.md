@@ -36,6 +36,7 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     | Symbol | Default | Description |
     |---|---|---|
     | `DEMO_MODE` | `0` | Set to `1` to run the built-in light demo on startup |
+    | `LIGHTNET_TRUNK_BAUD` | `500000UL` | Relay trunk UART baud — must match the panels' setting; flash both sides together after changing |
     | `CONFIG_PORTAL_TIMEOUT` | `120` | Seconds the Wi-Fi captive portal stays open before timeout |
     | `SERVER_PORT` | `80` | HTTP server port |
 
@@ -60,6 +61,10 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     non-Arduino debug UART path built yet, so `DEBUG` stays `0`. Edge pins/count are fixed by
     `Panel/EdgeUartTransport.hpp` (3 edges, matching the schematic's mux/USART wiring), not
     configurable per-build the way the old GPIO ping-pulse edges were.
+
+    | Symbol | Default | Description |
+    |---|---|---|
+    | `LIGHTNET_TRUNK_BAUD` | `500000UL` | Edge-link UART baud — must match the controller's setting and the relay bootloader (re-burn the bootloader after changing); use exact 16 MHz UBRR divisors (2000000, 1000000, 500000, 250000, …) for 0% baud error |
 
 ---
 

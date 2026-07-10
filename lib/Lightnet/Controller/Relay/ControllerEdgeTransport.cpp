@@ -44,8 +44,16 @@ void ControllerEdgeTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::Pack
     this->serial.write(preamble, PREAMBLE_BYTE_COUNT);
     this->serial.write((const uint8_t *)packet, size);
 
-    // Dumps exactly what was just handed to the UART -- Serial (ESP32) isn't bit-banged like the
-    // panel's DebugSerial, so this is a plain non-blocking print, safe to leave once-per-send.
+    // Block until the UART has actually finished shifting the last byte out -- disabling U4
+    // before that would truncate it (mirrors Panel/EdgeUartTransport::sendOnEdge()'s own TXC0
+    // wait for the same reason).
+    this->serial.flush();
+
+    digitalWrite(this->outputEnablePin, HIGH);  // back to tri-stated -- free the wire for a reply
+
+    // Dumps exactly what was just handed to the UART. Deliberately after the OE# release: with
+    // a USB CDC host attached these prints take milliseconds, and holding the wire driven
+    // through them collides with the panel's immediate reply, destroying it.
     DEBUG_IF(DEBUG_DISCOVERY, {
         _debugPrintTimestamp();
         D_PRINT(DPF("[TRUNK TX] type"), ((const uint8_t *)packet)[0], DPF("bytes:"));
@@ -59,13 +67,6 @@ void ControllerEdgeTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::Pack
 
         _debugPrintNewline();
     });
-
-    // Block until the UART has actually finished shifting the last byte out -- disabling U4
-    // before that would truncate it (mirrors Panel/EdgeUartTransport::sendOnEdge()'s own TXC0
-    // wait for the same reason).
-    this->serial.flush();
-
-    digitalWrite(this->outputEnablePin, HIGH);  // back to tri-stated -- free the wire for a reply
 }
 
 bool ControllerEdgeTransport::available()

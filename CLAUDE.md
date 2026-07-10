@@ -48,6 +48,7 @@ Build the mobile app from that repo: `.\gradlew.bat :composeApp:assembleDebug`. 
 | [`docs/architecture.md`](docs/architecture.md) | Physical topology, library structure, relay protocol, animation framework internals, discovery sequence, controller boot |
 | [`docs/getting-started.md`](docs/getting-started.md) | PlatformIO environments, config files, build/upload commands |
 | [`docs/hardware.md`](docs/hardware.md) | Pin assignments for controllers and panels, topology rules, fuses |
+| [`docs/hardware/schematics/`](docs/hardware/schematics/) | Board schematics. **Read the `.net` netlists** (Protel format: `[ ]` block = one part's designator/footprint/value; `( )` block = one net's name + `REF-PIN` members) — greppable and lossless. The `.png` renders are for humans; don't load them unless visual layout genuinely matters |
 | [`docs/ota.md`](docs/ota.md) | Panel OTA over the relay, serial upload via controller, controller ArduinoOTA |
 | [`docs/api.md`](docs/api.md) | WebSocket binary protocol (WebsocketApi) + all HTTP endpoints, request/response format |
 | [`docs/animations/scene-authoring.md`](docs/animations/scene-authoring.md) | **Scene authoring guide** — every scene/layer/step prop, topology, panel targeting (selectors/tags), directionality (`source`), colours/palettes, logical root, and an example-scene library |
