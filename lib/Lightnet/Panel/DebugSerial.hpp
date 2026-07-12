@@ -5,14 +5,16 @@
 // reset-pulse pin -- see docs/hardware.md's pin table), so that's where this drives.
 //
 // Debug-only, never part of the relay protocol: no framing beyond a start/stop bit, no parity,
-// fixed baud, and it deliberately runs with interrupts left enabled so it can never stall the
-// relay's PCINT edge-wake or USART0 RX responsiveness -- a byte can come out with its bit timing
-// stretched by whichever ISR preempts it, which is an acceptable trade for visibility into a
-// design that has no other debug channel. Because every write blocks for the full byte time at a
-// deliberately slow, jitter-tolerant baud, it also measurably perturbs the calling code's own
-// timing -- discovery's PROBE_TIMEOUT_MS margins are tight enough that logging changes behavior,
-// not just observes it (see PanelDiscoveryDriver.cpp's callers, which all log after sending on
-// the wire rather than before, for exactly this reason).
+// fixed baud (DEBUG_SERIAL_BAUD, DebugSerial.cpp -- overridable from panel.config.hpp), and it
+// deliberately runs with interrupts left enabled so it can never stall the relay's PCINT
+// edge-wake or USART0 RX responsiveness -- a byte can come out with its bit timing stretched by
+// whichever ISR preempts it, which is an acceptable trade for visibility into a design that has
+// no other debug channel. Because every write still blocks for the full byte time, it also
+// measurably perturbs the calling code's own timing -- discovery's PROBE_TIMEOUT_MS margins are
+// tight enough that logging changes behavior, not just observes it (see
+// PanelDiscoveryDriver.cpp's callers, which all log after sending on the wire rather than
+// before, and LightnetPanel's own deferred-log queue, which flushes only outside the walk's own
+// timing-sensitive windows -- see RELAY_QUIET_MS -- for exactly this reason).
 
 #include <stdint.h>
 #include <avr/pgmspace.h>

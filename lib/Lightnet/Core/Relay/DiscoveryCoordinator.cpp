@@ -6,7 +6,7 @@ namespace Lightnet {
     DiscoveryCoordinator::DiscoveryCoordinator(IEdgeLink &trunkLink, DiscoveryTreeBuilder *treeBuilder)
         : trunkLink(trunkLink), treeBuilder(treeBuilder), nextPanelIndex(1), frontierPanelIndex(0),
         stackDepth(0), complete(false), walkStalledFlag(false), beginMs(0), lastRootPullMs(0),
-        lastProgressMs(0)
+        lastProgressMs(0), lastAdvanceMs(0)
     {
     }
 
@@ -47,13 +47,13 @@ namespace Lightnet {
                     this->lastProgressMs = nowMs;
                 }
 
-                this->handleRegisterEdgeReply(reply);
+                this->handleRegisterEdgeReply(reply, nowMs);
                 break;
             }
 
             case Protocol::PACKET_DISCOVERY_DONE:
                 this->lastProgressMs = nowMs;
-                this->handleDiscoveryDone();
+                this->handleDiscoveryDone(nowMs);
                 break;
 
             default:
@@ -84,6 +84,12 @@ namespace Lightnet {
         if ((nowMs - this->lastProgressMs) >= WALK_STALL_TIMEOUT_MS) {
             this->complete        = true;
             this->walkStalledFlag = true;
+
+            return;
+        }
+
+        if ((nowMs - this->lastAdvanceMs) >= ADVANCE_RETRY_INTERVAL_MS) {
+            this->sendAdvance(this->frontierPanelIndex, nowMs);  // ADVANCE, its reply, or DONE may have been lost
         }
     }
 
@@ -97,7 +103,7 @@ namespace Lightnet {
         return this->walkStalledFlag;
     }
 
-    void DiscoveryCoordinator::handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply)
+    void DiscoveryCoordinator::handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply, uint32_t nowMs)
     {
         DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(
                      DPF("[DISC] register-edge reply panelIndex"),
@@ -129,10 +135,10 @@ namespace Lightnet {
         this->frontierPanelIndex         = reply->panelIndex;
         this->nextPanelIndex++;
 
-        this->sendAdvance(this->frontierPanelIndex);
+        this->sendAdvance(this->frontierPanelIndex, nowMs);
     }
 
-    void DiscoveryCoordinator::handleDiscoveryDone()
+    void DiscoveryCoordinator::handleDiscoveryDone(uint32_t nowMs)
     {
         if (this->stackDepth == 0) {
             this->complete = true;  // shouldn't happen (the root always pushes the 0 sentinel first)
@@ -149,10 +155,10 @@ namespace Lightnet {
         }
 
         this->frontierPanelIndex = resumeTarget;
-        this->sendAdvance(resumeTarget);
+        this->sendAdvance(resumeTarget, nowMs);
     }
 
-    void DiscoveryCoordinator::sendAdvance(uint16_t target)
+    void DiscoveryCoordinator::sendAdvance(uint16_t target, uint32_t nowMs)
     {
         Protocol::PacketDiscoveryAdvance advance =
             Protocol::makePacket<Protocol::PacketDiscoveryAdvance>(Protocol::PACKET_DISCOVERY_ADVANCE, target);
@@ -160,5 +166,6 @@ namespace Lightnet {
         advance.assignIndex = this->nextPanelIndex;
 
         this->trunkLink.sendOnEdge(TRUNK_EDGE, Protocol::packetMeta(advance), sizeof(advance));
+        this->lastAdvanceMs = nowMs;
     }
 }  // namespace Lightnet

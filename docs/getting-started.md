@@ -61,13 +61,15 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     Located at `src/panel.config.hpp`, included by `src/panel/config.hpp`. The panel build is
     bare-metal (no `framework = arduino` — see [Architecture](architecture.md)); with `DEBUG=1`
     its debug output goes out a bit-banged, TX-only UART on PD7 (`Panel/DebugSerial.hpp`,
-    9600 8N1), since USART0 is owned by the relay trunk. Edge pins/count are fixed by
+    57600 8N1, overridable via `DEBUG_SERIAL_BAUD`), since USART0 is owned by the relay trunk.
+    Edge pins/count are fixed by
     `Panel/EdgeUartTransport.hpp` (3 edges, matching the schematic's mux/USART wiring), not
     configurable per-build the way the old GPIO ping-pulse edges were.
 
     | Symbol | Default | Description |
     |---|---|---|
     | `LIGHTNET_TRUNK_BAUD` | `500000UL` | Edge-link UART baud — must match the controller's setting and the relay bootloader (re-burn the bootloader after changing); use exact 16 MHz UBRR divisors (2000000, 1000000, 500000, 250000, …) for 0% baud error |
+    | `DEBUG_SERIAL_BAUD` | `57600UL` | Baud of the bit-banged debug UART on PD7 — match your monitor's baud if overridden |
 
 ---
 

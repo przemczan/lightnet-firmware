@@ -358,6 +358,68 @@ void test_progress_resets_walk_stall_timeout()
     TEST_ASSERT_FALSE(coordinator.walkStalled());
 }
 
+void test_advance_is_resent_while_frontier_makes_no_progress()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);  // [0] PULL{1}
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), 0);  // [1] ADVANCE{target=1, assign=2}
+
+    TEST_ASSERT_EQUAL(2, link.count);
+
+    coordinator.tick(DiscoveryCoordinator::ADVANCE_RETRY_INTERVAL_MS - 1);
+    TEST_ASSERT_EQUAL_MESSAGE(2, link.count, "too soon to resend");
+
+    coordinator.tick(DiscoveryCoordinator::ADVANCE_RETRY_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_MESSAGE(3, link.count, "ADVANCE, its reply, or DONE may have been lost -- resend");
+
+    auto *resent = (const Protocol::PacketDiscoveryAdvance *)link.frameAt(2);
+
+    TEST_ASSERT_EQUAL_UINT8(Protocol::PACKET_DISCOVERY_ADVANCE, resent->meta.header.type);
+    TEST_ASSERT_EQUAL_UINT16(1, resent->meta.header.targetPanelIndex);  // still the same frontier
+    TEST_ASSERT_EQUAL_UINT16(2, resent->assignIndex);                  // still the same pending assign index
+
+    coordinator.tick(2 * DiscoveryCoordinator::ADVANCE_RETRY_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_MESSAGE(4, link.count, "still no progress -- resent again");
+}
+
+void test_advance_retry_timer_restarts_on_progress()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), 0);  // ADVANCE sent at t=0
+
+    coordinator.tick(DiscoveryCoordinator::ADVANCE_RETRY_INTERVAL_MS - 1);  // t=499, no resend yet
+
+    Protocol::PacketRegisterEdge childReply = makeReply(2, 1);
+
+    // A real reply lands just before the retry would have fired -- descending into the child
+    // sends its own fresh ADVANCE and must reset the retry clock relative to this new send.
+    coordinator.onFrameArrived(
+        Protocol::packetMeta(childReply),
+        sizeof(childReply),
+        DiscoveryCoordinator::ADVANCE_RETRY_INTERVAL_MS - 1
+    );
+
+    int countAfterDescend = link.count;
+
+    coordinator.tick(2 * DiscoveryCoordinator::ADVANCE_RETRY_INTERVAL_MS - 2);
+    TEST_ASSERT_EQUAL_MESSAGE(
+        countAfterDescend,
+        link.count,
+        "retry clock must restart from the child's own ADVANCE, not the root's"
+    );
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -378,6 +440,8 @@ int main(int argc, char **argv)
     RUN_TEST(test_root_pull_stops_being_resent_once_root_registers);
     RUN_TEST(test_walk_stall_timeout_completes_with_partial_tree);
     RUN_TEST(test_progress_resets_walk_stall_timeout);
+    RUN_TEST(test_advance_is_resent_while_frontier_makes_no_progress);
+    RUN_TEST(test_advance_retry_timer_restarts_on_progress);
 
     return UNITY_END();
 }

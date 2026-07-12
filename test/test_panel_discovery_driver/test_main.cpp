@@ -219,7 +219,7 @@ void test_full_local_sequence_probe_accept_reject_and_done()
     TEST_ASSERT_EQUAL_UINT16(5, ((const Protocol::PacketDiscoveryDone *)link.frameAt(3))->panelIndex);
 }
 
-void test_probe_timeout_marks_edge_not_connected_and_reports_done()
+void test_probe_timeout_marks_edge_not_connected_and_reports_done_after_all_attempts()
 {
     PanelDiscovery discovery(2);
     MockEdgeLink link;
@@ -231,19 +231,126 @@ void test_probe_timeout_marks_edge_not_connected_and_reports_done()
 
     Protocol::PacketDiscoveryAdvance advance = makeAdvance(3, 4);
 
-    driver.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 0);  // probes edge 1 at t=0
+    driver.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 0);  // probes edge 1 at t=0, attempt 1
 
     TEST_ASSERT_EQUAL(2, link.count);
 
     driver.tick(10);  // well before PROBE_TIMEOUT_MS
     TEST_ASSERT_EQUAL_MESSAGE(2, link.count, "must not time out early");
 
-    driver.tick(PanelDiscoveryDriver::PROBE_TIMEOUT_MS + 10);
+    uint32_t nowMs = 0;
+
+    for (uint8_t attempt = 1; attempt < PanelDiscoveryDriver::PROBE_ATTEMPTS; attempt++) {
+        nowMs += PanelDiscoveryDriver::PROBE_TIMEOUT_MS;
+        driver.tick(nowMs);
+
+        TEST_ASSERT_TRUE_MESSAGE(discovery.edgeState(1) == EdgeLinkState::Unexplored, "still retrying, not given up yet");
+        TEST_ASSERT_EQUAL_UINT8(1, link.sentToEdge[link.count - 1]);
+        TEST_ASSERT_EQUAL_UINT8(Protocol::PACKET_INITIALIZATION_PULL, link.frameAt(link.count - 1)->header.type);
+    }
+
+    TEST_ASSERT_EQUAL(2 + (PanelDiscoveryDriver::PROBE_ATTEMPTS - 1), link.count);  // initial probe + retries
+
+    // Final attempt's own timeout -- now the edge is given up on.
+    nowMs += PanelDiscoveryDriver::PROBE_TIMEOUT_MS;
+    driver.tick(nowMs);
 
     TEST_ASSERT_FALSE(discovery.isConnected(1));
     TEST_ASSERT_EQUAL_UINT8((uint8_t)EdgeLinkState::NotConnected, (uint8_t)discovery.edgeState(1));
-    TEST_ASSERT_EQUAL(3, link.count);
-    TEST_ASSERT_EQUAL_UINT8(Protocol::PACKET_DISCOVERY_DONE, link.frameAt(2)->header.type);
+    TEST_ASSERT_EQUAL(2 + PanelDiscoveryDriver::PROBE_ATTEMPTS, link.count);  // accept-reply + all probe attempts + DONE
+    TEST_ASSERT_EQUAL_UINT8(Protocol::PACKET_DISCOVERY_DONE, link.frameAt(link.count - 1)->header.type);
+}
+
+void test_reply_arriving_after_a_retry_is_still_accepted()
+{
+    PanelDiscovery discovery(2);
+    MockEdgeLink link;
+    PanelDiscoveryDriver driver(discovery, link);
+
+    Protocol::PacketInitializationPull pull = makePull(3);
+
+    driver.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);
+
+    Protocol::PacketDiscoveryAdvance advance = makeAdvance(3, 4);
+
+    driver.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 0);  // probe attempt 1 on edge 1
+
+    driver.tick(PanelDiscoveryDriver::PROBE_TIMEOUT_MS);  // attempt 1 times out, attempt 2 sent on the same edge
+
+    TEST_ASSERT_TRUE(driver.isProbing());
+    TEST_ASSERT_EQUAL_UINT8(1, driver.probingEdge());
+
+    // The reply to the retried probe lands normally -- retrying must not have left the driver
+    // unable to recognize a genuine, if late, response.
+    Protocol::PacketRegisterEdge accepted = makeReply(9, 1);
+
+    driver.onFrameArrived(1, Protocol::packetMeta(accepted), sizeof(accepted), PanelDiscoveryDriver::PROBE_TIMEOUT_MS + 5);
+
+    TEST_ASSERT_TRUE(discovery.isConnected(1));
+    TEST_ASSERT_FALSE(driver.isProbing());
+}
+
+void test_duplicate_advance_while_probing_is_ignored()
+{
+    PanelDiscovery discovery(3);
+    MockEdgeLink link;
+    PanelDiscoveryDriver driver(discovery, link);
+
+    Protocol::PacketInitializationPull pull = makePull(5);
+
+    driver.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);
+
+    Protocol::PacketDiscoveryAdvance advance = makeAdvance(5, 6);
+
+    driver.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 10);  // starts probing edge 1
+
+    TEST_ASSERT_TRUE(driver.isProbing());
+    TEST_ASSERT_EQUAL_UINT8(1, driver.probingEdge());
+
+    int countBeforeDuplicate = link.count;
+
+    // The controller's own retransmit of the same ADVANCE (its reply/DONE never reached it) --
+    // must not restart the walk mid-probe and orphan the outstanding reply.
+    driver.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 20);
+
+    TEST_ASSERT_EQUAL_MESSAGE(countBeforeDuplicate, link.count, "a duplicate ADVANCE while probing must send nothing");
+    TEST_ASSERT_TRUE(driver.isProbing());
+    TEST_ASSERT_EQUAL_UINT8(1, driver.probingEdge());
+
+    // The original probe's own reply still resolves normally afterwards.
+    Protocol::PacketRegisterEdge accepted = makeReply(8, 1);
+
+    driver.onFrameArrived(1, Protocol::packetMeta(accepted), sizeof(accepted), 25);
+
+    TEST_ASSERT_TRUE(discovery.isConnected(1));
+    TEST_ASSERT_FALSE(driver.isProbing());
+}
+
+void test_probing_edge_getter_tracks_is_probing()
+{
+    PanelDiscovery discovery(2);
+    MockEdgeLink link;
+    PanelDiscoveryDriver driver(discovery, link);
+
+    TEST_ASSERT_FALSE(driver.isProbing());
+
+    Protocol::PacketInitializationPull pull = makePull(3);
+
+    driver.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);
+
+    Protocol::PacketDiscoveryAdvance advance = makeAdvance(3, 4);
+
+    driver.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 0);
+
+    TEST_ASSERT_TRUE(driver.isProbing());
+    TEST_ASSERT_EQUAL_UINT8(1, driver.probingEdge());
+
+    // No unexplored edges remain after this -- back to not probing.
+    Protocol::PacketRegisterEdge rejected = makeReply(Protocol::DISCOVERY_REJECTED_INDEX, 1);
+
+    driver.onFrameArrived(1, Protocol::packetMeta(rejected), sizeof(rejected), 5);
+
+    TEST_ASSERT_FALSE(driver.isProbing());
 }
 
 int main(int argc, char **argv)
@@ -258,7 +365,10 @@ int main(int argc, char **argv)
     RUN_TEST(test_pull_on_a_different_edge_after_registration_is_rejected_as_a_loop);
     RUN_TEST(test_advance_not_addressed_to_us_is_ignored);
     RUN_TEST(test_full_local_sequence_probe_accept_reject_and_done);
-    RUN_TEST(test_probe_timeout_marks_edge_not_connected_and_reports_done);
+    RUN_TEST(test_probe_timeout_marks_edge_not_connected_and_reports_done_after_all_attempts);
+    RUN_TEST(test_reply_arriving_after_a_retry_is_still_accepted);
+    RUN_TEST(test_duplicate_advance_while_probing_is_ignored);
+    RUN_TEST(test_probing_edge_getter_tracks_is_probing);
 
     return UNITY_END();
 }

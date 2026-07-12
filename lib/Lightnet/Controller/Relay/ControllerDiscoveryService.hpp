@@ -1,7 +1,7 @@
 #pragma once
 
 // ControllerDiscoveryService — glues ControllerEdgeTransport's raw bytes to
-// DiscoveryCoordinator via PacketFramer: transport -> framer -> protocol logic, the same
+// DiscoveryCoordinator via TrunkFrameReceiver: transport -> framer -> protocol logic, the same
 // three-layer shape the panel side will eventually use for its own RX path. Polling-based
 // (tick() drains whatever has arrived since the last call) rather than interrupt-driven —
 // unlike the panel's mux-switching, there is no hard real-time constraint here, and
@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 #include "ControllerEdgeTransport.hpp"
-#include "../../Core/Relay/PacketFramer.hpp"
+#include "../../Core/Relay/TrunkFrameReceiver.hpp"
 #include "../../Core/Relay/DiscoveryCoordinator.hpp"
 #include "../../Core/Relay/DiscoveryTreeBuilder.hpp"
 
@@ -43,7 +43,7 @@ class ControllerDiscoveryService
 
     private:
         ControllerEdgeTransport &transport;
-        Lightnet::PacketFramer framer;
+        Lightnet::TrunkFrameReceiver framer;
         Lightnet::DiscoveryTreeBuilder treeBuilder;
         Lightnet::DiscoveryCoordinator coordinator;
 };

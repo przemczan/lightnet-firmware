@@ -32,6 +32,13 @@ void PanelsInitializer::start()
     Serial1.begin(this->config.trunkBaud, SERIAL_8N1, this->config.trunkRxPin, this->config.trunkTxPin);
     LNTrunkTransport.begin(this->config.trunkOutputEnablePin);
 
+    // Discard whatever the trunk line accumulated while the UART was configuring (a booting
+    // panel's tri-state buffers can glitch the shared line before its own reset settles) --
+    // otherwise the very first bytes ControllerDiscoveryService sees could already be noise.
+    while (LNTrunkTransport.available()) {
+        LNTrunkTransport.readByte();
+    }
+
     this->discoveryService.begin(millis());
 }
 

@@ -2,7 +2,8 @@
 
 // Panel debug output goes out DebugSerial's bit-banged PD7 TX (see
 // lib/Lightnet/Panel/DebugSerial.hpp) -- both of the panel's real USART pins are owned by the
-// relay trunk, so this is the only debug channel available. 9600 baud, 8N1, idle high.
+// relay trunk, so this is the only debug channel available. 57600 baud (see
+// DEBUG_SERIAL_BAUD below), 8N1, idle high.
 #define DEBUG 0
 
 // ── Debug sub-switches ────────────────────────────────────────────────────────
@@ -16,6 +17,9 @@
 // Full packet byte dumps (defaults to 0 — verbose, and each bit-banged line blocks for
 // milliseconds, which perturbs relay timing). Enable to see packet content:
 // #define DEBUG_LIGHTNET_BUS_PACKET_CONTENT 1
+// Baud of the bit-banged debug UART itself (lib/Lightnet/Panel/DebugSerial.cpp), independent of
+// the relay trunk baud below. Defaults to 57600 — match your monitor's baud if you override this:
+// #define DEBUG_SERIAL_BAUD 57600UL
 
 // ── Relay trunk ───────────────────────────────────────────────────────────────
 // UART baud of the panel's edge links. Must match the controller's LIGHTNET_TRUNK_BAUD and the

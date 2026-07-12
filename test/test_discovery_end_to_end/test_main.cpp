@@ -59,6 +59,11 @@ PanelDiscoveryDriver *drivers[NODE_COUNT];
 DiscoveryCoordinator *coordinator;
 uint32_t fabricNow;
 
+// Set by a test that wants to simulate exactly one lost frame on a specific hop -- self-clearing
+// on first match, so it never affects any test that leaves it false (the default).
+bool dropNextPullOnN0Edge1        = false;
+bool dropNextAdvanceFromController = false;
+
 void deliver(int nodeIndex, uint8_t edge, const Protocol::PacketMeta *frame, uint8_t size);
 
 struct FabricLink : public IEdgeLink {
@@ -66,6 +71,13 @@ struct FabricLink : public IEdgeLink {
 
     void sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta *packet, uint8_t size) override
     {
+        if (dropNextPullOnN0Edge1 && this->nodeIndex == 0 && edgeIndex == 1
+            && packet->header.type == Protocol::PACKET_INITIALIZATION_PULL) {
+            dropNextPullOnN0Edge1 = false;  // exactly one lost frame, then the wire behaves again
+
+            return;
+        }
+
         FabricTarget target = wiring[this->nodeIndex][edgeIndex];
 
         if (target.node == NO_NODE) {
@@ -73,7 +85,7 @@ struct FabricLink : public IEdgeLink {
         }
 
         if (target.node == CONTROLLER_NODE) {
-            coordinator->onFrameArrived(packet, size);
+            coordinator->onFrameArrived(packet, size, fabricNow);
 
             return;
         }
@@ -86,6 +98,12 @@ struct ControllerLink : public IEdgeLink {
     void sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta *packet, uint8_t size) override
     {
         (void)edgeIndex;  // the controller has exactly one edge in this fabric
+
+        if (dropNextAdvanceFromController && packet->header.type == Protocol::PACKET_DISCOVERY_ADVANCE) {
+            dropNextAdvanceFromController = false;
+
+            return;
+        }
 
         deliver(0, 0, packet, size);  // N0 is wired directly to the controller on its own edge 0
     }
@@ -201,6 +219,75 @@ void test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports()
     delete coordinator;
 }
 
+// Same fabric, but the very first ADVANCE the controller sends (to N0) and the very first PULL
+// N0 sends probing N1 are each dropped exactly once -- proving PanelDiscoveryDriver's probe
+// retries and DiscoveryCoordinator's ADVANCE resends actually recover a real single-frame loss
+// on the wire, not just avoid corrupting state when nothing is lost.
+void test_discovery_completes_despite_one_dropped_advance_and_one_dropped_probe()
+{
+    for (int i = 0; i < NODE_COUNT; i++) {
+        discoveries[i]        = new PanelDiscovery(EDGES_PER_NODE);
+        fabricLinks[i].nodeIndex = i;
+        drivers[i]             = new PanelDiscoveryDriver(*discoveries[i], fabricLinks[i]);
+        routers[i]             = new PanelRouter(*discoveries[i], fabricLinks[i]);
+    }
+
+    ControllerLink controllerLink;
+    DiscoveryTreeBuilder treeBuilder(EDGES_PER_NODE);
+
+    coordinator = new DiscoveryCoordinator(controllerLink, &treeBuilder);
+    fabricNow   = 0;
+
+    dropNextPullOnN0Edge1        = true;
+    dropNextAdvanceFromController = true;
+
+    coordinator->begin(fabricNow);
+
+    const int SAFETY_CAP = 200;
+    int iterations = 0;
+
+    while (!coordinator->isComplete() && iterations < SAFETY_CAP) {
+        fabricNow += PanelDiscoveryDriver::PROBE_TIMEOUT_MS + 1;
+
+        for (int i = 0; i < NODE_COUNT; i++) {
+            drivers[i]->tick(fabricNow);
+        }
+
+        coordinator->tick(fabricNow);  // drives the ADVANCE resend the dropped one needs
+
+        iterations++;
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(coordinator->isComplete(), "discovery did not complete -- stuck or looping");
+    TEST_ASSERT_FALSE_MESSAGE(coordinator->walkStalled(), "should have recovered via retry, not stalled");
+    TEST_ASSERT_FALSE_MESSAGE(dropNextPullOnN0Edge1, "the drop-once probe must actually have fired during the walk");
+    TEST_ASSERT_FALSE_MESSAGE(dropNextAdvanceFromController, "the drop-once ADVANCE must actually have fired during the walk");
+
+    // Same final topology as the lossless run -- the two dropped frames only cost extra time.
+    TEST_ASSERT_EQUAL_UINT16(1, drivers[0]->assignedPanelIndex());
+    TEST_ASSERT_EQUAL_UINT16(2, drivers[1]->assignedPanelIndex());
+    TEST_ASSERT_EQUAL_UINT16(3, drivers[2]->assignedPanelIndex());
+
+    TEST_ASSERT_TRUE(discoveries[0]->isConnected(1));  // N0 <-> N1, despite the dropped first probe
+    TEST_ASSERT_TRUE(discoveries[1]->isConnected(0));
+    TEST_ASSERT_TRUE(discoveries[1]->isConnected(1));  // N1 <-> N2
+    TEST_ASSERT_TRUE(discoveries[2]->isConnected(0));
+
+    TEST_ASSERT_EQUAL_UINT8(3, treeBuilder.panelCount());
+    TEST_ASSERT_EQUAL_UINT8(2, treeBuilder.linkCount());
+
+    for (int i = 0; i < NODE_COUNT; i++) {
+        delete routers[i];
+        delete drivers[i];
+        delete discoveries[i];
+    }
+
+    delete coordinator;
+
+    dropNextPullOnN0Edge1        = false;
+    dropNextAdvanceFromController = false;
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -208,6 +295,7 @@ int main(int argc, char **argv)
 
     UNITY_BEGIN();
     RUN_TEST(test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports);
+    RUN_TEST(test_discovery_completes_despite_one_dropped_advance_and_one_dropped_probe);
 
     return UNITY_END();
 }

@@ -175,6 +175,47 @@ void test_framer_back_to_back_frames_with_no_explicit_reset()
     TEST_ASSERT_EQUAL_MEMORY(&second, framer.frame(), sizeof(second));
 }
 
+void test_has_partial_frame_tracks_in_progress_accumulation()
+{
+    Protocol::PacketSetColor packet = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
+    const uint8_t *bytes = (const uint8_t *)&packet;
+    PacketFramer framer;
+
+    TEST_ASSERT_FALSE_MESSAGE(framer.hasPartialFrame(), "nothing accumulated yet");
+
+    framer.pushByte(bytes[0]);
+    TEST_ASSERT_TRUE_MESSAGE(framer.hasPartialFrame(), "type byte accepted, frame not yet complete");
+
+    for (uint8_t i = 1; i + 1 < sizeof(packet); i++) {
+        framer.pushByte(bytes[i]);
+        TEST_ASSERT_TRUE(framer.hasPartialFrame());
+    }
+
+    framer.pushByte(bytes[sizeof(packet) - 1]);
+    TEST_ASSERT_FALSE_MESSAGE(framer.hasPartialFrame(), "a completed frame is not \"partial\"");
+}
+
+void test_has_partial_frame_false_after_noise_byte()
+{
+    PacketFramer framer;
+
+    framer.pushByte(0xFF);  // not a recognized type -- never starts accumulating
+    TEST_ASSERT_FALSE(framer.hasPartialFrame());
+}
+
+void test_has_partial_frame_false_after_reset()
+{
+    Protocol::PacketSetColor packet = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
+    const uint8_t *bytes = (const uint8_t *)&packet;
+    PacketFramer framer;
+
+    framer.pushByte(bytes[0]);
+    TEST_ASSERT_TRUE(framer.hasPartialFrame());
+
+    framer.reset();
+    TEST_ASSERT_FALSE(framer.hasPartialFrame());
+}
+
 // --- validateProtocolVersion bypass (relay OTA bootloader only) ----------------------------
 
 void test_framer_rejects_version_mismatch_by_default()
@@ -385,6 +426,9 @@ int main(int argc, char **argv)
     RUN_TEST(test_framer_corrupted_header_crc_resyncs);
     RUN_TEST(test_framer_skips_unrecognized_type_bytes);
     RUN_TEST(test_framer_back_to_back_frames_with_no_explicit_reset);
+    RUN_TEST(test_has_partial_frame_tracks_in_progress_accumulation);
+    RUN_TEST(test_has_partial_frame_false_after_noise_byte);
+    RUN_TEST(test_has_partial_frame_false_after_reset);
     RUN_TEST(test_framer_rejects_version_mismatch_by_default);
     RUN_TEST(test_framer_accepts_version_mismatch_when_bypassed);
     RUN_TEST(test_framer_accepts_reset_device_despite_version_mismatch_by_default);

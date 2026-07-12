@@ -13,6 +13,13 @@
 // controller, which has RAM to spare — panels only ever track their own local edge states (see
 // PanelDiscovery), never anything about the wider tree.
 //
+// The ADVANCE just sent to the current frontier is resent every ADVANCE_RETRY_INTERVAL_MS until
+// something moves the walk forward (a REGISTER_EDGE or DISCOVERY_DONE bumps lastProgressMs) --
+// covers the ADVANCE itself, or the frontier's own reply, getting lost on the wire. The
+// frontier's PanelDiscoveryDriver ignores a duplicate ADVANCE that arrives while one of its own
+// probes is still outstanding (see PanelDiscoveryDriver::handleAdvance()), so a resend can never
+// derail an in-progress probe, only recover from a genuine loss.
+//
 // Pure logic, no Arduino — built and tested against a mock/sim IEdgeLink, since the real
 // controller-side UART trunk transport doesn't exist yet.
 
@@ -49,6 +56,15 @@ namespace Lightnet {
             // USART init), and it's a broadcast onto a currently-idle trunk, so resending costs
             // nothing but another 0xFF-prefixed frame -- see DiscoveryCoordinator.cpp's tick().
             static const uint32_t ROOT_RETRY_INTERVAL_MS = 500;
+
+            // How often to resend PACKET_DISCOVERY_ADVANCE to the current frontier while no
+            // REGISTER_EDGE/DISCOVERY_DONE has moved the walk forward. Covers the ADVANCE itself
+            // getting lost, and also the frontier's reply/DONE getting lost -- either way, the
+            // frontier's own PanelDiscoveryDriver treats a re-ADVANCE while nothing is
+            // outstanding as a fresh instruction (a duplicate arriving mid-probe is ignored
+            // instead, see PanelDiscoveryDriver::handleAdvance()), so a resend is always safe to
+            // send and only ever a no-op past what already happened.
+            static const uint32_t ADVANCE_RETRY_INTERVAL_MS = 500;
 
             // `treeBuilder` is optional (nullptr = don't accumulate a topology, e.g. tests that
             // only care about the DFS sequencing) — see DiscoveryTreeBuilder.hpp.
@@ -91,10 +107,11 @@ namespace Lightnet {
             uint32_t beginMs;
             uint32_t lastRootPullMs;
             uint32_t lastProgressMs;
+            uint32_t lastAdvanceMs;
 
             void sendRootPull(uint32_t nowMs);
-            void handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply);
-            void handleDiscoveryDone();
-            void sendAdvance(uint16_t target);
+            void handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply, uint32_t nowMs);
+            void handleDiscoveryDone(uint32_t nowMs);
+            void sendAdvance(uint16_t target, uint32_t nowMs);
     };
 }  // namespace Lightnet

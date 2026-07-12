@@ -4,11 +4,25 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <stdlib.h>
-#include <util/delay.h>
+
+// Overridable from panel.config.hpp (force-included into every panel build -- see
+// platformio.ini's lightnet_panel build_flags), same pattern as LIGHTNET_TRUNK_BAUD.
+#ifndef DEBUG_SERIAL_BAUD
+    #define DEBUG_SERIAL_BAUD 57600UL
+#endif
 
 namespace {
-    const unsigned long DEBUG_SERIAL_BAUD = 9600UL;
-    const double BIT_US            = 1000000.0 / DEBUG_SERIAL_BAUD;
+    // Cycles the bit loop's own body burns (shift, branch, the if/else port write) before each
+    // delay -- must come out of the nominal bit period, or every bit ships slightly long and the
+    // drift accumulates across a byte until the stop bit is misframed. Negligible at 9600 baud
+    // (~1% of a bit period) but material at higher baud (~5-8% per bit at 57600), which is why
+    // this only needed correcting once the baud was raised. Measured for -Os on avr-gcc; revisit
+    // if the loop body above changes.
+    const uint16_t BIT_LOOP_OVERHEAD_CYCLES = 10;
+    const uint16_t BIT_PERIOD_CYCLES = (uint16_t)(F_CPU / DEBUG_SERIAL_BAUD);
+    const uint16_t BIT_DELAY_CYCLES  = (BIT_PERIOD_CYCLES > BIT_LOOP_OVERHEAD_CYCLES)
+        ? (uint16_t)(BIT_PERIOD_CYCLES - BIT_LOOP_OVERHEAD_CYCLES)
+        : BIT_PERIOD_CYCLES;
 
     // The one actual bit-banging primitive -- transmits exactly the 8 bits given, framed with a
     // start and stop bit. Every public debugSerialWrite() overload funnels through this one byte
@@ -17,7 +31,7 @@ namespace {
     void writeRawByte(uint8_t byte)
     {
         PORTD &= ~(1 << PD7);  // start bit
-        _delay_us(BIT_US);
+        __builtin_avr_delay_cycles(BIT_DELAY_CYCLES);
 
         for (uint8_t i = 0; i < 8; i++) {
             if (byte & 0x01) {
@@ -27,11 +41,11 @@ namespace {
             }
 
             byte >>= 1;
-            _delay_us(BIT_US);
+            __builtin_avr_delay_cycles(BIT_DELAY_CYCLES);
         }
 
         PORTD |= (1 << PD7);  // stop bit
-        _delay_us(BIT_US);
+        __builtin_avr_delay_cycles(BIT_DELAY_CYCLES);
     }
 }  // namespace
 

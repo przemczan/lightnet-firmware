@@ -48,6 +48,12 @@ namespace Lightnet {
             const Protocol::PacketMeta *frame() const;
             uint8_t frameSize() const;
 
+            // True while a frame is partway through accumulating (some bytes seen, not yet the
+            // full expected size) — lets a caller with its own inter-byte timeout tell "nothing
+            // in flight" apart from "a frame is stalled mid-flight" without duplicating
+            // PacketFramer's internal state.
+            bool hasPartialFrame() const;
+
             // Discards any accumulated bytes and resumes scanning for a type byte.
             void reset();
 

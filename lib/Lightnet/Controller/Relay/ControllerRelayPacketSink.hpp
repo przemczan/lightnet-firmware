@@ -48,7 +48,7 @@
 #include <stdint.h>
 #include "../../Core/Controller/IPacketSink.hpp"
 #include "../../Core/Common/ProtocolMeta.hpp"
-#include "../../Core/Relay/PacketFramer.hpp"
+#include "../../Core/Relay/TrunkFrameReceiver.hpp"
 #include "ControllerEdgeTransport.hpp"
 
 namespace Lightnet {
@@ -93,7 +93,7 @@ namespace Lightnet {
         private:
             ControllerEdgeTransport &transport;
             onPacketSent_t onPacketSentCallback;
-            Lightnet::PacketFramer replyFramer;
+            Lightnet::TrunkFrameReceiver replyFramer;
 
             void flushStrayBytes();
             bool awaitFrame(

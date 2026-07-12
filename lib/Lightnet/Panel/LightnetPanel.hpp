@@ -17,13 +17,16 @@
 // ISRs only ever do the minimal, race-free handoff a real ISR is safe to do:
 //   - The USART RX ISR pushes each raw byte into EdgeUartTransport's existing ByteRing
 //     (onRxByte()) — already real-time-safe, built for exactly this.
-//   - The PCINT wake ISR just latches which edge woke (onEdgeWakeIsr()) into a single volatile
-//     byte; the actual claim decision (EdgeFrameReceiver::onEdgeWake()) and the mux switch
-//     (EdgeUartTransport::selectRxEdge()) both happen from pollWake() in the main loop instead of
-//     from the ISR, so they're never racing tick()'s other calls into the same objects. A second
-//     wake arriving before pollWake() drains the first overwrites it — an accepted simplification
-//     given the single-active-flow invariant (hardware redesign plan §3): only one edge should
-//     legitimately be waking at a time in correctly-functioning hardware.
+//   - The PCINT wake ISR discards a wake that lands while this panel is transmitting (our own
+//     drive can couple onto a neighbouring edge's separate wake-sense line — see
+//     onEdgeWakeIsr()'s own comment) and otherwise just latches which edge woke into a single
+//     volatile byte; the actual claim decision (EdgeFrameReceiver::onEdgeWake()) and the mux
+//     switch (EdgeUartTransport::selectRxEdge()) both happen from pollWake() in the main loop
+//     instead of from the ISR, so they're never racing tick()'s other calls into the same
+//     objects. A second wake arriving before pollWake() drains the first overwrites it — an
+//     accepted simplification given the single-active-flow invariant (hardware redesign plan
+//     §3): only one edge should legitimately be waking at a time in correctly-functioning
+//     hardware.
 // Whether main-loop-driven mux switching reacts fast enough relative to the sender's preamble
 // byte is genuinely a bench-spike question (see the plan's step 1), not something resolved here.
 //
@@ -83,7 +86,12 @@ class LightnetPanel
         volatile uint8_t pendingWakeEdge;
         uint32_t lastRelayActivityMs;
 
-        static const uint32_t RELAY_QUIET_MS = 80;
+        // With probe retries (PanelDiscoveryDriver::PROBE_ATTEMPTS), a downstream panel
+        // resolving two empty edges can legitimately go quiet for up to
+        // 2 * PROBE_ATTEMPTS * PanelDiscoveryDriver::PROBE_TIMEOUT_MS = 300ms mid-walk -- this
+        // must stay above that so an upstream relay panel never starts a bit-banged debug flush
+        // (20-30ms, blocking) inside a gap that's really still part of the walk.
+        static const uint32_t RELAY_QUIET_MS = 400;
 
         #if DEBUG
             struct PendingRxBusLog {
@@ -91,7 +99,7 @@ class LightnetPanel
                 uint16_t panel;
             };
 
-            static const uint8_t PENDING_RX_BUS_LOG_CAP = 4;
+            static const uint8_t PENDING_RX_BUS_LOG_CAP = 8;
 
             PendingRxBusLog pendingRxBusLogs[PENDING_RX_BUS_LOG_CAP];
             uint8_t pendingRxBusLogCount;
@@ -99,6 +107,16 @@ class LightnetPanel
 
         void pollWake(uint32_t nowMs);
         void pollBytes(uint32_t nowMs);
+
+        // While a probe is outstanding (driver.isProbing()), parks the RX claim/mux on the
+        // probed edge directly rather than waiting for a PCINT wake -- the protocol guarantees a
+        // reply can only ever come back on that edge (see PanelDiscoveryDriver::probingEdge()'s
+        // own comment), so this makes the probe-reply path immune to a wake being lost to
+        // crosstalk or a stray transient. A no-op once the edge is already claimed
+        // (EdgeFrameReceiver::onEdgeWake() ignores a redundant claim), so calling this every
+        // tick() is cheap and also re-claims the edge after EdgeFrameReceiver::FRAME_TIMEOUT_MS
+        // releases a stalled claim.
+        void pollProbeClaim(uint32_t nowMs);
         void flushPendingRxBusLogs();
         void flushIdleDebugLogs(uint32_t nowMs);
         void handlePacket(const Protocol::PacketMeta *packet, uint8_t size);

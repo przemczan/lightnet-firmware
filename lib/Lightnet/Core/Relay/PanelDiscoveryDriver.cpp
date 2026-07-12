@@ -5,7 +5,7 @@
 namespace Lightnet {
     PanelDiscoveryDriver::PanelDiscoveryDriver(PanelDiscovery &discovery, IEdgeLink &link)
         : discovery(discovery), link(link), assignedIndex(0), pendingAssignIndex(0),
-        probingEdge(NO_EDGE), probeStartedMs(0), deferredLogCount(0)
+        probingEdgeIndex(NO_EDGE), probeAttempts(0), probeStartedMs(0), deferredLogCount(0)
     {
     }
 
@@ -102,7 +102,7 @@ namespace Lightnet {
 
             case Protocol::PACKET_REGISTER_EDGE:
 
-                if (fromEdge == this->probingEdge) {
+                if (fromEdge == this->probingEdgeIndex) {
                     this->handleRegisterEdgeReply(fromEdge, (const Protocol::PacketRegisterEdge *)frame, nowMs);
                 }
 
@@ -124,12 +124,17 @@ namespace Lightnet {
 
     bool PanelDiscoveryDriver::isProbing() const
     {
-        return this->probingEdge != NO_EDGE;
+        return this->probingEdgeIndex != NO_EDGE;
+    }
+
+    uint8_t PanelDiscoveryDriver::probingEdge() const
+    {
+        return this->probingEdgeIndex;
     }
 
     void PanelDiscoveryDriver::tick(uint32_t nowMs)
     {
-        if (this->probingEdge == NO_EDGE) {
+        if (this->probingEdgeIndex == NO_EDGE) {
             return;
         }
 
@@ -137,12 +142,20 @@ namespace Lightnet {
             return;
         }
 
-        uint8_t timedOutEdge = this->probingEdge;
+        uint8_t timedOutEdge = this->probingEdgeIndex;
 
-        this->probingEdge = NO_EDGE;
+        this->deferLog(DeferredDiscLog::ProbeTimeout, timedOutEdge);
+        this->probeAttempts++;
+
+        if (this->probeAttempts < PROBE_ATTEMPTS) {
+            this->sendProbe(timedOutEdge, nowMs);  // retry the same edge -- see class comment
+
+            return;
+        }
+
+        this->probingEdgeIndex = NO_EDGE;
         this->discovery.onChildProbeFailed(timedOutEdge);
         this->tryNextEdge(nowMs);
-        this->deferLog(DeferredDiscLog::ProbeTimeout, timedOutEdge);
     }
 
     void PanelDiscoveryDriver::handleInitializationPull(
@@ -178,7 +191,7 @@ namespace Lightnet {
         uint32_t                            nowMs
     )
     {
-        this->probingEdge = NO_EDGE;
+        this->probingEdgeIndex = NO_EDGE;
 
         if (reply->panelIndex != Protocol::DISCOVERY_REJECTED_INDEX) {
             this->discovery.onChildProbeAccepted(fromEdge);
@@ -205,6 +218,14 @@ namespace Lightnet {
             return;  // not addressed to us -- PanelRouter has already relayed it downstream
         }
 
+        if (this->isProbing()) {
+            // A probe from an earlier ADVANCE is still outstanding -- this is the controller's
+            // own retransmit of that same ADVANCE (its own reply/DONE never reached it, see
+            // DiscoveryCoordinator), not a new instruction. Restarting the walk here would
+            // overwrite probingEdgeIndex mid-probe and orphan the outstanding reply.
+            return;
+        }
+
         this->pendingAssignIndex = advance->assignIndex;
         this->deferLog(DeferredDiscLog::AdvAccept, advance->assignIndex);
         this->tryNextEdge(nowMs);
@@ -221,16 +242,8 @@ namespace Lightnet {
                 continue;
             }
 
-            Protocol::PacketInitializationPull pull =
-                Protocol::makePacket<Protocol::PacketInitializationPull>(Protocol::PACKET_INITIALIZATION_PULL);
-
-            pull.panelIndex       = this->pendingAssignIndex;
-            pull.parentEdgeIndex  = edge;
-
-            this->probingEdge    = edge;
-            this->probeStartedMs = nowMs;
-            this->link.sendOnEdge(edge, Protocol::packetMeta(pull), sizeof(pull));
-            this->deferLog(DeferredDiscLog::Probe, edge);
+            this->probeAttempts = 0;
+            this->sendProbe(edge, nowMs);
 
             return;
         }
@@ -243,5 +256,19 @@ namespace Lightnet {
 
         this->link.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(done), sizeof(done));
         this->deferLog(DeferredDiscLog::DoneSend, this->assignedIndex, this->discovery.parentEdge());
+    }
+
+    void PanelDiscoveryDriver::sendProbe(uint8_t edge, uint32_t nowMs)
+    {
+        Protocol::PacketInitializationPull pull =
+            Protocol::makePacket<Protocol::PacketInitializationPull>(Protocol::PACKET_INITIALIZATION_PULL);
+
+        pull.panelIndex      = this->pendingAssignIndex;
+        pull.parentEdgeIndex = edge;
+
+        this->probingEdgeIndex = edge;
+        this->probeStartedMs   = nowMs;
+        this->link.sendOnEdge(edge, Protocol::packetMeta(pull), sizeof(pull));
+        this->deferLog(DeferredDiscLog::Probe, edge);
     }
 }  // namespace Lightnet

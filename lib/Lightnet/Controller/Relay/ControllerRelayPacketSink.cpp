@@ -38,7 +38,7 @@
                 serviceMirror();
 
                 while (this->transport.available()) {
-                    if (!this->replyFramer.pushByte(this->transport.readByte())) {
+                    if (!this->replyFramer.onByte(this->transport.readByte(), millis())) {
                         continue;
                     }
 

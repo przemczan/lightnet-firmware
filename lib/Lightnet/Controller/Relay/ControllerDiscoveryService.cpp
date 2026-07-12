@@ -21,7 +21,7 @@ void ControllerDiscoveryService::tick(uint32_t nowMs)
     bool wasComplete = this->coordinator.isComplete();
 
     while (this->transport.available() && drained < MAX_BYTES_PER_TICK) {
-        if (this->framer.pushByte(this->transport.readByte())) {
+        if (this->framer.onByte(this->transport.readByte(), nowMs)) {
             this->coordinator.onFrameArrived(this->framer.frame(), this->framer.frameSize(), nowMs);
         }
 

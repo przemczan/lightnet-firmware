@@ -71,7 +71,7 @@ ESP32-class controller.
     | Mux select | PC3 / PC2 | `S0`/`S1` on the `CD74HC4052` — chooses which edge's RX the shared USART reads |
     | Edge 0 / 1 / 2 wake | PB1 / PB2 / PB3 | PCINT — "which edge is signalling," drives the mux select; not the data-sample path |
     | LED clock / data | PC4 / PC5 | `LED_SCK`/`LED_MOSI` — clocked protocol (APA102/SK9822-style), no NRZ timing |
-    | Debug TX | PD7 | Bit-banged, TX-only debug UART (`DebugSerial`, 9600 8N1) — the only spare port-D pin, since USART0 is owned by the relay trunk |
+    | Debug TX | PD7 | Bit-banged, TX-only debug UART (`DebugSerial`, 57600 8N1, overridable via `DEBUG_SERIAL_BAUD`) — the only spare port-D pin, since USART0 is owned by the relay trunk |
 
     Matches [`docs/hardware/schematics/Panel.png`](hardware/schematics/Panel.png). Only USART0 is
     used; USART1 is unused/spare.

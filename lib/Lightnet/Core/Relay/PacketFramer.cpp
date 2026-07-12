@@ -84,4 +84,9 @@ namespace Lightnet {
     {
         return this->filled;
     }
+
+    bool PacketFramer::hasPartialFrame() const
+    {
+        return (this->filled > 0) && (this->filled < this->expectedSize);
+    }
 }  // namespace Lightnet

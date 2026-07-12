@@ -30,10 +30,21 @@ void LightnetPanel::begin()
 
 void LightnetPanel::onEdgeWakeIsr(uint8_t edgeIndex)
 {
-    // Minimal ISR-side work: latch which edge woke, nothing else. The actual claim decision and
-    // mux switch happen from pollWake() in the main loop -- see the class comment's threading
-    // model. A second wake before pollWake() drains this one overwrites it (accepted, see
-    // comment).
+    // Our own edge's drive can couple onto a neighbouring edge's separate wake-sense line
+    // (PB1/PB2/PB3 sense each edge directly, not through the mux -- see EdgeUartTransport.hpp's
+    // pin map), producing a wake with no real frame behind it. This ISR runs during the blocking
+    // sendOnEdge() call that would cause such coupling (isTransmitting() is only ever true for
+    // that call's own duration), so checking it here -- rather than in pollWake(), which only
+    // ever runs after sendOnEdge() has already returned -- actually catches it. Left unguarded,
+    // claiming a coupled wake steals the mux onto the wrong edge until the next real wake fixes
+    // it -- discard instead, exactly like onRxByte()'s own self-echo mask for bytes.
+    if (LNEdgeTransport.isTransmitting()) {
+        return;
+    }
+
+    // Latch which edge woke, nothing else. The actual claim decision and mux switch happen from
+    // pollWake() in the main loop -- see the class comment's threading model. A second wake
+    // before pollWake() drains this one overwrites it (accepted, see comment).
     this->pendingWakeEdge = edgeIndex;
 }
 
@@ -47,15 +58,6 @@ void LightnetPanel::pollWake(uint32_t nowMs)
     sei();
 
     if (edge == NO_EDGE) {
-        return;
-    }
-
-    if (LNEdgeTransport.isTransmitting()) {
-        // Our own edge's drive can couple onto a neighbouring edge's separate wake-sense line
-        // (PB1/PB2/PB3 sense each edge directly, not through the mux -- see
-        // EdgeUartTransport.hpp's pin map), producing a wake with no real frame behind it. Left
-        // unguarded, claiming it steals the mux onto the wrong edge until the next real wake
-        // fixes it -- discard instead, exactly like onRxByte()'s own self-echo mask for bytes.
         return;
     }
 
@@ -135,6 +137,19 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
     }
 }
 
+void LightnetPanel::pollProbeClaim(uint32_t nowMs)
+{
+    if (!this->driver.isProbing()) {
+        return;
+    }
+
+    uint8_t edge = this->driver.probingEdge();
+
+    if (this->receiver.onEdgeWake(edge, nowMs)) {
+        LNEdgeTransport.selectRxEdge(edge);
+    }
+}
+
 void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
 {
     if (LNEdgeTransport.available() || this->driver.isProbing()) {
@@ -160,6 +175,7 @@ void LightnetPanel::tick(uint32_t nowMs)
     this->pollBytes(nowMs);
     this->driver.tick(nowMs);
     this->receiver.tick(nowMs);
+    this->pollProbeClaim(nowMs);
     this->animPlayer.tick((uint16_t)nowMs);
 
     if (this->animPlayer.takeDirty()) {
