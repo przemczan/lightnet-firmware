@@ -436,6 +436,66 @@ forever through a physically-wired loop.
    the same pending index (it was never consumed) so it tries its own remaining edges. Popping back
    to the sentinel means the whole tree is resolved.
 
+#### Worked example: two panels in series
+
+Chain: controller trunk → P1 edge 0; P1 edge 2 → P2 edge 2; every other edge unwired.
+
+```mermaid
+sequenceDiagram
+    participant C as Controller<br/>(DiscoveryCoordinator)
+    participant P1 as Panel 1<br/>(driver + router)
+    participant P2 as Panel 2<br/>(driver + router)
+
+    Note over C: begin(): frontier=0, nextIdx=1
+    C->>P1: PULL{assignIdx=1, parentEdge=trunk} (direct on trunk)
+    Note right of C: the trunk is a single shared wire, so the<br/>controller reads back an echo of every tx —<br/>parsed as an ordinary frame and ignored
+    Note over P1: onParentOffer(edge 0) → accept<br/>parent=0, myIdx=1
+    P1-->>C: REGISTER{panelIdx=1, edge=0, parentEdge=0} (direct, edge 0)
+    Note over C: addRoot(1), push(0), frontier=1, nextIdx=2
+
+    C->>P1: ADVANCE{target=1, assign=2}
+    Note over P1: addressed to me → tryNextEdge<br/>(router flood: no connected children yet)
+    P1--xP1: probe edge 1: PULL{assignIdx=2, parentEdge=1}
+    Note over P1: edge 1 empty → PROBE_TIMEOUT (50 ms)<br/>→ NotConnected, next edge immediately
+    P1->>P2: probe edge 2: PULL{assignIdx=2, parentEdge=2}
+    Note over P2: onParentOffer(edge 2) → accept<br/>parent=2, myIdx=2
+    P2-->>P1: REGISTER{panelIdx=2, edge=2, parentEdge=2} (direct, edge 2)
+    Note over P1: driver: edge 2 → Connected, stop<br/>router: non-parent arrival → relay to parent
+    P1-->>C: REGISTER{panelIdx=2, ...} (relayed)
+    Note over C: addLink(1↔2), push(1), frontier=2, nextIdx=3
+
+    C->>P1: ADVANCE{target=2, assign=3}
+    Note over P1: not addressed → router floods to connected edge 2
+    P1->>P2: ADVANCE{target=2, assign=3} (relayed)
+    P2--xP2: probe edge 0: PULL{assignIdx=3} → 50 ms timeout
+    P2--xP2: probe edge 1: PULL{assignIdx=3} → 50 ms timeout
+    Note over P2: no Unexplored edges left
+    P2-->>P1: DONE{panelIdx=2} (on parent edge 2)
+    P1-->>C: DONE{panelIdx=2} (relayed upstream)
+    Note over C: pop() → resume frontier=1
+
+    C->>P1: ADVANCE{target=1, assign=3}
+    Note over P1: addressed: edges = parent / NotConnected / Connected<br/>→ nothing left to probe → DONE first, then the<br/>router relays the ADVANCE on to edge 2
+    P1-->>C: DONE{panelIdx=1}
+    P1->>P2: ADVANCE{target=1} (relayed flood, P2 ignores — not addressed)
+    Note over C: pop() → sentinel 0 → complete, panels found 2
+```
+
+Reading notes:
+
+- Every arrow is one `sendOnEdge()` burst: 4×`0xFF` preamble + frame, the sender blocking until
+  the last byte has shifted out. On the panel side each inbound frame needs wake → claim → mux
+  switch (`EdgeFrameReceiver`) before its first real byte.
+- The root `PULL` is the only retried frame (`ROOT_RETRY_INTERVAL_MS` until the first
+  `REGISTER_EDGE`, empty-tree give-up at `ROOT_TIMEOUT_MS`). After that, a lost frame either
+  prunes a subtree (probe timeout → `NotConnected`) or ends the walk partially via
+  `WALK_STALL_TIMEOUT_MS`.
+- The `assign` index in `ADVANCE`/`PULL` is the coordinator's global counter, incremented only on
+  an accepted registration — which is why P2's probes of its empty edges still carry `assignIdx=3`.
+- On a resume-`ADVANCE` the dispatcher runs the driver before the router, so the addressed panel
+  transmits its own reply (here P1's `DONE`) before re-flooding the `ADVANCE` downstream — two
+  back-to-back tx bursts on different edges.
+
 ### Topology capture — `DiscoveryTreeBuilder`
 
 `DiscoveryCoordinator` itself only tracks DFS *sequencing* (the frontier + resume stack) — it has no

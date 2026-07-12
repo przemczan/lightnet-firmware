@@ -307,9 +307,13 @@ void setupWiFi()
 
     wifiManager->setConfigPortalTimeout(CONFIG_PORTAL_TIMEOUT);
 
+    char apName[32];
+
+    sprintf(apName, "Lightnet-Controller-%08X", (uint32_t)ESP.getEfuseMac());
+
     // This will block for 30 seconds if it can't connect.
     // If you want it non-blocking, you'd need to use startConfigPortal() instead.
-    if (!wifiManager->autoConnect("Lightnet-Controller")) {
+    if (!wifiManager->autoConnect(apName)) {
         Serial.println("Failed to connect and hit timeout");
     }
 
@@ -360,7 +364,7 @@ void setup()
         }
 
     #else
-        delay(100);
+        delay(250);
     #endif
 
     logBootDiagnostics();
@@ -372,9 +376,11 @@ void setup()
     // is sent -- it's a one-shot send with no retry, so firing it before any panel can hear it
     // means discovery times out empty even with a panel attached.
     pinMode(PANELS_POWER_PIN, OUTPUT);
+    digitalWrite(PANELS_POWER_PIN, LOW);
+    delay(150);
     digitalWrite(PANELS_POWER_PIN, HIGH);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panels to boot"));
-    delay(200);
+    delay(500);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
     LNPanelsInitializer.configure(
