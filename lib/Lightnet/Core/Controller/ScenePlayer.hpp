@@ -176,9 +176,9 @@ namespace Lightnet {
             uint8_t currentStep[SCENE_MAX_LAYERS];
             uint32_t stepStartMs[SCENE_MAX_LAYERS];
             LayerState layerState[SCENE_MAX_LAYERS];
-            // RUN_BOUNCE: sweep direction toggled each time the step re-fires, so a single
-            // band sweeps back and forth across scene cycles (perpetual pendulum motion).
-            // Reset to false on stop()/load — a fresh play always starts in the forward direction.
+            // RUN_BOUNCE: toggled on each half-pass within a step window so the band reflects
+            // at the field edges (forward leg, then reverse). Persists across scene cycles for
+            // seamless pendulum motion; reset to false on stop()/load.
             bool bouncePhase[SCENE_MAX_LAYERS];
 
             // RUN_RAIN / RUN_SPARKLE particle-spawner state (see RunnerSpawn.hpp). Serviced over
@@ -208,6 +208,9 @@ namespace Lightnet {
                 uint16_t sweepDurationMs; // each sweep's travel time == effectiveDurationMs of the step
                 uint8_t  sweepSpawnIndex; // how many spawns fired this step window (0..count)
                 uint32_t nextSpawnMs;     // absolute time of the next due sweep
+                uint32_t wheelStopAtMs;   // RUN_WHEEL sync one-rev: STOP the slot at this time (0 = spin freely)
+                uint32_t bounceNextFlipAtMs; // RUN_BOUNCE: fire the reverse leg at this time (0 = inactive)
+                uint16_t bouncePassDur;      // one bounce leg in ms (step duration / 2, speed-adjusted)
             };
             LayerSpawnState spawnState[SCENE_MAX_LAYERS];
 
@@ -235,6 +238,8 @@ namespace Lightnet {
             );
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
+            // RUN_BOUNCE: compile and send one direction leg (uses bouncePhase for reverse).
+            void fireBouncePass(uint8_t layerIdx, uint16_t passDurMs);
             // Clears the layer's animation slot on its panels (ANIM_CTRL_STOP) so it stops
             // contributing to the composite — used when a layer hits a GAP step or finishes
             // its sequence, so a held last frame doesn't permanently cover lower layers.

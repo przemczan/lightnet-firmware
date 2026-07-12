@@ -30,9 +30,7 @@ uint8_t PanelsController::turnOnOff(uint8_t address, uint8_t on)
 
     packet.on = on;
 
-    // Rare, low-frequency operation -- kept acked in intent (hardware redesign plan §3), even
-    // though ControllerRelayPacketSink doesn't yet act on wantAck (flagged in its class comment).
-    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), true);
+    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), false);
 
     return 0;
 }
@@ -122,7 +120,7 @@ uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_
     packet.colorTemperature   = { temperatureRgb.r, temperatureRgb.g, temperatureRgb.b };
     packet.colorCorrection    = { correctionRgb.r, correctionRgb.g, correctionRgb.b };
 
-    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), true);
+    this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), false);
 
     return 0;
 }

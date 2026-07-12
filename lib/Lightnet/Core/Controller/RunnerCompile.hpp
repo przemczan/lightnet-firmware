@@ -76,7 +76,7 @@ namespace Lightnet {
     // BOUNCE: like WAVE, but the band's PEAK travels only the real panel span [0, maxCoord]
     // (not -w/2 → maxCoord+w/2), so it reflects at the edges instead of sliding off-canvas.
     // One pass: centre sweeps 0 → maxCoord over [0,dur]; panel `coord` peaks at t = coord/maxCoord
-    // and is lit while |centre-coord| < w/2. The caller toggles direction each cycle (bouncePhase)
+    // and is lit while |centre-coord| < w/2. ScenePlayer toggles direction each leg (bouncePhase)
     // for the back-and-forth; the t=1-forward profile equals the t=0-reverse profile (band centred
     // on the same edge), so the reflection is seamless. Edge panels get an asymmetric (clamped)
     // rise/fall window — the peak is pinned to the edge so half the triangle is off the field.
@@ -232,12 +232,9 @@ namespace Lightnet {
 
     // WHEEL: `lines` evenly-spaced blades rotate together with period `rotationMs`,
     // so any one panel is struck once every `rotationMs / lines` — that's the loop
-    // period. `turns` is the panel's bearing from the centre (0..1, one full turn);
-    // folding it into one blade's angular slot (frac(turns*lines)) gives its phase
-    // within that period, and `thicknessDeg` (the blade's angular width) becomes a
-    // half-width fraction of the same slot (thicknessDeg*lines/720, halved already
-    // by the /2 of "half"). Always loops — a wheel never stops spinning — via the
-    // same swapped-colour compileRepeating engine as a repeating ripple/wave/chase.
+    // period. PREPARE always carries FLAG_LOOP so startDelayMs is a phase offset.
+    // One-revolution (non-looping) steps stop the slot after `rotationMs` via
+    // ScenePlayer::wheelStopAtMs; async layers or step `"loop": true` spin freely.
     //
     // NB: phase needs no upper clamp. Panels near the bearing wrap point (turns ≈ 1.0)
     // get phase ≈ 1.0 and thus startDelayMs ≈ period, but because the panel treats a

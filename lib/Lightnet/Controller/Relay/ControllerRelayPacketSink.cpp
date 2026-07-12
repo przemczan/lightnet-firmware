@@ -5,6 +5,10 @@
     #include <Arduino.h>
     #include <string.h>
 
+    // Defined in src/controller/main.cpp — keeps the live-preview mirror streaming while
+    // requestReply() blocks the main loop waiting for a typed reply.
+    extern void serviceMirror();
+
     namespace Lightnet {
         ControllerRelayPacketSink::ControllerRelayPacketSink(ControllerEdgeTransport &transport)
             : transport(transport), onPacketSentCallback(nullptr)
@@ -31,6 +35,7 @@
 
             while ((uint32_t)(millis() - start) < timeoutMs) {
                 yield();  // feed WiFi/TCP + the task watchdog while we block
+                serviceMirror();
 
                 while (this->transport.available()) {
                     if (!this->replyFramer.pushByte(this->transport.readByte())) {

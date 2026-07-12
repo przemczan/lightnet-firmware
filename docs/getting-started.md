@@ -123,13 +123,16 @@ All environments are defined in `platformio.ini`.
 ```
 lfuse = 0xF7  — 328P: Full Swing Crystal Oscillator (0.4-20 MHz, rail-to-rail XTAL2 swing, robust
                 to board noise), slowest/safest start-up ramp
-lfuse = 0xF7  — 328PB: Full Swing isn't defined on this variant's datasheet — Low Power Crystal
-                Oscillator (8-16 MHz band) instead, same start-up ramp
+lfuse = 0xF7  — 328PB: Full Swing isn't defined on this variant's datasheet — same byte value
+                selects the Low Power Crystal Oscillator (8-16 MHz band) instead, same start-up ramp
 hfuse = 0xD8  — SPIEN, EESAVE, BOOTRST (4 KB boot section at 0x7000)
-efuse = 0xFD  — BOD 2.7 V
+efuse = 0xFD  — 328P: BOD 2.7 V
+efuse = 0xF5  — 328PB: same BOD 2.7 V, but bit 3 is unused-and-must-read-0 on this variant instead
+                of the usual AVR unused-bits-read-1 convention; avrdude accepts 0xFD with a
+                deprecation warning today but will eventually hard-error on it
 ```
 
-328P and 328PB take different `lfuse` values (`panel_fuses_328` / `env:panel_atmega328pb` / `env:atmega328pb_bootloader` in `platformio.ini`) — don't copy one variant's fuse bytes onto the other.
+328P and 328PB share the same `lfuse`/`hfuse` bytes but take different `efuse` values (`panel_fuses_328` for 328P; `env:panel_atmega328pb` / `env:atmega328pb_bootloader` override `efuse` for 328PB in `platformio.ini`) — don't copy one variant's fuse bytes onto the other.
 
 One-time sequence per panel:
 

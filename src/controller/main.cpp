@@ -360,7 +360,7 @@ void setup()
         }
 
     #else
-        delay(500);
+        delay(100);
     #endif
 
     logBootDiagnostics();
@@ -372,12 +372,9 @@ void setup()
     // is sent -- it's a one-shot send with no retry, so firing it before any panel can hear it
     // means discovery times out empty even with a panel attached.
     pinMode(PANELS_POWER_PIN, OUTPUT);
-    DEBUG_IF(DEBUG_INIT, D_PRINTLN("reseting panels power..."));
-    digitalWrite(PANELS_POWER_PIN, LOW);
-    delay(100);
     digitalWrite(PANELS_POWER_PIN, HIGH);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panels to boot"));
-    delay(500);
+    delay(200);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
     LNPanelsInitializer.configure(
@@ -396,13 +393,6 @@ void setup()
     #else
         panelsController = new PanelsController(activeSink, activeSink);
     #endif
-
-    // not needed if panels power controll work
-    // will send reset command to N devices to reset them if they are running
-    // panelsController->resetDevices();
-    // panels have 100ms delay on startup, we need to wait for them to initialize
-    // additional time is needed if they were reset by command above (up to 100ms)
-    // delay(300);
 
     digitalWrite(LED_PIN, HIGH);
 }

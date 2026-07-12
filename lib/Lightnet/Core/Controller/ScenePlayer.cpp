@@ -216,8 +216,12 @@ namespace Lightnet {
 
         playing = true;
 
-        DEBUG_IF(DEBUG_SCENE, D_PRINTFLN("[SCENE] play layers=%u loop=%s speed=%.1f",
-                                         (unsigned)lCount, loop ? "true" : "false", (double)speed));
+        DEBUG_IF(DEBUG_SCENE, D_PRINTFLN(
+                     "[SCENE] play layers=%u loop=%s speed=%.1f",
+                     (unsigned)lCount,
+                     loop ? "true" : "false",
+                     (double)speed
+        ));
 
         // Arm layer gating and fire the layers that start immediately (async included).
         armLayers(nowMs, true);
@@ -266,8 +270,23 @@ namespace Lightnet {
             if (elapsed < threshold) {
                 // Service only while the step is still inside its play window. At the boundary,
                 // transition first so a finished step does not spawn an extra sweep.
-                if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX
-                    || step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
+                if (step.animType == RUN_WHEEL) {
+                    LayerSpawnState& st = spawnState[i];
+
+                    if (st.wheelStopAtMs != 0 && nowMs >= st.wheelStopAtMs) {
+                        st.wheelStopAtMs = 0;
+                        stopLayerGroup(i);
+                    }
+                } else if (step.animType == RUN_BOUNCE) {
+                    LayerSpawnState& st = spawnState[i];
+
+                    while (st.bounceNextFlipAtMs != 0 && nowMs >= st.bounceNextFlipAtMs) {
+                        bouncePhase[i] = !bouncePhase[i];
+                        fireBouncePass(i, st.bouncePassDur);
+                        st.bounceNextFlipAtMs += st.bouncePassDur;
+                    }
+                } else if (step.animType == RUN_RAIN || step.animType == RUN_SPARKLE || step.animType == RUN_MATRIX
+                           || step.animType == RUN_WAVE || step.animType == RUN_RIPPLE || step.animType == RUN_CHASE) {
                     serviceSpawner(i, nowMs);
                 }
 
@@ -416,18 +435,133 @@ namespace Lightnet {
         }
     }
 
+    void ScenePlayer::fireBouncePass(uint8_t layerIdx, uint16_t passDurMs)
+    {
+        const SceneLayer& layer = layers[layerIdx];
+        const SceneStep& step  = layer.steps[currentStep[layerIdx]];
+
+        uint8_t panels[SCENE_MAX_RESOLVED_PANELS];
+        uint8_t panelCount = 0;
+
+        sceneTopo.resolvePanels(layer.target, panels, SCENE_MAX_RESOLVED_PANELS, panelCount);
+
+        if (panelCount == 0 || passDurMs == 0) return;
+
+        uint8_t target = step.animates;
+
+        Protocol::ColorRGB color = resolveColorToRgb(step.colorTo, layerIdx);
+
+        uint8_t coord[SCENE_MAX_RESOLVED_PANELS];
+        uint8_t srcKind   = step.params[RUNNER_PARAM_SRC_KIND];
+        uint8_t srcArg    = step.params[RUNNER_PARAM_SRC_ARG];
+        bool reverse   = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_REVERSE) != 0;
+        bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
+
+        reverse ^= bouncePhase[layerIdx];
+
+        const TopologyIndex& topo = sceneTopo.index();
+        const PanelGeometry& geometry = sceneTopo.geom();
+
+        uint8_t identity = ((target == TARGET_DIM) || (target == TARGET_DESATURATE)) ? 255 : 0;
+        uint8_t peak     = step.params[RUNNER_PARAM_AMOUNT];
+        uint8_t maxCoord;
+
+        uint8_t resolution = topo.maxDepth();
+
+        if (resolution == 0) resolution = (panelCount > 1) ? (uint8_t)(panelCount - 1) : 1;
+
+        if (geometric && geometry.valid()) {
+            float angleDeg = (float)srcArg * 2.0f;
+
+            maxCoord = computeGeometricField(
+                geometry,
+                panels,
+                panelCount,
+                angleDeg,
+                reverse,
+                resolution,
+                coord
+            );
+        } else {
+            maxCoord = computeDistanceField(
+                topo,
+                panels,
+                panelCount,
+                srcKind,
+                srcArg,
+                reverse,
+                coord
+            );
+        }
+
+        uint8_t width = step.params[RUNNER_PARAM_WIDTH];
+
+        if (width < 2) width = 2;
+
+        ColorRef black = ColorRef_rgb(0, 0, 0);
+        ColorRef lit   = ColorRef_rgb(color.r, color.g, color.b);
+        uint8_t runnerBlend = resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ true);
+
+        for (uint8_t i = 0; i < panelCount; i++) {
+            CompiledPulse cp = compileBounce((float)coord[i], maxCoord, width, passDurMs);
+
+            if (!cp.lit) continue;
+
+            if (target == TARGET_COLOR) {
+                scheduler.sendPrepareToPanel(
+                    panels[i],
+                    layer.groupId,
+                    ANIM_PULSE,
+                    0,
+                    cp.durationMs,
+                    black,
+                    lit,
+                    cp.risePct,
+                    cp.fallPct,
+                    runnerBlend,                          /*composeOrder=*/
+                    layerIdx,
+                    cp.startDelayMs
+                );
+            } else {
+                ColorRef fromVal = ColorRef_rgb(identity, 0, 0);
+                ColorRef toVal   = ColorRef_rgb(peak, 0, 0);
+
+                scheduler.sendPrepareToPanel(
+                    panels[i],
+                    layer.groupId,
+                    ANIM_PULSE,
+                    0,
+                    cp.durationMs,
+                    fromVal,
+                    toVal,
+                    cp.risePct,
+                    cp.fallPct,
+                    resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),
+                    /*composeOrder=*/ layerIdx,
+                    cp.startDelayMs,
+                    target
+                );
+            }
+        }
+
+        scheduler.pace(300);
+        scheduler.sendGroupStart(layer.groupId);
+    }
+
     void ScenePlayer::fireStep(uint8_t layerIdx, uint32_t nowMs)
     {
         const SceneLayer& layer = layers[layerIdx];
         const SceneStep& step  = layer.steps[currentStep[layerIdx]];
 
-        DEBUG_IF(DEBUG_SCENE, D_PRINTFLN("[SCENE] layer=%u step=%u/%u type=%s dur=%ums grp=%u",
-                                         (unsigned)layerIdx,
-                                         (unsigned)currentStep[layerIdx] + 1,
-                                         (unsigned)layer.stepCount,
-                                         animTypeName(step.animType),
-                                         (unsigned)step.durationMs,
-                                         (unsigned)layer.groupId));
+        DEBUG_IF(DEBUG_SCENE, D_PRINTFLN(
+                     "[SCENE] layer=%u step=%u/%u type=%s dur=%ums grp=%u",
+                     (unsigned)layerIdx,
+                     (unsigned)currentStep[layerIdx] + 1,
+                     (unsigned)layer.stepCount,
+                     animTypeName(step.animType),
+                     (unsigned)step.durationMs,
+                     (unsigned)layer.groupId
+        ));
 
         // GAP — a timed no-op for this layer's own sequence, but a previous step's
         // animation slot must be released here: a finished, non-looping animation
@@ -476,6 +610,22 @@ namespace Lightnet {
             // other layers like any other slot. No STOP is sent — that would clobber layers below.
             if (effectiveDurationMs == 0) return; // an infinite sweep has no meaning
 
+            if (step.animType == RUN_BOUNCE) {
+                // Step `duration` is the round-trip window; each leg gets half. Direction
+                // toggles on every leg via tick() so the full bounce fits within the step.
+                uint16_t passDur = effectiveDurationMs / 2;
+
+                if (passDur == 0) passDur = 1;
+
+                LayerSpawnState& st = spawnState[layerIdx];
+
+                st.bouncePassDur       = passDur;
+                st.bounceNextFlipAtMs  = nowMs + passDur;
+                fireBouncePass(layerIdx, passDur);
+
+                return;
+            }
+
             // What the sweep modulates — `animates` (default TARGET_COLOR). COLOR compiles to
             // a per-panel colour PULSE exactly as before; the others compile to the same
             // pulse shape but lerp valueFrom/valueTo (identity<->peak) instead of colorFrom/
@@ -500,14 +650,6 @@ namespace Lightnet {
             bool geometric = (step.params[RUNNER_PARAM_FLAGS] & RUNNER_FLAG_GEOMETRIC) != 0;
             uint8_t maxCoord;
 
-            // BOUNCE: a single band that sweeps back and forth forever — flip the effective
-            // direction each time this step re-fires (once per scene cycle), so consecutive
-            // cycles alternate the sweep direction (perpetual pendulum motion).
-            if (step.animType == RUN_BOUNCE) {
-                reverse ^= bouncePhase[layerIdx];
-                bouncePhase[layerIdx] = !bouncePhase[layerIdx];
-            }
-
             const TopologyIndex& topo = sceneTopo.index();
             const PanelGeometry& geometry = sceneTopo.geom();
 
@@ -520,8 +662,11 @@ namespace Lightnet {
 
             // WHEEL: rotating blades radiating from a centre — a polar sweep, not a linear
             // axis or radial-ring field, so it bypasses the coord/maxCoord machinery below
-            // entirely. Always loops (a wheel never stops spinning); requires planar geometry
-            // (no graph-hop fallback for a polar bearing).
+            // entirely. Requires planar geometry (no graph-hop fallback for a polar bearing).
+            // compileWheel always emits a repeating envelope — PREPARE uses FLAG_LOOP so
+            // startDelayMs is a phase offset. Non-looping behaviour (one revolution per step
+            // fire) is enforced by scheduling ANIM_CTRL_STOP after `duration`; continuous spin
+            // uses an async layer or `"loop": true` on the step (step.flags & FLAG_LOOP).
             if (step.animType == RUN_WHEEL) {
                 if (!geometry.valid()) return;
 
@@ -549,34 +694,53 @@ namespace Lightnet {
                     if (target == TARGET_COLOR) {
                         // Swapped-colour trick (compileRepeating): the loop seam coincides with
                         // this blade's peak, giving a clean departing → dark-gap → approaching cycle.
-                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, FLAG_LOOP,
-                                                     cp.durationMs, lit, black,
-                                                     cp.risePct, cp.fallPct,
-                                                     runnerBlend, /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs);
+                        scheduler.sendPrepareToPanel(
+                            panels[i],
+                            layer.groupId,
+                            ANIM_PULSE,
+                            FLAG_LOOP,
+                            cp.durationMs,
+                            lit,
+                            black,
+                            cp.risePct,
+                            cp.fallPct,
+                            runnerBlend,                          /*composeOrder=*/
+                            layerIdx,
+                            cp.startDelayMs
+                        );
                     } else {
                         // Modifier WHEEL: same loop seam trick, peak -> identity per blade pass.
                         ColorRef fromVal = ColorRef_rgb(peak, 0, 0);
                         ColorRef toVal   = ColorRef_rgb(identity, 0, 0);
 
-                        scheduler.sendPrepareToPanel(panels[i],
-                                                     layer.groupId,
-                                                     ANIM_PULSE,
-                                                     FLAG_LOOP,
-                                                     cp.durationMs,
-                                                     fromVal,
-                                                     toVal,
-                                                     cp.risePct,
-                                                     cp.fallPct,
-                                                     resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),
-                                                     /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs,
-                                                     target);
+                        scheduler.sendPrepareToPanel(
+                            panels[i],
+                            layer.groupId,
+                            ANIM_PULSE,
+                            FLAG_LOOP,
+                            cp.durationMs,
+                            fromVal,
+                            toVal,
+                            cp.risePct,
+                            cp.fallPct,
+                            resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),
+                            /*composeOrder=*/ layerIdx,
+                            cp.startDelayMs,
+                            target
+                        );
                     }
                 }
 
                 scheduler.pace(300);
                 scheduler.sendGroupStart(layer.groupId);
+
+                {
+                    const bool wheelLoop = isAsyncLayer(layerIdx) || (step.flags & FLAG_LOOP);
+                    uint32_t revMs       = (speed == 1.0f) ? (uint32_t)effectiveDurationMs
+                                           : (uint32_t)((float)effectiveDurationMs / speed);
+
+                    spawnState[layerIdx].wheelStopAtMs = wheelLoop ? 0 : (nowMs + revMs);
+                }
 
                 return;
             }
@@ -589,22 +753,45 @@ namespace Lightnet {
             if (geometric && geometry.valid() && step.animType == RUN_RIPPLE) {
                 // Geometric ripple: Euclidean rings expanding from the source centroid(s); each
                 // panel spans a [near, far] band so the ring lights whatever surface it intersects.
-                maxCoord = computeGeometricCenterField(geometry, topo, panels, panelCount,
-                                                       srcKind, srcArg, reverse, resolution,
-                                                       coord, coordFar);
+                maxCoord = computeGeometricCenterField(
+                    geometry,
+                    topo,
+                    panels,
+                    panelCount,
+                    srcKind,
+                    srcArg,
+                    reverse,
+                    resolution,
+                    coord,
+                    coordFar
+                );
                 haveFar = true;
             } else if (geometric && geometry.valid()) {
                 // Geometric wave/chase: project panel centroids onto an axis at `angle` (srcArg*2°).
                 // `source` is N/A here — an axis sweep has no origin, only a direction.
                 float angleDeg = (float)srcArg * 2.0f;
 
-                maxCoord = computeGeometricField(geometry, panels, panelCount,
-                                                 angleDeg, reverse, resolution, coord);
+                maxCoord = computeGeometricField(
+                    geometry,
+                    panels,
+                    panelCount,
+                    angleDeg,
+                    reverse,
+                    resolution,
+                    coord
+                );
             } else {
                 // Graph hop-distance from the source set (also the fallback when a geometric step
                 // can't embed: geometry degrades to the same source over hop-distance).
-                maxCoord = computeDistanceField(topo, panels, panelCount,
-                                                srcKind, srcArg, reverse, coord);
+                maxCoord = computeDistanceField(
+                    topo,
+                    panels,
+                    panelCount,
+                    srcKind,
+                    srcArg,
+                    reverse,
+                    coord
+                );
             }
 
             // Bands narrower than 2 coordinate-rings leave no overlap between adjacent
@@ -624,48 +811,6 @@ namespace Lightnet {
             // clobbering it with black. Default (absent `"blend"`) resolves to MAX; an
             // explicit `"opaque"` stays top-wins.
             uint8_t runnerBlend = resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ true);
-
-            if (step.animType == RUN_BOUNCE) {
-                // Single band whose peak reflects at the field edges (center sweeps [0,
-                // maxCoord]), one-shot per scene cycle; direction toggled above via
-                // bouncePhase. Not spawner-driven — a perpetual pendulum is already a
-                // continuous train of one.
-                for (uint8_t i = 0; i < panelCount; i++) {
-                    CompiledPulse cp = compileBounce((float)coord[i], maxCoord, width, effectiveDurationMs);
-
-                    if (!cp.lit) continue;
-
-                    if (target == TARGET_COLOR) {
-                        scheduler.sendPrepareToPanel(panels[i], layer.groupId, ANIM_PULSE, 0,
-                                                     cp.durationMs, black, lit,
-                                                     cp.risePct, cp.fallPct,
-                                                     runnerBlend, /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs);
-                    } else {
-                        ColorRef fromVal = ColorRef_rgb(identity, 0, 0);
-                        ColorRef toVal   = ColorRef_rgb(peak, 0, 0);
-
-                        scheduler.sendPrepareToPanel(panels[i],
-                                                     layer.groupId,
-                                                     ANIM_PULSE,
-                                                     0,
-                                                     cp.durationMs,
-                                                     fromVal,
-                                                     toVal,
-                                                     cp.risePct,
-                                                     cp.fallPct,
-                                                     resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),
-                                                     /*composeOrder=*/ layerIdx,
-                                                     cp.startDelayMs,
-                                                     target);
-                    }
-                }
-
-                scheduler.pace(300);
-                scheduler.sendGroupStart(layer.groupId);
-
-                return;
-            }
 
             // WAVE/RIPPLE/CHASE: spawner-driven (serviceSpawner). Cache the field + step
             // params here; no PREPARE is sent from fireStep — serviceSpawner fires every
@@ -689,24 +834,40 @@ namespace Lightnet {
             // fireStep can run without a preceding service pass — e.g. loadAndPlay).
             serviceSweepSpawner(layerIdx, nowMs);
         } else if (step.animates == TARGET_COLOR) {
-            scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
-                                   effectiveDurationMs,
-                                   step.colorFrom, step.colorTo,
-                                   step.params[STEP_PARAM_PREPARE_1], step.params[STEP_PARAM_PREPARE_2],
-                                   panels, panelCount,
-                                   resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx);
+            scheduler.playOnPanels(
+                layer.groupId,
+                step.animType,
+                step.flags,
+                effectiveDurationMs,
+                step.colorFrom,
+                step.colorTo,
+                step.params[STEP_PARAM_PREPARE_1],
+                step.params[STEP_PARAM_PREPARE_2],
+                panels,
+                panelCount,
+                resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),                    /*composeOrder=*/
+                layerIdx
+            );
         } else {
             // Non-colour `animates`: valueFrom/valueTo travel as ColorRef scalars on the wire.
             ColorRef from = ColorRef_scalar(step.valueFrom);
             ColorRef to   = ColorRef_scalar(step.valueTo);
 
-            scheduler.playOnPanels(layer.groupId, step.animType, step.flags,
-                                   effectiveDurationMs,
-                                   from, to,
-                                   step.params[STEP_PARAM_PREPARE_1], step.params[STEP_PARAM_PREPARE_2],
-                                   panels, panelCount,
-                                   resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx,
-                                   step.animates);
+            scheduler.playOnPanels(
+                layer.groupId,
+                step.animType,
+                step.flags,
+                effectiveDurationMs,
+                from,
+                to,
+                step.params[STEP_PARAM_PREPARE_1],
+                step.params[STEP_PARAM_PREPARE_2],
+                panels,
+                panelCount,
+                resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),                    /*composeOrder=*/
+                layerIdx,
+                step.animates
+            );
         }
     }
 
@@ -798,17 +959,40 @@ namespace Lightnet {
                 ColorRef from = ColorRef_rgb(scale8(s.fromRgb.r, bright), scale8(s.fromRgb.g, bright), scale8(s.fromRgb.b, bright));
                 ColorRef lit  = ColorRef_rgb(scale8(s.litRgb.r, bright), scale8(s.litRgb.g, bright), scale8(s.litRgb.b, bright));
 
-                sch.sendPrepareToPanel(panel, group, ANIM_PULSE, FLAG_REAP_ON_DONE,
-                                       dp.durationMs, from, lit, dp.risePct, dp.fallPct,
-                                       s.blend, composeOrder, sd);
+                sch.sendPrepareToPanel(
+                    panel,
+                    group,
+                    ANIM_PULSE,
+                    FLAG_REAP_ON_DONE,
+                    dp.durationMs,
+                    from,
+                    lit,
+                    dp.risePct,
+                    dp.fallPct,
+                    s.blend,
+                    composeOrder,
+                    sd
+                );
             } else {
                 // Modifier drop: same pulse shape, identity -> peak over the lit window, then reap.
                 ColorRef from = ColorRef_rgb(s.identity, 0, 0);
                 ColorRef lit  = ColorRef_rgb(scale8(s.peak, bright), 0, 0);
 
-                sch.sendPrepareToPanel(panel, group, ANIM_PULSE, FLAG_REAP_ON_DONE,
-                                       dp.durationMs, from, lit, dp.risePct, dp.fallPct,
-                                       s.blend, composeOrder, sd, s.target);
+                sch.sendPrepareToPanel(
+                    panel,
+                    group,
+                    ANIM_PULSE,
+                    FLAG_REAP_ON_DONE,
+                    dp.durationMs,
+                    from,
+                    lit,
+                    dp.risePct,
+                    dp.fallPct,
+                    s.blend,
+                    composeOrder,
+                    sd,
+                    s.target
+                );
             }
         }
     }
@@ -917,29 +1101,52 @@ namespace Lightnet {
                         cp = compileChase(st.sweepCoord[i], st.sweepMaxCoord, st.sweepDurationMs);
                         break;
                     default: // RUN_RIPPLE
-                        cp = compileRipple((float)st.sweepCoord[i],
-                                           (float)(st.sweepHaveFar ? st.sweepCoordFar[i] : st.sweepCoord[i]),
-                                           st.sweepMaxCoord, st.sweepWidth, st.sweepDurationMs);
+                        cp = compileRipple(
+                            (float)st.sweepCoord[i],
+                            (float)(st.sweepHaveFar ? st.sweepCoordFar[i] : st.sweepCoord[i]),
+                            st.sweepMaxCoord,
+                            st.sweepWidth,
+                            st.sweepDurationMs
+                        );
                         break;
                 }
 
                 if (!cp.lit) continue;
 
                 if (target == TARGET_COLOR) {
-                    scheduler.sendPrepareToPanel(st.sweepPanels[i], group, ANIM_PULSE, FLAG_REAP_ON_DONE,
-                                                 cp.durationMs, black, lit,
-                                                 cp.risePct, cp.fallPct,
-                                                 runnerBlend, /*composeOrder=*/ layerIdx,
-                                                 cp.startDelayMs);
+                    scheduler.sendPrepareToPanel(
+                        st.sweepPanels[i],
+                        group,
+                        ANIM_PULSE,
+                        FLAG_REAP_ON_DONE,
+                        cp.durationMs,
+                        black,
+                        lit,
+                        cp.risePct,
+                        cp.fallPct,
+                        runnerBlend,                          /*composeOrder=*/
+                        layerIdx,
+                        cp.startDelayMs
+                    );
                 } else {
                     ColorRef fromVal = ColorRef_rgb(identity, 0, 0);
                     ColorRef toVal   = ColorRef_rgb(peak, 0, 0);
 
-                    scheduler.sendPrepareToPanel(st.sweepPanels[i], group, ANIM_PULSE, FLAG_REAP_ON_DONE,
-                                                 cp.durationMs, fromVal, toVal,
-                                                 cp.risePct, cp.fallPct,
-                                                 resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false), /*composeOrder=*/ layerIdx,
-                                                 cp.startDelayMs, target);
+                    scheduler.sendPrepareToPanel(
+                        st.sweepPanels[i],
+                        group,
+                        ANIM_PULSE,
+                        FLAG_REAP_ON_DONE,
+                        cp.durationMs,
+                        fromVal,
+                        toVal,
+                        cp.risePct,
+                        cp.fallPct,
+                        resolveComposeMode(layer.blend, /*runnerDefaultMax=*/ false),                          /*composeOrder=*/
+                        layerIdx,
+                        cp.startDelayMs,
+                        target
+                    );
                 }
             }
 
@@ -1353,14 +1560,22 @@ namespace Lightnet {
             // explicit turn-off). Turn them on now so animation output is visible.
             scheduler.turnOnPanels(panels, panelCount);
 
-            scheduler.unicastPaletteToPanels(resolvedPalettes[i], resolvedPaletteCounts[i],
-                                             panels, panelCount);
+            scheduler.unicastPaletteToPanels(
+                resolvedPalettes[i],
+                resolvedPaletteCounts[i],
+                panels,
+                panelCount
+            );
         }
 
         for (uint8_t a = 1; a <= LIGHTNET_MAX_PANELS; a++) {
             if (cover[a] > MAX_ANIM_SLOTS) {
-                DEBUG_IF(DEBUG_SCENE, D_PRINTFLN("[SCENE] panel %u covered by %u layers (>%u slots) — extra layers dropped",
-                                                 (unsigned)a, (unsigned)cover[a], (unsigned)MAX_ANIM_SLOTS));
+                DEBUG_IF(DEBUG_SCENE, D_PRINTFLN(
+                             "[SCENE] panel %u covered by %u layers (>%u slots) — extra layers dropped",
+                             (unsigned)a,
+                             (unsigned)cover[a],
+                             (unsigned)MAX_ANIM_SLOTS
+                ));
             }
         }
     }
@@ -1374,8 +1589,14 @@ namespace Lightnet {
         if (ref.kind == COLORREF_PALETTE) {
             uint8_t r = 255, g = 255, b = 255;
 
-            samplePalette(resolvedPalettes[layerIdx], resolvedPaletteCounts[layerIdx],
-                          ref.palette.pos, &r, &g, &b);
+            samplePalette(
+                resolvedPalettes[layerIdx],
+                resolvedPaletteCounts[layerIdx],
+                ref.palette.pos,
+                &r,
+                &g,
+                &b
+            );
 
             return { r, g, b };
         }

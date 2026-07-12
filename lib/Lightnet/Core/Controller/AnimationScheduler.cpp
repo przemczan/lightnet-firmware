@@ -53,9 +53,7 @@ namespace Lightnet {
         prepare.startDelayMs = startDelayMs;
         prepare.animates     = animates;
 
-        // Acknowledged send; the controller sink retries on bus glitches so a single
-        // failure doesn't leave a panel with no animation queued.
-        sink.send(panelAddress, Protocol::packetMeta(prepare), sizeof(prepare), /*wantAck=*/ true);
+        sink.send(panelAddress, Protocol::packetMeta(prepare), sizeof(prepare), /*wantAck=*/ false);
 
         if (panelAddress < maxPanels) {
             panelStates[panelAddress].animType     = animType;
@@ -104,9 +102,21 @@ namespace Lightnet {
     {
         // Same PREPARE to every panel (uniform startDelay = 0), then one general-call START.
         for (uint8_t i = 0; i < panelCount; i++) {
-            sendPrepareToPanel(panelAddresses[i], group_id, animType, flags, durationMs,
-                               colorFrom, colorTo, param1, param2,
-                               composeMode, composeOrder, /*startDelayMs=*/ 0, animates);
+            sendPrepareToPanel(
+                panelAddresses[i],
+                group_id,
+                animType,
+                flags,
+                durationMs,
+                colorFrom,
+                colorTo,
+                param1,
+                param2,
+                composeMode,
+                composeOrder,                             /*startDelayMs=*/
+                0,
+                animates
+            );
         }
 
         // Give panels time to process their PREPARE before START arrives.
@@ -218,7 +228,7 @@ namespace Lightnet {
         control.group_id = group_id;
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::packetMeta(control), sizeof(control), /*wantAck=*/ true);
+            sink.send(panelAddresses[i], Protocol::packetMeta(control), sizeof(control), /*wantAck=*/ false);
         }
     }
 
@@ -245,8 +255,21 @@ namespace Lightnet {
         ColorRef from = ColorRef_rgb(colorFrom.r, colorFrom.g, colorFrom.b);
         ColorRef to   = ColorRef_rgb(colorTo.r, colorTo.g, colorTo.b);
 
-        playOnPanels(group_id, animType, flags, durationMs, from, to,
-                     param1, param2, panelAddresses, panelCount, composeMode, composeOrder, animates);
+        playOnPanels(
+            group_id,
+            animType,
+            flags,
+            durationMs,
+            from,
+            to,
+            param1,
+            param2,
+            panelAddresses,
+            panelCount,
+            composeMode,
+            composeOrder,
+            animates
+        );
     }
 
     // ============================================================================
@@ -293,7 +316,7 @@ namespace Lightnet {
         }
 
         for (uint8_t i = 0; i < panelCount; i++) {
-            sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ true);
+            sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
         }
     }
 

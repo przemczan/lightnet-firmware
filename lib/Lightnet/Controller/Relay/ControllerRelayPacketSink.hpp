@@ -21,10 +21,10 @@
 // non-parent edges and rides their own unmodified PanelRouter upstream rule (exactly like
 // PACKET_DISCOVERY_DONE), so no PanelRouter changes were needed to make replies reach the
 // controller. `send(wantAck=true)` blocks (bounded by ACK_TIMEOUT_MS) for a PACKET_ACK; on
-// timeout it simply returns, same as ControllerPacketSink's own best-effort retry loop —
-// IPacketSink::send() has no return value, so neither sink can surface a failure to the caller
-// either way. requestReply() is the same receive machinery exposed for callers that need the
-// reply's payload (PanelsController::fetchState(), the relay OTA client) rather than a bare ack.
+// timeout it simply returns. requestReply() is the same receive machinery exposed for callers
+// that need the reply's payload (PanelsController::fetchState(), the relay OTA client) rather
+// than a bare ack. Scene/animation traffic passes wantAck=false — panels don't ack those yet,
+// and the main loop must not block on per-panel timeouts during playback.
 //
 // No correlation id exists on any reply type (PACKET_ACK is meta-only; the relay OTA replies
 // identify their sender via PacketHeader.targetPanelIndex, which requestReply() checks against
