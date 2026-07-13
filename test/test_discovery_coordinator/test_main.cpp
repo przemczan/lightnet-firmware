@@ -387,6 +387,81 @@ void test_advance_is_resent_while_frontier_makes_no_progress()
     TEST_ASSERT_EQUAL_MESSAGE(4, link.count, "still no progress -- resent again");
 }
 
+void test_duplicate_register_edge_reply_is_ignored()
+{
+    MockEdgeLink link;
+    DiscoveryTreeBuilder treeBuilder(3);
+    DiscoveryCoordinator coordinator(link, &treeBuilder);
+
+    coordinator.begin(0);  // [0] PULL{1}
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), 0);  // [1] ADVANCE{target=1}
+
+    Protocol::PacketRegisterEdge childReply = makeReply(2, 1);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(childReply), sizeof(childReply), 10);  // [2] ADVANCE{target=2}
+    TEST_ASSERT_EQUAL(3, link.count);
+
+    // The same reply again -- a probe retry crossed the child's slow first reply, so the child
+    // answered twice and both copies were relayed up. Index 2 is already consumed: no new
+    // descend, no duplicate tree link, no ADVANCE.
+    coordinator.onFrameArrived(Protocol::packetMeta(childReply), sizeof(childReply), 20);
+
+    TEST_ASSERT_EQUAL_MESSAGE(3, link.count, "a duplicate registration must not send anything");
+    TEST_ASSERT_EQUAL_UINT8(2, treeBuilder.panelCount());
+    TEST_ASSERT_EQUAL_UINT8(1, treeBuilder.linkCount());
+
+    // The walk continues exactly where it was: the child (still the frontier) reports done,
+    // which resumes the root -- not the root's own parent.
+    Protocol::PacketDiscoveryDone childDone = makeDone(2);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(childDone), sizeof(childDone), 30);
+
+    TEST_ASSERT_EQUAL(4, link.count);
+
+    auto *backToRoot = (const Protocol::PacketDiscoveryAdvance *)link.frameAt(3);
+
+    TEST_ASSERT_EQUAL_UINT16(1, backToRoot->meta.header.targetPanelIndex);
+    TEST_ASSERT_FALSE(coordinator.isComplete());
+}
+
+void test_duplicate_done_is_ignored()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin(0);  // [0] PULL{1}
+
+    Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), 0);  // [1] ADVANCE{target=1}
+
+    Protocol::PacketRegisterEdge childReply = makeReply(2, 1);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(childReply), sizeof(childReply), 10);  // [2] ADVANCE{target=2}
+
+    Protocol::PacketDiscoveryDone childDone = makeDone(2);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(childDone), sizeof(childDone), 20);  // [3] ADVANCE{target=1}
+    TEST_ASSERT_EQUAL(4, link.count);
+
+    // The same DONE again -- e.g. the child re-reported after an ADVANCE retry crossed its first
+    // DONE. The frontier has already moved back to the root; popping the stack again here would
+    // unwind past the root and complete with its edges unexplored.
+    coordinator.onFrameArrived(Protocol::packetMeta(childDone), sizeof(childDone), 30);
+
+    TEST_ASSERT_EQUAL_MESSAGE(4, link.count, "a duplicate DONE must not resume anything");
+    TEST_ASSERT_FALSE_MESSAGE(coordinator.isComplete(), "the root's own subtree is still being walked");
+
+    // Only the root's own DONE finishes the walk.
+    Protocol::PacketDiscoveryDone rootDone = makeDone(1);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(rootDone), sizeof(rootDone), 40);
+    TEST_ASSERT_TRUE(coordinator.isComplete());
+}
+
 void test_advance_retry_timer_restarts_on_progress()
 {
     MockEdgeLink link;
@@ -441,6 +516,8 @@ int main(int argc, char **argv)
     RUN_TEST(test_walk_stall_timeout_completes_with_partial_tree);
     RUN_TEST(test_progress_resets_walk_stall_timeout);
     RUN_TEST(test_advance_is_resent_while_frontier_makes_no_progress);
+    RUN_TEST(test_duplicate_register_edge_reply_is_ignored);
+    RUN_TEST(test_duplicate_done_is_ignored);
     RUN_TEST(test_advance_retry_timer_restarts_on_progress);
 
     return UNITY_END();

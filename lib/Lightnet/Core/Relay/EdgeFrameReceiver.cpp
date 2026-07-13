@@ -2,7 +2,7 @@
 
 namespace Lightnet {
     EdgeFrameReceiver::EdgeFrameReceiver()
-        : activeEdge(NO_EDGE), completedEdge(NO_EDGE), lastActivityMs(0)
+        : activeEdge(NO_EDGE), completedEdge(NO_EDGE), lastActivityMs(0), claimStartMs(0)
     {
     }
 
@@ -14,6 +14,7 @@ namespace Lightnet {
 
         this->activeEdge     = edgeIndex;
         this->lastActivityMs = nowMs;
+        this->claimStartMs   = nowMs;
 
         return true;
     }
@@ -45,6 +46,15 @@ namespace Lightnet {
         if (nowMs - this->lastActivityMs >= FRAME_TIMEOUT_MS) {
             this->framer.reset();
             this->release();
+
+            return;
+        }
+
+        // A noisy/floating claimed edge can keep resetting the gap above forever -- cap total
+        // claim time regardless of ongoing activity (see MAX_CLAIM_MS's own comment).
+        if (nowMs - this->claimStartMs >= MAX_CLAIM_MS) {
+            this->framer.reset();
+            this->release();
         }
     }
 
@@ -61,6 +71,11 @@ namespace Lightnet {
     uint8_t EdgeFrameReceiver::fromEdge() const
     {
         return this->completedEdge;
+    }
+
+    uint8_t EdgeFrameReceiver::claimedEdge() const
+    {
+        return this->activeEdge;
     }
 
     void EdgeFrameReceiver::release()

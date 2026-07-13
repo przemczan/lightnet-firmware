@@ -48,7 +48,14 @@ ISR(PCINT0_vect)
     ISR(USART_RX_vect)
 #endif
 {
-    uint8_t value = UDR0;
+    // Status must be read before UDR0 -- reading the data register advances the RX FIFO, which
+    // replaces UCSR0A's error flags (FE0/DOR0) with the next byte's.
+    uint8_t status = UCSR0A;
+    uint8_t value  = UDR0;
+
+    if (status & ((1 << FE0) | (1 << DOR0))) {
+        LNEdgeTransport.onRxError();
+    }
 
     LNEdgeTransport.onRxByte(value);
 }

@@ -27,7 +27,7 @@
 // ── Discovery ─────────────────────────────────────────────────────────────────
 // After the root panel registers, give up on the walk and boot with the partial
 // tree if no REGISTER_EDGE or DISCOVERY_DONE arrives within this window (ms).
-// #define DISCOVERY_WALK_STALL_TIMEOUT_MS 5000
+// #define DISCOVERY_WALK_STALL_TIMEOUT_MS 2000
 
 // ── Server settings ───────────────────────────────────────────────────────────
 #define CONFIG_PORTAL_TIMEOUT 120

@@ -11,10 +11,13 @@ LightnetPanel::LightnetPanel()
     driver(discovery, LNEdgeTransport),
     router(discovery, LNEdgeTransport),
     dispatcher(driver, router),
-    pendingWakeEdge(NO_EDGE),
-    lastRelayActivityMs(0)
+    pendingWakeMask(0),
+    lastRelayActivityMs(0),
+    probingSinceMs(0),
+    wakeInterruptsSuppressed(false)
 #if DEBUG
-        , pendingRxBusLogCount(0)
+        , pendingRxBusLogCount(0), lastHeartbeatMs(0), wakeIsrFiredCount(0), wakeIsrMaskedCount(0),
+        wakeClaimGrantedCount(0), wakeClaimIgnoredCount(0), lastWakeEdgeSeen(NO_EDGE)
 #endif
 {
 }
@@ -22,9 +25,12 @@ LightnetPanel::LightnetPanel()
 void LightnetPanel::begin()
 {
     // Baud comes from src/panel.config.hpp -- must match the controller's LIGHTNET_TRUNK_BAUD.
-    // The hardware redesign plan's §5 latency budget assumes 1Mbps, but this bus's physical margin
-    // (mux settling + buffer propagation + wake latency + cabling) doesn't hold up at that speed
-    // on real hardware; 500kbps (UBRR=1, 0% baud error) is the fastest exact divisor below it.
+    // The hardware redesign plan's §5 latency budget assumes 1Mbps, but this bus's physical
+    // margin (series resistors + mux + cabling next to the +24V rail) doesn't hold up that high
+    // on real hardware: at 500kbps the panel-to-panel hop shows UART framing/overrun faults
+    // (rxErr in the heartbeat) and drops frames. 250kbps (UBRR=3, 0% baud error) is the fastest
+    // rate bench-validated clean end to end; going faster is a hardware (slew/noise) problem,
+    // not a firmware one.
     LNEdgeTransport.begin(LIGHTNET_TRUNK_BAUD);
 }
 
@@ -32,38 +38,88 @@ void LightnetPanel::onEdgeWakeIsr(uint8_t edgeIndex)
 {
     // Our own edge's drive can couple onto a neighbouring edge's separate wake-sense line
     // (PB1/PB2/PB3 sense each edge directly, not through the mux -- see EdgeUartTransport.hpp's
-    // pin map), producing a wake with no real frame behind it. This ISR runs during the blocking
-    // sendOnEdge() call that would cause such coupling (isTransmitting() is only ever true for
-    // that call's own duration), so checking it here -- rather than in pollWake(), which only
-    // ever runs after sendOnEdge() has already returned -- actually catches it. Left unguarded,
-    // claiming a coupled wake steals the mux onto the wrong edge until the next real wake fixes
-    // it -- discard instead, exactly like onRxByte()'s own self-echo mask for bytes.
+    // pin map), producing a wake with no real frame behind it. sendOnEdge() masks the wake
+    // interrupts (PCMSK0) for the bulk of its own transmission, so this guard only catches the
+    // boundary slivers that masking can't -- a transition landing between transmitting going
+    // true and the mask taking effect (or the reverse at the end). Left unguarded, claiming a
+    // coupled wake steals the mux onto the wrong edge until the next real wake fixes it --
+    // discard instead, exactly like onRxByte()'s own self-echo mask for bytes.
+    #if DEBUG
+        this->wakeIsrFiredCount++;
+    #endif
+
     if (LNEdgeTransport.isTransmitting()) {
+        #if DEBUG
+            this->wakeIsrMaskedCount++;
+        #endif
+
         return;
     }
 
-    // Latch which edge woke, nothing else. The actual claim decision and mux switch happen from
-    // pollWake() in the main loop -- see the class comment's threading model. A second wake
-    // before pollWake() drains this one overwrites it (accepted, see comment).
-    this->pendingWakeEdge = edgeIndex;
+    // Latch which edge woke into the pending mask -- see pendingWakeMask's own comment on why
+    // this must be a mask (every edge that woke survives until drained) rather than a single
+    // "last edge wins" value. The actual claim decision and mux switch happen from pollWake() in
+    // the main loop -- see the class comment's threading model.
+    this->pendingWakeMask |= (uint8_t)(1 << edgeIndex);
 }
 
 void LightnetPanel::pollWake(uint32_t nowMs)
 {
-    uint8_t edge;
-
-    cli();
-    edge = this->pendingWakeEdge;
-    this->pendingWakeEdge = NO_EDGE;
-    sei();
-
-    if (edge == NO_EDGE) {
+    // Fast path -- a single-byte volatile read is atomic on AVR, so the empty case (the vast
+    // majority: this runs before every received byte in pollBytes()) needs no cli/sei at all.
+    // A wake landing right after this read is not lost, just picked up on the next call.
+    if (this->pendingWakeMask == 0) {
         return;
     }
 
-    if (this->receiver.onEdgeWake(edge, nowMs)) {
-        LNEdgeTransport.selectRxEdge(edge);
+    uint8_t mask;
+
+    cli();
+    mask         = this->pendingWakeMask;
+    this->pendingWakeMask = 0;
+    sei();
+
+    for (uint8_t edge = 0; edge < EdgeUartTransport::EDGE_COUNT; edge++) {
+        if (!(mask & (1 << edge))) {
+            continue;
+        }
+
+        #if DEBUG
+            this->lastWakeEdgeSeen = edge;
+        #endif
+
+        if (this->receiver.onEdgeWake(edge, nowMs)) {
+            #if DEBUG
+                this->wakeClaimGrantedCount++;
+            #endif
+            LNEdgeTransport.selectRxEdge(edge);
+
+            // Only one edge can legitimately be receiving at a time (single-active-flow
+            // invariant) -- any other bits still set in this drained mask are noise from the same
+            // window, not a second real transmission, and will simply re-latch on their own next
+            // real wake if they were genuine.
+            break;
+        }
+
+        #if DEBUG
+            this->wakeClaimIgnoredCount++;
+        #endif
     }
+
+    this->syncWakeInterruptSuppression();
+}
+
+void LightnetPanel::syncWakeInterruptSuppression()
+{
+    bool shouldSuppress =
+        this->receiver.claimedEdge() != Lightnet::EdgeFrameReceiver::NO_EDGE;
+
+    if (shouldSuppress == this->wakeInterruptsSuppressed) {
+        return;
+    }
+
+    this->wakeInterruptsSuppressed = shouldSuppress;
+    LNEdgeTransport.setWakeInterruptsEnabled(!shouldSuppress);
 }
 
 void LightnetPanel::flushPendingRxBusLogs()
@@ -95,7 +151,11 @@ void LightnetPanel::flushPendingRxBusLogs()
 
 void LightnetPanel::pollBytes(uint32_t nowMs)
 {
-    while (LNEdgeTransport.available()) {
+    uint8_t processed = 0;
+
+    // Bounded by MAX_BYTES_PER_POLL (see its own comment) -- continuous RX must not keep this
+    // loop from ever returning to tick()'s other duties.
+    while (LNEdgeTransport.available() && processed < MAX_BYTES_PER_POLL) {
         // Re-check for a pending wake before every byte, not just once per tick() -- otherwise a
         // wake that lands while this loop is still draining (e.g. a slow handler, or traffic
         // arriving faster than one tick()) never gets claimed: pollWake() only runs once at the
@@ -103,11 +163,29 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
         // entirely, which incoming traffic can defer indefinitely.
         this->pollWake(nowMs);
 
+        // Bytes waiting with no claim still physically came in through the mux from its
+        // currently-selected edge (the mux only ever moves on a claim grant), so attribution is
+        // never actually ambiguous -- claim that edge rather than letting onByte() drop them.
+        // This is what keeps back-to-back frames alive: wake interrupts are suppressed for the
+        // whole previous claim (syncWakeInterruptSuppression()), so a follow-up frame that
+        // arrived during it is sitting in the ring with no wake ever latched for it. A noise
+        // byte claiming an idle edge this way is bounded by the receiver's own
+        // FRAME_TIMEOUT_MS/MAX_CLAIM_MS recovery, same as a stray wake.
+        if (this->receiver.claimedEdge() == Lightnet::EdgeFrameReceiver::NO_EDGE) {
+            this->receiver.onEdgeWake(LNEdgeTransport.currentRxEdge(), nowMs);
+            this->syncWakeInterruptSuppression();
+        }
+
         uint8_t value = LNEdgeTransport.readByte();
 
         this->lastRelayActivityMs = nowMs;
 
         if (this->receiver.onByte(value, nowMs)) {
+            // A completed frame released the claim -- re-enable the wake interrupts before the
+            // (potentially slow) dispatch below, so a new flow starting on a different edge
+            // during it still gets its wake latched.
+            this->syncWakeInterruptSuppression();
+
             const Protocol::PacketMeta *frame = this->receiver.frame();
             uint8_t size  = this->receiver.frameSize();
 
@@ -126,7 +204,18 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
 
             #if DEBUG
 
-                if (DEBUG_LIGHTNET_BUS && this->pendingRxBusLogCount < PENDING_RX_BUS_LOG_CAP) {
+                if (DEBUG_LIGHTNET_BUS) {
+                    if (this->pendingRxBusLogCount >= PENDING_RX_BUS_LOG_CAP) {
+                        // Queue full -- evict the oldest entry rather than dropping the new one,
+                        // same reasoning as PanelDiscoveryDriver::deferLog(): the most recent bus
+                        // traffic is what matters when diagnosing a stall.
+                        for (uint8_t i = 1; i < PENDING_RX_BUS_LOG_CAP; i++) {
+                            this->pendingRxBusLogs[i - 1] = this->pendingRxBusLogs[i];
+                        }
+
+                        this->pendingRxBusLogCount--;
+                    }
+
                     this->pendingRxBusLogs[this->pendingRxBusLogCount].type  = (uint8_t)frame->header.type;
                     this->pendingRxBusLogs[this->pendingRxBusLogCount].panel = frame->header.targetPanelIndex;
                     this->pendingRxBusLogCount++;
@@ -134,6 +223,8 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
 
             #endif
         }
+
+        processed++;
     }
 }
 
@@ -147,13 +238,29 @@ void LightnetPanel::pollProbeClaim(uint32_t nowMs)
 
     if (this->receiver.onEdgeWake(edge, nowMs)) {
         LNEdgeTransport.selectRxEdge(edge);
+        this->syncWakeInterruptSuppression();
     }
 }
 
 void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
 {
-    if (LNEdgeTransport.available() || this->driver.isProbing()) {
+    if (LNEdgeTransport.available()) {
         return;
+    }
+
+    if (this->driver.isProbing()) {
+        if (this->probingSinceMs == 0) {
+            this->probingSinceMs = nowMs;
+        }
+
+        if ((uint32_t)(nowMs - this->probingSinceMs) < PROBE_STUCK_MS) {
+            return;
+        }
+
+        // Still probing long past PROBE_ATTEMPTS * PROBE_TIMEOUT_MS -- fall through and flush
+        // anyway so a stuck probe shows up in the log instead of blocking it forever.
+    } else {
+        this->probingSinceMs = 0;
     }
 
     if ((uint32_t)(nowMs - this->lastRelayActivityMs) < RELAY_QUIET_MS) {
@@ -169,12 +276,59 @@ void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
     this->flushPendingRxBusLogs();
 }
 
+#if DEBUG
+    void LightnetPanel::flushHeartbeatLog(uint32_t nowMs)
+    {
+        // Deliberately ignores RELAY_QUIET_MS/PROBE_STUCK_MS and the deferred-log queues entirely --
+        // a receiver that's gone truly deaf produces none of the events those gates wait for, so this
+        // is the only way to see live state (which edge the mux is parked on, whether the frame
+        // receiver has a claim stuck open) during a stall like that. Only skipped while actively
+        // probing, since that's the one state with a real timing budget (PROBE_TIMEOUT_MS) a blocking
+        // bit-banged print could still perturb.
+        if (this->driver.isProbing()) {
+            return;
+        }
+
+        if ((uint32_t)(nowMs - this->lastHeartbeatMs) < HEARTBEAT_INTERVAL_MS) {
+            return;
+        }
+
+        this->lastHeartbeatMs = nowMs;
+
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(
+                     DPF("[HB] muxEdge"),
+                     LNEdgeTransport.currentRxEdge(),
+                     DPF("claim"),
+                     this->receiver.claimedEdge(),
+                     DPF("act"),
+                     LNEdgeTransport.activityStamp(),
+                     DPF("rxErr"),
+                     LNEdgeTransport.errorStamp(),
+                     DPF("parent"),
+                     this->discovery.parentEdge(),
+                     DPF("isrFired"),
+                     this->wakeIsrFiredCount,
+                     DPF("isrMasked"),
+                     this->wakeIsrMaskedCount,
+                     DPF("claimGranted"),
+                     this->wakeClaimGrantedCount,
+                     DPF("claimIgnored"),
+                     this->wakeClaimIgnoredCount,
+                     DPF("lastWakeEdge"),
+                     this->lastWakeEdgeSeen
+        ));
+    }
+
+#endif
+
 void LightnetPanel::tick(uint32_t nowMs)
 {
     this->pollWake(nowMs);
     this->pollBytes(nowMs);
     this->driver.tick(nowMs);
     this->receiver.tick(nowMs);
+    // receiver.tick() may have released a stalled claim -- re-enable the wakes if so.
+    this->syncWakeInterruptSuppression();
     this->pollProbeClaim(nowMs);
     this->animPlayer.tick((uint16_t)nowMs);
 
@@ -194,6 +348,9 @@ void LightnetPanel::tick(uint32_t nowMs)
     }
 
     this->flushIdleDebugLogs(nowMs);
+    #if DEBUG
+        this->flushHeartbeatLog(nowMs);
+    #endif
     LNEdgeTransport.pollTrunkActivityLed(nowMs);
 }
 

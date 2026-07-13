@@ -45,6 +45,16 @@ namespace Lightnet {
             // PanelDiscoveryDriver::PROBE_TIMEOUT_MS.
             static const uint32_t FRAME_TIMEOUT_MS = 20;
 
+            // Absolute cap on how long a single claim may be held, regardless of ongoing byte
+            // activity. FRAME_TIMEOUT_MS alone only catches a claim that goes quiet -- a claim on
+            // a floating/noisy edge (e.g. a PCINT wake mis-latched by wake-line crosstalk, see
+            // EdgeUartTransport's own crosstalk note) can keep resetting that gap forever if
+            // noise arrives faster than every FRAME_TIMEOUT_MS, permanently starving every other
+            // edge's real wake (onEdgeWake() ignores a wake while any claim is held). A real frame
+            // (4-byte preamble + up to Protocol::MAX_PACKET_SIZE) finishes in low single-digit ms
+            // even at the slowest supported baud, so this is generous headroom, not a tight bound.
+            static const uint32_t MAX_CLAIM_MS = 100;
+
             EdgeFrameReceiver();
 
             // A wake transition was noticed on `edgeIndex`. Returns true if this edge was newly
@@ -66,11 +76,17 @@ namespace Lightnet {
             uint8_t frameSize() const;
             uint8_t fromEdge() const;
 
+            // Diagnostics only -- the edge currently holding the claim, or NO_EDGE if idle.
+            // Unlike fromEdge() (which reports the *last completed* frame's edge), this reflects
+            // live, possibly-stuck state.
+            uint8_t claimedEdge() const;
+
         private:
             PacketFramer framer;
             uint8_t activeEdge;
             uint8_t completedEdge;
             uint32_t lastActivityMs;
+            uint32_t claimStartMs;
 
             void release();
     };

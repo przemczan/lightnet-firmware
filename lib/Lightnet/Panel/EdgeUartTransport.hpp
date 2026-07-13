@@ -41,8 +41,9 @@
 //   PD2/PD3/PD4        -> PE1/PE2/PE3 (per-edge tri-state buffer enable)
 //   PC3/PC2            -> mux select S0/S1
 //   PB1/PB2/PB3        -- PCINT wake lines, owned by src/panel/main.cpp's ISR(PCINT0_vect), which
-//                         hands off to LightnetPanel::onEdgeWakeIsr() — this class does not touch
-//                         PCICR/PCMSK0 itself (see .cpp)
+//                         hands off to LightnetPanel::onEdgeWakeIsr(). Initial PCICR/PCMSK0 setup
+//                         is src/panel/main.cpp's job; runtime gating goes through
+//                         setWakeInterruptsEnabled() (see its comment)
 //
 // Implements Lightnet::IEdgeLink so it sits behind PanelRouter unchanged.
 
@@ -80,6 +81,23 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         // ISR(USART0_RX_vect)/ISR(USART_RX_vect). Not for application use.
         void onRxByte(uint8_t value);
 
+        // ISR entry point for an RX hardware fault (framing error / data overrun) the RX ISR
+        // noticed alongside a byte. Only bumps a diagnostic counter — the byte itself still goes
+        // through onRxByte() and the corrupt frame self-heals via PacketFramer's resync/CRC.
+        void onRxError();
+
+        // Gates the PCINT wake interrupts (PCMSK0's PB1/PB2/PB3 bits) at runtime. The wake-sense
+        // lines are electrically the edges' data lines (Panel.net: each port's data wire feeds
+        // both a mux input and its PCINT pin through the same 2.2k), so during a frame the wake
+        // interrupt fires on every bit transition — and PCINT0 has a lower vector address than
+        // USART0 RX, so it wins every arbitration and that storm can starve the RX ISR past the
+        // USART's 2-byte buffer into a data overrun (a lost byte mid-frame). Only a flow's first
+        // transition carries information, so LightnetPanel disables the wakes for as long as
+        // EdgeFrameReceiver holds a claim and re-enables them once it releases. Nothing latches
+        // while disabled (PCIF0 only sets for PCMSK0-enabled pins), so re-enabling needs no flag
+        // hygiene. Initial PCICR/PCMSK0 setup at boot stays src/panel/main.cpp's job.
+        void setWakeInterruptsEnabled(bool enabled);
+
         // True for the whole duration of sendOnEdge() -- lets LightnetPanel::pollWake() discard a
         // PCINT wake latched during our own transmission (see the crosstalk note in
         // LightnetPanel.cpp: our own edge's drive can couple onto a neighbouring edge's separate
@@ -89,6 +107,14 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
 
         // PD6 trunk-activity LED: on for the whole RX burst or sendOnEdge() window, off after idle.
         void pollTrunkActivityLed(uint32_t nowMs);
+
+        // Diagnostics only -- which edge selectRxEdge() last parked the mux on, a free-running
+        // count of bytes actually pushed into rxRing, and a free-running count of RX hardware
+        // faults (see onRxError()). Both counters wrap silently -- only useful for "is this
+        // changing at all" liveness checks, not exact totals.
+        uint8_t currentRxEdge() const;
+        uint8_t activityStamp() const;
+        uint8_t errorStamp() const;
 
     private:
         static const uint32_t TRUNK_LED_IDLE_MS = 2;
@@ -104,7 +130,9 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         Lightnet::ByteRing<RX_RING_BYTES> rxRing;
         volatile bool transmitting = false;
         volatile uint8_t rxActivityStamp = 0;
+        volatile uint8_t rxErrorStamp = 0;
         uint32_t lastRxActivityMs = 0;
+        uint8_t rxSelectedEdge = 0;  // matches begin()'s PORTC reset -> edge 0 selected at boot
 };
 
 extern EdgeUartTransport LNEdgeTransport;

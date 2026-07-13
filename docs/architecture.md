@@ -456,7 +456,7 @@ sequenceDiagram
     C->>P1: ADVANCE{target=1, assign=2}
     Note over P1: addressed to me → tryNextEdge<br/>(router flood: no connected children yet)
     P1--xP1: probe edge 1: PULL{assignIdx=2, parentEdge=1}
-    Note over P1: edge 1 empty → PROBE_TIMEOUT (50 ms)<br/>→ NotConnected, next edge immediately
+    Note over P1: edge 1 empty → PROBE_ATTEMPTS × PROBE_TIMEOUT (3 × 20 ms)<br/>→ NotConnected, next edge immediately
     P1->>P2: probe edge 2: PULL{assignIdx=2, parentEdge=2}
     Note over P2: onParentOffer(edge 2) → accept<br/>parent=2, myIdx=2
     P2-->>P1: REGISTER{panelIdx=2, edge=2, parentEdge=2} (direct, edge 2)
@@ -467,8 +467,8 @@ sequenceDiagram
     C->>P1: ADVANCE{target=2, assign=3}
     Note over P1: not addressed → router floods to connected edge 2
     P1->>P2: ADVANCE{target=2, assign=3} (relayed)
-    P2--xP2: probe edge 0: PULL{assignIdx=3} → 50 ms timeout
-    P2--xP2: probe edge 1: PULL{assignIdx=3} → 50 ms timeout
+    P2--xP2: probe edge 0: PULL{assignIdx=3} → 3 × 20 ms timeout
+    P2--xP2: probe edge 1: PULL{assignIdx=3} → 3 × 20 ms timeout
     Note over P2: no Unexplored edges left
     P2-->>P1: DONE{panelIdx=2} (on parent edge 2)
     P1-->>C: DONE{panelIdx=2} (relayed upstream)
@@ -483,12 +483,15 @@ sequenceDiagram
 
 Reading notes:
 
-- Every arrow is one `sendOnEdge()` burst: 4×`0xFF` preamble + frame, the sender blocking until
+- Every arrow is one `sendOnEdge()` burst: 2×`0xFF` preamble + frame, the sender blocking until
   the last byte has shifted out. On the panel side each inbound frame needs wake → claim → mux
   switch (`EdgeFrameReceiver`) before its first real byte.
-- The root `PULL` is the only retried frame (`ROOT_RETRY_INTERVAL_MS` until the first
-  `REGISTER_EDGE`, empty-tree give-up at `ROOT_TIMEOUT_MS`). After that, a lost frame either
-  prunes a subtree (probe timeout → `NotConnected`) or ends the walk partially via
+- Every leg is retried: the root `PULL` every `ROOT_RETRY_INTERVAL_MS` (empty-tree give-up at
+  `ROOT_TIMEOUT_MS`), each probe `PULL` up to `PROBE_ATTEMPTS` times, and the frontier's `ADVANCE`
+  every `ADVANCE_RETRY_INTERVAL_MS` until a `REGISTER_EDGE`/`DONE` moves the walk. The duplicate
+  upstream frames retries can produce are filtered by the coordinator (a `REGISTER_EDGE` must
+  carry the newest assigned index, a `DONE` must name the current frontier). Only exhausting all
+  retries prunes a subtree (`NotConnected`) or ends the walk partially via
   `WALK_STALL_TIMEOUT_MS`.
 - The `assign` index in `ADVANCE`/`PULL` is the coordinator's global counter, incremented only on
   an accepted registration — which is why P2's probes of its empty edges still carry `assignIdx=3`.

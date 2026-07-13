@@ -8,11 +8,17 @@ namespace {
     };
 
     // How many throwaway 0xFF bytes precede every real frame -- see sendOnEdge()'s own comment.
-    // One byte (10us @ 1Mbps, ~160 cycles @ 16MHz) is a tight budget for a *polled* mux switch
-    // (LightnetPanel::pollWake(), called once per main-loop tick() rather than from the wake ISR
-    // itself -- see LightnetPanel.hpp's threading-model note); 4 bytes gives ~4x the slack.
-    // Unvalidated on real hardware -- needs a bench spike to tune for real.
-    const uint8_t PREAMBLE_BYTE_COUNT = 4;
+    // Budgets the receiver's *polled* mux switch (LightnetPanel::pollWake(), called from the main
+    // loop, not the wake ISR -- see LightnetPanel.hpp's threading-model note): 2 bytes = 80us at
+    // 250k, plenty for a print-free main-loop iteration (single-digit us). A receiver blocked in
+    // a bit-banged debug print blows any affordable preamble anyway -- those frames are lost to
+    // the ring/mux position regardless of this value and recovered by protocol retries -- so
+    // paying more wire time per frame per hop buys nothing. Bump back to 4 first thing if relayed
+    // traffic ever goes lossy with rxErr staying 0.
+    const uint8_t PREAMBLE_BYTE_COUNT = 2;
+
+    // PB1/PB2/PB3 -> edges 0/1/2 (the pin map in the header).
+    const uint8_t WAKE_PCINT_BITS = (1 << PCINT1) | (1 << PCINT2) | (1 << PCINT3);
 }
 
 void EdgeUartTransport::begin(uint32_t baud)
@@ -61,6 +67,8 @@ void EdgeUartTransport::selectRxEdge(uint8_t edgeIndex)
     } else {
         PORTC &= ~(1 << PC2);
     }
+
+    this->rxSelectedEdge = edgeIndex;
 }
 
 void EdgeUartTransport::setEdgeEnable(uint8_t edgeIndex, bool enabled)
@@ -91,14 +99,21 @@ void EdgeUartTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta
 {
     this->transmitting = true;
     PORTD |= (1 << PD6);
-    this->setEdgeEnable(edgeIndex, true);
 
-    // TXC0 is cleared only by writing a 1 to it (or by a TXC ISR, unused here) — clear any stale
-    // flag left over from a previous send before waiting on it below. Without this, the wait past
-    // the byte loop would see a leftover 1 from the *previous* transmission and fall through
-    // immediately, de-gating the tri-state buffer before the current (last) byte has actually
-    // finished shifting out — truncating it. Caught in review, not by any build/link check.
-    UCSR0A |= (1 << TXC0);
+    // Suppress the PCINT wake interrupts for the whole send. The transmitting edge's wake-sense
+    // line is the very line being driven (and coupling reaches the neighbours' lines too), so an
+    // unmasked send fires the wake ISR on essentially every bit transition. That storm outranks
+    // and preempts everything below: it delays the UDRE0 polling in sendByte() enough to open
+    // inter-byte gaps in which the shift register runs dry -- which sets TXC0 mid-frame (see the
+    // TXC0 clear below for why that truncates frames) -- and it starves the RX ISR into overruns
+    // on the echoed bytes. Saved and restored rather than set/cleared, so LightnetPanel's
+    // claim-scoped gating (syncWakeInterruptSuppression()) stays consistent when a send happens
+    // inside a held claim (e.g. a probe).
+    uint8_t savedWakeIntBits = PCMSK0 & WAKE_PCINT_BITS;
+
+    PCMSK0 &= (uint8_t) ~WAKE_PCINT_BITS;
+
+    this->setEdgeEnable(edgeIndex, true);
 
     // Throwaway preamble bytes: absorb the receiver's mux-settling time plus its wake-to-claim
     // reaction latency (see EdgeFrameReceiver's class comment) before the real frame starts.
@@ -118,11 +133,43 @@ void EdgeUartTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta
         this->sendByte(bytes[i]);
     }
 
+    // TXC0 is cleared only by writing a 1 to it (or by a TXC ISR, unused here) — and it must be
+    // cleared HERE, after the last byte was handed to UDR0, not before the loop: any inter-byte
+    // gap (an interrupt delaying the next UDRE0 poll past the shift register running dry — a
+    // stale flag from a previous send counts too) sets TXC0 early, and the wait below would fall
+    // through on that stale 1 and de-gate the tri-state buffer while the final byte is still
+    // shifting out — truncating it off the wire with no error on either side (observed on real
+    // hardware as a relayed frame arriving one byte short on every retry). Cleared this late
+    // there is no lost-completion race: sendByte() returned only a few cycles ago with the last
+    // byte still queued in UDR0/the shift register, a full byte time (~20us) from done. Plain
+    // assignment: TXC0 is write-1-to-clear, every other writable UCSR0A bit is deliberately 0
+    // (matches begin()), and the status bits ignore writes.
+    UCSR0A = (1 << TXC0);
+
     while (!(UCSR0A & (1 << TXC0))) {
     }
 
     this->setEdgeEnable(edgeIndex, false);
+
+    // When the mux happens to point at the transmitting edge, our own bytes echo back into the
+    // receiver. The RX ISR discards them while `transmitting` is still true, but the *final*
+    // echoed byte's RX-complete can land right at this boundary (RX samples the stop bit at its
+    // middle, TXC0 fires at its end -- any mux/buffer skew can push the echo past TXC0). Drain
+    // it here, before clearing the flag, so it can't slip into the ring as a stray byte -- a
+    // stray 0x00 is PACKET_NOOP, a recognized sized type that would desync the framer for the
+    // next real frame. A genuine reply can't be this fast (the peer has a whole frame to parse
+    // first), so nothing real can be lost here.
+    while (UCSR0A & (1 << RXC0)) {
+        (void)UDR0;
+    }
+
     this->transmitting = false;
+
+    // Restore the wake interrupts last, once the line is released and the echo tail is dealt
+    // with -- no coupled wake from this send can latch (it would steal the mux onto a
+    // neighbouring edge with no real frame behind it), and nothing accumulated while masked
+    // (PCIF0 only sets for PCMSK0-enabled pins).
+    PCMSK0 |= savedWakeIntBits;
 
     if (!this->available()) {
         PORTD &= ~(1 << PD6);
@@ -154,9 +201,39 @@ void EdgeUartTransport::onRxByte(uint8_t value)
     this->rxRing.push(value);  // ring full: byte dropped, self-heals like any other corrupt frame
 }
 
+void EdgeUartTransport::onRxError()
+{
+    this->rxErrorStamp++;
+}
+
+void EdgeUartTransport::setWakeInterruptsEnabled(bool enabled)
+{
+    // Plain read-modify-write is safe: no ISR touches PCMSK0.
+    if (enabled) {
+        PCMSK0 |= WAKE_PCINT_BITS;
+    } else {
+        PCMSK0 &= (uint8_t) ~WAKE_PCINT_BITS;
+    }
+}
+
 bool EdgeUartTransport::isTransmitting() const
 {
     return this->transmitting;
+}
+
+uint8_t EdgeUartTransport::currentRxEdge() const
+{
+    return this->rxSelectedEdge;
+}
+
+uint8_t EdgeUartTransport::activityStamp() const
+{
+    return this->rxActivityStamp;
+}
+
+uint8_t EdgeUartTransport::errorStamp() const
+{
+    return this->rxErrorStamp;
 }
 
 void EdgeUartTransport::pollTrunkActivityLed(uint32_t nowMs)

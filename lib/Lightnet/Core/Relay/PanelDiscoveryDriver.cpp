@@ -12,7 +12,16 @@ namespace Lightnet {
     void PanelDiscoveryDriver::deferLog(DeferredDiscLog code, uint16_t a, uint16_t b)
     {
         if (this->deferredLogCount >= DEFERRED_LOG_CAP) {
-            return;
+            // Queue full -- evict the oldest entry instead of dropping the new one. A busy edge
+            // (e.g. exhausting a dead-end edge, which alone can cost PROBE_ATTEMPTS worth of
+            // Probe+ProbeTimeout pairs) can fill this before the flush loop ever gets a quiet
+            // window to drain any of it; dropping new entries meant every capture went silent
+            // right at the interesting part instead of showing what happened most recently.
+            for (uint8_t i = 1; i < DEFERRED_LOG_CAP; i++) {
+                this->deferredLogs[i - 1] = this->deferredLogs[i];
+            }
+
+            this->deferredLogCount--;
         }
 
         this->deferredLogs[this->deferredLogCount].code = code;

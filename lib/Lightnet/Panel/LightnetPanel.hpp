@@ -83,15 +83,45 @@ class LightnetPanel
         Lightnet::AnimationPlayer animPlayer;
         RGBController rgbController;
 
-        volatile uint8_t pendingWakeEdge;
+        // Bitmask, one bit per edge (bit N = edge N woke since the last pollWake() drain) --
+        // NOT a single "last edge wins" latch. A single-value latch loses a genuine wake on one
+        // edge whenever a later ISR firing for a *different* edge overwrites it before pollWake()
+        // reads it, which real hardware has shown happens: a panel's own relay transmission on
+        // one edge leaks crosstalk onto another edge's wake-sense line right as its
+        // isTransmitting()-masked window ends (see onEdgeWakeIsr()'s own note), producing a burst
+        // of unmasked wakes for that other edge that can repeatedly clobber a real, pending wake
+        // for the edge actually carrying traffic. A mask survives that: every edge that woke
+        // stays set until explicitly drained, so a real wake gets a chance on every pollWake()
+        // call for as long as its own transmission keeps re-triggering it, not just the one
+        // instant a single-value latch would have captured.
+        volatile uint8_t pendingWakeMask;
         uint32_t lastRelayActivityMs;
+        uint32_t probingSinceMs;
+
+        // Mirror of whether the PCINT wake interrupts are currently gated off (see
+        // syncWakeInterruptSuppression()) -- avoids a register read-modify-write per call when
+        // the state hasn't changed. Main-loop only, so not volatile.
+        bool wakeInterruptsSuppressed;
 
         // With probe retries (PanelDiscoveryDriver::PROBE_ATTEMPTS), a downstream panel
         // resolving two empty edges can legitimately go quiet for up to
-        // 2 * PROBE_ATTEMPTS * PanelDiscoveryDriver::PROBE_TIMEOUT_MS = 300ms mid-walk -- this
+        // 2 * PROBE_ATTEMPTS * PanelDiscoveryDriver::PROBE_TIMEOUT_MS = 120ms mid-walk -- this
         // must stay above that so an upstream relay panel never starts a bit-banged debug flush
-        // (20-30ms, blocking) inside a gap that's really still part of the walk.
-        static const uint32_t RELAY_QUIET_MS = 400;
+        // (tens of ms, blocking) inside a gap that's really still part of the walk.
+        static const uint32_t RELAY_QUIET_MS = 200;
+
+        // driver.isProbing() should self-resolve within PROBE_ATTEMPTS * PROBE_TIMEOUT_MS
+        // (~150ms). If it's still set this long after it first became true, something is stuck
+        // (e.g. tick() itself was starved by continuous RX) -- stop gating the debug flush on it
+        // so the stall is visible in the log instead of silent.
+        static const uint32_t PROBE_STUCK_MS = 2000;
+
+        // Caps how many bytes pollBytes() drains per call. Continuous/flooded RX (e.g. noise on
+        // a mis-selected edge) must not starve tick()'s other duties -- especially
+        // driver.tick()'s own probe-timeout recovery and pollProbeClaim()'s mux re-parking -- so
+        // this yields back once the cap is hit even if more bytes are available; a normal frame
+        // is far smaller than this and still drains within the same tick() call.
+        static const uint8_t MAX_BYTES_PER_POLL = 32;
 
         #if DEBUG
             struct PendingRxBusLog {
@@ -103,6 +133,23 @@ class LightnetPanel
 
             PendingRxBusLog pendingRxBusLogs[PENDING_RX_BUS_LOG_CAP];
             uint8_t pendingRxBusLogCount;
+
+            // Bypasses every other gate (isProbing/RELAY_QUIET_MS/queue draining) -- prints
+            // regardless, throttled only by its own interval, so a receiver stuck deaf (no bytes,
+            // no driver events, nothing to otherwise flush) is still visible instead of producing
+            // total silence. Only fires while !driver.isProbing() (discovery's own timing-critical
+            // windows are already covered by pollProbeClaim() and stay undisturbed).
+            static const uint32_t HEARTBEAT_INTERVAL_MS = 1000;
+            uint32_t lastHeartbeatMs;
+
+            // Wake-path liveness counters (wrap silently, "is this changing" only). The first two
+            // are touched from onEdgeWakeIsr() (real ISR context, hence volatile); the claim ones
+            // are only ever touched from pollWake() in the main loop.
+            volatile uint8_t wakeIsrFiredCount;
+            volatile uint8_t wakeIsrMaskedCount;
+            uint8_t wakeClaimGrantedCount;
+            uint8_t wakeClaimIgnoredCount;
+            uint8_t lastWakeEdgeSeen;
         #endif
 
         void pollWake(uint32_t nowMs);
@@ -117,8 +164,25 @@ class LightnetPanel
         // tick() is cheap and also re-claims the edge after EdgeFrameReceiver::FRAME_TIMEOUT_MS
         // releases a stalled claim.
         void pollProbeClaim(uint32_t nowMs);
+
+        // Keeps the PCINT wake interrupts enabled exactly while no claim is held. The wake-sense
+        // lines are the edges' data lines themselves (see EdgeUartTransport::
+        // setWakeInterruptsEnabled()), so leaving them enabled during a claimed frame lets the
+        // wake ISR fire on every bit transition and starve the (lower-priority) USART RX ISR
+        // into overruns -- observed on real hardware as the same mid-frame byte lost on every
+        // retransmit of a frame whose byte pattern is transition-dense enough, which silently
+        // killed the discovery walk one hop down. A claim marks exactly the window where wakes
+        // carry no information (a wake for the claimed edge is redundant, one for any other edge
+        // is ignored), so gating on the claim loses nothing. Call after every point where the
+        // claim can change hands: a wake/probe/self claim grant, a completed frame, or a
+        // receiver.tick() timeout.
+        void syncWakeInterruptSuppression();
+
         void flushPendingRxBusLogs();
         void flushIdleDebugLogs(uint32_t nowMs);
+        #if DEBUG
+            void flushHeartbeatLog(uint32_t nowMs);
+        #endif
         void handlePacket(const Protocol::PacketMeta *packet, uint8_t size);
 
         void handleTurnOnOff(const Protocol::PacketTurnOnOff *packet);

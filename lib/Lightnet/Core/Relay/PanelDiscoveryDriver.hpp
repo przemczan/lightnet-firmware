@@ -54,9 +54,14 @@ namespace Lightnet {
     {
         public:
             static const uint8_t NO_EDGE = 0xFF;
-            // Placeholder -- the real value needs bench validation once boards exist (mux
-            // settling + PCINT-wake latency + real per-hop time all factor in).
-            static const uint32_t PROBE_TIMEOUT_MS = 50;
+            // A healthy probe reply lands in ~2ms at 250k (PULL frame time + one main-loop tick
+            // on the child + reply frame time), so this is ~10x margin. What it deliberately does
+            // NOT cover is a child stalled in a blocking bit-banged debug print (tens of ms at
+            // the 9600-baud debug channel) -- that's what PROBE_ATTEMPTS retries are for, and the
+            // controller-side duplicate filtering (DiscoveryCoordinator) makes the crossed
+            // replies such a retry can produce harmless. Dominates the whole walk's duration:
+            // every empty edge costs PROBE_ATTEMPTS x this.
+            static const uint32_t PROBE_TIMEOUT_MS = 20;
             // How many times a single edge's PULL is (re)sent before giving up on it as
             // NotConnected. A lost PULL or its REGISTER_EDGE reply otherwise permanently prunes
             // whatever is wired to that edge on just one bad frame.

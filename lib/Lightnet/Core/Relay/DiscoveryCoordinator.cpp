@@ -40,20 +40,11 @@ namespace Lightnet {
 
         switch (frame->header.type) {
             case Protocol::PACKET_REGISTER_EDGE:
-            {
-                const Protocol::PacketRegisterEdge *reply = (const Protocol::PacketRegisterEdge *)frame;
-
-                if (reply->panelIndex != Protocol::DISCOVERY_REJECTED_INDEX) {
-                    this->lastProgressMs = nowMs;
-                }
-
-                this->handleRegisterEdgeReply(reply, nowMs);
+                this->handleRegisterEdgeReply((const Protocol::PacketRegisterEdge *)frame, nowMs);
                 break;
-            }
 
             case Protocol::PACKET_DISCOVERY_DONE:
-                this->lastProgressMs = nowMs;
-                this->handleDiscoveryDone(nowMs);
+                this->handleDiscoveryDone((const Protocol::PacketDiscoveryDone *)frame, nowMs);
                 break;
 
             default:
@@ -118,6 +109,19 @@ namespace Lightnet {
             return;  // rejections are resolved locally by the probing panel, never forwarded here
         }
 
+        // Deduplicate: a genuinely new registration always carries the index handed out with the
+        // newest PULL, which is exactly nextPanelIndex (consumed below on acceptance). A probed
+        // panel answers every PULL it hears, so a probe retry crossing a slow first reply (e.g.
+        // the child was mid-way through a blocking debug print) produces the same reply twice --
+        // and the second copy, arriving after this index was consumed, would push the frontier
+        // and descend a second time, corrupting the walk. Filtering on the index also gates
+        // lastProgressMs, so a stream of duplicates can't hold off WALK_STALL_TIMEOUT_MS.
+        if (reply->panelIndex != this->nextPanelIndex) {
+            return;
+        }
+
+        this->lastProgressMs = nowMs;
+
         if (this->treeBuilder) {
             if (this->frontierPanelIndex == 0) {
                 this->treeBuilder->addRoot(reply->panelIndex);
@@ -138,8 +142,18 @@ namespace Lightnet {
         this->sendAdvance(this->frontierPanelIndex, nowMs);
     }
 
-    void DiscoveryCoordinator::handleDiscoveryDone(uint32_t nowMs)
+    void DiscoveryCoordinator::handleDiscoveryDone(const Protocol::PacketDiscoveryDone *done, uint32_t nowMs)
     {
+        // Deduplicate: only the current frontier can legitimately report done (it is the one
+        // panel holding an ADVANCE). A duplicate DONE -- the same report relayed twice when an
+        // ADVANCE retry crosses the first copy -- would pop the resume stack a second time and
+        // skip an ancestor's remaining edges entirely.
+        if (done->panelIndex != this->frontierPanelIndex) {
+            return;
+        }
+
+        this->lastProgressMs = nowMs;
+
         if (this->stackDepth == 0) {
             this->complete = true;  // shouldn't happen (the root always pushes the 0 sentinel first)
 

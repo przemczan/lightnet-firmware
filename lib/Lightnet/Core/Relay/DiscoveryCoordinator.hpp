@@ -14,11 +14,15 @@
 // PanelDiscovery), never anything about the wider tree.
 //
 // The ADVANCE just sent to the current frontier is resent every ADVANCE_RETRY_INTERVAL_MS until
-// something moves the walk forward (a REGISTER_EDGE or DISCOVERY_DONE bumps lastProgressMs) --
-// covers the ADVANCE itself, or the frontier's own reply, getting lost on the wire. The
-// frontier's PanelDiscoveryDriver ignores a duplicate ADVANCE that arrives while one of its own
-// probes is still outstanding (see PanelDiscoveryDriver::handleAdvance()), so a resend can never
-// derail an in-progress probe, only recover from a genuine loss.
+// something moves the walk forward (an accepted REGISTER_EDGE or DISCOVERY_DONE bumps
+// lastProgressMs) -- covers the ADVANCE itself, or the frontier's own reply, getting lost on the
+// wire. The frontier's PanelDiscoveryDriver ignores a duplicate ADVANCE that arrives while one of
+// its own probes is still outstanding (see PanelDiscoveryDriver::handleAdvance()), so a resend can
+// never derail an in-progress probe, only recover from a genuine loss. The mirror hazard --
+// retries producing DUPLICATE upstream frames (a probed panel answers every PULL it hears; a DONE
+// can cross an ADVANCE retry) -- is filtered here: a REGISTER_EDGE only counts when it carries
+// exactly the index the newest PULL handed out, and a DONE only when it names the current
+// frontier. That is what makes short retry intervals safe rather than walk-corrupting.
 //
 // Pure logic, no Arduino — built and tested against a mock/sim IEdgeLink, since the real
 // controller-side UART trunk transport doesn't exist yet.
@@ -44,7 +48,7 @@ namespace Lightnet {
             // tree discovered so far. Override via DISCOVERY_WALK_STALL_TIMEOUT_MS in
             // controller.config.hpp (see controller.config.hpp.example).
             #ifndef DISCOVERY_WALK_STALL_TIMEOUT_MS
-                static const uint32_t WALK_STALL_TIMEOUT_MS = 5000;
+                static const uint32_t WALK_STALL_TIMEOUT_MS = 2000;
 
             #else
                 static const uint32_t WALK_STALL_TIMEOUT_MS = DISCOVERY_WALK_STALL_TIMEOUT_MS;
@@ -55,7 +59,7 @@ namespace Lightnet {
             // pull can easily lose the race against a panel's own boot time (power-on reset +
             // USART init), and it's a broadcast onto a currently-idle trunk, so resending costs
             // nothing but another 0xFF-prefixed frame -- see DiscoveryCoordinator.cpp's tick().
-            static const uint32_t ROOT_RETRY_INTERVAL_MS = 500;
+            static const uint32_t ROOT_RETRY_INTERVAL_MS = 200;
 
             // How often to resend PACKET_DISCOVERY_ADVANCE to the current frontier while no
             // REGISTER_EDGE/DISCOVERY_DONE has moved the walk forward. Covers the ADVANCE itself
@@ -63,8 +67,12 @@ namespace Lightnet {
             // frontier's own PanelDiscoveryDriver treats a re-ADVANCE while nothing is
             // outstanding as a fresh instruction (a duplicate arriving mid-probe is ignored
             // instead, see PanelDiscoveryDriver::handleAdvance()), so a resend is always safe to
-            // send and only ever a no-op past what already happened.
-            static const uint32_t ADVANCE_RETRY_INTERVAL_MS = 500;
+            // send and only ever a no-op past what already happened. Must comfortably exceed a
+            // frontier's longest legitimately-quiet stretch: exhausting its remaining empty edges
+            // back to back (2 edges x PROBE_ATTEMPTS x PROBE_TIMEOUT_MS = 120ms) -- a retry
+            // landing inside that window is merely a wasted frame (ignored mid-probe), but a
+            // routinely-wasted frame on every walk step is still worth avoiding.
+            static const uint32_t ADVANCE_RETRY_INTERVAL_MS = 200;
 
             // `treeBuilder` is optional (nullptr = don't accumulate a topology, e.g. tests that
             // only care about the DFS sequencing) — see DiscoveryTreeBuilder.hpp.
@@ -111,7 +119,7 @@ namespace Lightnet {
 
             void sendRootPull(uint32_t nowMs);
             void handleRegisterEdgeReply(const Protocol::PacketRegisterEdge *reply, uint32_t nowMs);
-            void handleDiscoveryDone(uint32_t nowMs);
+            void handleDiscoveryDone(const Protocol::PacketDiscoveryDone *done, uint32_t nowMs);
             void sendAdvance(uint16_t target, uint32_t nowMs);
     };
 }  // namespace Lightnet

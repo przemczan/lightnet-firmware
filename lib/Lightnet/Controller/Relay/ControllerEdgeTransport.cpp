@@ -5,8 +5,8 @@
 namespace {
     // Mirrors Panel/EdgeUartTransport.cpp's own PREAMBLE_BYTE_COUNT (see that file's comment) —
     // the controller's trunk edge feeds a panel's muxed RX exactly like any other edge does, so it
-    // needs the same slack for the receiving panel's polled mux switch.
-    const uint8_t PREAMBLE_BYTE_COUNT = 4;
+    // needs the same slack for the receiving panel's polled mux switch. Keep the two in sync.
+    const uint8_t PREAMBLE_BYTE_COUNT = 2;
 }
 
 ControllerEdgeTransport::ControllerEdgeTransport(HardwareSerial &serial)

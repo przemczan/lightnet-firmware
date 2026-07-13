@@ -165,6 +165,35 @@ void test_byte_activity_resets_the_timeout_clock()
     TEST_ASSERT_FALSE(receiver.onEdgeWake(1, EdgeFrameReceiver::FRAME_TIMEOUT_MS));
 }
 
+void test_claim_force_released_after_max_claim_duration_despite_continuous_activity()
+{
+    EdgeFrameReceiver receiver;
+
+    receiver.onEdgeWake(0, 0);
+
+    // A byte arrives just before every FRAME_TIMEOUT_MS deadline, forever -- the gap-based
+    // recovery above can never fire on its own. A continuously noisy/floating claimed edge must
+    // not be able to starve every other edge's real wake indefinitely (see MAX_CLAIM_MS's own
+    // comment), so the claim must still force-release once total claim duration elapses.
+    for (uint32_t t = EdgeFrameReceiver::FRAME_TIMEOUT_MS - 1; t < EdgeFrameReceiver::MAX_CLAIM_MS;
+         t += EdgeFrameReceiver::FRAME_TIMEOUT_MS - 1) {
+        receiver.onByte(0xAA, t);
+        receiver.tick(t);
+    }
+
+    TEST_ASSERT_FALSE_MESSAGE(
+        receiver.onEdgeWake(1, EdgeFrameReceiver::MAX_CLAIM_MS - 1),
+        "claim must still be held just before MAX_CLAIM_MS elapses"
+    );
+
+    receiver.tick(EdgeFrameReceiver::MAX_CLAIM_MS);
+
+    TEST_ASSERT_TRUE_MESSAGE(
+        receiver.onEdgeWake(1, EdgeFrameReceiver::MAX_CLAIM_MS),
+        "claim must be force-released once MAX_CLAIM_MS elapses, even with continuous activity"
+    );
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -180,6 +209,7 @@ int main()
     RUN_TEST(test_tick_leaves_claim_intact_before_timeout);
     RUN_TEST(test_tick_releases_stalled_claim_after_timeout);
     RUN_TEST(test_byte_activity_resets_the_timeout_clock);
+    RUN_TEST(test_claim_force_released_after_max_claim_duration_despite_continuous_activity);
 
     return UNITY_END();
 }
