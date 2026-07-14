@@ -236,7 +236,7 @@ void LightnetPanel::pollProbeClaim(uint32_t nowMs)
 
     uint8_t edge = this->driver.probingEdge();
 
-    if (this->receiver.onEdgeWake(edge, nowMs)) {
+    if (this->receiver.preemptClaim(edge, nowMs)) {
         LNEdgeTransport.selectRxEdge(edge);
         this->syncWakeInterruptSuppression();
     }

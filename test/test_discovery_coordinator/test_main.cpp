@@ -265,9 +265,12 @@ void test_late_reply_after_root_registers_is_not_treated_as_a_timeout()
 
     Protocol::PacketRegisterEdge rootReply = makeReply(1, 0);
 
-    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply));
+    // Register right at the root-timeout deadline, then tick past it -- but still within
+    // WALK_STALL_TIMEOUT_MS of that registration, so only the (no longer applicable) root
+    // timeout could complete here, not the walk-stall timeout.
+    coordinator.onFrameArrived(Protocol::packetMeta(rootReply), sizeof(rootReply), DiscoveryCoordinator::ROOT_TIMEOUT_MS);
 
-    coordinator.tick(DiscoveryCoordinator::ROOT_TIMEOUT_MS + 1000);
+    coordinator.tick(DiscoveryCoordinator::ROOT_TIMEOUT_MS + DiscoveryCoordinator::WALK_STALL_TIMEOUT_MS - 1);
     TEST_ASSERT_FALSE(coordinator.isComplete());  // still waiting on the root's own subtree, not timed out
 }
 

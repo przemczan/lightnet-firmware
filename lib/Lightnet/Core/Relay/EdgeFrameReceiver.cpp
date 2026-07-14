@@ -19,6 +19,25 @@ namespace Lightnet {
         return true;
     }
 
+    bool EdgeFrameReceiver::preemptClaim(uint8_t edgeIndex, uint32_t nowMs)
+    {
+        if (this->activeEdge == edgeIndex) {
+            return false;  // already parked here -- leave any frame in flight alone
+        }
+
+        if (this->activeEdge != NO_EDGE) {
+            // Evicting another edge's claim abandons its frame-in-progress -- the framer must
+            // start clean or its leftover prefix would desync the expected frame's first bytes.
+            this->framer.reset();
+        }
+
+        this->activeEdge     = edgeIndex;
+        this->lastActivityMs = nowMs;
+        this->claimStartMs   = nowMs;
+
+        return true;
+    }
+
     bool EdgeFrameReceiver::onByte(uint8_t value, uint32_t nowMs)
     {
         if (this->activeEdge == NO_EDGE) {

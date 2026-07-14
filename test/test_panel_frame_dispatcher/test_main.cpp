@@ -1,8 +1,10 @@
-// Host test for PanelFrameDispatcher — the one decision LightnetPanel's new dispatch loop needs
-// per arrived frame (hardware redesign plan §11.3/§11.4 step 4a): feed every frame to
-// PanelDiscoveryDriver, feed everything except PACKET_INITIALIZATION_PULL to PanelRouter too, and
-// report whether the caller's own application-packet switch should act on it locally (protocol
-// v10's targetPanelIndex, once this panel has been assigned an index).
+// Host test for PanelFrameDispatcher — the one decision LightnetPanel's dispatch loop needs per
+// arrived frame (hardware redesign plan §11.3/§11.4 step 4a): relay via PanelRouter first
+// (skipping PACKET_INITIALIZATION_PULL and frames addressed to this panel — see the class
+// comment on why relay order and the self-addressed rule protect probe replies), then feed the
+// frame to PanelDiscoveryDriver, and report whether the caller's own application-packet switch
+// should act on it locally (protocol v10's targetPanelIndex, once this panel has been assigned
+// an index).
 //
 // Uses the real PanelDiscovery/PanelDiscoveryDriver/PanelRouter (all pure themselves) behind a
 // mock IEdgeLink, so this proves the real sequencing, not a stand-in for it.
@@ -63,6 +65,26 @@ static Protocol::PacketInitializationPull makePull(uint16_t panelIndex)
 static Protocol::PacketTurnOnOff makeTurnOnOff(uint16_t targetPanelIndex)
 {
     return Protocol::makePacket<Protocol::PacketTurnOnOff>(Protocol::PACKET_TURN_ON_OFF, targetPanelIndex);
+}
+
+static Protocol::PacketDiscoveryAdvance makeAdvance(uint16_t targetPanelIndex, uint16_t assignIndex)
+{
+    Protocol::PacketDiscoveryAdvance advance =
+        Protocol::makePacket<Protocol::PacketDiscoveryAdvance>(Protocol::PACKET_DISCOVERY_ADVANCE, targetPanelIndex);
+
+    advance.assignIndex = assignIndex;
+
+    return advance;
+}
+
+static Protocol::PacketRegisterEdge makeRejectedRegisterEdge()
+{
+    Protocol::PacketRegisterEdge reply =
+        Protocol::makePacket<Protocol::PacketRegisterEdge>(Protocol::PACKET_REGISTER_EDGE);
+
+    reply.panelIndex = Protocol::DISCOVERY_REJECTED_INDEX;
+
+    return reply;
 }
 
 // --- Tests --------------------------------------------------------------------------------
@@ -169,6 +191,134 @@ void test_dispatch_false_for_other_panels_target_but_frame_still_routed()
     TEST_ASSERT_EQUAL_UINT8(1, link.sentToEdge[link.count - 1]);  // flooded out the connected child edge
 }
 
+void test_self_addressed_frame_not_routed()
+{
+    MockEdgeLink link;
+    PanelDiscovery discovery(3);
+    PanelDiscoveryDriver driver(discovery, link);
+    PanelRouter router(discovery, link);
+    PanelFrameDispatcher dispatcher(driver, router);
+
+    Protocol::PacketInitializationPull pull = makePull(7);
+
+    dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
+    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+
+    int sendsBefore = link.count;
+
+    Protocol::PacketTurnOnOff onOff = makeTurnOnOff(7);  // this panel's own index
+
+    bool shouldDispatchLocally = dispatcher.onFrameArrived(0, Protocol::packetMeta(onOff), sizeof(onOff), 1);
+
+    TEST_ASSERT_TRUE(shouldDispatchLocally);
+    TEST_ASSERT_EQUAL_MESSAGE(
+        sendsBefore,
+        link.count,
+        "a frame addressed to this panel terminates here -- it must not be relayed downstream"
+    );
+}
+
+void test_broadcast_still_routed_and_dispatched()
+{
+    MockEdgeLink link;
+    PanelDiscovery discovery(3);
+    PanelDiscoveryDriver driver(discovery, link);
+    PanelRouter router(discovery, link);
+    PanelFrameDispatcher dispatcher(driver, router);
+
+    Protocol::PacketInitializationPull pull = makePull(7);
+
+    dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
+    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+
+    int sendsBefore = link.count;
+
+    Protocol::PacketTurnOnOff onOff = makeTurnOnOff(0);  // broadcast: for me AND everyone below
+
+    bool shouldDispatchLocally = dispatcher.onFrameArrived(0, Protocol::packetMeta(onOff), sizeof(onOff), 1);
+
+    TEST_ASSERT_TRUE(shouldDispatchLocally);
+    TEST_ASSERT_EQUAL_MESSAGE(
+        sendsBefore + 1,
+        link.count,
+        "a broadcast is acted on locally but must still flood to the connected child"
+    );
+    TEST_ASSERT_EQUAL_UINT8(1, link.sentToEdge[link.count - 1]);
+}
+
+void test_advance_to_self_probes_without_flooding()
+{
+    MockEdgeLink link;
+    PanelDiscovery discovery(3);
+    PanelDiscoveryDriver driver(discovery, link);
+    PanelRouter router(discovery, link);
+    PanelFrameDispatcher dispatcher(driver, router);
+
+    Protocol::PacketInitializationPull pull = makePull(7);
+
+    dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
+    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+
+    int sendsBefore = link.count;
+
+    // ADVANCE addressed to this panel: the driver must probe the remaining unexplored edge
+    // (edge 2), and that PULL must be the ONLY transmission -- flooding the ADVANCE down the
+    // connected child edge would still be on the wire (self-echo mask held) when the probed
+    // child's reply arrives, and the reply would be discarded.
+    Protocol::PacketDiscoveryAdvance advance = makeAdvance(7, 9);
+
+    dispatcher.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 1);
+
+    TEST_ASSERT_EQUAL_MESSAGE(
+        sendsBefore + 1,
+        link.count,
+        "a self-addressed ADVANCE must produce exactly one send: the probe PULL, no flood"
+    );
+    TEST_ASSERT_EQUAL_UINT8(2, link.sentToEdge[link.count - 1]);
+    TEST_ASSERT_EQUAL_UINT8(
+        Protocol::PACKET_INITIALIZATION_PULL,
+        link.frameAt(link.count - 1)->header.type
+    );
+}
+
+void test_relay_transmitted_before_drivers_own_reaction()
+{
+    MockEdgeLink link;
+    PanelDiscovery discovery(4);  // parent + connected child + two unexplored edges
+    PanelDiscoveryDriver driver(discovery, link);
+    PanelRouter router(discovery, link);
+    PanelFrameDispatcher dispatcher(driver, router);
+
+    Protocol::PacketInitializationPull pull = makePull(7);
+
+    dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
+    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+
+    Protocol::PacketDiscoveryAdvance advance = makeAdvance(7, 9);
+
+    dispatcher.onFrameArrived(0, Protocol::packetMeta(advance), sizeof(advance), 1);  // probing edge 2
+
+    int sendsBefore = link.count;
+
+    // A loop-rejection reply arrives on the probed edge. Two sends result: PanelRouter relays
+    // the reply upstream (parent, edge 0), and the driver moves on to probe edge 3. The relay
+    // must hit the wire FIRST -- transmitted after the new PULL, it would overlap the probed
+    // child's reply while the transport's self-echo mask discards all RX.
+    Protocol::PacketRegisterEdge rejection = makeRejectedRegisterEdge();
+
+    dispatcher.onFrameArrived(2, Protocol::packetMeta(rejection), sizeof(rejection), 2);
+
+    TEST_ASSERT_EQUAL(sendsBefore + 2, link.count);
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(
+        Protocol::PACKET_REGISTER_EDGE,
+        link.frameAt(sendsBefore)->header.type,
+        "the upstream relay must be transmitted before the driver's next probe PULL"
+    );
+    TEST_ASSERT_EQUAL_UINT8(0, link.sentToEdge[sendsBefore]);
+    TEST_ASSERT_EQUAL_UINT8(Protocol::PACKET_INITIALIZATION_PULL, link.frameAt(sendsBefore + 1)->header.type);
+    TEST_ASSERT_EQUAL_UINT8(3, link.sentToEdge[sendsBefore + 1]);
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -178,6 +328,10 @@ int main()
     RUN_TEST(test_dispatch_true_for_broadcast_once_assigned);
     RUN_TEST(test_dispatch_true_for_own_target_once_assigned);
     RUN_TEST(test_dispatch_false_for_other_panels_target_but_frame_still_routed);
+    RUN_TEST(test_self_addressed_frame_not_routed);
+    RUN_TEST(test_broadcast_still_routed_and_dispatched);
+    RUN_TEST(test_advance_to_self_probes_without_flooding);
+    RUN_TEST(test_relay_transmitted_before_drivers_own_reaction);
 
     return UNITY_END();
 }

@@ -3,6 +3,7 @@
 #include "Core/Relay/PanelDiscovery.cpp"
 #include "Core/Relay/PanelRouter.cpp"
 #include "Core/Relay/PanelDiscoveryDriver.cpp"
+#include "Core/Relay/PanelFrameDispatcher.cpp"
 #include "Core/Relay/DiscoveryCoordinator.cpp"
 #include "Core/Relay/DiscoveryTreeBuilder.cpp"
 #include "Core/Common/ProtocolMeta.cpp"

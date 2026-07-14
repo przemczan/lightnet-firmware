@@ -54,6 +54,84 @@ void test_wake_on_same_edge_ignored_while_already_claimed()
     TEST_ASSERT_FALSE(receiver.onEdgeWake(1, 1));
 }
 
+// --- preemptClaim ---------------------------------------------------------------------------
+
+void test_preempt_claims_edge_when_idle()
+{
+    EdgeFrameReceiver receiver;
+
+    TEST_ASSERT_TRUE(receiver.preemptClaim(1, 0));
+    TEST_ASSERT_EQUAL_UINT8(1, receiver.claimedEdge());
+}
+
+void test_preempt_noop_while_same_edge_holds_claim()
+{
+    EdgeFrameReceiver receiver;
+    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK);
+    const uint8_t *bytes = (const uint8_t *)&ack;
+
+    TEST_ASSERT_TRUE(receiver.onEdgeWake(2, 0));
+
+    // Half a frame in flight on the claimed edge -- preempting the SAME edge must not disturb
+    // it (pollProbeClaim calls this every tick while a probe is outstanding).
+    for (uint8_t i = 0; i < sizeof(ack) / 2; i++) {
+        TEST_ASSERT_FALSE(receiver.onByte(bytes[i], 1));
+    }
+
+    TEST_ASSERT_FALSE(receiver.preemptClaim(2, 2));
+
+    for (uint8_t i = sizeof(ack) / 2; i + 1 < sizeof(ack); i++) {
+        TEST_ASSERT_FALSE(receiver.onByte(bytes[i], 3));
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(
+        receiver.onByte(bytes[sizeof(ack) - 1], 3),
+        "a redundant preempt must leave the in-flight frame intact"
+    );
+    TEST_ASSERT_EQUAL_UINT8(2, receiver.fromEdge());
+}
+
+void test_preempt_evicts_claim_held_by_another_edge()
+{
+    EdgeFrameReceiver receiver;
+    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK);
+
+    TEST_ASSERT_TRUE(receiver.onEdgeWake(0, 0));
+
+    // A stale claim on edge 0 (a crosstalk wake with no frame behind it) must not hold the mux
+    // off the probed edge until FRAME_TIMEOUT_MS -- preempting hands the claim over immediately.
+    TEST_ASSERT_TRUE(receiver.preemptClaim(2, 1));
+    TEST_ASSERT_EQUAL_UINT8(2, receiver.claimedEdge());
+
+    feedFrame(receiver, &ack, sizeof(ack), 2);
+    TEST_ASSERT_EQUAL_UINT8(2, receiver.fromEdge());
+}
+
+void test_preempt_discards_partial_frame_left_by_evicted_claim()
+{
+    EdgeFrameReceiver receiver;
+    Protocol::PacketSetColor stale =
+        Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
+    const uint8_t *staleBytes = (const uint8_t *)&stale;
+
+    // Edge 0's claim dies mid-frame (e.g. the tail of a frame this panel's own transmission
+    // talked over). Its half-fed prefix must not desync the frame the new claim receives.
+    TEST_ASSERT_TRUE(receiver.onEdgeWake(0, 0));
+
+    for (uint8_t i = 0; i < 3; i++) {
+        TEST_ASSERT_FALSE(receiver.onByte(staleBytes[i], 1));
+    }
+
+    TEST_ASSERT_TRUE(receiver.preemptClaim(1, 2));
+
+    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK);
+
+    feedFrame(receiver, &ack, sizeof(ack), 3);
+
+    TEST_ASSERT_EQUAL_UINT8(1, receiver.fromEdge());
+    TEST_ASSERT_EQUAL_MEMORY(&ack, receiver.frame(), sizeof(ack));
+}
+
 // --- onByte --------------------------------------------------------------------------------
 
 void test_byte_dropped_without_active_claim()
@@ -201,6 +279,10 @@ int main()
     RUN_TEST(test_wake_claims_edge_when_idle);
     RUN_TEST(test_wake_on_different_edge_ignored_while_claimed);
     RUN_TEST(test_wake_on_same_edge_ignored_while_already_claimed);
+    RUN_TEST(test_preempt_claims_edge_when_idle);
+    RUN_TEST(test_preempt_noop_while_same_edge_holds_claim);
+    RUN_TEST(test_preempt_evicts_claim_held_by_another_edge);
+    RUN_TEST(test_preempt_discards_partial_frame_left_by_evicted_claim);
     RUN_TEST(test_byte_dropped_without_active_claim);
     RUN_TEST(test_full_frame_tagged_with_claimed_edge);
     RUN_TEST(test_claim_released_after_frame_completes);

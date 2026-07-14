@@ -159,10 +159,15 @@ class LightnetPanel
         // probed edge directly rather than waiting for a PCINT wake -- the protocol guarantees a
         // reply can only ever come back on that edge (see PanelDiscoveryDriver::probingEdge()'s
         // own comment), so this makes the probe-reply path immune to a wake being lost to
-        // crosstalk or a stray transient. A no-op once the edge is already claimed
-        // (EdgeFrameReceiver::onEdgeWake() ignores a redundant claim), so calling this every
-        // tick() is cheap and also re-claims the edge after EdgeFrameReceiver::FRAME_TIMEOUT_MS
-        // releases a stalled claim.
+        // crosstalk or a stray transient. Uses EdgeFrameReceiver::preemptClaim(): a claim held
+        // by any *other* edge during a probe is by definition noise (a crosstalk wake, or the
+        // tail of a frame this panel's own transmission talked over) and is evicted rather than
+        // allowed to hold the mux off the probed edge until it times out -- with
+        // EdgeFrameReceiver::FRAME_TIMEOUT_MS as long as the probe retry interval
+        // (PanelDiscoveryDriver::PROBE_TIMEOUT_MS), one such stale claim straddles the next
+        // attempt and eats its reply too. A no-op while the
+        // probed edge already holds the claim, so calling this every tick() is cheap and also
+        // re-parks the edge after EdgeFrameReceiver::FRAME_TIMEOUT_MS releases a stalled claim.
         void pollProbeClaim(uint32_t nowMs);
 
         // Keeps the PCINT wake interrupts enabled exactly while no claim is held. The wake-sense

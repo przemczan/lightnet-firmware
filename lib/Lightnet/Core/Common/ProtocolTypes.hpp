@@ -124,8 +124,10 @@ namespace Protocol {
     } PacketRegisterEdge;
 
     // Relay discovery control plane. Only the panel named by meta.header.targetPanelIndex acts
-    // on this; every panel still relays it downstream via the ordinary flood rule regardless (no
-    // PanelRouter changes needed — this is just another payload flowing through it).
+    // on this; panels along the way relay it downstream via the ordinary flood rule (no
+    // PanelRouter changes needed — this is just another payload flowing through it), and the
+    // addressed panel itself consumes it without relaying further (PanelFrameDispatcher's
+    // self-addressed rule — its probe reply would race the relay transmission otherwise).
     typedef struct PACK {
         PacketMeta meta;
         uint16_t   assignIndex;

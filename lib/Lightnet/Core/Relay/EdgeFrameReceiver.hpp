@@ -63,6 +63,19 @@ namespace Lightnet {
             // (redundant wake, no-op).
             bool onEdgeWake(uint8_t edgeIndex, uint32_t nowMs);
 
+            // Forcibly parks the claim on `edgeIndex`: a claim held by any *other* edge is
+            // evicted (its frame-in-progress abandoned, the framer reset) and `edgeIndex`
+            // claimed in its place. Returns true if the claim moved (the caller must switch the
+            // mux to it via selectRxEdge()); false if `edgeIndex` already held it — a frame
+            // in flight on it is left untouched, so calling this repeatedly is safe.
+            //
+            // For callers that know from protocol state exactly which edge the next frame must
+            // arrive on (a probe's reply — see LightnetPanel::pollProbeClaim()): a claim on any
+            // other edge is then by definition noise (a crosstalk wake, or the tail of a frame
+            // this panel's own transmission talked over) and must not hold the mux hostage for
+            // up to FRAME_TIMEOUT_MS while the expected reply arrives unheard.
+            bool preemptClaim(uint8_t edgeIndex, uint32_t nowMs);
+
             // Feed one byte belonging to the currently-claimed edge. Bytes arriving with no
             // active claim are dropped (defensive — shouldn't happen if wake gating is correct).
             // Returns true exactly when a complete, CRC-valid frame is now ready.

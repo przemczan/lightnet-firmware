@@ -1,8 +1,9 @@
 // Host test proving the whole relay discovery protocol end-to-end over real exchanged packets:
-// DiscoveryCoordinator (controller) + PanelDiscoveryDriver (panel) + PanelRouter (completely
-// unmodified). Unlike test_panel_router's discoverFrom() helper -- which calls
-// PanelDiscovery::onParentOffer() directly to prove the decision table alone -- this fabric
-// only ever calls sendOnEdge()/onFrameArrived()/tick(), the same seams real firmware would use.
+// DiscoveryCoordinator (controller) + PanelFrameDispatcher/PanelDiscoveryDriver/PanelRouter
+// (panel, the exact sequencing real firmware uses). Unlike test_panel_router's discoverFrom()
+// helper -- which calls PanelDiscovery::onParentOffer() directly to prove the decision table
+// alone -- this fabric only ever calls sendOnEdge()/onFrameArrived()/tick(), the same seams
+// real firmware would use.
 //
 // Physical wiring (undirected), mirroring test_panel_router's 3-node loop fabric plus two
 // genuinely empty ports:
@@ -15,10 +16,12 @@
 // Run with: pio test -e native -f test_discovery_end_to_end
 
 #include <unity.h>
+#include <string.h>
 
 #include "Core/Relay/DiscoveryCoordinator.hpp"
 #include "Core/Relay/DiscoveryTreeBuilder.hpp"
 #include "Core/Relay/PanelDiscoveryDriver.hpp"
+#include "Core/Relay/PanelFrameDispatcher.hpp"
 #include "Core/Relay/PanelRouter.hpp"
 #include "Core/Common/ProtocolMeta.hpp"
 
@@ -56,6 +59,7 @@ FabricTarget wiring[NODE_COUNT][EDGES_PER_NODE] = {
 PanelDiscovery *discoveries[NODE_COUNT];
 PanelRouter *routers[NODE_COUNT];
 PanelDiscoveryDriver *drivers[NODE_COUNT];
+PanelFrameDispatcher *dispatchers[NODE_COUNT];
 DiscoveryCoordinator *coordinator;
 uint32_t fabricNow;
 
@@ -64,7 +68,68 @@ uint32_t fabricNow;
 bool dropNextPullOnN0Edge1        = false;
 bool dropNextAdvanceFromController = false;
 
-void deliver(int nodeIndex, uint8_t edge, const Protocol::PacketMeta *frame, uint8_t size);
+// --- Deferred delivery -----------------------------------------------------------------------
+//
+// Frames are queued FIFO and pumped, never delivered by direct recursion. Real hardware gives
+// every node strictly sequential frame processing (one RX ring drained from one main loop) plus
+// wire latency -- a reply provoked by a frame this node relayed can only ever be processed
+// AFTER this node finished processing the frame that provoked it. Synchronous recursion breaks
+// that causality: the coordinator's ADVANCE, sent in reaction to a relayed REGISTER_EDGE, would
+// re-enter the probing panel's dispatcher before its driver had marked the new child edge
+// Connected, and the flood would skip the child that ADVANCE addresses.
+
+struct PendingDelivery {
+    int8_t  node;  // CONTROLLER_NODE or a panel node index
+    uint8_t edge;
+    uint8_t size;
+    uint8_t buf[Protocol::MAX_PACKET_SIZE];
+};
+
+const int DELIVERY_QUEUE_CAP = 32;
+
+PendingDelivery deliveryQueue[DELIVERY_QUEUE_CAP];
+int deliveryHead  = 0;
+int deliveryCount = 0;
+
+void enqueueDelivery(int8_t node, uint8_t edge, const Protocol::PacketMeta *frame, uint8_t size)
+{
+    TEST_ASSERT_TRUE_MESSAGE(deliveryCount < DELIVERY_QUEUE_CAP, "fabric delivery queue overflow");
+
+    PendingDelivery &slot = deliveryQueue[(deliveryHead + deliveryCount) % DELIVERY_QUEUE_CAP];
+
+    slot.node = node;
+    slot.edge = edge;
+    slot.size = size;
+    memcpy(slot.buf, frame, size);
+    deliveryCount++;
+}
+
+// Every panel-bound frame goes through the node's real PanelFrameDispatcher -- the exact
+// sequencing real firmware uses (relay via PanelRouter first, skipping
+// PACKET_INITIALIZATION_PULL and self-addressed frames, then the driver -- see
+// PanelFrameDispatcher.hpp's rules). In particular this proves the walk still completes even
+// though a frame addressed to a panel (its own ADVANCE) is consumed there without being
+// flooded further down its subtree.
+void pumpDeliveries()
+{
+    while (deliveryCount > 0) {
+        PendingDelivery slot = deliveryQueue[deliveryHead];  // copy -- processing enqueues more
+
+        deliveryHead = (deliveryHead + 1) % DELIVERY_QUEUE_CAP;
+        deliveryCount--;
+
+        if (slot.node == CONTROLLER_NODE) {
+            coordinator->onFrameArrived((const Protocol::PacketMeta *)slot.buf, slot.size, fabricNow);
+        } else {
+            dispatchers[slot.node]->onFrameArrived(
+                slot.edge,
+                (const Protocol::PacketMeta *)slot.buf,
+                slot.size,
+                fabricNow
+            );
+        }
+    }
+}
 
 struct FabricLink : public IEdgeLink {
     int nodeIndex;
@@ -85,12 +150,12 @@ struct FabricLink : public IEdgeLink {
         }
 
         if (target.node == CONTROLLER_NODE) {
-            coordinator->onFrameArrived(packet, size, fabricNow);
+            enqueueDelivery(CONTROLLER_NODE, 0, packet, size);
 
             return;
         }
 
-        deliver(target.node, target.edge, packet, size);
+        enqueueDelivery(target.node, target.edge, packet, size);
     }
 };
 
@@ -105,27 +170,11 @@ struct ControllerLink : public IEdgeLink {
             return;
         }
 
-        deliver(0, 0, packet, size);  // N0 is wired directly to the controller on its own edge 0
+        enqueueDelivery(0, 0, packet, size);  // N0 is wired directly to the controller on its own edge 0
     }
 };
 
 FabricLink fabricLinks[NODE_COUNT];
-
-// PACKET_INITIALIZATION_PULL is strictly one-hop and must never reach PanelRouter (it has no
-// "is this meant for me" guard -- see PanelDiscoveryDriver.hpp). Every other discovery packet
-// type is safe to also run through the router: REGISTER_EDGE/DISCOVERY_ADVANCE are only acted
-// on by a driver when they match its own current probe/index (guarded), so an in-transit frame
-// harmlessly passes through; DISCOVERY_DONE isn't touched by the driver at all. The router's
-// ordinary, completely unmodified flood/route rules carry all three the rest of the way to
-// wherever they're going -- this is the crux of the "zero PanelRouter changes" design.
-void deliver(int nodeIndex, uint8_t edge, const Protocol::PacketMeta *frame, uint8_t size)
-{
-    drivers[nodeIndex]->onFrameArrived(edge, frame, size, fabricNow);
-
-    if (frame->header.type != Protocol::PACKET_INITIALIZATION_PULL) {
-        routers[nodeIndex]->onFrameArrived(edge, frame, size);
-    }
-}
 
 void test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports()
 {
@@ -134,15 +183,19 @@ void test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports()
         fabricLinks[i].nodeIndex = i;
         drivers[i]             = new PanelDiscoveryDriver(*discoveries[i], fabricLinks[i]);
         routers[i]             = new PanelRouter(*discoveries[i], fabricLinks[i]);
+        dispatchers[i]         = new PanelFrameDispatcher(*drivers[i], *routers[i]);
     }
 
     ControllerLink controllerLink;
     DiscoveryTreeBuilder treeBuilder(EDGES_PER_NODE);
 
-    coordinator = new DiscoveryCoordinator(controllerLink, &treeBuilder);
-    fabricNow   = 0;
+    coordinator   = new DiscoveryCoordinator(controllerLink, &treeBuilder);
+    fabricNow     = 0;
+    deliveryHead  = 0;
+    deliveryCount = 0;
 
     coordinator->begin();
+    pumpDeliveries();
 
     const int SAFETY_CAP = 200;  // a real, un-stuck walk on 3 nodes finishes in a handful of steps
     int iterations = 0;
@@ -155,6 +208,8 @@ void test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports()
         for (int i = 0; i < NODE_COUNT; i++) {
             drivers[i]->tick(fabricNow);
         }
+
+        pumpDeliveries();
 
         iterations++;
     }
@@ -211,6 +266,7 @@ void test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports()
     TEST_ASSERT_EQUAL_UINT8(0, link1.edgeB);  // N2's edge0 (see wiring[2][0])
 
     for (int i = 0; i < NODE_COUNT; i++) {
+        delete dispatchers[i];
         delete routers[i];
         delete drivers[i];
         delete discoveries[i];
@@ -230,18 +286,22 @@ void test_discovery_completes_despite_one_dropped_advance_and_one_dropped_probe(
         fabricLinks[i].nodeIndex = i;
         drivers[i]             = new PanelDiscoveryDriver(*discoveries[i], fabricLinks[i]);
         routers[i]             = new PanelRouter(*discoveries[i], fabricLinks[i]);
+        dispatchers[i]         = new PanelFrameDispatcher(*drivers[i], *routers[i]);
     }
 
     ControllerLink controllerLink;
     DiscoveryTreeBuilder treeBuilder(EDGES_PER_NODE);
 
-    coordinator = new DiscoveryCoordinator(controllerLink, &treeBuilder);
-    fabricNow   = 0;
+    coordinator   = new DiscoveryCoordinator(controllerLink, &treeBuilder);
+    fabricNow     = 0;
+    deliveryHead  = 0;
+    deliveryCount = 0;
 
     dropNextPullOnN0Edge1        = true;
     dropNextAdvanceFromController = true;
 
     coordinator->begin(fabricNow);
+    pumpDeliveries();
 
     const int SAFETY_CAP = 200;
     int iterations = 0;
@@ -254,6 +314,8 @@ void test_discovery_completes_despite_one_dropped_advance_and_one_dropped_probe(
         }
 
         coordinator->tick(fabricNow);  // drives the ADVANCE resend the dropped one needs
+
+        pumpDeliveries();
 
         iterations++;
     }
@@ -277,6 +339,7 @@ void test_discovery_completes_despite_one_dropped_advance_and_one_dropped_probe(
     TEST_ASSERT_EQUAL_UINT8(2, treeBuilder.linkCount());
 
     for (int i = 0; i < NODE_COUNT; i++) {
+        delete dispatchers[i];
         delete routers[i];
         delete drivers[i];
         delete discoveries[i];
