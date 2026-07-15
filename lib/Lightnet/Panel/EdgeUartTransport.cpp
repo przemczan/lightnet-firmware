@@ -182,6 +182,11 @@ uint8_t EdgeUartTransport::readByte()
     uint8_t value = 0;
 
     this->rxRing.pop(value);
+    // Drained-byte liveness for pollTrunkActivityLed()/the debug heartbeat -- tracked here, in the
+    // main loop, rather than in onRxByte() so nothing but the ring push rides the RX ISR. Callers
+    // check available() first (one byte per pop), so this counts received bytes just as onRxByte()
+    // did, one drain later.
+    this->rxActivityStamp++;
 
     return value;
 }
@@ -192,8 +197,10 @@ void EdgeUartTransport::onRxByte(uint8_t value)
         return;  // self-echo — see the class comment
     }
 
-    PORTD |= (1 << PD6);
-    this->rxActivityStamp++;
+    // Deliberately minimal: this runs in the RX ISR on every byte, and at high trunk baud the
+    // ISR's per-byte cost is what bounds how fast the link runs before the USART's 2-byte FIFO
+    // overruns (a DOR fault). The activity LED and counter are driven from the main loop instead
+    // (readByte()/pollTrunkActivityLed()), so nothing cosmetic rides the ISR.
     this->rxRing.push(value);  // ring full: byte dropped, self-heals like any other corrupt frame
 }
 
@@ -253,16 +260,21 @@ void EdgeUartTransport::pollTrunkActivityLed(uint32_t nowMs)
 {
     static uint8_t seenStamp = 0;
 
-    if (this->rxActivityStamp != seenStamp) {
+    // A byte was drained since the last poll (readByte() bumps the stamp). This is what lights the
+    // LED now that onRxByte() no longer touches it, and it catches a burst that arrived and fully
+    // drained within one tick -- which available() alone, checked after pollBytes() empties the
+    // ring, would miss.
+    bool activity = this->rxActivityStamp != seenStamp;
+
+    if (activity) {
         seenStamp = this->rxActivityStamp;
-        this->lastRxActivityMs = nowMs;
     }
 
     if (this->transmitting) {
         return;
     }
 
-    if (this->available()) {
+    if (activity || this->available()) {
         PORTD |= (1 << PD6);
         this->lastRxActivityMs = nowMs;
 

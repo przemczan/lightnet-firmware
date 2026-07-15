@@ -140,7 +140,7 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
 
         Lightnet::ByteRing<RX_RING_BYTES> rxRing;
         volatile bool transmitting = false;
-        volatile uint8_t rxActivityStamp = 0;
+        uint8_t rxActivityStamp = 0;  // main-loop only (readByte()) -- not ISR-touched, so not volatile
         volatile uint8_t rxFramingErrorStamp = 0;
         volatile uint8_t rxOverrunErrorStamp = 0;
         uint32_t lastRxActivityMs = 0;

@@ -53,18 +53,30 @@ ISR(PCINT0_vect)
     ISR(USART_RX_vect)
 #endif
 {
-    // Status must be read before UDR0 -- reading the data register advances the RX FIFO, which
-    // replaces UCSR0A's error flags (FE0/DOR0) with the next byte's.
-    uint8_t status = UCSR0A;
-    uint8_t value  = UDR0;
+    // The FE0/DOR0 fault split is DEBUG-only: it costs a UCSR0A read plus two bit tests (and holds
+    // an extra register) on every byte, and in a production build the RX ISR should be nothing but
+    // "drain UDR0 into the ring" -- the leanest per-byte path, since at high trunk baud the ISR's
+    // cost is what bounds how fast the link runs before the USART's 2-byte FIFO overruns. Status
+    // MUST be read before UDR0: reading the data register advances the RX FIFO, replacing UCSR0A's
+    // error flags with the next byte's.
+    #if DEBUG
+        uint8_t status = UCSR0A;
 
-    if (status & (1 << FE0)) {
-        LNEdgeTransport.onRxFramingError();
-    }
+    #endif
 
-    if (status & (1 << DOR0)) {
-        LNEdgeTransport.onRxOverrunError();
-    }
+    uint8_t value = UDR0;
+
+    #if DEBUG
+
+        if (status & (1 << FE0)) {
+            LNEdgeTransport.onRxFramingError();
+        }
+
+        if (status & (1 << DOR0)) {
+            LNEdgeTransport.onRxOverrunError();
+        }
+
+    #endif
 
     LNEdgeTransport.onRxByte(value);
 }

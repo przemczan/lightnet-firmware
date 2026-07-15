@@ -3,6 +3,21 @@
 #include <stdint.h>
 
 namespace Lightnet {
+    // Narrowest unsigned index that can address CapacityBytes slots (0..CapacityBytes-1). A byte
+    // suffices for any capacity that fits one, which every real UART ring does -- and it keeps the
+    // producer ISR's per-byte push to 8-bit ops on an 8-bit MCU (AVR) instead of the 2-instruction
+    // 16-bit ops a uint16_t index forces, roughly halving the hottest path in the RX vector. Falls
+    // back to uint16_t for larger rings, so the template stays fully general.
+    template <bool FitsByte>
+    struct RingIndexType {
+        typedef uint16_t type;
+    };
+
+    template <>
+    struct RingIndexType<true> {
+        typedef uint8_t type;
+    };
+
     // ByteRing — lock-free single-producer / single-consumer ring of individual bytes.
     //
     // Unlike SpscByteQueue (variable-length, length-prefixed *records*), this is a plain byte
@@ -17,6 +32,8 @@ namespace Lightnet {
     class ByteRing
     {
         public:
+            typedef typename RingIndexType<(CapacityBytes <= 256)>::type Index;
+
             ByteRing() : _w(0), _r(0)
             {
             }
@@ -24,7 +41,7 @@ namespace Lightnet {
             // Producer side (e.g. an ISR). Returns false (byte dropped) if the ring is full.
             bool push(uint8_t value)
             {
-                uint16_t next = (uint16_t)((_w + 1 == CapacityBytes) ? 0 : _w + 1);
+                Index next = (Index)((_w + 1 == CapacityBytes) ? 0 : _w + 1);
 
                 if (next == _r) {
                     return false;
@@ -44,7 +61,7 @@ namespace Lightnet {
                 }
 
                 out = _buf[_r];
-                _r  = (uint16_t)((_r + 1 == CapacityBytes) ? 0 : _r + 1);
+                _r  = (Index)((_r + 1 == CapacityBytes) ? 0 : _r + 1);
 
                 return true;
             }
@@ -63,7 +80,7 @@ namespace Lightnet {
 
         private:
             volatile uint8_t _buf[CapacityBytes];
-            volatile uint16_t _w;  // write offset — producer only
-            volatile uint16_t _r;  // read offset  — consumer only
+            volatile Index _w;  // write offset — producer only
+            volatile Index _r;  // read offset  — consumer only
     };
 }  // namespace Lightnet
