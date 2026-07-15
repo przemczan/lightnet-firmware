@@ -93,6 +93,11 @@ namespace {
     // max-size frame (2 preamble + 78 bytes at 250 kbaud ≈ 3.2 ms each) plus per-send overhead.
     const uint8_t REPLY_CLEARANCE_MS = 10;
 
+    // Same 2-byte budget as EdgeUartTransport's PREAMBLE_BYTE_COUNT (see its comment) for the
+    // receiving neighbour's polled mux-settling/wake-to-claim latency -- this bootloader shares
+    // the wire with panels still running the application, so the two must never diverge.
+    const uint8_t PREAMBLE_BYTE_COUNT = 2;
+
     // Every global below is left at its all-zero .bss default and assigned for real (as executed
     // code, not a static initializer) at the top of main() — belt-and-suspenders against relying
     // on avr-libc's own __do_copy_data (confirmed present and reachable from this image's own
@@ -177,9 +182,9 @@ namespace {
     }
 
     // Gates the parent edge's TX buffer on for exactly this send (shared half-duplex wire --
-    // see txGateInit()), sends throwaway preamble bytes (same 2-byte budget as
-    // EdgeUartTransport's PREAMBLE_BYTE_COUNT -- absorbs the receiving neighbour's own polled
-    // mux-settling/wake-to-claim latency), then the frame, then releases the wire.
+    // see txGateInit()), sends throwaway preamble bytes (PREAMBLE_BYTE_COUNT -- absorbs the
+    // receiving neighbour's own polled mux-settling/wake-to-claim latency), then the frame, then
+    // releases the wire.
     void sendFrame(const Protocol::PacketMeta *packet, uint8_t size)
     {
         // Every frame this bootloader sends is a reply the controller is blocked waiting for,
@@ -190,8 +195,9 @@ namespace {
         UCSR0A |= (1 << TXC0);  // clear any stale flag from a previous send before waiting on it
         PORTD &= (uint8_t) ~txEnableBit();
 
-        sendByte(0xFF);
-        sendByte(0xFF);
+        for (uint8_t i = 0; i < PREAMBLE_BYTE_COUNT; i++) {
+            sendByte(0xFF);
+        }
 
         const uint8_t *bytes = (const uint8_t *)packet;
 

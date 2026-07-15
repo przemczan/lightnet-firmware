@@ -379,10 +379,10 @@ void setup()
     // means discovery times out empty even with a panel attached.
     pinMode(PANELS_POWER_PIN, OUTPUT);
     digitalWrite(PANELS_POWER_PIN, LOW);
-    delay(150);
+    delay(250);
     digitalWrite(PANELS_POWER_PIN, HIGH);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panels to boot"));
-    delay(500);
+    delay(250);
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
     LNPanelsInitializer.configure(

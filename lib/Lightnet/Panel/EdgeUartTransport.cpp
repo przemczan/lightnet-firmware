@@ -9,12 +9,8 @@ namespace {
 
     // How many throwaway 0xFF bytes precede every real frame -- see sendOnEdge()'s own comment.
     // Budgets the receiver's *polled* mux switch (LightnetPanel::pollWake(), called from the main
-    // loop, not the wake ISR -- see LightnetPanel.hpp's threading-model note): 2 bytes = 80us at
-    // 250k, plenty for a print-free main-loop iteration (single-digit us). A receiver blocked in
-    // a bit-banged debug print blows any affordable preamble anyway -- those frames are lost to
-    // the ring/mux position regardless of this value and recovered by protocol retries -- so
-    // paying more wire time per frame per hop buys nothing. Bump back to 4 first thing if relayed
-    // traffic ever goes lossy with rxErr staying 0.
+    // loop, not the wake ISR -- see LightnetPanel.hpp's threading-model note) plus its
+    // wake-to-claim reaction latency.
     const uint8_t PREAMBLE_BYTE_COUNT = 2;
 
     // PB1/PB2/PB3 -> edges 0/1/2 (the pin map in the header).
@@ -201,14 +197,26 @@ void EdgeUartTransport::onRxByte(uint8_t value)
     this->rxRing.push(value);  // ring full: byte dropped, self-heals like any other corrupt frame
 }
 
-void EdgeUartTransport::onRxError()
+void EdgeUartTransport::onRxFramingError()
 {
-    this->rxErrorStamp++;
+    this->rxFramingErrorStamp++;
+}
+
+void EdgeUartTransport::onRxOverrunError()
+{
+    this->rxOverrunErrorStamp++;
 }
 
 void EdgeUartTransport::setWakeInterruptsEnabled(bool enabled)
 {
-    // Plain read-modify-write is safe: no ISR touches PCMSK0.
+    // Plain read-modify-write despite one ISR path (LightnetPanel::onEdgeWakeIsr, which calls
+    // this with enabled=false) also writing these bits -- the two never race destructively:
+    //   - enabled=true runs only while the bits are already clear (main loop re-arming from the
+    //     suppressed state), so PCINT0 cannot fire mid-RMW to interleave a write.
+    //   - enabled=false from the main loop can be preempted by the ISR's own enabled=false, but
+    //     both clear the same bits, so the interleaving still lands on "cleared" -- no lost write.
+    //   - sendOnEdge()'s own PCMSK0 save/restore is safe because onEdgeWakeIsr() early-returns
+    //     while isTransmitting(), so it never touches PCMSK0 during a send.
     if (enabled) {
         PCMSK0 |= WAKE_PCINT_BITS;
     } else {
@@ -231,9 +239,14 @@ uint8_t EdgeUartTransport::activityStamp() const
     return this->rxActivityStamp;
 }
 
-uint8_t EdgeUartTransport::errorStamp() const
+uint8_t EdgeUartTransport::framingErrorStamp() const
 {
-    return this->rxErrorStamp;
+    return this->rxFramingErrorStamp;
+}
+
+uint8_t EdgeUartTransport::overrunErrorStamp() const
+{
+    return this->rxOverrunErrorStamp;
 }
 
 void EdgeUartTransport::pollTrunkActivityLed(uint32_t nowMs)

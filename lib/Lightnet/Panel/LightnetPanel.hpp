@@ -74,6 +74,19 @@ class LightnetPanel
         // ISR entry point (PCINT wake line transition) — minimal, see class comment.
         void onEdgeWakeIsr(uint8_t edgeIndex);
 
+        #if DEBUG
+            // Bumped once per PCINT0_vect entry, before its changed-gate -- the TRUE ISR
+            // invocation rate, which wakeIsrFiredCount undercounts (it only bumps when a net pin
+            // change survives the XOR, so back-to-back storms where the pin toggles an even number
+            // of times between entries are invisible to it). This is the direct storm readout: it
+            // should collapse to near wakeIsrFiredCount once onEdgeWakeIsr() masks the wakes.
+            void notePcintEntry()
+            {
+                this->wakePcintRawCount++;
+            }
+
+        #endif
+
     private:
         Lightnet::PanelDiscovery discovery;
         Lightnet::PanelDiscoveryDriver driver;
@@ -100,8 +113,9 @@ class LightnetPanel
 
         // Mirror of whether the PCINT wake interrupts are currently gated off (see
         // syncWakeInterruptSuppression()) -- avoids a register read-modify-write per call when
-        // the state hasn't changed. Main-loop only, so not volatile.
-        bool wakeInterruptsSuppressed;
+        // the state hasn't changed. Written from the main loop AND from onEdgeWakeIsr() (which
+        // masks the wakes the instant the first one fires, before the main loop can), so volatile.
+        volatile bool wakeInterruptsSuppressed;
 
         // With probe retries (PanelDiscoveryDriver::PROBE_ATTEMPTS), a downstream panel
         // resolving two empty edges can legitimately go quiet for up to
@@ -144,9 +158,10 @@ class LightnetPanel
             static const uint32_t HEARTBEAT_INTERVAL_MS = 1000;
             uint32_t lastHeartbeatMs;
 
-            // Wake-path liveness counters (wrap silently, "is this changing" only). The first two
-            // are touched from onEdgeWakeIsr() (real ISR context, hence volatile); the claim ones
-            // are only ever touched from pollWake() in the main loop.
+            // Wake-path liveness counters (wrap silently, "is this changing" only). The ISR-side
+            // ones are volatile (touched from onEdgeWakeIsr()/notePcintEntry() in real ISR
+            // context); the claim ones are only ever touched from pollWake() in the main loop.
+            volatile uint16_t wakePcintRawCount;
             volatile uint8_t wakeIsrFiredCount;
             volatile uint8_t wakeIsrMaskedCount;
             uint8_t wakeClaimGrantedCount;

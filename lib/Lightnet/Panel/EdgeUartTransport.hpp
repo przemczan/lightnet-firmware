@@ -81,10 +81,17 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         // ISR(USART0_RX_vect)/ISR(USART_RX_vect). Not for application use.
         void onRxByte(uint8_t value);
 
-        // ISR entry point for an RX hardware fault (framing error / data overrun) the RX ISR
-        // noticed alongside a byte. Only bumps a diagnostic counter — the byte itself still goes
-        // through onRxByte() and the corrupt frame self-heals via PacketFramer's resync/CRC.
-        void onRxError();
+        // ISR entry points for an RX hardware fault the RX ISR noticed alongside a byte, split by
+        // UCSR0A flag so the two distinct failure modes stay distinguishable in the heartbeat:
+        // FE0 (framing error, this byte's stop bit wasn't where expected -- a physical-layer
+        // symptom: signal integrity, wrong baud, or a receiver that missed the frame start) vs.
+        // DOR0 (data overrun, a previous byte was overwritten before being read -- a software
+        // symptom: the RX ISR was starved past the USART's 2-byte buffer by something higher
+        // priority, e.g. the PCINT storm noted below). Either way the byte itself still goes
+        // through onRxByte() and the corrupt frame self-heals via PacketFramer's resync/CRC —
+        // these only bump diagnostic counters.
+        void onRxFramingError();
+        void onRxOverrunError();
 
         // Gates the PCINT wake interrupts (PCMSK0's PB1/PB2/PB3 bits) at runtime. The wake-sense
         // lines are electrically the edges' data lines (Panel.net: each port's data wire feeds
@@ -109,12 +116,13 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         void pollTrunkActivityLed(uint32_t nowMs);
 
         // Diagnostics only -- which edge selectRxEdge() last parked the mux on, a free-running
-        // count of bytes actually pushed into rxRing, and a free-running count of RX hardware
-        // faults (see onRxError()). Both counters wrap silently -- only useful for "is this
-        // changing at all" liveness checks, not exact totals.
+        // count of bytes actually pushed into rxRing, and free-running counts of each RX hardware
+        // fault kind (see onRxFramingError()/onRxOverrunError()). All counters wrap silently --
+        // only useful for "is this changing at all" liveness checks, not exact totals.
         uint8_t currentRxEdge() const;
         uint8_t activityStamp() const;
-        uint8_t errorStamp() const;
+        uint8_t framingErrorStamp() const;
+        uint8_t overrunErrorStamp() const;
 
     private:
         static const uint32_t TRUNK_LED_IDLE_MS = 2;
@@ -133,7 +141,8 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         Lightnet::ByteRing<RX_RING_BYTES> rxRing;
         volatile bool transmitting = false;
         volatile uint8_t rxActivityStamp = 0;
-        volatile uint8_t rxErrorStamp = 0;
+        volatile uint8_t rxFramingErrorStamp = 0;
+        volatile uint8_t rxOverrunErrorStamp = 0;
         uint32_t lastRxActivityMs = 0;
         uint8_t rxSelectedEdge = 0;  // matches begin()'s PORTC reset -> edge 0 selected at boot
 };

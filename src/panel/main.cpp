@@ -22,6 +22,11 @@
 // separate physical-layer phase.
 ISR(PCINT0_vect)
 {
+    #if DEBUG
+        LNPanel.notePcintEntry();  // true entry rate, before the changed-gate -- see its comment
+
+    #endif
+
     static uint8_t lastPinB = 0;
     uint8_t pinB     = PINB;
     uint8_t changed  = pinB ^ lastPinB;
@@ -53,8 +58,12 @@ ISR(PCINT0_vect)
     uint8_t status = UCSR0A;
     uint8_t value  = UDR0;
 
-    if (status & ((1 << FE0) | (1 << DOR0))) {
-        LNEdgeTransport.onRxError();
+    if (status & (1 << FE0)) {
+        LNEdgeTransport.onRxFramingError();
+    }
+
+    if (status & (1 << DOR0)) {
+        LNEdgeTransport.onRxOverrunError();
     }
 
     LNEdgeTransport.onRxByte(value);

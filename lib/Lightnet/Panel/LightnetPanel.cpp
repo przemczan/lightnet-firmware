@@ -16,8 +16,9 @@ LightnetPanel::LightnetPanel()
     probingSinceMs(0),
     wakeInterruptsSuppressed(false)
 #if DEBUG
-        , pendingRxBusLogCount(0), lastHeartbeatMs(0), wakeIsrFiredCount(0), wakeIsrMaskedCount(0),
-        wakeClaimGrantedCount(0), wakeClaimIgnoredCount(0), lastWakeEdgeSeen(NO_EDGE)
+        , pendingRxBusLogCount(0), lastHeartbeatMs(0), wakePcintRawCount(0), wakeIsrFiredCount(0),
+        wakeIsrMaskedCount(0), wakeClaimGrantedCount(0), wakeClaimIgnoredCount(0),
+        lastWakeEdgeSeen(NO_EDGE)
 #endif
 {
 }
@@ -61,6 +62,22 @@ void LightnetPanel::onEdgeWakeIsr(uint8_t edgeIndex)
     // "last edge wins" value. The actual claim decision and mux switch happen from pollWake() in
     // the main loop -- see the class comment's threading model.
     this->pendingWakeMask |= (uint8_t)(1 << edgeIndex);
+
+    // Disarm the wake interrupts here, in the ISR, the instant the first one fires -- do NOT wait
+    // for the main loop to do it once a claim is established. The wake-sense line IS the edge's
+    // data line (EdgeUartTransport.hpp), and PCINT0 (vector 4) outranks the USART RX ISR
+    // (vector 19), so a frame arriving on the parked edge storms this ISR back-to-back on every
+    // bit transition, starving the RX ISR past the USART's 2-byte buffer into overruns (rxErrDOR)
+    // -- and starving the main loop out of ever reaching the claim that syncWakeInterruptSuppression()
+    // would otherwise mask on, a self-reinforcing deadlock that gets worse as baud rises. Only the
+    // first transition carries information (which edge woke, now latched above); mask the rest.
+    // Bookkeeping: set wakeInterruptsSuppressed too so syncWakeInterruptSuppression() heals every
+    // path -- it re-enables the wakes at pollWake()'s end for a phantom wake (claimedEdge stays
+    // NO_EDGE), or holds them masked once a real claim takes (claimedEdge set). Without this line
+    // the mirror would read "not suppressed" while the hardware is masked, and the reconcile would
+    // no-op, leaving the wakes dead forever.
+    LNEdgeTransport.setWakeInterruptsEnabled(false);
+    this->wakeInterruptsSuppressed = true;
 }
 
 void LightnetPanel::pollWake(uint32_t nowMs)
@@ -307,10 +324,14 @@ void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
                      this->receiver.claimedEdge(),
                      DPF("act"),
                      LNEdgeTransport.activityStamp(),
-                     DPF("rxErr"),
-                     LNEdgeTransport.errorStamp(),
+                     DPF("rxErrFE"),
+                     LNEdgeTransport.framingErrorStamp(),
+                     DPF("rxErrDOR"),
+                     LNEdgeTransport.overrunErrorStamp(),
                      DPF("parent"),
                      this->discovery.parentEdge(),
+                     DPF("pcintRaw"),
+                     this->wakePcintRawCount,
                      DPF("isrFired"),
                      this->wakeIsrFiredCount,
                      DPF("isrMasked"),
