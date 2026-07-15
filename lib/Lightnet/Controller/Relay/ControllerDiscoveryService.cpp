@@ -28,6 +28,13 @@ void ControllerDiscoveryService::tick(uint32_t nowMs)
         drained++;
     }
 
+    // Raw byte arrival on the trunk RX pin, independent of whether it ever resolves into a
+    // valid frame -- distinguishes "nothing is reaching this pin at all" from "bytes arrive but
+    // don't frame" (noise, wrong baud, a receive path that never completes a valid packet).
+    if (drained > 0) {
+        DEBUG_IF(DEBUG_DISCOVERY, D_PRINTLN(DPF("[DISC] rx raw bytes"), drained));
+    }
+
     this->coordinator.tick(nowMs);
 
     if (!wasComplete && this->coordinator.isComplete()) {

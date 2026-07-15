@@ -137,7 +137,10 @@ void LightnetPanel::flushPendingRxBusLogs()
                      entry.type,
                      DPF("panel"),
                      entry.panel,
-                     DPF("valid")
+                     DPF("self"),
+                     entry.self,
+                     DPF("valid actLocally"),
+                     entry.actedLocally
         ));
 
         for (uint8_t i = 1; i < this->pendingRxBusLogCount; i++) {
@@ -216,8 +219,10 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
                         this->pendingRxBusLogCount--;
                     }
 
-                    this->pendingRxBusLogs[this->pendingRxBusLogCount].type  = (uint8_t)frame->header.type;
-                    this->pendingRxBusLogs[this->pendingRxBusLogCount].panel = frame->header.targetPanelIndex;
+                    this->pendingRxBusLogs[this->pendingRxBusLogCount].type         = (uint8_t)frame->header.type;
+                    this->pendingRxBusLogs[this->pendingRxBusLogCount].panel        = frame->header.targetPanelIndex;
+                    this->pendingRxBusLogs[this->pendingRxBusLogCount].self         = this->driver.assignedPanelIndex();
+                    this->pendingRxBusLogs[this->pendingRxBusLogCount].actedLocally = actLocally;
                     this->pendingRxBusLogCount++;
                 }
 
@@ -524,8 +529,17 @@ void LightnetPanel::sendAck()
 void LightnetPanel::handleEnterBootloader(const Protocol::PacketEnterBootloader *packet)
 {
     if (packet->token != BootloaderBridge::ENTRY_TOKEN) {
+        DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(
+                     DPF("[BOOTLOADER] token mismatch got"),
+                     packet->token,
+                     DPF("want"),
+                     BootloaderBridge::ENTRY_TOKEN
+        ));
+
         return;
     }
+
+    DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(DPF("[BOOTLOADER] entering, index"), this->driver.assignedPanelIndex()));
 
     // The relay bootloader (lib/Lightnet/Panel/bootloader/RelayBootloader.cpp) has no topology
     // of its own -- it needs this panel's own assigned index and parent edge handed to it before

@@ -5,7 +5,8 @@ namespace Lightnet {
         : edgeCount_(edgeCount), hasParentFlag(false), parent(0)
     {
         for (uint8_t edge = 0; edge < edgeCount && edge < MAX_EDGES; edge++) {
-            this->edges[edge] = EdgeLinkState::Unexplored;
+            this->edges[edge]        = EdgeLinkState::Unexplored;
+            this->childIndexes[edge] = 0;
         }
     }
 
@@ -53,13 +54,20 @@ namespace Lightnet {
         return false;
     }
 
-    void PanelDiscovery::onChildProbeAccepted(uint8_t edgeIndex)
+    void PanelDiscovery::onChildProbeAccepted(uint8_t edgeIndex, uint16_t childPanelIndex)
     {
-        this->edges[edgeIndex] = EdgeLinkState::Connected;
+        this->edges[edgeIndex]        = EdgeLinkState::Connected;
+        this->childIndexes[edgeIndex] = childPanelIndex;
     }
 
     void PanelDiscovery::onChildProbeFailed(uint8_t edgeIndex)
     {
-        this->edges[edgeIndex] = EdgeLinkState::NotConnected;
+        this->edges[edgeIndex]        = EdgeLinkState::NotConnected;
+        this->childIndexes[edgeIndex] = 0;
+    }
+
+    uint16_t PanelDiscovery::childIndex(uint8_t edgeIndex) const
+    {
+        return this->childIndexes[edgeIndex];
     }
 }  // namespace Lightnet

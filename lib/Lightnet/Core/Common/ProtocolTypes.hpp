@@ -151,11 +151,7 @@ namespace Protocol {
     } PacketSetColor;
 
     // Gamma correction, color-temperature tint, and color-correction tint. The latter two travel
-    // as raw RGB (not FastLED's ColorTemperature/LEDColorCorrection enums, which are themselves
-    // just packed RGB hex constants under the hood — see CRGB's converting constructors) so this
-    // struct has no FastLED dependency; the panel reconstructs a CRGB from the raw bytes at the
-    // point it actually calls FastLED (RGBController), and the controller does the same
-    // conversion in the other direction when sending (PanelsController::sendConfiguration).
+    // as raw RGB, applied directly as per-channel multipliers on the panel (RGBController).
     typedef struct PACK {
         PacketMeta meta;
         bool       useGammaCorrection;

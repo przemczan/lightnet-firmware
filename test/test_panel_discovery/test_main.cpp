@@ -68,15 +68,30 @@ void test_second_offer_on_a_different_edge_is_rejected_as_a_loop()
     TEST_ASSERT_EQUAL_UINT8((uint8_t)EdgeLinkState::NotConnected, (uint8_t)discovery.edgeState(2));
 }
 
-void test_child_probe_accepted_marks_edge_connected()
+void test_child_probe_accepted_marks_edge_connected_and_records_child_index()
 {
     PanelDiscovery discovery(3);
 
     discovery.onParentOffer(0);
 
-    discovery.onChildProbeAccepted(1);
+    discovery.onChildProbeAccepted(1, 7);
 
     TEST_ASSERT_TRUE(discovery.isConnected(1));
+    TEST_ASSERT_EQUAL_UINT16(7, discovery.childIndex(1));
+    TEST_ASSERT_EQUAL_UINT16(0, discovery.childIndex(0));  // parent edge has no child index
+    TEST_ASSERT_EQUAL_UINT16(0, discovery.childIndex(2));  // unexplored edge has none either
+}
+
+void test_child_probe_failed_clears_any_recorded_child_index()
+{
+    PanelDiscovery discovery(3);
+
+    discovery.onParentOffer(0);
+    discovery.onChildProbeAccepted(1, 7);
+
+    discovery.onChildProbeFailed(1);
+
+    TEST_ASSERT_EQUAL_UINT16(0, discovery.childIndex(1));
 }
 
 void test_child_probe_failed_marks_edge_not_connected()
@@ -119,7 +134,8 @@ int main(int argc, char **argv)
     RUN_TEST(test_first_offer_is_accepted_and_becomes_parent);
     RUN_TEST(test_repeat_offer_on_the_same_parent_edge_is_idempotent);
     RUN_TEST(test_second_offer_on_a_different_edge_is_rejected_as_a_loop);
-    RUN_TEST(test_child_probe_accepted_marks_edge_connected);
+    RUN_TEST(test_child_probe_accepted_marks_edge_connected_and_records_child_index);
+    RUN_TEST(test_child_probe_failed_clears_any_recorded_child_index);
     RUN_TEST(test_child_probe_failed_marks_edge_not_connected);
     RUN_TEST(test_rejected_loop_and_genuinely_empty_edge_collapse_to_the_same_state);
 

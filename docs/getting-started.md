@@ -83,14 +83,16 @@ All environments are defined in `platformio.ini`.
     |---|---|---|
     | `controller_esp32` | ESP32 DevKit | USB upload at 460800 baud |
     | `controller_s2_mini` | Lolin S2 Mini (ESP32-S2) | USB upload at 460800 baud |
+    | `controller_esp32_c3` | Unbranded ESP32-C3-MINI-1 clone (UART bridge) | USB upload at 460800 baud |
     | `controller_esp32_sim` | ESP32 DevKit (sim) | Host-side sim — no hardware; fabricates a virtual panel tree directly (`Sim/PanelsInitializerSim.cpp`), no wire protocol involved |
     | `controller_s2_mini_sim` | Lolin S2 Mini (sim) | Same as `_sim` above |
+    | `controller_esp32_c3_sim` | ESP32-C3-MINI-1 clone (sim) | Same as `_sim` above |
 
     !!! note "ESP8266 controller targets are retired"
         Dropped: it doesn't meet the relay design's requirements (no spare hardware UART for the
         trunk, and RAM was already tight). See `platformio.ini`.
 
-    All controller environments use `lib_ldf_mode = chain+`, FastLED, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE`: the scene engine and `PanelsController` stay on `ControllerPacketSink`/`LNBus` (routed to `SimPanelManager`) since sim panels don't speak the relay's UART protocol, while real hardware uses `ControllerRelayPacketSink` over `Serial1` instead — see [Architecture](architecture.md) §3.
+    All controller environments use `lib_ldf_mode = chain+`, ESPAsyncWebServer, and ESPAsyncWiFiManager. `*_sim` targets define `SIM_MODE`: the scene engine and `PanelsController` stay on `ControllerPacketSink`/`LNBus` (routed to `SimPanelManager`) since sim panels don't speak the relay's UART protocol, while real hardware uses `ControllerRelayPacketSink` over `Serial1` instead — see [Architecture](architecture.md) §3.
 
     **MQTT / Home Assistant** is available on all controller targets (`LIGHTNET_MQTT=1`, ESP32-class only now). Enable it via `PATCH /api/mqtt` after the controller is on the network. By default the controller **auto-discovers** the broker (`_mqtt._tcp` mDNS, then `homeassistant.local` / `hassio.local`); set a manual broker host to skip discovery. Home Assistant discovers Lightnet entities automatically when its MQTT integration uses the same broker. See [`docs/api.md`](api.md) §2.9 for topic layout and discovery modes.
 

@@ -203,7 +203,9 @@ namespace Lightnet {
         this->probingEdgeIndex = NO_EDGE;
 
         if (reply->panelIndex != Protocol::DISCOVERY_REJECTED_INDEX) {
-            this->discovery.onChildProbeAccepted(fromEdge);
+            // reply->panelIndex is the index the child actually adopted -- recorded so
+            // PanelRouter can route addressed frames down the right branch.
+            this->discovery.onChildProbeAccepted(fromEdge, reply->panelIndex);
             this->deferLog(DeferredDiscLog::ChildAccepted, fromEdge);
 
             // Stop here -- do NOT relay the reply upstream ourselves. PanelRouter's upstream

@@ -6,6 +6,7 @@
     #include <avr/io.h>
     #include <avr/interrupt.h>
     #include "../Common/Protocol.hpp"
+    #include "../Utils/Debug.hpp"
     #include "bootloader/BootloaderProtocol.hpp"
 
     // Coordinates with RelayBootloader.cpp (lib/Lightnet/Panel/bootloader/), the relay network's
@@ -33,6 +34,18 @@
             eeprom_busy_wait();
             eeprom_write_word((uint16_t *)BootloaderProtocol::EEPROM_MAGIC_ADDR, BootloaderProtocol::ENTRY_MAGIC);
             eeprom_busy_wait();
+
+            // Read back what was actually just written, still in app context (interrupts still
+            // enabled) -- disambiguates a write that never took from one that took but doesn't
+            // survive to the bootloader's own read moments later.
+            DEBUG_IF(DEBUG_LIGHTNET_BUS, D_PRINTLN(
+                         DPF("[BOOTBRIDGE] readback edge"),
+                         eeprom_read_byte((const uint8_t *)BootloaderProtocol::EEPROM_PARENT_EDGE_ADDR),
+                         DPF("index"),
+                         eeprom_read_word((const uint16_t *)BootloaderProtocol::EEPROM_PANEL_INDEX_ADDR),
+                         DPF("magic"),
+                         eeprom_read_word((const uint16_t *)BootloaderProtocol::EEPROM_MAGIC_ADDR)
+            ));
 
             cli();
 

@@ -7,10 +7,9 @@
     #include <Arduino.h>
 #endif
 #include "../Utils/Crc.hpp"
-// Pure packet/struct definitions (no Arduino/FastLED) live in the portable core so the
-// animation player and the mobile C ABI can include them without pulling hardware headers.
-// PacketPanelConfiguration lives there too — its colorTemperature/colorCorrection fields are
-// raw RGB, not FastLED's ColorTemperature/LEDColorCorrection enums (see ProtocolTypes.hpp).
+// Pure packet/struct definitions (no Arduino) live in the portable core so the animation
+// player and the mobile C ABI can include them without pulling hardware headers.
+// PacketPanelConfiguration lives there too — see ProtocolTypes.hpp.
 #include "../Core/Common/ProtocolTypes.hpp"
 // VERSION + setPacketMeta()/validatePacket() also live in the portable core (no Arduino)
 // so the shared scene engine can stamp packets. Re-exposed here for controller/panel.

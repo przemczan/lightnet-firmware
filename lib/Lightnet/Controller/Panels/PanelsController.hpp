@@ -4,7 +4,6 @@
 #include "../../Common/LightnetBus.hpp"
 #include "../../Common/Protocol.hpp"
 #include "../../Core/Controller/IPacketSink.hpp"
-#include <FastLED.h>
 
 #ifndef SIM_MODE
     #include "../Relay/ControllerRelayPacketSink.hpp"
@@ -23,8 +22,8 @@ class PanelsController
 {
     typedef struct {
         bool               useGammaCorrection;
-        ColorTemperature   colorTemperature;
-        LEDColorCorrection colorCorrection;
+        Protocol::ColorRGB colorTemperature;
+        Protocol::ColorRGB colorCorrection;
     } panelConfiguration_t;
 
     public:

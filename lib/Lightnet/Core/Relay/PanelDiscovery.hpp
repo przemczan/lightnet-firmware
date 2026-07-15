@@ -34,6 +34,14 @@ namespace Lightnet {
             EdgeLinkState edgeState(uint8_t edgeIndex) const;
             bool isConnected(uint8_t edgeIndex) const;
 
+            // The panel index of the child discovered behind `edgeIndex`, or 0 if none is
+            // recorded (indices are assigned starting at 1; the parent edge always reads 0).
+            // Discovery assigns indices in pre-order DFS (see DiscoveryCoordinator's stack
+            // walk), so each child's own index is also the lower bound of its whole subtree's
+            // contiguous index range — which is all PanelRouter needs to route an addressed
+            // frame to the right branch.
+            uint16_t childIndex(uint8_t edgeIndex) const;
+
             // A neighbour on `fromEdge` is offering to become this panel's parent.
             // Returns true if accepted (first-ever offer, or an idempotent re-offer on the
             // already-established parent edge); false if rejected as a loop (this panel
@@ -41,8 +49,10 @@ namespace Lightnet {
             bool onParentOffer(uint8_t fromEdge);
 
             // This panel probed `edgeIndex` looking for a child, and a genuinely new,
-            // unregistered device accepted — record the edge as a confirmed child link.
-            void onChildProbeAccepted(uint8_t edgeIndex);
+            // unregistered device accepted — record the edge as a confirmed child link and
+            // remember the child's assigned panel index (from its own PacketRegisterEdge
+            // reply) for PanelRouter's branch routing.
+            void onChildProbeAccepted(uint8_t edgeIndex, uint16_t childPanelIndex);
 
             // This panel probed `edgeIndex` and either got a "already registered elsewhere"
             // rejection (loop) or no response at all (nothing wired) — both leave the edge
@@ -54,5 +64,6 @@ namespace Lightnet {
             bool hasParentFlag;
             uint8_t parent;
             EdgeLinkState edges[MAX_EDGES];
+            uint16_t childIndexes[MAX_EDGES];
     };
 }  // namespace Lightnet

@@ -51,17 +51,18 @@ struct MockEdgeLink : public IEdgeLink {
 
 // --- Single-node routing rule -----------------------------------------------
 
-void test_frame_from_parent_edge_floods_every_other_connected_edge()
+void test_broadcast_from_parent_edge_floods_every_other_connected_edge()
 {
     PanelDiscovery discovery(3);
 
-    discovery.onParentOffer(0);          // edge 0 = parent
-    discovery.onChildProbeAccepted(1);   // edge 1 = connected child
-    discovery.onChildProbeAccepted(2);   // edge 2 = connected child
+    discovery.onParentOffer(0);             // edge 0 = parent
+    discovery.onChildProbeAccepted(1, 2);   // edge 1 = child panel 2
+    discovery.onChildProbeAccepted(2, 4);   // edge 2 = child panel 4
 
     MockEdgeLink link;
     PanelRouter router(discovery, link);
 
+    // makeMeta() defaults targetPanelIndex to 0 = broadcast.
     Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_SET_COLOR);
 
     router.onFrameArrived(0, &packet, sizeof(packet));
@@ -72,13 +73,111 @@ void test_frame_from_parent_edge_floods_every_other_connected_edge()
     TEST_ASSERT_FALSE(link.wasSentTo(0));  // never echoed back the way it arrived
 }
 
+// --- Branch routing for addressed frames ------------------------------------
+//
+// Pre-order DFS numbering of the Y topology (1 -> 2 -> 3, 1 -> 4 -> 5) seen from panel 1:
+// edge 1 leads to child 2 (subtree 2-3), edge 2 leads to child 4 (subtree 4-5).
+
+static PanelDiscovery makeYRootDiscovery()
+{
+    PanelDiscovery discovery(3);
+
+    discovery.onParentOffer(0);
+    discovery.onChildProbeAccepted(1, 2);
+    discovery.onChildProbeAccepted(2, 4);
+
+    return discovery;
+}
+
+void test_addressed_frame_routes_to_the_single_matching_branch()
+{
+    PanelDiscovery discovery = makeYRootDiscovery();
+    MockEdgeLink link;
+    PanelRouter router(discovery, link);
+
+    // Target 3 lives inside child 2's subtree (largest child index <= 3 is 2).
+    Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_SET_COLOR, 3);
+
+    router.onFrameArrived(0, &packet, sizeof(packet));
+
+    TEST_ASSERT_EQUAL(1, link.count);
+    TEST_ASSERT_TRUE(link.wasSentTo(1));
+    TEST_ASSERT_FALSE(link.wasSentTo(2));  // the sibling branch stays silent
+}
+
+void test_addressed_frame_routes_to_the_deeper_branch_by_subtree_range()
+{
+    PanelDiscovery discovery = makeYRootDiscovery();
+    MockEdgeLink link;
+    PanelRouter router(discovery, link);
+
+    // Target 5 lives inside child 4's subtree.
+    Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_SET_COLOR, 5);
+
+    router.onFrameArrived(0, &packet, sizeof(packet));
+
+    TEST_ASSERT_EQUAL(1, link.count);
+    TEST_ASSERT_TRUE(link.wasSentTo(2));
+}
+
+void test_addressed_frame_to_a_child_itself_routes_to_that_child()
+{
+    PanelDiscovery discovery = makeYRootDiscovery();
+    MockEdgeLink link;
+    PanelRouter router(discovery, link);
+
+    Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_SET_COLOR, 4);
+
+    router.onFrameArrived(0, &packet, sizeof(packet));
+
+    TEST_ASSERT_EQUAL(1, link.count);
+    TEST_ASSERT_TRUE(link.wasSentTo(2));
+}
+
+void test_addressed_frame_outside_every_subtree_is_dropped()
+{
+    PanelDiscovery discovery = makeYRootDiscovery();
+    MockEdgeLink link;
+    PanelRouter router(discovery, link);
+
+    // Target 1 is below every child index -- not in this panel's subtree at all
+    // (a self-addressed frame never reaches the router; see PanelFrameDispatcher).
+    Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_SET_COLOR, 1);
+
+    router.onFrameArrived(0, &packet, sizeof(packet));
+
+    TEST_ASSERT_EQUAL(0, link.count);
+}
+
+void test_addressed_frame_falls_back_to_flood_when_a_child_has_no_recorded_index()
+{
+    PanelDiscovery discovery(3);
+
+    discovery.onParentOffer(0);
+    discovery.onChildProbeAccepted(1, 2);
+    discovery.onChildProbeAccepted(2, 0);  // connected, but no index recorded
+
+    MockEdgeLink link;
+    PanelRouter router(discovery, link);
+
+    Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_SET_COLOR, 3);
+
+    router.onFrameArrived(0, &packet, sizeof(packet));
+
+    // Routing must not engage on partial knowledge -- the target could sit behind the
+    // unindexed edge, so the legacy flood keeps it reachable.
+    TEST_ASSERT_EQUAL(2, link.count);
+    TEST_ASSERT_TRUE(link.wasSentTo(1));
+    TEST_ASSERT_TRUE(link.wasSentTo(2));
+}
+
 void test_frame_from_a_child_edge_routes_upstream_only()
 {
     PanelDiscovery discovery(3);
 
     discovery.onParentOffer(0);
-    discovery.onChildProbeAccepted(1);
-    discovery.onChildProbeAccepted(2);
+    discovery.onChildProbeAccepted(1, 2);
+    discovery.onChildProbeAccepted(2, 4);
 
     MockEdgeLink link;
     PanelRouter router(discovery, link);
@@ -98,7 +197,7 @@ void test_not_connected_edges_never_receive_anything()
     PanelDiscovery discovery(3);
 
     discovery.onParentOffer(0);
-    discovery.onChildProbeAccepted(1);
+    discovery.onChildProbeAccepted(1, 2);
     discovery.onChildProbeFailed(2);  // rejected loop or genuinely empty
 
     MockEdgeLink link;
@@ -206,7 +305,9 @@ void discoverFrom(int nodeIndex)
 
         if (!wasAlreadyDiscovered) {
             TEST_ASSERT_TRUE_MESSAGE(accepted, "a genuinely new panel must accept its first parent offer");
-            discovery->onChildProbeAccepted(edge);
+            // This fabric doesn't assign panel indices (index 0 = none recorded); the flood
+            // below is a broadcast, which never consults child indices anyway.
+            discovery->onChildProbeAccepted(edge, 0);
             discoverFrom(target.node);
         } else {
             TEST_ASSERT_FALSE_MESSAGE(accepted, "an already-discovered panel must reject a second parent edge");
@@ -268,7 +369,12 @@ int main(int argc, char **argv)
 
     UNITY_BEGIN();
 
-    RUN_TEST(test_frame_from_parent_edge_floods_every_other_connected_edge);
+    RUN_TEST(test_broadcast_from_parent_edge_floods_every_other_connected_edge);
+    RUN_TEST(test_addressed_frame_routes_to_the_single_matching_branch);
+    RUN_TEST(test_addressed_frame_routes_to_the_deeper_branch_by_subtree_range);
+    RUN_TEST(test_addressed_frame_to_a_child_itself_routes_to_that_child);
+    RUN_TEST(test_addressed_frame_outside_every_subtree_is_dropped);
+    RUN_TEST(test_addressed_frame_falls_back_to_flood_when_a_child_has_no_recorded_index);
     RUN_TEST(test_frame_from_a_child_edge_routes_upstream_only);
     RUN_TEST(test_not_connected_edges_never_receive_anything);
     RUN_TEST(test_undiscovered_panel_forwards_nothing);

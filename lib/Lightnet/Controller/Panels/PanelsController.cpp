@@ -110,15 +110,9 @@ uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_
     Protocol::PacketPanelConfiguration packet =
         Protocol::makePacket<Protocol::PacketPanelConfiguration>(Protocol::PACKET_PANEL_CONFIGURATION);
 
-    // The wire format carries raw RGB (Protocol::ColorRGB), not FastLED's ColorTemperature/
-    // LEDColorCorrection enums — those are just packed RGB hex constants under the hood, so
-    // CRGB's converting constructor extracts the same bytes FastLED itself would.
-    CRGB temperatureRgb = config.colorTemperature;
-    CRGB correctionRgb  = config.colorCorrection;
-
     packet.useGammaCorrection = config.useGammaCorrection;
-    packet.colorTemperature   = { temperatureRgb.r, temperatureRgb.g, temperatureRgb.b };
-    packet.colorCorrection    = { correctionRgb.r, correctionRgb.g, correctionRgb.b };
+    packet.colorTemperature   = config.colorTemperature;
+    packet.colorCorrection    = config.colorCorrection;
 
     this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), false);
 

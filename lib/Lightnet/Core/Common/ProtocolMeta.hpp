@@ -3,7 +3,7 @@
 // ProtocolMeta — pure PacketMeta stamping/validation + the protocol VERSION.
 //
 // Split out of Common/Protocol.hpp so the shared scene engine and the mobile C ABI
-// can stamp/validate packets host-side without pulling Arduino/FastLED. The header CRC
+// can stamp/validate packets host-side without pulling Arduino. The header CRC
 // uses the pure Utils/Crc. Common/Protocol.hpp includes this and re-exposes it, so
 // controller/panel call sites (`Protocol::setPacketMeta`, `Protocol::VERSION`) are
 // unchanged.

@@ -233,10 +233,12 @@ void sendConfiguration()
     while (panelNum--) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
 
+        // Color temperature/correction tints: a 3200K halogen white balance and a typical-LED-
+        // strip correction, applied as per-channel multipliers on the panel (RGBController).
         panelsController->sendConfiguration(
             panel->index,
-            { .useGammaCorrection = true, .colorTemperature = Halogen, .colorCorrection = TypicalLEDStrip }
-            // { .useGammaCorrection = false, .colorTemperature = UncorrectedTemperature , .colorCorrection = UncorrectedColor}
+            { .useGammaCorrection = true, .colorTemperature = { 255, 241, 224 }, .colorCorrection = { 255, 176, 240 } }
+            // Uncorrected: { .useGammaCorrection = false, .colorTemperature = { 255, 255, 255 }, .colorCorrection = { 255, 255, 255 } }
 
         );
     }

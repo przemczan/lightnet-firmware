@@ -243,10 +243,16 @@ that panel's index as an address filter (`PanelRouter`).
 | 206 | `BOOTLOADER_START_APP` | C→bootloader | 7 B | Meta-only; commits any pending page then jumps to the application |
 
 Every packet above carries `PacketHeader.targetPanelIndex` (v10): `0` = broadcast/flood, any other
-value = one specific panel. `PanelRouter` still floods every downstream packet unconditionally
-regardless of this field (§1/§3's redundant-but-simple philosophy, not a routing table); the target
-is consulted only by the receiving panel's own dispatch, as a single type-independent "is this for
-me" gate before the type switch below.
+value = one specific panel. `PanelRouter` routes an addressed downstream packet to the **single
+branch** containing the target: discovery assigns indices in pre-order DFS, so every subtree is a
+contiguous index range and each parent only stores each child's own index
+(`PanelDiscovery::childIndex()`, recorded from the child's `REGISTER_EDGE` reply) — the target lives
+behind the child with the largest index ≤ target. Any connected child without a recorded index
+(incomplete discovery) reverts that panel to the legacy full flood, so nothing reachable is ever cut
+off. Branch routing is what keeps a parent listening when the addressed panel replies — a parent
+mid-flood to a sibling edge is deaf (`EdgeUartTransport` masks RX + wakes per send) and would
+deterministically swallow a fast reply. The receiving panel's own dispatch still uses the target as
+a single type-independent "is this for me" gate before the type switch below.
 
 ### Broadcast (Flood)
 

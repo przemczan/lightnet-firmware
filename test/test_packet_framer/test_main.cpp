@@ -35,7 +35,6 @@ void test_packet_size_for_type_known_types()
     TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketMeta), Protocol::packetSizeForType(Protocol::PACKET_FETCH_ANIM_STATE));
     TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketAnimationStatus), Protocol::packetSizeForType(Protocol::PACKET_FETCH_ANIM_STATE_REPLY));
 
-    // Now fully portable (raw RGB, no FastLED enum types) — sized like everything else.
     TEST_ASSERT_EQUAL_UINT8(sizeof(Protocol::PacketPanelConfiguration), Protocol::packetSizeForType(Protocol::PACKET_PANEL_CONFIGURATION));
 
     // Relay OTA bootloader control plane — an intermediate app-mode panel must be able to size

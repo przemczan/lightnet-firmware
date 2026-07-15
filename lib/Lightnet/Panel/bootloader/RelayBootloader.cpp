@@ -58,12 +58,14 @@
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
+#include <util/delay.h>
 #include <string.h>
 
 #include "BootloaderProtocol.hpp"
 #include "../../Core/Relay/PacketFramer.hpp"
 #include "../../Common/Protocol.hpp"
 #include "../../Utils/Crc.hpp"
+#include "../DebugSerial.hpp"
 
 namespace {
     const uint8_t BOOTLOADER_VERSION = 1;
@@ -73,6 +75,23 @@ namespace {
     // Coarse (Timer0-overflow-tick based, ~16.4 ms/tick at /1024 prescale — see timerTick()),
     // not a real-time deadline.
     const uint16_t IDLE_TIMEOUT_TICKS = 900;  // ~15 s
+
+    // A partial frame that stops receiving bytes is dead (truncated upstream) and must be
+    // discarded, or its leftover prefix silently desyncs every later frame — including all
+    // retries of the very chunk whose loss created it. Mirrors EdgeFrameReceiver::
+    // FRAME_TIMEOUT_MS / TrunkFrameReceiver::IDLE_GAP_RESET_MS on the app side; 2 ticks
+    // (~33 ms) is far longer than any intra-frame byte gap and far shorter than the
+    // controller's 300 ms retry interval.
+    const uint16_t PARTIAL_FRAME_RESET_TICKS = 2;
+
+    // Hold every reply until the parent relay can actually hear it. PanelRouter floods a
+    // downstream frame to each child edge in sequence, and EdgeUartTransport masks both RX and
+    // the PCINT wakes for the whole of each send — so a reply that leaves immediately lands at
+    // a parent that is still transmitting the same frame to a sibling edge and is silently
+    // discarded (deterministic when this panel sits on the parent's first-flooded edge, e.g.
+    // the Y topology's first branch). Worst case to wait out: two further sibling sends of a
+    // max-size frame (2 preamble + 78 bytes at 250 kbaud ≈ 3.2 ms each) plus per-send overhead.
+    const uint8_t REPLY_CLEARANCE_MS = 10;
 
     // Every global below is left at its all-zero .bss default and assigned for real (as executed
     // code, not a static initializer) at the top of main() — belt-and-suspenders against relying
@@ -124,23 +143,29 @@ namespace {
         }
     }
 
-    // Permanently gates the shared TX line onto edgeIndex for this bootloader's entire resident
-    // lifetime, unlike EdgeUartTransport's per-send gating. Safe because this is the only edge
-    // this panel ever uses while resident (no other traffic origin exists to collide with), and
-    // USART0 idles high (UART mark state) whenever nothing is queued to send -- electrically
-    // identical to any other idle gap between EdgeUartTransport sends.
+    // Each edge is one shared half-duplex wire (see ControllerEdgeTransport::sendOnEdge()'s
+    // class comment): the TX buffer must be enabled only for the duration of a send, never left
+    // on, or it drives idle-high into the parent's own transmissions and clobbers all RX. The
+    // EM74LVC1G125GW buffers' OE is ACTIVE-LOW (bench-confirmed -- see EdgeUartTransport::
+    // setEdgeEnable()'s probe notes): drive the pin LOW to enable an edge, HIGH to disable.
+    // This init leaves all three disabled; sendFrame() gates the parent edge per send.
     //
-    // PD2/PD3/PD4 (edges 0/1/2's tri-state buffer enables, docs/hardware/schematics/Panel.png)
-    // are consecutive bit positions, so the enable bit is computed rather than looked up from a
-    // const lookup table -- AVR's classic Harvard-architecture trap: a const array lives in SRAM
-    // (.data) by default unless explicitly placed in PROGMEM, needing a flash-to-SRAM copy at
-    // boot that this image's init chain should provide (see the file comment) but that a global
-    // this small has no real reason to depend on.
-    void enableTxEdge(uint8_t edgeIndex)
+    // The latch is written before DDRD so no pin glitches through a driven-wrong state,
+    // mirroring EdgeUartTransport::begin(). PD2/PD3/PD4 (edges 0/1/2's tri-state buffer enables,
+    // docs/hardware/schematics/Panel.png) are consecutive bit positions, so the per-edge bit is
+    // computed rather than looked up from a const lookup table -- AVR's classic Harvard-
+    // architecture trap: a const array lives in SRAM (.data) by default unless explicitly placed
+    // in PROGMEM, needing a flash-to-SRAM copy at boot that this image's init chain should
+    // provide (see the file comment) but that a global this small has no real reason to depend on.
+    void txGateInit()
     {
+        PORTD |= (1 << PD2) | (1 << PD3) | (1 << PD4);
         DDRD |= (1 << PD2) | (1 << PD3) | (1 << PD4);
-        PORTD &= ~((1 << PD2) | (1 << PD3) | (1 << PD4));
-        PORTD |= (uint8_t)(1 << (PD2 + edgeIndex));
+    }
+
+    uint8_t txEnableBit()
+    {
+        return (uint8_t)(1 << (PD2 + parentEdge));
     }
 
     void sendByte(uint8_t value)
@@ -151,11 +176,21 @@ namespace {
         UDR0 = value;
     }
 
-    // Sends a preamble byte (see EdgeUartTransport::sendOnEdge's class comment -- absorbs the
-    // receiving neighbour's own mux-settling/wake-to-claim latency) then the frame itself.
+    // Gates the parent edge's TX buffer on for exactly this send (shared half-duplex wire --
+    // see txGateInit()), sends throwaway preamble bytes (same 2-byte budget as
+    // EdgeUartTransport's PREAMBLE_BYTE_COUNT -- absorbs the receiving neighbour's own polled
+    // mux-settling/wake-to-claim latency), then the frame, then releases the wire.
     void sendFrame(const Protocol::PacketMeta *packet, uint8_t size)
     {
+        // Every frame this bootloader sends is a reply the controller is blocked waiting for,
+        // so the wire is guaranteed quiet during this wait — see REPLY_CLEARANCE_MS.
+        _delay_ms(REPLY_CLEARANCE_MS);
+
+        PORTD |= (1 << PD6);  // activity LED, matching the app's sendOnEdge()
         UCSR0A |= (1 << TXC0);  // clear any stale flag from a previous send before waiting on it
+        PORTD &= (uint8_t) ~txEnableBit();
+
+        sendByte(0xFF);
         sendByte(0xFF);
 
         const uint8_t *bytes = (const uint8_t *)packet;
@@ -165,6 +200,15 @@ namespace {
         }
 
         while (!(UCSR0A & (1 << TXC0))) {
+        }
+
+        PORTD |= txEnableBit();
+
+        // The RX mux points at this same edge, so everything just sent echoed straight back
+        // into the receiver (the 2-level hardware FIFO overran mid-frame; harmless). Drain it
+        // so the framer never sees our own reply bytes as incoming traffic.
+        while (UCSR0A & (1 << RXC0)) {
+            (void)UDR0;
         }
     }
 
@@ -182,7 +226,7 @@ namespace {
     void uartDisable()
     {
         UCSR0B = 0;
-        PORTD &= ~((1 << PD2) | (1 << PD3) | (1 << PD4));
+        PORTD |= (1 << PD2) | (1 << PD3) | (1 << PD4);  // OE# high: all edges disabled
     }
 
     // -------------------------------------------------------------------------------------
@@ -284,11 +328,26 @@ namespace {
 
     void handleWriteChunk(const Protocol::PacketBootloaderWriteChunk *pkt)
     {
+        // Debug prints block this fully-polled receiver, so they're allowed only on paths where
+        // the wire is guaranteed quiet -- here (and the error paths below) the controller is
+        // still blocked waiting for our ack, so nothing can arrive mid-print. One line on the
+        // first chunk, then a single '.' per arrived chunk (~170us) -- counting the dots against
+        // the controller's own per-chunk log tells whether a timed-out chunk ever reached this
+        // panel (ack lost upstream) or died on the way down.
+        if (pageStart == 0xFFFF) {
+            Lightnet::debugSerialWrite(PF("[BL] first chunk\n"));
+        }
+
+        Lightnet::debugSerialWrite('.');
+
         bool lengthOk = (pkt->length >= 1) && (pkt->length <= Protocol::BOOTLOADER_CHUNK_SIZE);
         bool crcOk    = lengthOk
                         && (crc16(const_cast<uint8_t *>(pkt->data), pkt->length) == pkt->dataCrc);
 
         if (!crcOk) {
+            Lightnet::debugSerialWrite(PF("[BL] chunk bad crc @ "));
+            Lightnet::debugSerialWrite(pkt->address);
+            Lightnet::debugSerialWrite('\n');
             sendWriteAck(pkt->address, Protocol::BOOTLOADER_WRITE_BAD_CRC);
 
             return;
@@ -297,6 +356,9 @@ namespace {
         bool addrOk = ((uint32_t)pkt->address + pkt->length) <= BOOTLOADER_START;
 
         if (!addrOk) {
+            Lightnet::debugSerialWrite(PF("[BL] chunk bad addr @ "));
+            Lightnet::debugSerialWrite(pkt->address);
+            Lightnet::debugSerialWrite('\n');
             sendWriteAck(pkt->address, Protocol::BOOTLOADER_WRITE_BAD_ADDRESS);
 
             return;
@@ -355,9 +417,16 @@ int main(void)
     MCUSR = 0;
     wdt_disable();
 
+    Lightnet::debugSerialBegin();
+
     uint16_t magic = eeprom_read_word((const uint16_t *)BootloaderProtocol::EEPROM_MAGIC_ADDR);
 
     if (magic != BootloaderProtocol::ENTRY_MAGIC) {
+        Lightnet::debugSerialWrite(PF("[BL] magic mismatch got "));
+        Lightnet::debugSerialWrite(magic);
+        Lightnet::debugSerialWrite(PF(" want "));
+        Lightnet::debugSerialWrite(BootloaderProtocol::ENTRY_MAGIC);
+        Lightnet::debugSerialWrite('\n');
         jump_to_app();
     }
 
@@ -368,8 +437,17 @@ int main(void)
     parentEdge    = eeprom_read_byte((const uint8_t *)BootloaderProtocol::EEPROM_PARENT_EDGE_ADDR);
 
     if (parentEdge == BootloaderProtocol::NO_PARENT_EDGE) {
+        Lightnet::debugSerialWrite(PF("[BL] no parent edge, index "));
+        Lightnet::debugSerialWrite(assignedIndex);
+        Lightnet::debugSerialWrite('\n');
         jump_to_app();  // no valid edge persisted -- can't safely proceed
     }
+
+    Lightnet::debugSerialWrite(PF("[BL] resident index "));
+    Lightnet::debugSerialWrite(assignedIndex);
+    Lightnet::debugSerialWrite(PF(" parentEdge "));
+    Lightnet::debugSerialWrite(parentEdge);
+    Lightnet::debugSerialWrite('\n');
 
     pageStart = 0xFFFF;  // sentinel: no page loaded yet
     pageDirty = false;
@@ -377,8 +455,15 @@ int main(void)
 
     uartInit();
     selectRxEdge(parentEdge);
-    enableTxEdge(parentEdge);
+    txGateInit();
     timerInit();
+
+    // PD6 trunk-activity LED, same semantics as the application's (EdgeUartTransport::
+    // pollTrunkActivityLed): on while bytes are flowing (set per received byte in the loop
+    // below and per sendFrame()), off after an idle timer tick -- so flashing shows the same
+    // activity blink as normal relay traffic instead of a bootloader-specific pattern.
+    DDRD |= (1 << PD6);
+    PORTD &= ~(1 << PD6);
 
     Lightnet::PacketFramer framer(/* validateProtocolVersion = */ false);
 
@@ -388,8 +473,21 @@ int main(void)
         if (elapsed) {
             idleTicks = (uint16_t)(idleTicks + elapsed);
 
+            // Activity LED off on every timer tick (~16 ms); the next received byte (or
+            // sendFrame()) re-lights it. Ongoing traffic keeps it visually solid, idle goes
+            // dark within a tick -- same look as the app's pollTrunkActivityLed(), coarser
+            // granularity.
+            PORTD &= ~(1 << PD6);
+
             if (idleTicks >= IDLE_TIMEOUT_TICKS) {
+                Lightnet::debugSerialWrite(PF("[BL] idle timeout\n"));
                 break;  // give up -- controller never made contact
+            }
+
+            // idleTicks resets on every received byte, so it doubles as ticks-since-last-byte.
+            if (idleTicks >= PARTIAL_FRAME_RESET_TICKS && framer.hasPartialFrame()) {
+                Lightnet::debugSerialWrite(PF("[BL] drop partial frame\n"));
+                framer.reset();
             }
         }
 
@@ -400,6 +498,7 @@ int main(void)
         }
 
         idleTicks = 0;
+        PORTD |= (1 << PD6);
 
         if (!framer.pushByte(value)) {
             continue;
@@ -414,6 +513,7 @@ int main(void)
 
         switch (frame->header.type) {
             case Protocol::PACKET_BOOTLOADER_PING:
+                Lightnet::debugSerialWrite(PF("[BL] ping -> pong\n"));
                 sendPong();
                 break;
 
@@ -425,6 +525,7 @@ int main(void)
                 commitPage();
                 uartDisable();
                 timerDisable();
+                PORTD &= ~(1 << PD6);
                 jump_to_app();
                 break;
 
@@ -436,6 +537,7 @@ int main(void)
     commitPage();
     uartDisable();
     timerDisable();
+    PORTD &= ~(1 << PD6);
     jump_to_app();
 }
 

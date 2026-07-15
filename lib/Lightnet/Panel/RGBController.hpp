@@ -12,8 +12,7 @@ class RGBController
         uint8_t globalBrightnessValue = 0xFF;  // applied to every output frame, 0..255
         bool isOn = false;
         bool useGammaCorrection = true;
-        // Raw RGB tint — not FastLED's ColorTemperature/LEDColorCorrection enums (dropped along
-        // with FastLED itself); { 255, 255, 255 } is a no-op tint (multiplies every channel by 1).
+        // Raw RGB tint; { 255, 255, 255 } is a no-op tint (multiplies every channel by 1).
         Protocol::ColorRGB colorCorrection = { 255, 255, 255 };
         Protocol::ColorRGB colorTemperature = { 255, 255, 255 };
 
@@ -25,8 +24,7 @@ class RGBController
         void updateOutputs();
         void maybeLog();
 
-        // 8-bit fixed-point channel scale (value * (scale+1)) >> 8 — the same formula FastLED's
-        // own scale8() used, kept so dropping FastLED doesn't change how dimming/tinting looks.
+        // 8-bit fixed-point channel scale: (value * (scale+1)) >> 8.
         static uint8_t scaleChannel(uint8_t value, uint8_t scale);
 
     public:

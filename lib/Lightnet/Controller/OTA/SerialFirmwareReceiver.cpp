@@ -4,6 +4,7 @@
 
     const uint8_t SerialFirmwareReceiver::MAGIC[4]         = { 'L', 'N', 'F', 'W' };
     const char *SerialFirmwareReceiver::FIRMWARE_PATH     = "/panel_fw.bin";
+    const uint8_t SerialFirmwareReceiver::CHUNK_ACK       = 0x06;  // ASCII ACK
 
     SerialFirmwareReceiver::SerialFirmwareReceiver(PanelFlasher *flasher)
         : flasher(flasher)
@@ -104,6 +105,12 @@
                 if (writeBufLen == WRITE_CHUNK || bytesWritten == firmwareSize) {
                     outFile.write(writeBuf, writeBufLen);
                     writeBufLen = 0;
+
+                    // Flow control: native USB CDC has no baud-rate throttling, so the host
+                    // can outrun this flash write by orders of magnitude. Acking every flushed
+                    // chunk lets the host pace itself to actual write speed instead of
+                    // flooding the RX ring buffer.
+                    Serial.write(CHUNK_ACK);
                 }
 
                 if (bytesWritten == firmwareSize) {

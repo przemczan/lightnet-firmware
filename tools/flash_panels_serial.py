@@ -10,9 +10,10 @@ Examples:
     python tools/flash_panels_serial.py /dev/ttyUSB0 firmware.bin --baud 115200
 
 The controller responds:
-    READY   — header accepted, sending data
-    OK      — firmware stored, panel flashing started
-    ERR:…   — something went wrong
+    READY       — header accepted, sending data
+    <0x06>      — one byte per 256-byte chunk, once it's flushed to flash (flow control)
+    OK          — firmware stored, panel flashing started
+    ERR:…       — something went wrong
 
 Requires: pip install pyserial
 """
@@ -28,9 +29,11 @@ except ImportError:
     sys.exit("pyserial not found — install it with:  pip install pyserial")
 
 MAGIC = b"LNFW"
+CHUNK_ACK = b"\x06"  # matches SerialFirmwareReceiver::CHUNK_ACK
 DEFAULT_BAUD = 57600
 BOOT_WAIT_TIMEOUT = 3.0   # seconds to look for the boot-ready signal
 READY_TIMEOUT     = 10.0  # seconds to wait for READY after sending header
+CHUNK_ACK_TIMEOUT = 2.0   # seconds to wait for a chunk ack (bounds a single flash write)
 OK_TIMEOUT        = 30.0  # seconds to wait for OK after sending data
 
 
@@ -84,8 +87,16 @@ def main():
 
     with serial.Serial(args.port, args.baud, timeout=1,
                        dsrdtr=False, rtscts=False) as ser:
-        # Prevent DTR/RTS from resetting the ESP, drain any pending bytes
-        ser.dtr = False
+        # The controller's Serial is native USB CDC (TinyUSB USBCDC, see
+        # ARDUINO_USB_CDC_ON_BOOT in platformio.ini's [env:controller_s2_mini]): the
+        # device-side USBCDC::write() silently drops everything — including READY/OK/ERR
+        # replies — unless the host has DTR asserted (tud_cdc_n_connected() tracks the
+        # line state). Assert DTR+RTS together once to reach the connected state, then
+        # drop RTS so the reset-to-bootloader toggle sequence (which starts from an
+        # RTS-asserted state) can't be accidentally triggered — mirrors the
+        # monitor_dtr=1 / monitor_rts=0 pair PlatformIO already uses for this board.
+        ser.rts = True
+        ser.dtr = True
         ser.rts = False
         time.sleep(0.5)
         ser.reset_input_buffer()
@@ -120,16 +131,28 @@ def main():
             sys.exit(f"\nError: expected READY, got {resp!r}")
         print("OK")
 
-        # Stream firmware data with a progress bar
+        # Stream firmware data with a progress bar. chunk_size must match the device's
+        # WRITE_CHUNK (SerialFirmwareReceiver.hpp) so every chunk maps to exactly one ack.
+        # Native USB CDC has no baud-rate throttling, so the device acks each chunk once
+        # it's flushed to flash and we wait for that ack before sending the next one --
+        # otherwise the host can outrun the flash write and overflow the RX ring buffer.
         chunk_size = 256
         sent = 0
+        ser.timeout = CHUNK_ACK_TIMEOUT
         while sent < size:
             chunk = data[sent : sent + chunk_size]
             ser.write(chunk)
             sent += len(chunk)
+
+            ack = ser.read(1)
+            if ack != CHUNK_ACK:
+                print()
+                sys.exit(f"\nError: expected chunk ack, got {ack!r} at byte {sent}")
+
             pct = sent * 100 // size
             bar = "#" * (pct // 5) + "." * (20 - pct // 5)
             print(f"\rUploading [{bar}] {pct:3d}%  {sent}/{size} B", end="", flush=True)
+        ser.timeout = 1
 
         # Send CRC (little-endian uint16)
         ser.write(struct.pack("<H", checksum))

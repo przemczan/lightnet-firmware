@@ -78,13 +78,13 @@ ESP32-class controller.
 
 === "Controller"
 
-    | Signal | ESP32 | S2 Mini |
-    |---|---|---|
-    | Status LED (active low) | GPIO 2 | GPIO 15 |
-    | Panel power enable | GPIO 21 | GPIO 7 |
-    | Trunk RX (`Serial1`) | GPIO 12 | GPIO 3 |
-    | Trunk TX (`Serial1`) | GPIO 13 | GPIO 5 |
-    | Trunk output-enable (OE#, gates U4 onto the shared wire) | GPIO 14 | GPIO 9 |
+    | Signal | ESP32 | S2 Mini | ESP32-C3 Mini clone |
+    |---|---|---|---|
+    | Status LED (active low) | GPIO 2 | GPIO 15 | GPIO 7 |
+    | Panel power enable | GPIO 21 | GPIO 7 | GPIO 2 |
+    | Trunk RX (`Serial1`) | GPIO 12 | GPIO 3 | GPIO 9 |
+    | Trunk TX (`Serial1`) | GPIO 13 | GPIO 5 | GPIO 1 |
+    | Trunk output-enable (OE#, gates U4 onto the shared wire) | GPIO 14 | GPIO 9 | GPIO 3 |
 
     Defaults in `src/controller/config.hpp` (`CONTROLLER_TRUNK_RX_PIN`/`CONTROLLER_TRUNK_TX_PIN`/
     `CONTROLLER_TRUNK_OE_PIN`; override in `src/controller.config.hpp`). The trunk TX/RX pair
@@ -92,8 +92,39 @@ ESP32-class controller.
     feeds `Serial1`. `Controller/Relay/ControllerEdgeTransport` (`LNTrunkTransport`, the shared
     global instance) takes an already-configured `HardwareSerial&`, so pin routing itself is
     `PanelsInitializer::start()`'s call to `Serial1.begin(baud, SERIAL_8N1, rxPin, txPin)`, not
-    baked into the transport class. The S2 Mini pins above are bench-verified against a populated
-    board; the ESP32 pins are not yet bench-validated — no populated board of that variant exists.
+    baked into the transport class. The S2 Mini and C3 Mini clone pins above are bench-verified
+    against populated boards; the plain ESP32 pins are not yet bench-validated — no populated
+    board of that variant exists. `env:controller_esp32_c3` targets an **unbranded**
+    ESP32-C3-MINI-1 breakout (silkscreen just reads "ESP32-C3 module" — not a genuine WEMOS/Lolin
+    or Espressif board) that plugs into the *same physical socket* on the Controller relay board
+    as the S2 Mini. That socket's traces are fixed to physical pin **positions**, not GPIO
+    numbers — `Controller.net`'s generic "U1 WEMOS" schematic symbol names them via the classic
+    D1-mini position convention (`A0`/`D0`/`D5`/`D6` for PRX/PTX/PE/PTXEN), and each specific
+    module exposes a different real GPIO at those same positions. Reading this clone's silkscreen
+    in that position order (anchored the same way the S2 Mini's is: position 1 = EN, position 8 =
+    3.3V) gives GPIO9/1/2/3 for trunk RX/TX/panel-power/OE — not simply "any free-looking GPIO
+    this board's header happens to expose," which is what an earlier revision of this pin set
+    got wrong (GPIO4/5/6/10 compiled fine but weren't wired to anything on the relay board).
+    GPIO9 (trunk RX) and GPIO2 (panel power) are C3 strapping pins; unlike on the plain-ESP32
+    fallback below, they aren't swappable for something else here since the relay board's traces
+    — not this file — fix which position carries which signal.
+
+    !!! note "This clone uses a physical UART bridge, not native USB"
+        Unlike the S2 Mini (native USB via TinyUSB `USBCDC`), this specific board's USB port is
+        wired to a physical USB-UART bridge chip on `Serial`/UART0, not the ESP32-C3's internal
+        USB-Serial-JTAG controller — confirmed by the ROM boot banner reading clean at 115200
+        baud on the same port used to flash it (a native-USB-JTAG board wouldn't show anything
+        there at all, since the ROM always logs via UART0). `ARDUINO_USB_MODE`/
+        `ARDUINO_USB_CDC_ON_BOOT` must **not** be set for this env — they'd redirect `Serial` to
+        the unwired internal USB-JTAG pins, and the bridge chip would go silent after the ROM
+        banner. A genuine native-USB C3 board (e.g. Espressif's DevKitM-1, or a real WEMOS/Lolin
+        C3 Mini) would need those flags the way `env:controller_s2_mini` does.
+
+    !!! warning "C3 Mini status LED pin unconfirmed"
+        `LED_PIN` (GPIO7) has no confirmed LED behind it on this unbranded board — it isn't part
+        of the relay board's PLED1 net (hardwired to +3.3V through a resistor, not GPIO-driven)
+        and there's no vendor documentation to check it against. Verify on the actual unit before
+        relying on it; it doesn't affect the trunk/panel-power pins.
 
 ---
 

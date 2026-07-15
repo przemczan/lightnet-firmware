@@ -7,9 +7,10 @@
 // builds, ControllerPacketSink (wrapping LNBus/LightnetBusSim) under SIM_MODE, where sim panels
 // only ever respond to LightnetBus-routed commands.
 //
-// PanelRouter floods every downstream packet to every connected edge unconditionally — there is
-// no per-edge routing table (§11.1 rejected that for the same SRAM reasons the broadcast-
-// descriptor lever was rejected in §6). The target address travels inside the packet itself, in
+// PanelRouter floods broadcasts to every connected edge, and routes an addressed downstream
+// packet to the single branch containing the target (pre-order DFS index ranges — see
+// PanelRouter.hpp; the "routing table" is just one u16 child index per edge). The target address
+// travels inside the packet itself, in
 // PacketHeader.targetPanelIndex (0 = broadcast). AnimationScheduler/ScenePlayer/PanelsController
 // all build packets via Protocol::makePacket<T>(type) with no target, since they only learn the
 // logical `address` at send() time (an existing, unchanged call pattern — see

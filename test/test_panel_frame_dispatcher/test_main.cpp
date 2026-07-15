@@ -1,6 +1,6 @@
-// Host test for PanelFrameDispatcher — the one decision LightnetPanel's dispatch loop needs per
-// arrived frame (hardware redesign plan §11.3/§11.4 step 4a): relay via PanelRouter first
-// (skipping PACKET_INITIALIZATION_PULL and frames addressed to this panel — see the class
+﻿// Host test for PanelFrameDispatcher â€” the one decision LightnetPanel's dispatch loop needs per
+// arrived frame (hardware redesign plan Â§11.3/Â§11.4 step 4a): relay via PanelRouter first
+// (skipping PACKET_INITIALIZATION_PULL and frames addressed to this panel â€” see the class
 // comment on why relay order and the self-addressed rule protect probe replies), then feed the
 // frame to PanelDiscoveryDriver, and report whether the caller's own application-packet switch
 // should act on it locally (protocol v10's targetPanelIndex, once this panel has been assigned
@@ -174,7 +174,7 @@ void test_dispatch_false_for_other_panels_target_but_frame_still_routed()
     Protocol::PacketInitializationPull pull = makePull(7);
 
     dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
-    discovery.onChildProbeAccepted(1);                                         // edge 1 = child
+    discovery.onChildProbeAccepted(1, 8);                                      // edge 1 = child panel 8
 
     int sendsBefore = link.count;
 
@@ -202,7 +202,7 @@ void test_self_addressed_frame_not_routed()
     Protocol::PacketInitializationPull pull = makePull(7);
 
     dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
-    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+    discovery.onChildProbeAccepted(1, 8);                                      // edge 1 = child panel 8
 
     int sendsBefore = link.count;
 
@@ -229,7 +229,7 @@ void test_broadcast_still_routed_and_dispatched()
     Protocol::PacketInitializationPull pull = makePull(7);
 
     dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
-    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+    discovery.onChildProbeAccepted(1, 8);                                      // edge 1 = child panel 8
 
     int sendsBefore = link.count;
 
@@ -257,7 +257,7 @@ void test_advance_to_self_probes_without_flooding()
     Protocol::PacketInitializationPull pull = makePull(7);
 
     dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
-    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+    discovery.onChildProbeAccepted(1, 8);                                      // edge 1 = child panel 8
 
     int sendsBefore = link.count;
 
@@ -292,7 +292,7 @@ void test_relay_transmitted_before_drivers_own_reaction()
     Protocol::PacketInitializationPull pull = makePull(7);
 
     dispatcher.onFrameArrived(0, Protocol::packetMeta(pull), sizeof(pull), 0);  // parent = edge 0
-    discovery.onChildProbeAccepted(1);                                          // edge 1 = child
+    discovery.onChildProbeAccepted(1, 8);                                      // edge 1 = child panel 8
 
     Protocol::PacketDiscoveryAdvance advance = makeAdvance(7, 9);
 

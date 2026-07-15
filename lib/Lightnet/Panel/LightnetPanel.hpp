@@ -127,6 +127,8 @@ class LightnetPanel
             struct PendingRxBusLog {
                 uint8_t  type;
                 uint16_t panel;
+                uint16_t self;
+                bool     actedLocally;
             };
 
             static const uint8_t PENDING_RX_BUS_LOG_CAP = 8;

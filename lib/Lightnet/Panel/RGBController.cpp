@@ -58,8 +58,7 @@ void RGBController::updateOutputs()
         b = gammaValueB(b);
     }
 
-    // Temperature tint, correction tint, then global brightness — same three passes FastLED's
-    // internal pipeline applied, just done explicitly instead of inside the library.
+    // Temperature tint, then correction tint, then global brightness.
     r = scaleChannel(scaleChannel(r, this->colorTemperature.r), this->colorCorrection.r);
     g = scaleChannel(scaleChannel(g, this->colorTemperature.g), this->colorCorrection.g);
     b = scaleChannel(scaleChannel(b, this->colorTemperature.b), this->colorCorrection.b);

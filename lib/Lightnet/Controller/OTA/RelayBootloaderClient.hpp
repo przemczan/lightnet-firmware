@@ -26,6 +26,18 @@
             public:
                 static const uint16_t PAGE_SIZE = 128; // ATmega328/PB SPM_PAGESIZE
 
+                // Per-chunk send attempts -- see writeChunk()'s comment on why retrying is both
+                // necessary (the relay loses the occasional frame by design) and safe (idempotent).
+                static const uint8_t WRITE_ATTEMPTS = 3;
+
+                // Extra gap between attempts. The bare ACK_TIMEOUT_MS (300 ms) retry cadence sits
+                // uncomfortably close to the relay panels' own quiet-window debug flush
+                // (LightnetPanel::RELAY_QUIET_MS = 200 ms after the lost frame, up to ~70 ms of
+                // blocking bit-banged lines) -- a deliberately non-round offset decorrelates the
+                // retries from that window and from the 1 s heartbeat, so consecutive attempts
+                // can't keep landing in the same blackout.
+                static const uint16_t RETRY_GAP_MS = 133;
+
                 explicit RelayBootloaderClient(Lightnet::ControllerRelayPacketSink &sink);
 
                 // Confirms the bootloader is resident at panelIndex and listening. Retries up to

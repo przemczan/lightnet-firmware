@@ -178,6 +178,10 @@ sequenceDiagram
 Controller replies:
 
 - `READY\n` — after the header is received
+- one `0x06` byte — after each 256-byte chunk of `Data` is flushed to flash; the host waits for
+  it before sending the next chunk. Native USB CDC (the `controller_s2_mini` target) has no
+  baud-rate throttling, so this flow control keeps the host from outrunning the flash-write
+  speed and overflowing the RX ring buffer.
 - `OK\n` — after CRC validates and binary is saved to LittleFS
 - `ERR:<message>\n` — on any failure
 

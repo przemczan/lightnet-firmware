@@ -119,10 +119,13 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
     private:
         static const uint32_t TRUNK_LED_IDLE_MS = 2;
         // ByteRing keeps one slot permanently unused (empty/full disambiguation), so this holds
-        // 63 usable bytes -- comfortable margin over one frame (4-byte preamble + up to
-        // Protocol::MAX_PACKET_SIZE payload), where 16 left only 15 usable against a 15-byte
-        // frame: zero margin, so a single stray byte silently overflowed and dropped mid-frame.
-        static const uint16_t RX_RING_BYTES = 64;
+        // 127 usable bytes -- a full worst-case frame (2 preamble bytes + Protocol::
+        // MAX_PACKET_SIZE = 82) with margin. The ring must fit an ENTIRE frame, not just drain
+        // jitter: a main-loop stall (e.g. a bit-banged debug line, ~ms) mid-frame is survivable
+        // only if every byte the ISR keeps receiving has a slot -- at 64 (63 usable) the 76-byte
+        // PACKET_BOOTLOADER_WRITE_CHUNK and 72-byte PACKET_SET_PALETTE physically couldn't fit,
+        // so any such stall silently dropped exactly the large frames while small ones survived.
+        static const uint16_t RX_RING_BYTES = 128;
 
         void setEdgeEnable(uint8_t edgeIndex, bool enabled);
         void sendByte(uint8_t value);

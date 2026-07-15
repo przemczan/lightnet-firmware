@@ -233,6 +233,12 @@ void test_discovery_completes_end_to_end_with_a_loop_and_two_empty_ports()
     TEST_ASSERT_TRUE(discoveries[1]->isConnected(1));  // N1 <-> N2
     TEST_ASSERT_TRUE(discoveries[2]->isConnected(0));
 
+    // ...each parent recorded its child's assigned index (what PanelRouter's branch routing
+    // resolves addressed frames against)...
+    TEST_ASSERT_EQUAL_UINT16(2, discoveries[0]->childIndex(1));  // N0's edge1 leads to panel 2
+    TEST_ASSERT_EQUAL_UINT16(3, discoveries[1]->childIndex(1));  // N1's edge1 leads to panel 3
+    TEST_ASSERT_EQUAL_UINT16(0, discoveries[0]->childIndex(0));  // parent edge: no child index
+
     // ...the loop-closing edge is rejected on both sides...
     TEST_ASSERT_FALSE(discoveries[0]->isConnected(2));
     TEST_ASSERT_FALSE(discoveries[2]->isConnected(1));

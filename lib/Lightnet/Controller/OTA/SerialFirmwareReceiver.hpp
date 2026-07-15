@@ -12,9 +12,12 @@
     //
     // Wire protocol (little-endian):
     //   PC → [4B magic 'L','N','F','W'][4B size][size bytes data][2B CRC-16]
-    //   Controller → "READY\n"  once header is validated (PC may then stream data)
-    //   Controller → "OK\n"     on success (flashing begins asynchronously)
-    //   Controller → "ERR:…\n"  on any error
+    //   Controller → "READY\n"     once header is validated (PC may then stream data)
+    //   Controller → CHUNK_ACK     after each WRITE_CHUNK-sized flash write — the PC waits
+    //                              for it before sending the next chunk (flow control; native
+    //                              USB CDC has no baud-rate throttling to pace the transfer)
+    //   Controller → "OK\n"        on success (flashing begins asynchronously)
+    //   Controller → "ERR:…\n"     on any error
     //
     // CRC-16: polynomial 0xA001, init 0xFFFF (matches Crc.hpp crc16()).
     // Run via the tools/flash_panels_serial.py helper script.
@@ -38,6 +41,7 @@
 
             static const uint8_t MAGIC[4];
             static const char *FIRMWARE_PATH;
+            static const uint8_t CHUNK_ACK;
             static const uint32_t MAX_FIRMWARE_SIZE   = 28 * 1024;
             static const uint32_t TRANSFER_TIMEOUT_MS = 30000;
             // Write firmware in chunks to avoid per-byte LittleFS overhead, which
