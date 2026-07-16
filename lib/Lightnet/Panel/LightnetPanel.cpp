@@ -18,7 +18,9 @@ LightnetPanel::LightnetPanel()
 #if DEBUG
         , pendingRxBusLogCount(0), lastHeartbeatMs(0), wakePcintRawCount(0), wakeIsrFiredCount(0),
         wakeIsrMaskedCount(0), wakeClaimGrantedCount(0), wakeClaimIgnoredCount(0),
-        lastWakeEdgeSeen(NO_EDGE)
+        lastWakeEdgeSeen(NO_EDGE), diagCompletedFrames{}, diagPhantomClaims{},
+        diagDeadFrameClaims{}, diagFramingErrorsByEdge{}, lastSeenFramingErrorStamp(0),
+        diagMultiBitWakeMasks(0), diagSelfClaims(0), diagClaimBytes(0), lastDiagSum(0)
 #endif
 {
 }
@@ -96,6 +98,14 @@ void LightnetPanel::pollWake(uint32_t nowMs)
     this->pendingWakeMask = 0;
     sei();
 
+    #if DEBUG
+
+        if (mask & (uint8_t)(mask - 1)) {
+            this->diagMultiBitWakeMasks++;
+        }
+
+    #endif
+
     for (uint8_t edge = 0; edge < EdgeUartTransport::EDGE_COUNT; edge++) {
         if (!(mask & (1 << edge))) {
             continue;
@@ -108,6 +118,7 @@ void LightnetPanel::pollWake(uint32_t nowMs)
         if (this->receiver.onEdgeWake(edge, nowMs)) {
             #if DEBUG
                 this->wakeClaimGrantedCount++;
+                this->noteClaimStarted();
             #endif
             LNEdgeTransport.selectRxEdge(edge);
 
@@ -194,13 +205,41 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
         if (this->receiver.claimedEdge() == Lightnet::EdgeFrameReceiver::NO_EDGE) {
             this->receiver.onEdgeWake(LNEdgeTransport.currentRxEdge(), nowMs);
             this->syncWakeInterruptSuppression();
+            #if DEBUG
+                this->diagSelfClaims++;
+                this->noteClaimStarted();
+            #endif
         }
 
         uint8_t value = LNEdgeTransport.readByte();
 
         this->lastRelayActivityMs = nowMs;
 
+        #if DEBUG
+            this->diagClaimBytes++;
+
+            // Attribute any framing faults the RX ISR flagged since the last drained byte to the
+            // edge receiving now -- see diagFramingErrorsByEdge's comment.
+            uint8_t feStamp = LNEdgeTransport.framingErrorStamp();
+
+            if (feStamp != this->lastSeenFramingErrorStamp) {
+                uint8_t claimed = this->receiver.claimedEdge();
+
+                if (claimed < EdgeUartTransport::EDGE_COUNT) {
+                    this->diagFramingErrorsByEdge[claimed] +=
+                        (uint8_t)(feStamp - this->lastSeenFramingErrorStamp);
+                }
+
+                this->lastSeenFramingErrorStamp = feStamp;
+            }
+
+        #endif
+
         if (this->receiver.onByte(value, nowMs)) {
+            #if DEBUG
+                this->diagCompletedFrames[this->receiver.fromEdge()]++;
+            #endif
+
             // A completed frame released the claim -- re-enable the wake interrupts before the
             // (potentially slow) dispatch below, so a new flow starting on a different edge
             // during it still gets its wake latched.
@@ -259,6 +298,9 @@ void LightnetPanel::pollProbeClaim(uint32_t nowMs)
     uint8_t edge = this->driver.probingEdge();
 
     if (this->receiver.preemptClaim(edge, nowMs)) {
+        #if DEBUG
+            this->noteClaimStarted();
+        #endif
         LNEdgeTransport.selectRxEdge(edge);
         this->syncWakeInterruptSuppression();
     }
@@ -345,6 +387,96 @@ void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
         ));
     }
 
+    void LightnetPanel::noteClaimStarted()
+    {
+        this->diagClaimBytes = 0;
+    }
+
+    void LightnetPanel::noteClaimReleasedByTimeout(uint8_t edge)
+    {
+        if (edge >= EdgeUartTransport::EDGE_COUNT) {
+            return;
+        }
+
+        if (this->diagClaimBytes == 0) {
+            this->diagPhantomClaims[edge]++;
+        } else {
+            this->diagDeadFrameClaims[edge]++;
+        }
+    }
+
+    // One [DIAG] ledger line, printed only once the trunk has been quiet for DIAG_QUIET_MS and
+    // only when something changed since the last dump -- so it appears after a traffic burst
+    // (discovery, an OTA run) ends, never during one, and a blocking bit-banged print can't
+    // swallow live relay frames. Per-edge triples are edge 0/1/2:
+    //   cmp = frames completed, phm = phantom claims (timeout, zero bytes),
+    //   dead = dead-frame claims (timeout, partial frame), fe = framing faults attributed to the
+    //   receiving edge (feRaw = the transport's global stamp; any drift vs the triple's total is
+    //   faults on discarded self-echo bytes), tx = frames sent (relay + own),
+    //   mb = multi-edge wake masks, self = self-claims (bytes with no wake),
+    //   dor = UART overrun faults, ign = wakes ignored while a claim was held.
+    void LightnetPanel::flushRelayDiag(uint32_t nowMs)
+    {
+        if (LNEdgeTransport.available()) {
+            return;
+        }
+
+        if ((uint32_t)(nowMs - this->lastRelayActivityMs) < DIAG_QUIET_MS) {
+            return;
+        }
+
+        uint32_t sum = (uint32_t)this->diagMultiBitWakeMasks + this->diagSelfClaims
+                       + LNEdgeTransport.framingErrorStamp() + LNEdgeTransport.overrunErrorStamp()
+                       + this->wakeClaimIgnoredCount;
+
+        for (uint8_t edge = 0; edge < EdgeUartTransport::EDGE_COUNT; edge++) {
+            sum += this->diagCompletedFrames[edge];
+            sum += this->diagPhantomClaims[edge];
+            sum += this->diagDeadFrameClaims[edge];
+            sum += this->diagFramingErrorsByEdge[edge];
+            sum += LNEdgeTransport.txFrameCount(edge);
+        }
+
+        if (sum == this->lastDiagSum) {
+            return;
+        }
+
+        this->lastDiagSum = sum;
+
+        DEBUG_IF(DEBUG_RELAY_DIAG, D_PRINTLN(
+                     DPF("[DIAG] cmp"),
+                     this->diagCompletedFrames[0],
+                     this->diagCompletedFrames[1],
+                     this->diagCompletedFrames[2],
+                     DPF("phm"),
+                     this->diagPhantomClaims[0],
+                     this->diagPhantomClaims[1],
+                     this->diagPhantomClaims[2],
+                     DPF("dead"),
+                     this->diagDeadFrameClaims[0],
+                     this->diagDeadFrameClaims[1],
+                     this->diagDeadFrameClaims[2],
+                     DPF("fe"),
+                     this->diagFramingErrorsByEdge[0],
+                     this->diagFramingErrorsByEdge[1],
+                     this->diagFramingErrorsByEdge[2],
+                     DPF("tx"),
+                     LNEdgeTransport.txFrameCount(0),
+                     LNEdgeTransport.txFrameCount(1),
+                     LNEdgeTransport.txFrameCount(2),
+                     DPF("mb"),
+                     this->diagMultiBitWakeMasks,
+                     DPF("self"),
+                     this->diagSelfClaims,
+                     DPF("feRaw"),
+                     LNEdgeTransport.framingErrorStamp(),
+                     DPF("dor"),
+                     LNEdgeTransport.overrunErrorStamp(),
+                     DPF("ign"),
+                     this->wakeClaimIgnoredCount
+        ));
+    }
+
 #endif
 
 void LightnetPanel::tick(uint32_t nowMs)
@@ -352,7 +484,25 @@ void LightnetPanel::tick(uint32_t nowMs)
     this->pollWake(nowMs);
     this->pollBytes(nowMs);
     this->driver.tick(nowMs);
+
+    #if DEBUG
+        uint8_t heldEdge = this->receiver.claimedEdge();
+    #endif
+
     this->receiver.tick(nowMs);
+
+    #if DEBUG
+
+        // The only way a claim ends inside receiver.tick() is a timeout release -- ledger it as
+        // phantom (claimed but never received a byte) or dead-frame (bytes arrived, frame never
+        // completed).
+        if (heldEdge != Lightnet::EdgeFrameReceiver::NO_EDGE
+            && this->receiver.claimedEdge() == Lightnet::EdgeFrameReceiver::NO_EDGE) {
+            this->noteClaimReleasedByTimeout(heldEdge);
+        }
+
+    #endif
+
     // receiver.tick() may have released a stalled claim -- re-enable the wakes if so.
     this->syncWakeInterruptSuppression();
     this->pollProbeClaim(nowMs);
@@ -376,6 +526,7 @@ void LightnetPanel::tick(uint32_t nowMs)
     this->flushIdleDebugLogs(nowMs);
     #if DEBUG
         this->flushHeartbeatLog(nowMs);
+        this->flushRelayDiag(nowMs);
     #endif
     LNEdgeTransport.pollTrunkActivityLed(nowMs);
 }

@@ -239,7 +239,7 @@ that panel's index as an address filter (`PanelRouter`).
 | 202 | `BOOTLOADER_PING` | C→bootloader | 7 B | Meta-only; presence check once a panel is resident in `RelayBootloader.cpp` (v12) |
 | 203 | `BOOTLOADER_PONG` | bootloader→C | 12 B | Bootloader version + flash page size + `BOOTLOADER_START` |
 | 204 | `BOOTLOADER_WRITE_CHUNK` | C→bootloader | 76 B | 64 B of flash data + its own CRC-16 (`headerCrc` covers only `PacketHeader`, not payload) — two chunks per 128 B page |
-| 205 | `BOOTLOADER_WRITE_ACK` | bootloader→C | 10 B | Per-chunk result: ok / bad CRC / bad address |
+| 205 | `BOOTLOADER_WRITE_ACK` | bootloader→C | 12 B | Per-chunk result: ok / bad CRC / bad address, plus a CRC-16 over its address+status payload (`headerCrc` covers only `PacketHeader`) so a corrupted status is retried, never misread |
 | 206 | `BOOTLOADER_START_APP` | C→bootloader | 7 B | Meta-only; commits any pending page then jumps to the application |
 
 Every packet above carries `PacketHeader.targetPanelIndex` (v10): `0` = broadcast/flood, any other

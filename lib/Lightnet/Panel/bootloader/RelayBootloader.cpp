@@ -326,8 +326,9 @@ namespace {
         Protocol::PacketBootloaderWriteAck ack =
             Protocol::makePacket<Protocol::PacketBootloaderWriteAck>(Protocol::PACKET_BOOTLOADER_WRITE_ACK, assignedIndex);
 
-        ack.address = address;
-        ack.status  = (uint8_t)status;
+        ack.address    = address;
+        ack.status     = (uint8_t)status;
+        ack.payloadCrc = crc16(&ack.address, sizeof(ack.address) + sizeof(ack.status));
 
         sendFrame(Protocol::packetMeta(ack), sizeof(ack));
     }

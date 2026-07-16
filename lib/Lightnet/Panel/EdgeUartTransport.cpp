@@ -93,6 +93,7 @@ void EdgeUartTransport::sendByte(uint8_t value)
 
 void EdgeUartTransport::sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta *packet, uint8_t size)
 {
+    this->txFrameCounts[edgeIndex]++;
     this->transmitting = true;
     PORTD |= (1 << PD6);
 
@@ -254,6 +255,11 @@ uint8_t EdgeUartTransport::framingErrorStamp() const
 uint8_t EdgeUartTransport::overrunErrorStamp() const
 {
     return this->rxOverrunErrorStamp;
+}
+
+uint16_t EdgeUartTransport::txFrameCount(uint8_t edgeIndex) const
+{
+    return this->txFrameCounts[edgeIndex];
 }
 
 void EdgeUartTransport::pollTrunkActivityLed(uint32_t nowMs)

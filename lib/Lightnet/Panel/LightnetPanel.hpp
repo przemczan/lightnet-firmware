@@ -167,6 +167,37 @@ class LightnetPanel
             uint8_t wakeClaimGrantedCount;
             uint8_t wakeClaimIgnoredCount;
             uint8_t lastWakeEdgeSeen;
+
+            // Relay-claim ledger for flushRelayDiag() -- distinguishes, per edge, how each claim
+            // ended: a completed frame, a timeout release that never received a single byte (a
+            // "phantom" claim: a wake with no real transmission behind it, parking the mux deaf on
+            // that edge for the whole FRAME_TIMEOUT_MS), or a timeout release with bytes (a frame
+            // that died mid-flight). Together with EdgeUartTransport::txFrameCount() on the
+            // sending side of each hop, this splits relay loss into "never woke/claimed wrong
+            // edge" vs "frame corrupted in flight" -- the discriminator for the upstream OTA-ack
+            // loss investigation. Main-loop only; free-running, wrap silently.
+            uint16_t diagCompletedFrames[EdgeUartTransport::EDGE_COUNT];
+            uint16_t diagPhantomClaims[EdgeUartTransport::EDGE_COUNT];
+            uint16_t diagDeadFrameClaims[EdgeUartTransport::EDGE_COUNT];
+
+            // UART framing faults attributed to the edge whose claim was receiving when the
+            // errored byte was drained (the RX ISR only bumps EdgeUartTransport's global stamp --
+            // it cannot know the edge; the mux guarantees drained bytes belong to the claimed
+            // edge). A fault on a self-echo byte discarded during a send is attributed to the
+            // next drained byte's edge instead -- rare enough to accept for a diagnostic.
+            uint16_t diagFramingErrorsByEdge[EdgeUartTransport::EDGE_COUNT];
+            uint8_t lastSeenFramingErrorStamp;
+
+            uint16_t diagMultiBitWakeMasks;  // pollWake() drains that latched >1 edge at once
+            uint16_t diagSelfClaims;         // bytes arrived with no claim -- wake missed entirely
+            uint16_t diagClaimBytes;         // bytes fed into the currently-held claim
+            uint32_t lastDiagSum;            // change detector so idle dumps don't repeat
+
+            static const uint32_t DIAG_QUIET_MS = 2000;
+
+            void noteClaimStarted();
+            void noteClaimReleasedByTimeout(uint8_t edge);
+            void flushRelayDiag(uint32_t nowMs);
         #endif
 
         void pollWake(uint32_t nowMs);

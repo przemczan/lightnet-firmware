@@ -267,9 +267,12 @@ namespace Protocol {
     // a protocolVersion mismatch gets resolved, so the resident bootloader must stay readable
     // regardless of which app protocolVersion the controller was built with (it skips the
     // version check every other packet type gets — see PacketFramer's validateProtocolVersion
-    // constructor parameter). headerCrc covers only PacketHeader (see PacketMeta above), so
-    // PacketBootloaderWriteChunk carries its own CRC over its data payload — a corrupted chunk
-    // must never reach boot_page_fill() unnoticed.
+    // constructor parameter). headerCrc covers only PacketHeader (see PacketMeta above), so both
+    // payload-bearing bootloader packets carry their own CRC over their payload:
+    // PacketBootloaderWriteChunk over its data (a corrupted chunk must never reach
+    // boot_page_fill() unnoticed) and PacketBootloaderWriteAck over its address+status (a
+    // corrupted status must never be misread as a rejection, or worse, as a false success).
+    // Changing either layout requires re-burning the resident bootloader, not just reflashing the app.
     const uint8_t BOOTLOADER_CHUNK_SIZE = 64;
 
     typedef struct PACK {
@@ -299,8 +302,9 @@ namespace Protocol {
     typedef struct PACK {
         PacketMeta meta;
         uint16_t   address;
-        uint8_t    status;  // bootloaderWriteStatus_t
-    } PacketBootloaderWriteAck;  // 7 + 2 + 1 = 10 bytes
+        uint8_t    status;      // bootloaderWriteStatus_t
+        uint16_t   payloadCrc;  // CRC-16 over address + status (see the frozen-contract note above)
+    } PacketBootloaderWriteAck;  // 7 + 2 + 1 + 2 = 12 bytes
 
     const uint8_t MIN_PACKET_SIZE = sizeof(PacketMeta);
 

@@ -74,11 +74,28 @@
                     sizeof(ack)
                 );
 
-                if (ok && ack.status == Protocol::BOOTLOADER_WRITE_OK) {
+                // A valid frame of the right type arrived, but headerCrc covers only the header --
+                // validate the payload against its own CRC (and that it acks THIS address) before
+                // trusting status. A corrupted ack that slips through as a garbage status must be
+                // treated as a lost frame (retry), never as a rejection, and above all never as a
+                // false success should the status byte happen to corrupt to BOOTLOADER_WRITE_OK.
+                bool payloadOk = ok
+                                 && (ack.address == address)
+                                 && (ack.payloadCrc
+                                     == crc16(&ack.address, sizeof(ack.address) + sizeof(ack.status)));
+
+                if (payloadOk && ack.status == Protocol::BOOTLOADER_WRITE_OK) {
                     return true;
                 }
 
-                if (ok) {
+                if (ok && !payloadOk) {
+                    DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN(
+                                 "[RELAY-BOOT] writeChunk ack corrupt @ panel %u addr 0x%04X (attempt %d)",
+                                 panelIndex,
+                                 address,
+                                 attempt + 1
+                    ));
+                } else if (ok) {
                     DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN(
                                  "[RELAY-BOOT] writeChunk rejected @ panel %u addr 0x%04X status=%d (attempt %d)",
                                  panelIndex,

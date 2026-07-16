@@ -124,6 +124,11 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         uint8_t framingErrorStamp() const;
         uint8_t overrunErrorStamp() const;
 
+        // Diagnostics only -- free-running per-edge count of frames clocked out by sendOnEdge(),
+        // one side of the relay-loss ledger LightnetPanel::flushRelayDiag() prints (this panel's
+        // sends vs. the next hop's completed receives).
+        uint16_t txFrameCount(uint8_t edgeIndex) const;
+
     private:
         static const uint32_t TRUNK_LED_IDLE_MS = 2;
         // ByteRing keeps one slot permanently unused (empty/full disambiguation), so this holds
@@ -140,6 +145,7 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
 
         Lightnet::ByteRing<RX_RING_BYTES> rxRing;
         volatile bool transmitting = false;
+        uint16_t txFrameCounts[EDGE_COUNT] = {};  // main-loop only (sendOnEdge), not ISR-touched
         uint8_t rxActivityStamp = 0;  // main-loop only (readByte()) -- not ISR-touched, so not volatile
         volatile uint8_t rxFramingErrorStamp = 0;
         volatile uint8_t rxOverrunErrorStamp = 0;

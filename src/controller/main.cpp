@@ -584,20 +584,6 @@ void loop()
 
                 websocketServer->cleanup();
 
-                DEBUG_BLOCK(
-            {
-                // Track heap over time to catch fragmentation-driven resets.
-                static uint32_t lastHeapLogMs = 0;
-                uint32_t now = millis();
-
-                if ((uint32_t)(now - lastHeapLogMs) >= 1000) {
-                    lastHeapLogMs = now;
-                    Serial.print("[HEAP] free: ");
-                    Serial.print(ESP.getFreeHeap());
-                    Serial.println();
-                }
-            });
-
                 #ifndef SIM_MODE
 
                     if (!panelFlasher || !panelFlasher->isActive()) {
