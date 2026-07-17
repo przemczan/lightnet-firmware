@@ -120,6 +120,16 @@ namespace Lightnet {
             return;
         }
 
+        // Capacity cap: never accept an index past LIGHTNET_MAX_PANELS -- the resume stack
+        // below and DiscoveryTreeBuilder's arrays are sized for exactly that many panels, so
+        // descending further would overflow them. Ignoring the registration stalls the walk,
+        // which then completes with the capped partial tree via WALK_STALL_TIMEOUT_MS. The
+        // stackDepth guard is belt-and-suspenders for the same bound.
+        if (this->nextPanelIndex > LIGHTNET_MAX_PANELS
+            || this->stackDepth >= LIGHTNET_MAX_PANELS) {
+            return;
+        }
+
         this->lastProgressMs = nowMs;
 
         if (this->treeBuilder) {

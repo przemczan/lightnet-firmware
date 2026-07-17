@@ -14,10 +14,10 @@ uint16_t crc16Update(uint16_t crc, uint8_t a)
     return crc;
 }
 
-uint16_t crc16(void *data, uint16_t size)
+uint16_t crc16(const void *data, uint16_t size)
 {
     uint16_t crc = 0xFFFF;
-    uint8_t *source = (uint8_t *)data;
+    const uint8_t *source = (const uint8_t *)data;
 
     while (size--) {
         crc = crc16Update(crc, *source++);

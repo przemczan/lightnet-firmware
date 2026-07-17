@@ -4,9 +4,6 @@
 // ATmega328P/PB) and is a completely separate compiled image from the application — nothing here
 // links against LightnetPanel, EdgeUartTransport, or any other app-side class.
 //
-// UNVALIDATED HARDWARE — no bench spike has run. Builds clean and fits the boot section (see
-// env:atmega328pb_bootloader), but nothing here has been exercised on real silicon.
-//
 // Entry: BootloaderBridge (Panel/BootloaderBridge.hpp) writes this panel's assigned index and
 // parent edge to EEPROM, then software-jumps to word address 0x3800 (byte address
 // BOOTLOADER_START) — see BootloaderProtocol.hpp for the exact EEPROM layout. That address is
@@ -62,14 +59,13 @@
 #include <string.h>
 
 #include "BootloaderProtocol.hpp"
+#include "../AvrUartBaud.hpp"
 #include "../../Core/Relay/PacketFramer.hpp"
 #include "../../Common/Protocol.hpp"
 #include "../../Utils/Crc.hpp"
 #include "../DebugSerial.hpp"
 
 namespace {
-    const uint8_t BOOTLOADER_VERSION = 1;
-
     // Give up and boot the application if the controller never makes contact — otherwise a
     // panel whose controller crashed or was aborted mid-flash would stay resident forever.
     // Coarse (Timer0-overflow-tick based, ~16.4 ms/tick at /1024 prescale — see timerTick()),
@@ -120,7 +116,9 @@ namespace {
 
     void uartInit()
     {
-        uint16_t ubrr = (uint16_t)((F_CPU / (16UL * BootloaderProtocol::UART_BAUD)) - 1);
+        // Same rounded divisor as the app transport's EdgeUartTransport::begin() -- shared
+        // wire, so the two images must never derive different UBRRs from the same baud.
+        uint16_t ubrr = Lightnet::ubrrDivisor(F_CPU, BootloaderProtocol::UART_BAUD);
 
         UBRR0H = (uint8_t)(ubrr >> 8);
         UBRR0L = (uint8_t)ubrr;
@@ -314,7 +312,7 @@ namespace {
         Protocol::PacketBootloaderPong pong =
             Protocol::makePacket<Protocol::PacketBootloaderPong>(Protocol::PACKET_BOOTLOADER_PONG, assignedIndex);
 
-        pong.bootloaderVersion = BOOTLOADER_VERSION;
+        pong.bootloaderVersion = Protocol::BOOTLOADER_PROTOCOL_VERSION;
         pong.pageSize          = SPM_PAGESIZE;
         pong.flashSize         = BOOTLOADER_START;
 
@@ -347,9 +345,13 @@ namespace {
 
         Lightnet::debugSerialWrite('.');
 
+        // dataCrc covers address+length+data (contiguous packed fields) -- a corrupted target
+        // address must never route a perfectly valid chunk onto the wrong flash page, so it
+        // gets the same CRC protection as the data itself.
         bool lengthOk = (pkt->length >= 1) && (pkt->length <= Protocol::BOOTLOADER_CHUNK_SIZE);
-        bool crcOk    = lengthOk
-                        && (crc16(const_cast<uint8_t *>(pkt->data), pkt->length) == pkt->dataCrc);
+        uint16_t crcSpan = (uint16_t)(sizeof(pkt->address) + sizeof(pkt->length) + pkt->length);
+        bool crcOk = lengthOk
+                     && (crc16(&pkt->address, crcSpan) == pkt->dataCrc);
 
         if (!crcOk) {
             Lightnet::debugSerialWrite(PF("[BL] chunk bad crc @ "));
@@ -360,7 +362,13 @@ namespace {
             return;
         }
 
-        bool addrOk = ((uint32_t)pkt->address + pkt->length) <= BOOTLOADER_START;
+        uint16_t thisPageStart = pkt->address - (pkt->address % SPM_PAGESIZE);
+        uint16_t offset = pkt->address - thisPageStart;
+
+        // A chunk may neither reach into the boot section nor cross its own SPM page --
+        // pageBuf holds exactly one page, so a crossing chunk would overrun it.
+        bool addrOk = (((uint32_t)pkt->address + pkt->length) <= BOOTLOADER_START)
+                      && ((uint16_t)(offset + pkt->length) <= SPM_PAGESIZE);
 
         if (!addrOk) {
             Lightnet::debugSerialWrite(PF("[BL] chunk bad addr @ "));
@@ -371,11 +379,7 @@ namespace {
             return;
         }
 
-        uint16_t thisPageStart = pkt->address - (pkt->address % SPM_PAGESIZE);
-
         loadPage(thisPageStart);
-
-        uint16_t offset = pkt->address - thisPageStart;
 
         memcpy(pageBuf + offset, pkt->data, pkt->length);
         pageDirty = true;

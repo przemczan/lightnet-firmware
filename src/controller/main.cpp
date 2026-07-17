@@ -2,7 +2,14 @@
 
 #include "main.hpp"
 
-uint8_t state = 0;
+// loop()'s two phases after panel discovery completes: one-shot service bring-up, then the
+// steady-state service loop.
+enum class MainPhase : uint8_t {
+    ServicesInit,
+    Running,
+};
+
+MainPhase mainPhase = MainPhase::ServicesInit;
 DNSServer dns;
 PanelsController *panelsController;
 AsyncWebServer *webServer;
@@ -15,7 +22,7 @@ Lightnet::MainLoopQueue *mainLoopQueue = nullptr;
 
 // LightnetBus::onPacketSent is a plain function pointer, so it can't capture.
 // Forward captured packets to the (global) mirror once it exists.
-static void mirrorOutboundPacket(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
+static void mirrorOutboundPacket(Lightnet::PanelIndex address, const Protocol::PacketMeta *packet, uint8_t size)
 {
     if (packetMirror) {
         packetMirror->capture(address, packet, size);
@@ -68,11 +75,11 @@ void serviceMirror()
 Lightnet::PanelsTopologyProvider panelsTopologyProvider(LNPanelsInitializer);
 
 Lightnet::AnimationScheduler *animScheduler    = nullptr;
-Lightnet::PaletteRepository *paletteStore = nullptr;
+Lightnet::PaletteRepository *paletteRepository = nullptr;
 Lightnet::AppearanceService *appearance      = nullptr;
 Lightnet::SceneStore *sceneStore       = nullptr;
 Lightnet::ScenePlayer *scenePlayer      = nullptr;
-Lightnet::ScenesService *animService      = nullptr;
+Lightnet::ScenesService *scenesService      = nullptr;
 Lightnet::AppearanceServer *appearanceServer = nullptr;
 Lightnet::PaletteServer *paletteServer    = nullptr;
 Lightnet::SceneServer *sceneServer      = nullptr;
@@ -405,6 +412,212 @@ void setup()
     digitalWrite(LED_PIN, HIGH);
 }
 
+// One-shot service bring-up, run once panel discovery completes: panel configuration + self
+// test, filesystem + stores, the scene engine, WiFi with all HTTP/WS servers, and MQTT.
+void initializeServices()
+{
+    delay(500);
+
+    sendConfiguration();
+
+    animScheduler = new Lightnet::AnimationScheduler(activeSink);
+
+    selfTest();
+
+    // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
+    // can read /data/palettes.db and /config/ before the captive portal blocks.
+    Lightnet::Fs::begin();
+
+    // Ensure /config exists before the stores below write into it. LittleFS won't
+    // create a file whose parent directory is missing, so on a fresh filesystem every
+    // /config/*.json write would fail without this. Idempotent.
+    Lightnet::Fs::mkdir("/config");
+
+    paletteRepository = new Lightnet::PaletteRepository();
+    paletteRepository->ensureSeeded();
+    appearance = new Lightnet::AppearanceService(*animScheduler, *paletteRepository);
+    appearance->loadAndApply();
+
+    sceneStore  = new Lightnet::SceneStore();
+    sceneStore->compactIfFragmented();
+    scenePlayer   = new Lightnet::ScenePlayer(*animScheduler, *paletteRepository, panelsTopologyProvider);
+    scenesService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
+
+    // Per-device topology config: logical root used by scene selectors.
+    topologyConfig = new Lightnet::TopologyConfigStore();
+    topologyConfig->load();
+    scenePlayer->setLogicalRoot(topologyConfig->logicalRoot(), millis());
+
+    configStore = new Lightnet::ConfigurationStore();
+    configStore->load();
+
+    appStateStore = new Lightnet::AppStateStore();
+    appStateStore->load();
+
+    #ifdef LIGHTNET_MQTT
+        mqttConfigStore = new Lightnet::MqttConfigStore();
+        mqttConfigStore->load();
+
+    #endif
+
+    bool initialIsOn = true;
+
+    switch (configStore->powerStateOnBoot()) {
+        case Lightnet::POWER_ALWAYS_OFF: initialIsOn = false;
+            break;
+        case Lightnet::POWER_LAST_STATE: initialIsOn = appStateStore->isOn();
+            break;
+        default:                         initialIsOn = true;
+            break;
+    }
+
+    appStateStore->setIsOn(initialIsOn);
+
+    #if DEMO_MODE
+        initDemos(
+            *scenesService,
+            *sceneStore,
+            *scenePlayer,
+            *animScheduler,
+            *panelsController,
+            LNPanelsInitializer
+        );
+    #endif
+
+    setupWiFi();
+
+    appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteRepository, *scenesService, *mainLoopQueue);
+    appearanceServer->begin();
+    paletteServer = new Lightnet::PaletteServer(*webServer, *paletteRepository, *appearance);
+    paletteServer->begin();
+    sceneServer = new Lightnet::SceneServer(
+        *webServer,
+        *sceneStore,
+        *scenePlayer,
+        *scenesService,
+        *appStateStore,
+        *appearance,
+        *mainLoopQueue
+    );
+    sceneServer->begin();
+    animServer = new Lightnet::AnimationServer(
+        *webServer,
+        *scenesService,
+        *animScheduler,
+        *appearance,
+        *appStateStore,
+        *mainLoopQueue
+    );
+    animServer->begin();
+    panelServer = new Lightnet::PanelServer(*webServer, *panelsController, *mainLoopQueue);
+    panelServer->begin();
+    configServer = new Lightnet::ConfigurationServer(*webServer, *configStore, *topologyConfig, *scenePlayer, *mainLoopQueue);
+    configServer->begin();
+    stateServer = new Lightnet::StateServer(
+        *webServer,
+        *appStateStore,
+        *panelsController,
+        *scenesService,
+        *animScheduler,
+        *appearance,
+        *mainLoopQueue,
+        packetMirror
+    );
+
+    stateServer->begin();
+
+    appStateBroadcaster = new Lightnet::AppStateBroadcaster(
+        *websocketServer,
+        *appStateStore,
+        *scenesService
+    );
+
+    #ifdef LIGHTNET_MQTT
+        mqttService = new Lightnet::MqttService(
+            *mqttConfigStore,
+            *appStateStore,
+            *appearance,
+            *scenesService,
+            *sceneStore,
+            *panelsController,
+            LNPanelsInitializer,
+            *animScheduler,
+            *mainLoopQueue,
+            packetMirror
+        );
+        mqttService->begin();
+        mqttServer = new Lightnet::MqttServer(*webServer, *mqttConfigStore, *mqttService);
+        mqttServer->begin();
+    #endif
+
+    DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
+}
+
+// Steady-state service loop, every iteration after initializeServices().
+void runServices()
+{
+    ArduinoOTA.handle();
+
+    #ifndef SIM_MODE
+
+        if (serialFwReceiver) serialFwReceiver->run();
+
+        if (panelFlasher) panelFlasher->run();
+
+    #endif
+
+    websocketServer->cleanup();
+
+    #ifndef SIM_MODE
+
+        // A panel-flash campaign owns the relay trunk: everything below can emit relay
+        // packets (or persist state mid-flash), so it stays suspended until the campaign ends.
+        if (panelFlasher && panelFlasher->isActive()) {
+            return;
+        }
+
+    #endif
+
+    websocketHandler->handleIncommingMessages();
+
+    // Run work deferred by HTTP handlers (scene play, power, appearance, …)
+    // on the main loop so all packet emission stays single-task.
+    if (mainLoopQueue) mainLoopQueue->drain();
+
+    if (scenePlayer && appStateStore->isOn()) scenePlayer->tick(millis());
+
+    if (appearance) appearance->tick(millis());
+
+    if (configStore) configStore->tick(millis());
+
+    if (appStateStore) appStateStore->tick(millis());
+
+    if (appStateBroadcaster) appStateBroadcaster->tick();
+
+    #ifdef LIGHTNET_MQTT
+
+        if (mqttService) mqttService->tick(millis());
+
+    #endif
+
+    serviceMirror();
+
+    #ifdef SIM_MODE
+        {
+            static uint32_t lastSimTick = 0;
+            uint32_t now = millis();
+
+            if ((uint32_t)(now - lastSimTick) >= 16) {
+                lastSimTick = now;
+                SimPanels.tick();
+            }
+        }
+    #endif
+    #if DEMO_MODE
+        runDemos();
+    #endif
+}
+
 void loop()
 {
     LNPanelsInitializer.boot();
@@ -416,223 +629,27 @@ void loop()
             DEBUG_IF(DEBUG_INIT, D_PRINTLN("waiting for panel discovery to complete..."));
             lastWaitingLog = millis();
         }
+
+        return;
     }
 
-    if (LNPanelsInitializer.isFinished()) {
-        // IMPORTANT: WiFiManager needs the DNS server to process requests
-        // to trigger the Captive Portal redirect.
-        // Only poll when not connected: on ESP32 the socket is never opened if
-        // WiFi connected directly (no portal), so calling parsePacket() on it
-        // returns EBADF (errno 9) every iteration, flooding the log.
-        if (wifiManager != nullptr && WiFi.status() != WL_CONNECTED) {
-            dns.processNextRequest();
-        }
+    // WiFiManager needs the DNS server polled to trigger the captive-portal redirect. Only
+    // while not connected: with a direct WiFi connection (no portal) the socket is never
+    // opened, and polling it returns EBADF (errno 9) every iteration, flooding the log.
+    if (wifiManager != nullptr && WiFi.status() != WL_CONNECTED) {
+        dns.processNextRequest();
+    }
 
-        switch (state) {
-            case 0:
-                delay(500);
+    switch (mainPhase) {
+        case MainPhase::ServicesInit:
+            initializeServices();
 
-                state = 1;
+            mainPhase = MainPhase::Running;
+            break;
 
-                sendConfiguration();
-
-                animScheduler = new Lightnet::AnimationScheduler(activeSink);
-                animScheduler->initialize();
-
-                selfTest();
-
-                // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
-                // can read /data/palettes.db and /config/ before the captive portal blocks.
-                Lightnet::Fs::begin();
-
-                // Ensure /config exists before the stores below write into it. LittleFS won't
-                // create a file whose parent directory is missing, so on a fresh filesystem every
-                // /config/*.json write would fail without this. Idempotent.
-                Lightnet::Fs::mkdir("/config");
-
-                paletteStore = new Lightnet::PaletteRepository();
-                paletteStore->ensureSeeded();
-                appearance   = new Lightnet::AppearanceService(*animScheduler, *paletteStore);
-                appearance->loadAndApply();
-
-                sceneStore  = new Lightnet::SceneStore();
-                sceneStore->compactIfFragmented();
-                scenePlayer = new Lightnet::ScenePlayer(*animScheduler, *paletteStore, panelsTopologyProvider);
-                animService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
-
-                // Per-device topology config: logical root used by scene selectors.
-                topologyConfig = new Lightnet::TopologyConfigStore();
-                topologyConfig->load();
-                scenePlayer->setLogicalRoot(topologyConfig->logicalRoot(), millis());
-
-                configStore = new Lightnet::ConfigurationStore();
-                configStore->load();
-
-                appStateStore = new Lightnet::AppStateStore();
-                appStateStore->load();
-
-                #ifdef LIGHTNET_MQTT
-                    mqttConfigStore = new Lightnet::MqttConfigStore();
-                    mqttConfigStore->load();
-                #endif
-
-                {
-                    bool initialIsOn = true;
-
-                    switch (configStore->powerStateOnBoot()) {
-                        case Lightnet::POWER_ALWAYS_OFF: initialIsOn = false;
-                            break;
-                        case Lightnet::POWER_LAST_STATE: initialIsOn = appStateStore->isOn();
-                            break;
-                        default:                         initialIsOn = true;
-                            break;
-                    }
-
-                    appStateStore->setIsOn(initialIsOn);
-                }
-
-                #if DEMO_MODE
-                    initDemos(
-                        *animService,
-                        *sceneStore,
-                        *scenePlayer,
-                        *animScheduler,
-                        *panelsController,
-                        LNPanelsInitializer
-                    );
-                #endif
-
-                setupWiFi();
-
-                appearanceServer = new Lightnet::AppearanceServer(*webServer, *appearance, *paletteStore, *animService, *mainLoopQueue);
-                appearanceServer->begin();
-                paletteServer = new Lightnet::PaletteServer(*webServer, *paletteStore, *appearance);
-                paletteServer->begin();
-                sceneServer = new Lightnet::SceneServer(
-                    *webServer,
-                    *sceneStore,
-                    *scenePlayer,
-                    *animService,
-                    *appStateStore,
-                    *appearance,
-                    *mainLoopQueue
-                );
-                sceneServer->begin();
-                animServer = new Lightnet::AnimationServer(
-                    *webServer,
-                    *animService,
-                    *animScheduler,
-                    *appearance,
-                    *appStateStore,
-                    *mainLoopQueue
-                );
-                animServer->begin();
-                panelServer = new Lightnet::PanelServer(*webServer, *panelsController, *mainLoopQueue);
-                panelServer->begin();
-                configServer = new Lightnet::ConfigurationServer(*webServer, *configStore, *topologyConfig, *scenePlayer, *mainLoopQueue);
-                configServer->begin();
-                stateServer = new Lightnet::StateServer(
-                    *webServer,
-                    *appStateStore,
-                    *panelsController,
-                    *animService,
-                    *animScheduler,
-                    *appearance,
-                    *mainLoopQueue,
-                    packetMirror
-                );
-
-                stateServer->begin();
-
-                appStateBroadcaster = new Lightnet::AppStateBroadcaster(
-                    *websocketServer,
-                    *appStateStore,
-                    *animService
-                );
-
-                #ifdef LIGHTNET_MQTT
-                    mqttService = new Lightnet::MqttService(
-                        *mqttConfigStore,
-                        *appStateStore,
-                        *appearance,
-                        *animService,
-                        *sceneStore,
-                        *panelsController,
-                        LNPanelsInitializer,
-                        *animScheduler,
-                        *mainLoopQueue,
-                        packetMirror
-                    );
-                    mqttService->begin();
-                    mqttServer = new Lightnet::MqttServer(*webServer, *mqttConfigStore, *mqttService);
-                    mqttServer->begin();
-                #endif
-
-                DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initialization complete"));
-                break;
-
-            case 1:
-                ArduinoOTA.handle();
-
-                #ifndef SIM_MODE
-
-                    if (serialFwReceiver) serialFwReceiver->run();
-
-                    if (panelFlasher) panelFlasher->run();
-
-                #endif
-
-                websocketServer->cleanup();
-
-                #ifndef SIM_MODE
-
-                    if (!panelFlasher || !panelFlasher->isActive()) {
-                #endif
-                websocketHandler->handleIncommingMessages();
-
-                // Run work deferred by HTTP handlers (scene play, power, appearance, …)
-                // on the main loop so all packet emission stays single-task.
-                if (mainLoopQueue) mainLoopQueue->drain();
-
-                if (scenePlayer && appStateStore->isOn())   scenePlayer->tick(millis());
-
-                if (appearance)    appearance->tick(millis());
-
-                if (configStore)   configStore->tick(millis());
-
-                if (appStateStore) appStateStore->tick(millis());
-
-                if (appStateBroadcaster) appStateBroadcaster->tick();
-
-                #ifdef LIGHTNET_MQTT
-
-                    if (mqttService) mqttService->tick(millis());
-
-                #endif
-
-                serviceMirror();
-
-                #ifdef SIM_MODE
-                    {
-                        static uint32_t lastSimTick = 0;
-                        uint32_t now = millis();
-
-                        if ((uint32_t)(now - lastSimTick) >= 16) {
-                            lastSimTick = now;
-                            SimPanels.tick();
-                        }
-                    }
-                #endif
-                #if DEMO_MODE
-                    runDemos();
-                #endif
-                #ifndef SIM_MODE
-        }
-
-                #endif
-
-                break;
-        }
+        case MainPhase::Running:
+            runServices();
+            break;
     }
 }
 

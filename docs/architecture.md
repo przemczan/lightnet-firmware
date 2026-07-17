@@ -337,9 +337,10 @@ It is the **single implementation** of panel-local animation math, compiled into
 
 ### AnimationScheduler (controller side)
 
-- `playOnPanels()`: unicast PREPARE to each target panel (3 retries each), then General Call START twice
-- `tick()`: 60 fps frame gate; ticks all active runners, deletes finished ones
-- Per-panel `AnimationRecord` in-memory state — avoids polling panels for status queries
+- `playOnPanels()`: unicast PREPARE to each target panel, then General Call START twice (both
+  share one seq_id, so the panel's duplicate guard absorbs the redundant copy)
+- Appearance broadcasts (palette, base colors, global brightness, background) and per-panel
+  CONTROL fan-out (`sendControlToPanels`) — a stateless packet-builder over `IPacketSink`
 
 ### Controller runners — compiled to per-panel local pulses (v6)
 
@@ -768,15 +769,18 @@ inline overflow flush during it) reach mirroring clients in the same iteration.
 
 ### 8.7 Request/reply over the relay trunk (`ControllerRelayPacketSink`)
 
-Real (non-SIM) hardware has no I²C wire to any panel — `fetchState()`, turn-on/off and panel-
-configuration acks, and OTA all now go over the relay trunk, and all three need a genuine
-request/reply round trip that plain `IPacketSink::send()` doesn't offer (fire-and-forget only).
+Real (non-SIM) hardware has no I²C wire to any panel — `fetchState()` and OTA go over the relay
+trunk, and both need a genuine request/reply round trip that plain `IPacketSink::send()` doesn't
+offer (fire-and-forget only). Turn-on/off and panel configuration are fire-and-forget: per-hop
+delivery is the link-ARQ layer's job (§4), and panels send no end-to-end `PACKET_ACK` for them —
+an unsolicited ACK would only reach a controller that is no longer listening for it and be
+hop-retransmitted by the adjacent panel into nothing.
 `ControllerRelayPacketSink` (already the `IPacketSink` implementation, already holding the trunk
 transport) grows two extra, non-virtual capabilities for this rather than a separate class:
 
 - **`send(wantAck=true)`** blocks (bounded by `ACK_TIMEOUT_MS`) for a `PACKET_ACK` reply after
-  sending — `PanelsController::turnOnOff()`/`sendConfiguration()` needed **no changes at all**,
-  since they already called `sink.send(address, ..., true)`; only the sink's own behavior changed.
+  sending. No current caller requests it (and no panel handler emits `PACKET_ACK`), but the
+  capability stays on the sink for operations that need a bare delivery confirmation.
 - **`requestReply(targetPanelIndex, request, expectedReplyType, replyBuffer, timeoutMs)`** is the
   same machinery exposed for callers that need the reply's *payload*, not just a bare ack —
   `PanelsController::fetchState()` (`PACKET_FETCH_STATE_REPLY`) and `RelayBootloaderClient`
@@ -791,8 +795,8 @@ flush-before-send as the guard against a stale, already-timed-out reply confusin
 `requestReply()`'s own send deliberately does not go through the `onPacketSentCallback` mirror
 hook — queries and OTA control traffic aren't scene state changes, so there's nothing to preview.
 
-The panel side answers with the ordinary upstream routing rule (§6) — `LightnetPanel::sendAck()`/
-`handleFetchState()` call `sendOnEdge(discovery.parentEdge(), ...)` directly, one hop, and every
+The panel side answers with the ordinary upstream routing rule (§6) —
+`LightnetPanel::handleFetchState()` calls `sendOnEdge(discovery.parentEdge(), ...)` directly, one hop, and every
 ancestor's unmodified `PanelRouter` carries the reply the rest of the way, exactly like
 `PACKET_DISCOVERY_DONE`. No `PanelRouter`/`PanelFrameDispatcher` changes were needed.
 

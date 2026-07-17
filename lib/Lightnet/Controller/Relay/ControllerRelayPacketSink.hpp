@@ -43,8 +43,7 @@
 // live WebSocket preview (PacketMirror) regardless of which sink is active — without this, the
 // mirror would see nothing at all on real hardware, since LNBus never carries any traffic there.
 //
-// Wired into the live boot path via src/controller/main.cpp's activeSink — not yet bench-tested,
-// see ControllerEdgeTransport.hpp.
+// Wired into the live boot path via src/controller/main.cpp's activeSink.
 
 #include <stdint.h>
 #include "../../Core/Controller/IPacketSink.hpp"
@@ -57,7 +56,7 @@ namespace Lightnet {
     class ControllerRelayPacketSink : public IPacketSink
     {
         public:
-            typedef void (*onPacketSent_t)(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
+            typedef void (*onPacketSent_t)(PanelIndex address, const Protocol::PacketMeta *packet, uint8_t size);
 
             // Bounds the end-to-end reply wait. Sized for deep chains WITH the link-ARQ layer's
             // per-hop overhead: a depth-30 chunk round trip is ~155 ms of pure transit (frame +
@@ -72,7 +71,7 @@ namespace Lightnet {
             }
 
             void send(
-                uint8_t                     address,
+                PanelIndex                  address,
                 const Protocol::PacketMeta *packet,
                 uint8_t                     size,
                 bool                        wantAck
@@ -84,7 +83,7 @@ namespace Lightnet {
             // checking any identifying field in the reply payload (e.g.
             // PacketPanelState::panelState::panelIndex) — this method only matches on type.
             bool requestReply(
-                uint16_t                    targetPanelIndex,
+                PanelIndex                  targetPanelIndex,
                 const Protocol::PacketMeta *request,
                 uint8_t                     requestSize,
                 Protocol::packetType_t      expectedReplyType,

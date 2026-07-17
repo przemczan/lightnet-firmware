@@ -25,6 +25,7 @@ Thumbs.db
 *.cmx
 
 node_modules
+__pycache__/
 
 *.o
 *.elf

@@ -75,7 +75,7 @@ bool PacketMirror::isSnapshotted(uint8_t type)
     }
 }
 
-void PacketMirror::updateSnapshot(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
+void PacketMirror::updateSnapshot(Lightnet::PanelIndex address, const Protocol::PacketMeta *packet, uint8_t size)
 {
     if (size < sizeof(Protocol::PacketMeta)) {
         return;
@@ -129,7 +129,7 @@ void PacketMirror::updateSnapshot(uint8_t address, const Protocol::PacketMeta *p
     snapshotRecordsLen += MIRROR_RECORD_HEADER_SIZE + size;
 }
 
-void PacketMirror::invalidateSnapshot(uint8_t address, uint8_t group_id)
+void PacketMirror::invalidateSnapshot(Lightnet::PanelIndex address, uint8_t group_id)
 {
     for (uint16_t i = 0; i < snapshotEntryCount; ) {
         SnapshotEntry &e = snapshotIndex[i];
@@ -163,7 +163,7 @@ void PacketMirror::invalidateSnapshot(uint8_t address, uint8_t group_id)
     }
 }
 
-void PacketMirror::capture(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size)
+void PacketMirror::capture(Lightnet::PanelIndex address, const Protocol::PacketMeta *packet, uint8_t size)
 {
     if (size < sizeof(Protocol::PacketMeta)) {
         return;

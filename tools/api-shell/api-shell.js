@@ -20,14 +20,20 @@ const WS_URL = `ws://${ip}/ws`;
 
 const VERSION = 0x01;
 
+// Mirrors WebsocketApi::packet_t (lib/Lightnet/Controller/API/websocket/WebsocketApi.hpp).
 const PacketType = {
-    TOGGLE:           1,
-    SET_BRIGHTNESS:   2,
-    SET_COLOR:        3,
-    GET_EDGES_LIST:   4,
+    TOGGLE:            1,
+    SET_COLOR:         3,
+    GET_EDGES_LIST:    4,
     GET_PANELS_STATES: 5,
-    PANELS_STATES:    6,
-    EDGES_LIST:       7,
+    PANELS_STATES:     6,
+    EDGES_LIST:        7,
+    ANIMATION_TRIGGER: 8,
+    MIRROR_BATCH:      9,
+    SET_MIRROR:        10,
+    PING:              11,
+    PONG:              12,
+    APP_STATE:         13,
 };
 
 const PacketTypeName = Object.fromEntries(Object.entries(PacketType).map(([k, v]) => [v, k]));
@@ -59,7 +65,9 @@ function buildPacket(type, payload = Buffer.alloc(0)) {
     const header = Buffer.alloc(7);
     header.writeUInt8(type, 0);
     header.writeUInt16LE(VERSION, 1);
-    header.writeUInt32LE(Date.now() & 0xFFFFFFFF, 3);
+    // % (not &): a bitwise op coerces to SIGNED 32-bit, and a timestamp whose low bit 31 is
+    // set would go negative and make writeUInt32LE throw.
+    header.writeUInt32LE(Date.now() % 0x100000000, 3);
 
     const headerCrc  = crc16(header);
     const payloadCrc = crc16(payload);
@@ -79,9 +87,6 @@ const cmd = {
     toggle(address, on) {
         return buildPacket(PacketType.TOGGLE, Buffer.from([address & 0xFF, on ? 1 : 0]));
     },
-    setBrightness(address, brightness) {
-        return buildPacket(PacketType.SET_BRIGHTNESS, Buffer.from([address & 0xFF, brightness & 0xFF]));
-    },
     setColor(address, r, g, b) {
         return buildPacket(PacketType.SET_COLOR, Buffer.from([address & 0xFF, r & 0xFF, g & 0xFF, b & 0xFF]));
     },
@@ -90,6 +95,15 @@ const cmd = {
     },
     getEdgesList() {
         return buildPacket(PacketType.GET_EDGES_LIST);
+    },
+    animationTrigger(groupId, value) {
+        return buildPacket(PacketType.ANIMATION_TRIGGER, Buffer.from([groupId & 0xFF, value & 0xFF]));
+    },
+    setMirror(enabled) {
+        return buildPacket(PacketType.SET_MIRROR, Buffer.from([enabled ? 1 : 0]));
+    },
+    ping() {
+        return buildPacket(PacketType.PING);
     },
 };
 
@@ -147,6 +161,36 @@ function parseResponse(buf) {
             });
         }
         return { type: 'EDGES_LIST', edges };
+    }
+
+    if (type === PacketType.PONG) {
+        return { type: 'PONG' };
+    }
+
+    if (type === PacketType.MIRROR_BATCH) {
+        // Payload: u32 controllerMillis, u16 count, then count records — mirror-dump.js does
+        // full record analysis; here a one-line summary is enough.
+        if (payload.length < 6) return { error: 'MIRROR_BATCH payload too short' };
+        return {
+            type:             'MIRROR_BATCH',
+            controllerMillis: payload.readUInt32LE(0),
+            records:          payload.readUInt16LE(4),
+        };
+    }
+
+    if (type === PacketType.APP_STATE) {
+        // WebsocketApi::Rsp::AppState — see WebsocketApi.hpp.
+        if (payload.length < 51) return { error: 'APP_STATE payload too short' };
+        const readCStr = (off, max) => payload.slice(off, off + max).toString('utf8').split('\0')[0];
+        return {
+            type:                    'APP_STATE',
+            isOn:                    payload.readUInt8(0) !== 0,
+            lastPlayedSceneIsStored: payload.readUInt8(1) !== 0,
+            playing:                 payload.readUInt8(2) !== 0,
+            speed:                   payload.readFloatLE(4),
+            lastPlayedSceneId:       readCStr(8, 11),
+            controllerFirmware:      readCStr(19, 32),
+        };
     }
 
     return { type: PacketTypeName[type] ?? `UNKNOWN(${type})`, payloadHex: payload.toString('hex') };
@@ -224,17 +268,20 @@ function send(buf) {
 const HELP = `
 Commands:
   toggle <addr> <on|off>             Turn panel on or off
-  brightness <addr> <0-255>          Set brightness
   color <addr> <r> <g> <b>          Set RGB color (0-255 each)
   states                             Query all panel states
   edges                              Query edge topology
+  trigger <group> <value>            Low-latency animation trigger (music sync)
+  mirror <on|off>                    Enable/disable MIRROR_BATCH streaming
+  ping                               Liveness check (expects PONG)
   help                               Show this message
   exit                               Quit
 
 Examples:
   toggle 1 on
   color 1 255 0 0
-  brightness 2 128
+  trigger 1 200
+  mirror on
   states
 `;
 
@@ -252,13 +299,6 @@ rl.on('line', (line) => {
             send(cmd.toggle(addr, on));
             break;
         }
-        case 'brightness': {
-            const addr = parseInt(parts[1]);
-            const br   = parseInt(parts[2]);
-            if (isNaN(addr) || isNaN(br)) { console.log('  Usage: brightness <addr> <0-255>'); break; }
-            send(cmd.setBrightness(addr, Math.max(0, Math.min(255, br))));
-            break;
-        }
         case 'color': {
             const addr = parseInt(parts[1]);
             const r    = parseInt(parts[2]);
@@ -273,6 +313,21 @@ rl.on('line', (line) => {
             break;
         case 'edges':
             send(cmd.getEdgesList());
+            break;
+        case 'trigger': {
+            const groupId = parseInt(parts[1]);
+            const value   = parseInt(parts[2]);
+            if (isNaN(groupId) || isNaN(value)) { console.log('  Usage: trigger <group> <value>'); break; }
+            send(cmd.animationTrigger(groupId, Math.max(0, Math.min(255, value))));
+            break;
+        }
+        case 'mirror': {
+            const enabled = parts[1] === 'on' || parts[1] === '1';
+            send(cmd.setMirror(enabled));
+            break;
+        }
+        case 'ping':
+            send(cmd.ping());
             break;
         case 'help':
             console.log(HELP);

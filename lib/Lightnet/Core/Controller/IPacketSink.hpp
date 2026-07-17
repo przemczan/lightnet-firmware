@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include "../Common/ProtocolTypes.hpp"  // Protocol::PacketMeta, packetType_t
+#include "../Common/LightnetConfig.hpp"  // PanelIndex
 
 namespace Lightnet {
     class IPacketSink
@@ -25,7 +26,7 @@ namespace Lightnet {
             // call (all panels). `wantAck` requests an acknowledged transfer on a real bus;
             // sinks without a bus ignore it.
             virtual void send(
-                uint8_t                     address,
+                PanelIndex                  address,
                 const Protocol::PacketMeta *packet,
                 uint8_t                     size,
                 bool                        wantAck

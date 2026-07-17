@@ -1,8 +1,8 @@
 // Host test for DiscoveryCoordinator — the controller's half of the relay discovery protocol.
 // Proves the depth-first resume-stack sequencing: pushing the frontier on a new registration,
 // popping on DISCOVERY_DONE, and completing only once the stack unwinds back to the controller
-// sentinel. Uses a mock IEdgeLink; the real controller-side UART trunk transport doesn't exist
-// yet (see the plan file).
+// sentinel. Uses a mock IEdgeLink in place of the real trunk transport
+// (Controller/Relay/ControllerEdgeTransport).
 //
 // Run with: pio test -e native -f test_discovery_coordinator
 
@@ -32,14 +32,17 @@ struct MockEdgeLink : public IEdgeLink {
     uint8_t          sentSize[MAX];
     int              count = 0;
 
+    // `count` tracks every send (so "nothing further was sent" assertions stay meaningful in
+    // long walks); only the first MAX frames are stored for inspection via frameAt().
     void sendOnEdge(uint8_t edgeIndex, const Protocol::PacketMeta *packet, uint8_t size) override
     {
         if (count < MAX) {
             sentToEdge[count] = edgeIndex;
             memcpy(sentBuf[count], packet, size);
             sentSize[count] = size;
-            count++;
         }
+
+        count++;
     }
 
     const Protocol::PacketMeta *frameAt(int i) const
@@ -498,6 +501,47 @@ void test_advance_retry_timer_restarts_on_progress()
     );
 }
 
+// Regression: a chain longer than LIGHTNET_MAX_PANELS must not overflow the resume stack --
+// the registration carrying the first over-limit index is ignored (no descend, no ADVANCE),
+// and the capped walk still unwinds to completion.
+void test_registration_past_max_panels_is_ignored_and_walk_still_completes()
+{
+    MockEdgeLink link;
+    DiscoveryCoordinator coordinator(link);
+
+    coordinator.begin();
+
+    // Straight chain: each accepted registration descends into the new panel.
+    for (uint16_t idx = 1; idx <= LIGHTNET_MAX_PANELS; idx++) {
+        Protocol::PacketRegisterEdge reply = makeReply(idx, 0);
+
+        coordinator.onFrameArrived(Protocol::packetMeta(reply), sizeof(reply));
+    }
+
+    TEST_ASSERT_FALSE(coordinator.isComplete());
+
+    int countBeforeOverflow = link.count;
+
+    Protocol::PacketRegisterEdge overflowReply = makeReply(LIGHTNET_MAX_PANELS + 1, 0);
+
+    coordinator.onFrameArrived(Protocol::packetMeta(overflowReply), sizeof(overflowReply));
+
+    TEST_ASSERT_EQUAL_MESSAGE(
+        countBeforeOverflow,
+        link.count,
+        "an over-limit registration must not descend or send an ADVANCE"
+    );
+
+    // The capped chain still unwinds: every accepted panel reports done, deepest first.
+    for (uint16_t idx = LIGHTNET_MAX_PANELS; idx >= 1; idx--) {
+        Protocol::PacketDiscoveryDone done = makeDone(idx);
+
+        coordinator.onFrameArrived(Protocol::packetMeta(done), sizeof(done));
+    }
+
+    TEST_ASSERT_TRUE(coordinator.isComplete());
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -522,6 +566,7 @@ int main(int argc, char **argv)
     RUN_TEST(test_duplicate_register_edge_reply_is_ignored);
     RUN_TEST(test_duplicate_done_is_ignored);
     RUN_TEST(test_advance_retry_timer_restarts_on_progress);
+    RUN_TEST(test_registration_past_max_panels_is_ignored_and_walk_still_completes);
 
     return UNITY_END();
 }

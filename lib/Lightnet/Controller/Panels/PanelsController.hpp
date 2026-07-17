@@ -33,14 +33,14 @@ class PanelsController
             PanelsController(Lightnet::IPacketSink &sink, Lightnet::ControllerRelayPacketSink &relaySink);
         #endif
 
-        uint8_t setColor(uint8_t address, Protocol::Color color);
-        uint8_t turnOnOff(uint8_t address, uint8_t on);
-        uint8_t turnOn(uint8_t address);
-        uint8_t turnOff(uint8_t address);
-        uint8_t fetchState(uint8_t address, Protocol::PanelState *state);
-        uint8_t sendConfiguration(uint8_t address, panelConfiguration_t);
+        uint8_t setColor(Lightnet::PanelIndex address, Protocol::Color color);
+        uint8_t turnOnOff(Lightnet::PanelIndex address, uint8_t on);
+        uint8_t turnOn(Lightnet::PanelIndex address);
+        uint8_t turnOff(Lightnet::PanelIndex address);
+        uint8_t fetchState(Lightnet::PanelIndex address, Protocol::PanelState *state);
+        uint8_t sendConfiguration(Lightnet::PanelIndex address, panelConfiguration_t);
         void resetDevices();
-        void enterBootloader(uint8_t address);
+        void enterBootloader(Lightnet::PanelIndex address);
 
     private:
         Lightnet::IPacketSink &sink;

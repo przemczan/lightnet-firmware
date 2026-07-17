@@ -13,12 +13,11 @@ Panels run a from-scratch bootloader speaking the relay's own `PacketMeta`/CRC-1
 driven from the controller side by
 [`RelayBootloaderClient`](https://github.com/przemczan/lightnet-firmware/blob/master/lib/Lightnet/Controller/OTA/RelayBootloaderClient.cpp).
 
-!!! warning "Unvalidated hardware, no read-back verify"
-    Builds clean end to end (panel bootloader image + controller driver + `PanelFlasher`) but
-    nothing here has been exercised on real silicon — no bench spike has run. There is also no
-    post-write flash read-back verification — each chunk's own CRC-16 (checked before it ever
-    reaches `boot_page_fill()`) is the integrity guarantee instead; see `RelayBootloaderClient`'s
-    class comment for why a read-back pass would need its own new packet type.
+!!! warning "No read-back verify"
+    There is no post-write flash read-back verification — each chunk's own CRC-16 over
+    address+length+data (checked before anything reaches `boot_page_fill()`) is the integrity
+    guarantee instead; see `RelayBootloaderClient`'s class comment for why a read-back pass
+    would need its own new packet type.
 
 ### Getting the bootloader
 
@@ -68,16 +67,21 @@ children are transiently unreachable for the duration of the flash — an accept
 
 New wire packets (`Core/Common/ProtocolTypes.hpp`, protocol v12): `PACKET_BOOTLOADER_PING`/`PONG`
 (presence + chip info), `PACKET_BOOTLOADER_WRITE_CHUNK`/`WRITE_ACK` (64-byte chunks — two per
-128-byte flash page, carrying their own CRC-16 since `headerCrc` covers only `PacketHeader`, not
-payload), `PACKET_BOOTLOADER_START_APP`. These are a deliberately frozen contract: the resident
-bootloader does not validate `protocolVersion` (flashing is how a version mismatch gets resolved),
-via `PacketFramer`'s `validateProtocolVersion` constructor parameter.
+128-byte flash page, carrying their own CRC-16 over address+length+data since `headerCrc` covers
+only `PacketHeader`, not payload — a corrupted target address must never land a valid chunk on
+the wrong flash page), `PACKET_BOOTLOADER_START_APP`. These are a deliberately frozen contract:
+the resident bootloader does not validate `protocolVersion` (flashing is how a version mismatch
+gets resolved), via `PacketFramer`'s `validateProtocolVersion` constructor parameter. The
+contract's own semantics are versioned separately as `Protocol::BOOTLOADER_PROTOCOL_VERSION`
+(currently 2), echoed in every `PONG` and required verbatim by `RelayBootloaderClient::connect()`
+— a panel whose resident bootloader reports an older version refuses to flash with a clear log
+line and needs its bootloader re-burned over ISP first.
 
 ### How the controller drives it
 
 `ControllerRelayPacketSink::requestReply()` — the same "send a unicast, block for a matching reply
-routed back up the trunk" primitive `PanelsController::fetchState()` and the turn-on/off/panel-
-configuration acks use (see [Architecture §8.7](architecture.md)) — sends `PACKET_BOOTLOADER_PING`
+routed back up the trunk" primitive `PanelsController::fetchState()` uses (see
+[Architecture §8.7](architecture.md)) — sends `PACKET_BOOTLOADER_PING`
 and `PACKET_BOOTLOADER_WRITE_CHUNK` and waits for `PONG`/`WRITE_ACK`. `PACKET_BOOTLOADER_START_APP`
 is fire-and-forget: the panel commits its last page and jumps to the application immediately, so
 no reply is ever coming. `PanelFlasher`'s `WAIT_BL`/`FLASHING` states call this through

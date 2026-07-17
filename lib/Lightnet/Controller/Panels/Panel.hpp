@@ -3,14 +3,15 @@
 #include <Arduino.h>
 #include "Edge.hpp"
 #include "../../Utils/List.hpp"
+#include "../../Core/Common/LightnetConfig.hpp"
 
 class Panel
 {
     public:
-        uint8_t index;
+        Lightnet::PanelIndex index;
         List<Edge *> *edges;
 
-        Panel(uint8_t _index);
+        Panel(Lightnet::PanelIndex _index);
 
         ~Panel();
 };

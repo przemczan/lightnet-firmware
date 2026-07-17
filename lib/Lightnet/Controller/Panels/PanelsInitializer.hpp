@@ -29,7 +29,7 @@ class PanelsInitializer
 
         List<Panel *> *getPanels();
 
-        Panel *getPanelByIndex(uint16_t panelIndex);
+        Panel *getPanelByIndex(Lightnet::PanelIndex panelIndex);
         void configure(configuration_t config);
         void boot();
 

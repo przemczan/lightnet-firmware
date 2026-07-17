@@ -102,12 +102,7 @@
                     // an already-returned wait (harmless stray, flushed before the next send)
                     // or fails the type/caller checks.
                     if (Protocol::isLinkAckedType(frame->header.type)) {
-                        this->emitLinkAck(
-                            crc16(
-                                const_cast<Protocol::PacketMeta *>(frame),
-                                this->replyFramer.frameSize()
-                            )
-                        );
+                        this->emitLinkAck(crc16(frame, this->replyFramer.frameSize()));
                     }
 
                     if (frame->header.type != expectedType) {
@@ -130,7 +125,7 @@
         }
 
         void ControllerRelayPacketSink::send(
-            uint8_t                     address,
+            PanelIndex                  address,
             const Protocol::PacketMeta *packet,
             uint8_t                     size,
             bool                        wantAck
@@ -182,7 +177,7 @@
         }
 
         bool ControllerRelayPacketSink::requestReply(
-            uint16_t                    targetPanelIndex,
+            PanelIndex                  targetPanelIndex,
             const Protocol::PacketMeta *request,
             uint8_t                     requestSize,
             Protocol::packetType_t      expectedReplyType,

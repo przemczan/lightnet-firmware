@@ -1,5 +1,6 @@
 #ifndef LIGHTNET_TARGET_CONTROLLER
 #include "EdgeUartTransport.hpp"
+#include "AvrUartBaud.hpp"
 
 namespace {
     // PE1/PE2/PE3 tri-state buffer enables, PD2/PD3/PD4 (docs/hardware/schematics/Panel.png).
@@ -19,10 +20,7 @@ namespace {
 
 void EdgeUartTransport::begin(uint32_t baud)
 {
-    // Rounds to nearest instead of truncating (adding half the divisor before the integer
-    // division) -- plain truncation is exact at 1Mbps (16MHz/16 divides evenly) but is off by one
-    // at e.g. 115200 (UBRR=7, +8.5% actual baud, vs the correctly-rounded UBRR=8, -3.55%).
-    uint16_t ubrr = (uint16_t)(((F_CPU + 8UL * baud) / (16UL * baud)) - 1);
+    uint16_t ubrr = Lightnet::ubrrDivisor(F_CPU, baud);
 
     UBRR0H = (uint8_t)(ubrr >> 8);
     UBRR0L = (uint8_t)ubrr;
@@ -49,9 +47,9 @@ void EdgeUartTransport::begin(uint32_t baud)
 
 void EdgeUartTransport::selectRxEdge(uint8_t edgeIndex)
 {
-    // Switching costs the mux's ~70 ns settling time plus PCINT-wake reaction latency —
-    // real firmware needs a throwaway preamble byte after this call to absorb it before the
-    // real payload starts. Not implemented here (see class comment).
+    // Switching costs the mux's ~70 ns settling time plus PCINT-wake reaction latency — senders
+    // absorb it by prepending PREAMBLE_BYTE_COUNT throwaway bytes before every real frame
+    // (see sendOnEdge()).
     if (edgeIndex & 0x01) {
         PORTC |= (1 << PC3);
     } else {

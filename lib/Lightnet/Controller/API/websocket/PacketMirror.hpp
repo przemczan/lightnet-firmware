@@ -29,7 +29,7 @@ class PacketMirror
         // safe ONLY because every capture() caller now runs on the main-loop task (HTTP
         // handlers defer their packet emission via MainLoopQueue), so flushTo()'s socket
         // I/O cannot race the periodic flush. Also updates the snapshot for stateful types.
-        void capture(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
+        void capture(Lightnet::PanelIndex address, const Protocol::PacketMeta *packet, uint8_t size);
 
         // Builds and broadcasts the MIRROR_BATCH frame to all mirroring-enabled clients
         // if any records are buffered, then resets. Returns true if a frame was sent.
@@ -68,11 +68,11 @@ class PacketMirror
         static const uint16_t SNAPSHOT_MAX_ENTRIES = 256;
 
         struct SnapshotEntry {
-            uint8_t  address;
-            uint8_t  type;
-            uint8_t  key;      // group_id for ANIMATION_START, 0 otherwise
-            uint16_t offset;   // byte offset into snapshotFrame records area
-            uint8_t  size;     // wire packet size (not including MirrorRecordHeader)
+            Lightnet::PanelIndex address;
+            uint8_t              type;
+            uint8_t              key; // group_id for ANIMATION_START, 0 otherwise
+            uint16_t             offset; // byte offset into snapshotFrame records area
+            uint8_t              size; // wire packet size (not including MirrorRecordHeader)
         };
 
         // ---- live-stream buffer ----
@@ -93,8 +93,8 @@ class PacketMirror
 
         static bool isMirrored(uint8_t type);
         static bool isSnapshotted(uint8_t type);
-        void        updateSnapshot(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
-        void        invalidateSnapshot(uint8_t address, uint8_t group_id);
+        void        updateSnapshot(Lightnet::PanelIndex address, const Protocol::PacketMeta *packet, uint8_t size);
+        void        invalidateSnapshot(Lightnet::PanelIndex address, uint8_t group_id);
 
         uint8_t *payload();
 

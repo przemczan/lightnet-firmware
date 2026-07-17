@@ -199,12 +199,12 @@
     // any of its descendants), so this walks it back to front -- leaves first, root last. See
     // the class comment for why that order, not discovery order, is what keeps a mid-campaign
     // reboot from orphaning the panels still waiting to be flashed.
-    uint8_t PanelFlasher::currentPanelAddress() const
+    Lightnet::PanelIndex PanelFlasher::currentPanelAddress() const
     {
         uint16_t reverseIdx = status.totalPanels - 1 - status.panelIdx;
         Panel *panel = init->getPanels()->get(reverseIdx);
 
-        return panel ? (uint8_t)panel->index : 0;
+        return panel ? panel->index : 0;
     }
 
 #endif  // LIGHTNET_TARGET_CONTROLLER && !SIM_MODE

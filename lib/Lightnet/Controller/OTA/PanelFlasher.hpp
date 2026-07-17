@@ -86,9 +86,8 @@
         private:
             // BootloaderBridge::prepareAndReset() is a direct software jump, not a WDT reset, so
             // there's no reset-propagation delay to wait out — the settle time is just the
-            // ENTER_BOOTLOADER packet's own relay transit (depth-dependent, up to the plan's own
-            // worst-case depth-50 estimate) plus the panel's EEPROM writes before the jump. Not
-            // bench-validated; conservative placeholder pending real hardware.
+            // ENTER_BOOTLOADER packet's own relay transit (depth-dependent) plus the panel's
+            // EEPROM writes before the jump.
             static const uint16_t WAIT_TIMEOUT_MS     = 3000;
             static const uint16_t ENTER_BL_SETTLE_MS  = 300;
 
@@ -110,7 +109,7 @@
             void setError(const char *msg);
             void advancePanel();
 
-            uint8_t currentPanelAddress() const;
+            Lightnet::PanelIndex currentPanelAddress() const;
     };
 
 #endif  // LIGHTNET_TARGET_CONTROLLER && !SIM_MODE

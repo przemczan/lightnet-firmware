@@ -24,8 +24,8 @@
 // exactly the index the newest PULL handed out, and a DONE only when it names the current
 // frontier. That is what makes short retry intervals safe rather than walk-corrupting.
 //
-// Pure logic, no Arduino — built and tested against a mock/sim IEdgeLink, since the real
-// controller-side UART trunk transport doesn't exist yet.
+// Pure logic, no Arduino — natively tested against a mock IEdgeLink (test_discovery_coordinator).
+// The device glue is Controller/Relay/ControllerEdgeTransport, driven via PanelsInitializer.
 
 #include <stdint.h>
 #include "IEdgeLink.hpp"

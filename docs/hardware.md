@@ -15,6 +15,10 @@ Full schematics and PCB layouts are published on EasyEDA (oshwlab):
 
 These match the pin assignments below and the `docs/hardware/schematics/*.png` exports.
 
+For a signal-level walkthrough of the panel's shared-UART relay path (TX gating, RX mux, wake
+sensing, and the full TX → wake → mux-reselect → frame sequence), see
+[Panel relay signal path](hardware/panel-relay-signal-path.md).
+
 ---
 
 ## Topology

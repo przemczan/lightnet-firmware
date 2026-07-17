@@ -285,11 +285,22 @@ namespace Protocol {
     // version check every other packet type gets — see PacketFramer's validateProtocolVersion
     // constructor parameter). headerCrc covers only PacketHeader (see PacketMeta above), so both
     // payload-bearing bootloader packets carry their own CRC over their payload:
-    // PacketBootloaderWriteChunk over its data (a corrupted chunk must never reach
-    // boot_page_fill() unnoticed) and PacketBootloaderWriteAck over its address+status (a
-    // corrupted status must never be misread as a rejection, or worse, as a false success).
-    // Changing either layout requires re-burning the resident bootloader, not just reflashing the app.
+    // PacketBootloaderWriteChunk over its address+length+data (a corrupted chunk — or a
+    // corrupted target address, which would put a perfectly valid chunk on the wrong flash
+    // page — must never reach boot_page_fill() unnoticed) and PacketBootloaderWriteAck over its
+    // address+status (a corrupted status must never be misread as a rejection, or worse, as a
+    // false success). Changing either layout requires re-burning the resident bootloader, not
+    // just reflashing the app.
     const uint8_t BOOTLOADER_CHUNK_SIZE = 64;
+
+    // Version of the resident bootloader's own wire contract — reported in
+    // PacketBootloaderPong.bootloaderVersion and required verbatim by the controller's
+    // RelayBootloaderClient before any chunk is sent, so a semantic mismatch fails fast with a
+    // clear log line instead of every chunk dying to a CRC rejection. v2: dataCrc covers
+    // address+length+data (v1 covered data only) and a chunk may not cross an SPM page
+    // boundary. Bumping this means re-burning the resident bootloader on every panel (ISP),
+    // not just reflashing the app.
+    const uint8_t BOOTLOADER_PROTOCOL_VERSION = 2;
 
     typedef struct PACK {
         PacketMeta meta;
@@ -312,7 +323,7 @@ namespace Protocol {
         uint16_t   address;                    // byte offset into flash, from 0
         uint8_t    length;                      // 1..BOOTLOADER_CHUNK_SIZE valid bytes in data[]
         uint8_t    data[BOOTLOADER_CHUNK_SIZE];
-        uint16_t   dataCrc;                     // CRC-16 over data[0..length-1]
+        uint16_t   dataCrc;                     // CRC-16 over address..data[length-1] (contiguous packed fields)
     } PacketBootloaderWriteChunk;  // 7 + 2 + 1 + 64 + 2 = 76 bytes
 
     typedef struct PACK {

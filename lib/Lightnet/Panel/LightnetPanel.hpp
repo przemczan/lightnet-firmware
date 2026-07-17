@@ -291,12 +291,6 @@ class LightnetPanel : public ILinkWindowHooks
         void handleSetGlobalBrightness(const Protocol::PacketSetGlobalBrightness *packet);
         void handleEnterBootloader(const Protocol::PacketEnterBootloader *packet);
         void handleFetchState();
-
-        // Routes a reply one hop upstream (this panel's own parent edge) — ancestors' unmodified
-        // PanelRouter carries it the rest of the way to the controller, same as
-        // PACKET_DISCOVERY_DONE. Used for the rare, low-frequency operations the hardware
-        // redesign plan §3 says keep a real acknowledgment (turn on/off, panel configuration).
-        void sendAck();
 };
 
 extern LightnetPanel LNPanel;

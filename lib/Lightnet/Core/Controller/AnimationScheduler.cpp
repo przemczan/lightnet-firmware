@@ -1,27 +1,14 @@
 #include "AnimationScheduler.hpp"
 #include "../Common/ProtocolMeta.hpp"
-#include <string.h>
 
 namespace Lightnet {
-    AnimationScheduler::AnimationScheduler(IPacketSink& _sink, uint8_t _maxPanels)
-        : sink(_sink), maxPanels(_maxPanels), nextSeqId(1)
+    AnimationScheduler::AnimationScheduler(IPacketSink& _sink)
+        : sink(_sink), nextSeqId(1)
     {
-        panelStates = new AnimationRecord[maxPanels];
-        memset(panelStates, 0, sizeof(AnimationRecord) * maxPanels);
-    }
-
-    AnimationScheduler::~AnimationScheduler()
-    {
-        delete[] panelStates;
-    }
-
-    void AnimationScheduler::initialize()
-    {
-        // Nothing special needed on first init
     }
 
     void AnimationScheduler::sendPrepareToPanel(
-        uint8_t         panelAddress,
+        PanelIndex      panelAddress,
         uint8_t         group_id,
         uint8_t         animType,
         uint8_t         flags,
@@ -42,7 +29,7 @@ namespace Lightnet {
         prepare.animType     = animType;
         prepare.group_id     = group_id;
         prepare.flags        = flags;
-        prepare.transitionMs = 0; // TODO: make configurable
+        prepare.transitionMs = 0;
         prepare.durationMs   = durationMs;
         prepare.colorFrom    = colorFrom;
         prepare.colorTo      = colorTo;
@@ -54,13 +41,6 @@ namespace Lightnet {
         prepare.animates     = animates;
 
         sink.send(panelAddress, Protocol::packetMeta(prepare), sizeof(prepare), /*wantAck=*/ false);
-
-        if (panelAddress < maxPanels) {
-            panelStates[panelAddress].animType     = animType;
-            panelStates[panelAddress].groupId      = group_id;
-            panelStates[panelAddress].durationMs   = durationMs;
-            panelStates[panelAddress].startMs    = 0; // diagnostic only; no device clock here
-        }
     }
 
     void AnimationScheduler::sendGroupStart(uint8_t group_id)
@@ -85,19 +65,19 @@ namespace Lightnet {
     }
 
     void AnimationScheduler::playOnPanels(
-        uint8_t         group_id,
-        uint8_t         animType,
-        uint8_t         flags,
-        uint16_t        durationMs,
-        const ColorRef& colorFrom,
-        const ColorRef& colorTo,
-        uint8_t         param1,
-        uint8_t         param2,
-        const uint8_t * panelAddresses,
-        uint8_t         panelCount,
-        uint8_t         composeMode,
-        uint8_t         composeOrder,
-        uint8_t         animates
+        uint8_t           group_id,
+        uint8_t           animType,
+        uint8_t           flags,
+        uint16_t          durationMs,
+        const ColorRef&   colorFrom,
+        const ColorRef&   colorTo,
+        uint8_t           param1,
+        uint8_t           param2,
+        const PanelIndex *panelAddresses,
+        uint8_t           panelCount,
+        uint8_t           composeMode,
+        uint8_t           composeOrder,
+        uint8_t           animates
     )
     {
         // Same PREPARE to every panel (uniform startDelay = 0), then one general-call START.
@@ -123,12 +103,6 @@ namespace Lightnet {
         sink.pace(300);
 
         sendGroupStart(group_id);
-    }
-
-    void AnimationScheduler::stopGroup(uint8_t group_id)
-    {
-        (void)group_id;
-        // TODO: implement group tracking if needed
     }
 
     void AnimationScheduler::broadcastBlack()
@@ -159,45 +133,10 @@ namespace Lightnet {
         sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
     }
 
-    void AnimationScheduler::pauseGroup(uint8_t group_id)
-    {
-        // TODO: send CONTROL/PAUSE to all panels with matching groupId
-    }
-
-    void AnimationScheduler::resumeGroup(uint8_t group_id)
-    {
-        // TODO: send CONTROL/RESUME to all panels with matching groupId
-    }
-
     void AnimationScheduler::triggerGroup(uint8_t group_id, uint8_t value)
     {
         // Send General Call UPDATE_PARAMS with TRIGGER
         sendGeneralCallUpdateParams(group_id, Lightnet::PARAM_TRIGGER, value);
-    }
-
-    const AnimationRecord * AnimationScheduler::getStatus(uint8_t panelAddress)
-    {
-        if (panelAddress >= maxPanels) {
-            return nullptr;
-        }
-
-        return &panelStates[panelAddress];
-    }
-
-    void AnimationScheduler::sendGeneralCallStart(uint8_t group_id)
-    {
-        Protocol::PacketAnimationStart start =
-            Protocol::makePacket<Protocol::PacketAnimationStart>(Protocol::PACKET_ANIMATION_START);
-
-        start.seq_id = nextSeqId;
-        start.group_id = group_id;
-
-        // Send to General Call address (0x00)
-        sink.send(0x00, Protocol::packetMeta(start), sizeof(start), /*wantAck=*/ false);
-
-        nextSeqId++;
-
-        if (nextSeqId == 0) nextSeqId = 1; // skip 0
     }
 
     void AnimationScheduler::sendGeneralCallUpdateParams(uint8_t group_id, uint8_t param_type, uint8_t value)
@@ -209,7 +148,7 @@ namespace Lightnet {
         params.group_id = group_id;
         params.param_type = param_type;
         params.value = value;
-        params.transitionMs = 10; // TODO: make configurable
+        params.transitionMs = 10;
 
         // Send to General Call address (0x00)
         sink.send(0x00, Protocol::packetMeta(params), sizeof(params), /*wantAck=*/ false);
@@ -219,7 +158,7 @@ namespace Lightnet {
         if (nextSeqId == 0) nextSeqId = 1;
     }
 
-    void AnimationScheduler::sendControlToPanels(uint8_t group_id, uint8_t cmd, const uint8_t *panelAddresses, uint8_t panelCount)
+    void AnimationScheduler::sendControlToPanels(uint8_t group_id, uint8_t cmd, const PanelIndex *panelAddresses, uint8_t panelCount)
     {
         Protocol::PacketAnimationControl control =
             Protocol::makePacket<Protocol::PacketAnimationControl>(Protocol::PACKET_ANIMATION_CONTROL);
@@ -245,7 +184,7 @@ namespace Lightnet {
         const Protocol::ColorRGB& colorTo,
         uint8_t                   param1,
         uint8_t                   param2,
-        const uint8_t *           panelAddresses,
+        const PanelIndex *        panelAddresses,
         uint8_t                   panelCount,
         uint8_t                   composeMode,
         uint8_t                   composeOrder,
@@ -276,20 +215,27 @@ namespace Lightnet {
     // Appearance broadcasts
     // ============================================================================
 
-    void AnimationScheduler::broadcastPalette(const GradientStop *stops, uint8_t count)
+    // makePacket() zero-initializes the whole struct, so unused stops stay zeroed.
+    Protocol::PacketSetPalette AnimationScheduler::makeSetPalettePacket(const GradientStop *stops, uint8_t count)
     {
-        if (count == 0) return;
-
         if (count > PALETTE_STOPS) count = PALETTE_STOPS;
 
         Protocol::PacketSetPalette pkt = Protocol::makePacket<Protocol::PacketSetPalette>(Protocol::PACKET_SET_PALETTE);
 
         pkt.count = count;
-        memset(pkt.stops, 0, sizeof(pkt.stops));
 
         for (uint8_t i = 0; i < count; i++) {
             pkt.stops[i] = stops[i];
         }
+
+        return pkt;
+    }
+
+    void AnimationScheduler::broadcastPalette(const GradientStop *stops, uint8_t count)
+    {
+        if (count == 0) return;
+
+        Protocol::PacketSetPalette pkt = makeSetPalettePacket(stops, count);
 
         // General Call — all panels apply simultaneously.
         sink.send(0x00, Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
@@ -298,29 +244,20 @@ namespace Lightnet {
     void AnimationScheduler::unicastPaletteToPanels(
         const GradientStop *stops,
         uint8_t             count,
-        const uint8_t *     panelAddresses,
+        const PanelIndex *  panelAddresses,
         uint8_t             panelCount
     )
     {
         if (count == 0) return;
 
-        if (count > PALETTE_STOPS) count = PALETTE_STOPS;
-
-        Protocol::PacketSetPalette pkt = Protocol::makePacket<Protocol::PacketSetPalette>(Protocol::PACKET_SET_PALETTE);
-
-        pkt.count = count;
-        memset(pkt.stops, 0, sizeof(pkt.stops));
-
-        for (uint8_t i = 0; i < count; i++) {
-            pkt.stops[i] = stops[i];
-        }
+        Protocol::PacketSetPalette pkt = makeSetPalettePacket(stops, count);
 
         for (uint8_t i = 0; i < panelCount; i++) {
             sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
         }
     }
 
-    void AnimationScheduler::turnOnPanels(const uint8_t *panelAddresses, uint8_t panelCount)
+    void AnimationScheduler::turnOnPanels(const PanelIndex *panelAddresses, uint8_t panelCount)
     {
         Protocol::PacketTurnOnOff pkt = Protocol::makePacket<Protocol::PacketTurnOnOff>(Protocol::PACKET_TURN_ON_OFF);
 

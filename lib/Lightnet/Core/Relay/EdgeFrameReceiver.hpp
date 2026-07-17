@@ -23,15 +23,15 @@
 //      after FRAME_TIMEOUT_MS of inactivity — mirrors PacketFramer's own note that a real driver
 //      needs its own timeout, since PacketFramer has no notion of time.
 //
-// The sender-side preamble byte the schematic's mux-settling note calls for (one throwaway byte
-// before the real frame, absorbing the mux's ~70ns settling time plus this class's wake-to-claim
-// reaction latency) needs no special handling here: PacketFramer's own resync already treats an
+// The sender-side preamble bytes the schematic's mux-settling note calls for (throwaway 0xFF
+// bytes before the real frame, absorbing the mux's settling time plus this class's wake-to-claim
+// reaction latency) need no special handling here: PacketFramer's own resync already treats an
 // unrecognized/mismatched leading byte as noise and skips it, so a garbage preamble byte simply
 // never starts a frame.
 //
-// Pure logic — no Arduino, no hardware register access. EdgeUartTransport (which does own the
-// real registers) is the caller: its wake-detection ISR calls onEdgeWake()/selectRxEdge(), its RX
-// byte ISR calls onByte(), and its main-loop poll calls tick().
+// Pure logic — no Arduino, no hardware register access. LightnetPanel drives it entirely from
+// the main loop (see its threading-model note): the ISRs only latch wake bits / push raw bytes,
+// and pollWake()/pollBytes() feed onEdgeWake()/onByte() from there; tick() runs every loop.
 
 #include <stdint.h>
 #include "PacketFramer.hpp"
@@ -51,7 +51,7 @@ namespace Lightnet {
             // EdgeUartTransport's own crosstalk note) can keep resetting that gap forever if
             // noise arrives faster than every FRAME_TIMEOUT_MS, permanently starving every other
             // edge's real wake (onEdgeWake() ignores a wake while any claim is held). A real frame
-            // (4-byte preamble + up to Protocol::MAX_PACKET_SIZE) finishes in low single-digit ms
+            // (preamble bytes + up to Protocol::MAX_PACKET_SIZE) finishes in low single-digit ms
             // even at the slowest supported baud, so this is generous headroom, not a tight bound.
             static const uint32_t MAX_CLAIM_MS = 100;
 

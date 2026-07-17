@@ -13,6 +13,10 @@
 #include "SceneTopology.hpp"
 
 namespace Lightnet {
+    // Per-service resolved drop appearance for the particle spawners — defined in
+    // ScenePlayer.cpp; only referenced by the spawn* helper signatures here.
+    struct SpawnDropStyle;
+
     // ============================================================================
     // Scene-internal capacity constants
     // ============================================================================
@@ -238,6 +242,39 @@ namespace Lightnet {
             );
 
             void fireStep(uint8_t layerIdx, uint32_t nowMs);
+            // Runner-step dispatch: seeds the particle spawners (RAIN/SPARKLE/MATRIX), fires
+            // BOUNCE's first leg, or hands off to the WHEEL / sweep compilers below.
+            void fireRunnerStep(
+                uint8_t        layerIdx,
+                uint32_t       nowMs,
+                const uint8_t *panels,
+                uint8_t        panelCount,
+                uint16_t       effectiveDurationMs
+            );
+            // RUN_WHEEL: polar blade sweep from planar geometry.
+            void fireWheelStep(
+                uint8_t        layerIdx,
+                uint32_t       nowMs,
+                const uint8_t *panels,
+                uint8_t        panelCount,
+                uint16_t       effectiveDurationMs
+            );
+            // RUN_WAVE/RUN_RIPPLE/RUN_CHASE: compute the directionality field, arm the sweep
+            // spawner cache, and fire the first sweep.
+            void fireSweepStep(
+                uint8_t        layerIdx,
+                uint32_t       nowMs,
+                const uint8_t *panels,
+                uint8_t        panelCount,
+                uint16_t       effectiveDurationMs
+            );
+            // Non-runner step: one panel-local animation on every resolved panel.
+            void fireLocalAnimStep(
+                uint8_t        layerIdx,
+                const uint8_t *panels,
+                uint8_t        panelCount,
+                uint16_t       effectiveDurationMs
+            );
             // RUN_BOUNCE: compile and send one direction leg (uses bouncePhase for reverse).
             void fireBouncePass(uint8_t layerIdx, uint16_t passDurMs);
             // Clears the layer's animation slot on its panels (ANIM_CTRL_STOP) so it stops
@@ -248,8 +285,54 @@ namespace Lightnet {
             void stopSpawnSweeps(uint8_t layerIdx);
             // RUN_RAIN / RUN_SPARKLE / RUN_MATRIX / RUN_WAVE / RUN_RIPPLE / RUN_CHASE: emit
             // drops/sweeps due this tick (rate-gated). Called from tick() while the spawner
-            // step is the layer's current RUNNING step.
+            // step is the layer's current RUNNING step. Dispatches to one spawn* helper per
+            // drop model below.
             void serviceSpawner(uint8_t layerIdx, uint32_t nowMs);
+            // Particle emission per drop model (`style` is the appearance resolved once per
+            // service pass; `due`/`spawnInterval` come from serviceSpawner's rate gate).
+            void spawnSparkleDrops(
+                uint8_t               layerIdx,
+                uint8_t               due,
+                uint16_t              spawnInterval,
+                const SpawnDropStyle& style,
+                float                 speedFactor
+            );
+            void spawnMatrixLineDrops(
+                uint8_t               layerIdx,
+                uint8_t               due,
+                uint16_t              spawnInterval,
+                const SpawnDropStyle& style,
+                bool                  reverse,
+                uint8_t               widthRings,
+                uint16_t              fallMs
+            );
+            void spawnMatrixPathDrops(
+                uint8_t               layerIdx,
+                uint8_t               due,
+                uint16_t              spawnInterval,
+                const SpawnDropStyle& style,
+                bool                  reverse,
+                uint8_t               widthRings,
+                uint16_t              fallMs
+            );
+            void spawnGeometricRainDrops(
+                uint8_t               layerIdx,
+                uint8_t               due,
+                uint16_t              spawnInterval,
+                const SpawnDropStyle& style,
+                bool                  reverse,
+                uint8_t               widthRings,
+                uint16_t              fallMs
+            );
+            void spawnTopologyRainDrops(
+                uint8_t               layerIdx,
+                uint8_t               due,
+                uint16_t              spawnInterval,
+                const SpawnDropStyle& style,
+                bool                  reverse,
+                uint8_t               widthRings,
+                uint16_t              fallMs
+            );
             // RUN_WAVE / RUN_RIPPLE / RUN_CHASE: fire one-shot sweeps on the schedule cached
             // in spawnState by fireStep (nextSpawnMs/sweepSpawnIndex). Split out of
             // serviceSpawner for readability — the RAIN/SPARKLE/MATRIX particle model and the

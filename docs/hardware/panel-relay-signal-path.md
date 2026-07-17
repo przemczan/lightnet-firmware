@@ -56,7 +56,7 @@ sequenceDiagram
     MainLoop->>Tx: sendOnEdge(edge, packet)
     Tx->>Tx: transmitting = true
     Tx->>PEx: setEdgeEnable(edge, true) — OE low, Hi-Z -> active
-    Tx->>Wire: shift out 4x 0xFF preamble + frame bytes
+    Tx->>Wire: shift out 2x 0xFF preamble + frame bytes
 
     Note over PCINT: coupled wake on ANOTHER edge's<br/>sense line — isTransmitting()==true -> discarded
     Note over RxIsr: any byte physically read back<br/>while transmitting — self-echo mask, discarded
@@ -67,9 +67,9 @@ sequenceDiagram
 
     Note over Wire,PCINT: genuine reply arrives on the probed edge
     Wire->>PCINT: PCINTx transition
-    PCINT->>PCINT: isTransmitting()? no -> latch pendingWakeEdge = edge
+    PCINT->>PCINT: isTransmitting()? no -> latch edge bit into pendingWakeMask
 
-    MainLoop->>MainLoop: pollWake() claims pendingWakeEdge (cli/sei)
+    MainLoop->>MainLoop: pollWake() drains pendingWakeMask (cli/sei)
     MainLoop->>Recv: receiver.onEdgeWake(edge, now)
     Recv-->>MainLoop: accept / ignore (already mid-frame on another edge?)
     alt accepted
@@ -92,7 +92,7 @@ sequenceDiagram
 | `PEx` (PD2/3/4, active-low) | Only for the exact duration of `sendOnEdge(edge)` on that edge | Puts this panel's TX onto exactly one wire; every other edge stays Hi-Z |
 | `transmitting` flag | Same window as the asserted `PEx` | Masks `onRxByte()` (self-echo) and `onEdgeWakeIsr()` (crosstalk-coupled phantom wake on a neighbouring sense line) for that whole window |
 | `RXSx` (PC3/PC2, mux select) | Whatever `selectRxEdge()` last set | Chooses which edge's wire feeds the single shared `RXD0` — only that edge's incoming bytes are visible to the USART RX path at all |
-| `pendingWakeEdge` | Set by a PCINT transition not masked by `transmitting` | One-shot latch, main-loop-only consumer (`pollWake()`), so mux reselection never races the ISRs |
+| `pendingWakeMask` | Edge bits set by PCINT transitions not masked by `transmitting` | Per-edge latch, main-loop-only consumer (`pollWake()`), so mux reselection never races the ISRs |
 
 `pollProbeClaim()` (`LightnetPanel.cpp`) re-parks `RXSx` on `driver.probingEdge()` every tick
 while a probe is outstanding, independent of the wake path — a probe reply's edge is already

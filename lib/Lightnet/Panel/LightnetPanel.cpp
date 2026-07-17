@@ -6,6 +6,7 @@
 #include "../Utils/Debug.hpp"
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/wdt.h>
 
 LightnetPanel::LightnetPanel()
     : discovery(EdgeUartTransport::EDGE_COUNT),
@@ -307,7 +308,7 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
             // still relaying/acting. A duplicate (hop retransmission whose previous ack was
             // lost) is re-acked but not dispatched again -- no double relay, no double action.
             if (Protocol::isLinkAckedType(frame->header.type)) {
-                uint16_t frameCrc = crc16(const_cast<Protocol::PacketMeta *>(frame), size);
+                uint16_t frameCrc = crc16(frame, size);
 
                 this->sendLinkAck(this->receiver.fromEdge(), frameCrc);
 
@@ -676,6 +677,11 @@ void LightnetPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t siz
             break;
 
         case Protocol::PACKET_RESET_DEVICE:
+            // Double-blink the activity LED as a visible reset marker, then die by a genuine
+            // watchdog hardware reset: unlike a software jump to 0, this resets every
+            // peripheral register and goes through the BOOTRST vector (the relay bootloader,
+            // which falls straight through to the app when no EEPROM entry magic is set).
+            // main() disables the watchdog first thing on the boot that follows.
             PORTD |= (1 << PD6);
             Lightnet::delay(10);
             PORTD &= ~(1 << PD6);
@@ -684,13 +690,11 @@ void LightnetPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t siz
             Lightnet::delay(10);
             PORTD &= ~(1 << PD6);
 
-            MCUSR  = MCUSR & 0b11110111;
-            WDTCSR = WDTCSR | 0b00011000;
-            WDTCSR = 0b00000001;
-            WDTCSR = WDTCSR | 0b01000000;
-            MCUSR  = MCUSR & 0b11110111;
-            Lightnet::delay(50);
-            break;
+            cli();
+            wdt_enable(WDTO_30MS);
+
+            for (;;) {
+            }
 
         case Protocol::PACKET_ENTER_BOOTLOADER:
             this->handleEnterBootloader((const Protocol::PacketEnterBootloader *)packet);
@@ -707,13 +711,15 @@ void LightnetPanel::handlePacket(const Protocol::PacketMeta *packet, uint8_t siz
 
 void LightnetPanel::handleTurnOnOff(const Protocol::PacketTurnOnOff *packet)
 {
+    // No end-to-end ACK: the controller sends this fire-and-forget, and per-hop delivery is
+    // already protected by link-ARQ (isLinkAckedType). An unsolicited PACKET_ACK upstream
+    // would only reach a controller no longer listening for it and be retransmitted by the
+    // adjacent panel into nothing.
     if (packet->on) {
         this->rgbController.turnOn();
     } else {
         this->rgbController.turnOff();
     }
-
-    this->sendAck();
 }
 
 void LightnetPanel::handleSetColor(const Protocol::PacketSetColor *packet)
@@ -724,11 +730,10 @@ void LightnetPanel::handleSetColor(const Protocol::PacketSetColor *packet)
 
 void LightnetPanel::handlePanelConfiguration(const Protocol::PacketPanelConfiguration *packet)
 {
+    // No end-to-end ACK -- same reasoning as handleTurnOnOff().
     this->rgbController.gammaCorrection(packet->useGammaCorrection);
     this->rgbController.setColorTemperature(packet->colorTemperature);
     this->rgbController.setColorCorrection(packet->colorCorrection);
-
-    this->sendAck();
 }
 
 void LightnetPanel::handleAnimationPrepare(const Protocol::PacketAnimationPrepare *packet)
@@ -786,13 +791,6 @@ void LightnetPanel::handleFetchState()
     // Via the ARQ decorator: replies are acked types, so their first hop upstream gets the
     // same link-level protection as every relayed hop above it.
     this->arqLink.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(reply), sizeof(reply));
-}
-
-void LightnetPanel::sendAck()
-{
-    Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK, this->driver.assignedPanelIndex());
-
-    this->arqLink.sendOnEdge(this->discovery.parentEdge(), &ack, sizeof(ack));
 }
 
 void LightnetPanel::handleEnterBootloader(const Protocol::PacketEnterBootloader *packet)

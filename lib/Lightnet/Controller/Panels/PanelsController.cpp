@@ -13,7 +13,7 @@
 
 #endif
 
-uint8_t PanelsController::setColor(uint8_t address, Protocol::Color color)
+uint8_t PanelsController::setColor(Lightnet::PanelIndex address, Protocol::Color color)
 {
     Protocol::PacketSetColor packet = Protocol::makePacket<Protocol::PacketSetColor>(Protocol::PACKET_SET_COLOR);
 
@@ -24,7 +24,7 @@ uint8_t PanelsController::setColor(uint8_t address, Protocol::Color color)
     return 0;
 }
 
-uint8_t PanelsController::turnOnOff(uint8_t address, uint8_t on)
+uint8_t PanelsController::turnOnOff(Lightnet::PanelIndex address, uint8_t on)
 {
     Protocol::PacketTurnOnOff packet = Protocol::makePacket<Protocol::PacketTurnOnOff>(Protocol::PACKET_TURN_ON_OFF);
 
@@ -35,12 +35,12 @@ uint8_t PanelsController::turnOnOff(uint8_t address, uint8_t on)
     return 0;
 }
 
-uint8_t PanelsController::turnOn(uint8_t address)
+uint8_t PanelsController::turnOn(Lightnet::PanelIndex address)
 {
     return this->turnOnOff(address, 1);
 }
 
-uint8_t PanelsController::turnOff(uint8_t address)
+uint8_t PanelsController::turnOff(Lightnet::PanelIndex address)
 {
     return this->turnOnOff(address, 0);
 }
@@ -48,7 +48,7 @@ uint8_t PanelsController::turnOff(uint8_t address)
 #ifdef SIM_MODE
     // Sim panels only ever respond to LightnetBus-routed commands -- unchanged from before the
     // controller cutover.
-    uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
+    uint8_t PanelsController::fetchState(Lightnet::PanelIndex address, Protocol::PanelState *state)
     {
         Protocol::PacketMeta packet = Protocol::makeMeta(Protocol::PACKET_FETCH_STATE);
         Protocol::PacketPanelState response;
@@ -71,7 +71,7 @@ uint8_t PanelsController::turnOff(uint8_t address)
     }
 
 #else
-    uint8_t PanelsController::fetchState(uint8_t address, Protocol::PanelState *state)
+    uint8_t PanelsController::fetchState(Lightnet::PanelIndex address, Protocol::PanelState *state)
     {
         Protocol::PacketMeta request = Protocol::makeMeta(Protocol::PACKET_FETCH_STATE);
         Protocol::PacketPanelState response;
@@ -96,7 +96,7 @@ uint8_t PanelsController::turnOff(uint8_t address)
 
 #endif
 
-void PanelsController::enterBootloader(uint8_t address)
+void PanelsController::enterBootloader(Lightnet::PanelIndex address)
 {
     Protocol::PacketEnterBootloader packet = Protocol::makePacket<Protocol::PacketEnterBootloader>(Protocol::PACKET_ENTER_BOOTLOADER);
 
@@ -105,7 +105,7 @@ void PanelsController::enterBootloader(uint8_t address)
     this->sink.send(address, Protocol::packetMeta(packet), sizeof(packet), false);
 }
 
-uint8_t PanelsController::sendConfiguration(uint8_t address, panelConfiguration_t config)
+uint8_t PanelsController::sendConfiguration(Lightnet::PanelIndex address, panelConfiguration_t config)
 {
     Protocol::PacketPanelConfiguration packet =
         Protocol::makePacket<Protocol::PacketPanelConfiguration>(Protocol::PACKET_PANEL_CONFIGURATION);

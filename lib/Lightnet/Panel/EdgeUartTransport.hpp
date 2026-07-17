@@ -1,13 +1,12 @@
 #pragma once
 
 // EdgeUartTransport — single shared hardware USART + CD74HC4052 analog mux, driving all of
-// a panel's edges per docs/hardware/schematics/Panel.png.
+// a panel's edges per docs/hardware/schematics/Panel.png (signal-level walkthrough:
+// docs/hardware/panel-relay-signal-path.md).
 //
-// UNVALIDATED HARDWARE: no bench spike has run yet (see the hardware redesign plan's "Bench
-// spike" step). LightnetPanel calls begin()/sendOnEdge() from its real boot path, and
-// src/panel/main.cpp defines ISR(USART0_RX_vect) calling onRxByte(). This is the one and only
-// panel transport — the panel build has no Arduino framework at all (see the hardware redesign
-// plan §10) — so nothing here needs to distinguish an "old" panel path from a "new" one.
+// LightnetPanel calls begin()/sendOnEdge() from its real boot path, and src/panel/main.cpp
+// defines ISR(USART0_RX_vect) calling onRxByte(). This is the one and only panel transport —
+// the panel build has no Arduino framework at all (see the hardware redesign plan §10).
 //
 // USART0's RX vector was NOT free under MiniCore (the Arduino framework panel build this design
 // replaced), and gating Serial.begin() behind DEBUG did not fix that on its own — tried and

@@ -176,7 +176,7 @@ List<Panel *> * PanelsInitializer::getPanels()
     return panels;
 }
 
-Panel * PanelsInitializer::getPanelByIndex(uint16_t index)
+Panel * PanelsInitializer::getPanelByIndex(Lightnet::PanelIndex index)
 {
     for (uint16_t i = 0; i < panels->getSize(); i++) {
         if (panels->get(i)->index == index) return panels->get(i);

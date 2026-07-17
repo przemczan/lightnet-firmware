@@ -79,7 +79,7 @@ namespace Protocol {
             return 1;
         }
 
-        if (crc16(const_cast<PacketHeader *>(&packet->header), sizeof(PacketHeader)) != packet->headerCrc) {
+        if (crc16(&packet->header, sizeof(PacketHeader)) != packet->headerCrc) {
             return 2;
         }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#if !IS_ESP
+#if !defined(ARDUINO_ARCH_ESP32)
 
     #include <avr/eeprom.h>
     #include <avr/io.h>
@@ -85,4 +85,4 @@
         }
     }
 
-#endif // !IS_ESP
+#endif // !defined(ARDUINO_ARCH_ESP32)

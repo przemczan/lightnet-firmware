@@ -1,5 +1,29 @@
 #include "WebsocketHandler.hpp"
 
+namespace {
+    // Payload bytes (after WebsocketApi::PacketMeta) each client-to-controller command must
+    // carry before its Cmd struct may be read. Types without a payload struct need none.
+    uint16_t requiredCommandPayloadSize(WebsocketApi::packet_t type)
+    {
+        switch (type) {
+            case WebsocketApi::TOGGLE:
+                return sizeof(WebsocketApi::Cmd::Toggle) - sizeof(WebsocketApi::PacketMeta);
+
+            case WebsocketApi::SET_COLOR:
+                return sizeof(WebsocketApi::Cmd::SetColor) - sizeof(WebsocketApi::PacketMeta);
+
+            case WebsocketApi::ANIMATION_TRIGGER:
+                return sizeof(WebsocketApi::Cmd::AnimationTrigger) - sizeof(WebsocketApi::PacketMeta);
+
+            case WebsocketApi::SET_MIRROR:
+                return sizeof(WebsocketApi::Cmd::SetMirror) - sizeof(WebsocketApi::PacketMeta);
+
+            default:
+                return 0;
+        }
+    }
+}
+
 WebsocketHandler::WebsocketHandler(
     WebsocketServer *             websocketServer,
     PanelsController *            panelsController,
@@ -72,6 +96,12 @@ uint8_t WebsocketHandler::handleMessage(WebsocketApi::Internal::Message *message
 uint8_t WebsocketHandler::handleCommand(WebsocketApi::PacketMeta *command, uint16_t size, uint32_t clientId)
 {
     D_PRINTFLN("[CMD HANDLER] handling cmd [client:%u, type:%u]", clientId, command->header.type);
+
+    // CRC validation already passed, but a well-formed frame can still declare a payload
+    // shorter than its command struct -- reading past payloadSize would be out of bounds.
+    if (command->payloadSize < requiredCommandPayloadSize(command->header.type)) {
+        return ERROR_MESSAGE_SIZE_TOO_SMALL;
+    }
 
     uint8_t error = 0;
 

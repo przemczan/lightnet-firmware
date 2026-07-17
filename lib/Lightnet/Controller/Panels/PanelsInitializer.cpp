@@ -102,7 +102,7 @@ List<Panel *> *PanelsInitializer::getPanels()
     return this->panels;
 }
 
-Panel *PanelsInitializer::getPanelByIndex(uint16_t panelIndex)
+Panel *PanelsInitializer::getPanelByIndex(Lightnet::PanelIndex panelIndex)
 {
     uint16_t index = this->panels->getSize();
 

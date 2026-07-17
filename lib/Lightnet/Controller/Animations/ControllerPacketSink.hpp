@@ -13,7 +13,7 @@ namespace Lightnet {
             }
 
             void send(
-            uint8_t                     address,
+            PanelIndex                  address,
             const Protocol::PacketMeta *packet,
             uint8_t                     size,
             bool                        wantAck

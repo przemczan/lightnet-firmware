@@ -1,2 +1,0 @@
-#define IS_ESP32 defined(ARDUINO_ARCH_ESP32)
-#define IS_ESP IS_ESP32

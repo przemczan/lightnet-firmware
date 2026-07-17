@@ -18,9 +18,8 @@
         // own new packet type (PACKET_BOOTLOADER_READ_CHUNK or similar) — not built, a real gap, not
         // an oversight.
         //
-        // UNVALIDATED HARDWARE — no bench spike has run, and there is no sim path either (sim panels
-        // don't implement any bootloader protocol) — "builds clean" is the bar this can be held to
-        // today.
+        // No sim path exists (sim panels don't implement any bootloader protocol) — this class is
+        // exercised on real hardware only.
         class RelayBootloaderClient
         {
             public:
@@ -42,21 +41,21 @@
 
                 // Confirms the bootloader is resident at panelIndex and listening. Retries up to
                 // maxRetries times, retryDelayMs apart.
-                bool connect(uint16_t panelIndex, uint8_t maxRetries = 5, uint16_t retryDelayMs = 50);
+                bool connect(Lightnet::PanelIndex panelIndex, uint8_t maxRetries = 5, uint16_t retryDelayMs = 50);
 
                 // Writes 128 bytes to flash at byteAddr (must be PAGE_SIZE-aligned) as two
                 // BOOTLOADER_CHUNK_SIZE (64 B) chunks — matches the bootloader's own per-page commit
                 // trigger (a chunk that exactly completes a page commits it immediately).
-                bool writePage(uint16_t panelIndex, uint16_t byteAddr, const uint8_t *data);
+                bool writePage(Lightnet::PanelIndex panelIndex, uint16_t byteAddr, const uint8_t *data);
 
                 // Tells the bootloader to commit any pending page and jump to the application.
                 // Fire-and-forget — the panel jumps away immediately and never replies.
-                void startApp(uint16_t panelIndex);
+                void startApp(Lightnet::PanelIndex panelIndex);
 
             private:
                 Lightnet::ControllerRelayPacketSink &sink;
 
-                bool writeChunk(uint16_t panelIndex, uint16_t address, const uint8_t *data, uint8_t length);
+                bool writeChunk(Lightnet::PanelIndex panelIndex, uint16_t address, const uint8_t *data, uint8_t length);
         };
 
     #endif  // !SIM_MODE

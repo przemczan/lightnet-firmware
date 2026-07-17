@@ -12,7 +12,7 @@
         {
         }
 
-        bool RelayBootloaderClient::connect(uint16_t panelIndex, uint8_t maxRetries, uint16_t retryDelayMs)
+        bool RelayBootloaderClient::connect(Lightnet::PanelIndex panelIndex, uint8_t maxRetries, uint16_t retryDelayMs)
         {
             for (uint8_t attempt = 0; attempt < maxRetries; attempt++) {
                 Protocol::PacketMeta ping     = Protocol::makeMeta(Protocol::PACKET_BOOTLOADER_PING);
@@ -28,6 +28,21 @@
                 );
 
                 if (ok) {
+                    // The wire contract's semantics (chunk CRC coverage, page-crossing rule)
+                    // are versioned -- see Protocol::BOOTLOADER_PROTOCOL_VERSION. Refusing a
+                    // mismatch here fails the campaign fast with one clear line, instead of
+                    // every chunk dying to a CRC rejection on the other side.
+                    if (pong.bootloaderVersion != Protocol::BOOTLOADER_PROTOCOL_VERSION) {
+                        DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN(
+                                     "[RELAY-BOOT] panel %u runs bootloader v%u, this build speaks v%u -- re-burn the bootloader (ISP)",
+                                     panelIndex,
+                                     pong.bootloaderVersion,
+                                     Protocol::BOOTLOADER_PROTOCOL_VERSION
+                        ));
+
+                        return false;
+                    }
+
                     DEBUG_IF(DEBUG_FLASHER, D_PRINTFLN("[RELAY-BOOT] connected @ panel %u (attempt %d)", panelIndex, attempt + 1));
 
                     return true;
@@ -52,7 +67,7 @@
         // comment: "recovered by protocol retries"). A retry is idempotent on the bootloader
         // side: rewriting the same bytes at the same address into its page buffer (or even
         // re-committing an already-committed page) produces the same flash contents.
-        bool RelayBootloaderClient::writeChunk(uint16_t panelIndex, uint16_t address, const uint8_t *data, uint8_t length)
+        bool RelayBootloaderClient::writeChunk(Lightnet::PanelIndex panelIndex, uint16_t address, const uint8_t *data, uint8_t length)
         {
             Protocol::PacketBootloaderWriteChunk chunk =
                 Protocol::makePacket<Protocol::PacketBootloaderWriteChunk>(Protocol::PACKET_BOOTLOADER_WRITE_CHUNK);
@@ -60,7 +75,12 @@
             chunk.address = address;
             chunk.length  = length;
             memcpy(chunk.data, data, length);
-            chunk.dataCrc = crc16(chunk.data, length);
+            // Over address+length+data (contiguous packed fields) -- must mirror the
+            // bootloader's own check exactly (see Protocol::BOOTLOADER_PROTOCOL_VERSION).
+            chunk.dataCrc = crc16(
+                &chunk.address,
+                sizeof(chunk.address) + sizeof(chunk.length) + length
+            );
 
             for (uint8_t attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
                 Protocol::PacketBootloaderWriteAck ack;
@@ -118,7 +138,7 @@
             return false;
         }
 
-        bool RelayBootloaderClient::writePage(uint16_t panelIndex, uint16_t byteAddr, const uint8_t *data)
+        bool RelayBootloaderClient::writePage(Lightnet::PanelIndex panelIndex, uint16_t byteAddr, const uint8_t *data)
         {
             for (uint8_t c = 0; c < PAGE_SIZE / Protocol::BOOTLOADER_CHUNK_SIZE; c++) {
                 uint16_t chunkAddr = byteAddr + (uint16_t)c * Protocol::BOOTLOADER_CHUNK_SIZE;
@@ -136,7 +156,7 @@
             return true;
         }
 
-        void RelayBootloaderClient::startApp(uint16_t panelIndex)
+        void RelayBootloaderClient::startApp(Lightnet::PanelIndex panelIndex)
         {
             Protocol::PacketMeta startApp = Protocol::makeMeta(Protocol::PACKET_BOOTLOADER_START_APP);
 
