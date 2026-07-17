@@ -46,6 +46,9 @@ namespace Protocol {
         // reports that its whole subtree is fully resolved so the controller can backtrack.
         PACKET_DISCOVERY_ADVANCE = 23,
         PACKET_DISCOVERY_DONE = 24,
+        // Link-local hop acknowledgment (see Core/Relay/LinkArq.hpp): confirms one relay hop's
+        // reception of one frame. Never relayed, never itself acknowledged, version-exempt.
+        PACKET_LINK_ACK = 25,
         PACKET_RESET_DEVICE = 200,
         PACKET_ENTER_BOOTLOADER = 201,
         // Relay OTA bootloader control plane (lib/Lightnet/Panel/bootloader/). Only exchanged
@@ -248,6 +251,19 @@ namespace Protocol {
         PacketMeta meta;
         ColorRGB   color;
     } PacketSetBackground;  // 10 bytes
+
+    // Hop acknowledgment for the link-ARQ layer (Core/Relay/LinkArq.hpp). frameCrc is CRC-16
+    // over the ENTIRE acked frame's bytes -- not just its header -- because consecutive distinct
+    // frames can share an identical header (two BOOTLOADER_WRITE_CHUNKs to the same panel differ
+    // only in payload), while a hop retransmission is byte-identical. The full-frame CRC
+    // therefore both matches an ack to the exact frame in flight and lets the receiver's dedup
+    // window tell a retransmission (same crc -- re-ack, don't re-dispatch) from the next frame
+    // (different crc). meta.targetPanelIndex is always 0: the ack is consumed by the immediate
+    // link neighbour, never routed.
+    typedef struct PACK {
+        PacketMeta meta;
+        uint16_t   frameCrc;
+    } PacketLinkAck;  // 9 bytes
 
     // END
 

@@ -52,11 +52,13 @@
 #include "../Core/Relay/PanelRouter.hpp"
 #include "../Core/Relay/PanelFrameDispatcher.hpp"
 #include "../Core/Relay/EdgeFrameReceiver.hpp"
+#include "../Core/Relay/LinkArq.hpp"
 #include "../Core/Panel/AnimationPlayer.hpp"
+#include "ArqEdgeLink.hpp"
 #include "EdgeUartTransport.hpp"
 #include "RGBController.hpp"
 
-class LightnetPanel
+class LightnetPanel : public ILinkWindowHooks
 {
     public:
         static const uint8_t NO_EDGE = 0xFF;
@@ -74,6 +76,13 @@ class LightnetPanel
         // ISR entry point (PCINT wake line transition) — minimal, see class comment.
         void onEdgeWakeIsr(uint8_t edgeIndex);
 
+        // ILinkWindowHooks — keeps the wake-interrupt bookkeeping consistent across
+        // ArqEdgeLink's blocking ack window (which bypasses the claim machinery — see
+        // ArqEdgeLink.hpp's class comment). Begin masks the wakes and drops any pending latch;
+        // end drops boundary-latched ones again and re-arms via the ordinary claim-state sync.
+        void onLinkWindowBegin(uint8_t edgeIndex) override;
+        void onLinkWindowEnd() override;
+
         #if DEBUG
             // Bumped once per PCINT0_vect entry, before its changed-gate -- the TRUE ISR
             // invocation rate, which wakeIsrFiredCount undercounts (it only bumps when a net pin
@@ -89,10 +98,23 @@ class LightnetPanel
 
     private:
         Lightnet::PanelDiscovery discovery;
+
+        // Link-ARQ sender side wraps the raw transport for everything routed/replied by this
+        // panel (PanelRouter's relays and this class's own upstream replies). The discovery
+        // driver deliberately keeps the raw transport: its control plane is exempt from hop
+        // acks (Protocol::isLinkAckedType) and has its own per-hop retry scheme. Declared
+        // before router/driver -- member construction order.
+        ArqEdgeLink arqLink;
+
         Lightnet::PanelDiscoveryDriver driver;
         Lightnet::PanelRouter router;
         Lightnet::PanelFrameDispatcher dispatcher;
         Lightnet::EdgeFrameReceiver receiver;
+
+        // Receiver side of link-ARQ: hop-retransmissions whose previous ack was lost are
+        // re-acked but must not be dispatched (relayed/acted on) twice.
+        Lightnet::LinkDedup<EdgeUartTransport::EDGE_COUNT> linkDedup;
+
         Lightnet::AnimationPlayer animPlayer;
         RGBController rgbController;
 
@@ -191,6 +213,15 @@ class LightnetPanel
             uint16_t diagMultiBitWakeMasks;  // pollWake() drains that latched >1 edge at once
             uint16_t diagSelfClaims;         // bytes arrived with no claim -- wake missed entirely
             uint16_t diagClaimBytes;         // bytes fed into the currently-held claim
+            uint16_t diagLinkAcksSent;       // hop acks emitted for received acked-type frames
+
+            // Duplicates re-acked but not re-dispatched, split by ingress edge, plus the most
+            // recent one's identity (header type + full-frame crc) -- enough to tell WHAT is
+            // repeating and on which link when the count climbs unexpectedly.
+            uint16_t diagDupFramesDropped[EdgeUartTransport::EDGE_COUNT];
+            uint8_t diagLastDupType;
+            uint16_t diagLastDupCrc;
+
             uint32_t lastDiagSum;            // change detector so idle dumps don't repeat
 
             static const uint32_t DIAG_QUIET_MS = 2000;
@@ -230,6 +261,16 @@ class LightnetPanel
         // claim can change hands: a wake/probe/self claim grant, a completed frame, or a
         // receiver.tick() timeout.
         void syncWakeInterruptSuppression();
+
+        // Emits one PACKET_LINK_ACK for a just-completed acked-type frame, back on its ingress
+        // edge -- BEFORE the frame is dispatched, so the upstream sender's ack window closes
+        // while this panel is still relaying/acting.
+        void sendLinkAck(uint8_t edgeIndex, uint16_t frameCrc);
+
+        // Atomically drops any wake latched by the PCINT ISR -- used at the link-ack window
+        // boundaries, where our own just-finished transmission (or the expected ack itself)
+        // is the only plausible source and a surviving latch would become a phantom claim.
+        void clearPendingWakes();
 
         void flushPendingRxBusLogs();
         void flushIdleDebugLogs(uint32_t nowMs);

@@ -42,7 +42,12 @@ namespace Protocol {
     // so flashing a panel more than zero hops away still needs every panel between it and the
     // controller updated — even though the bootloader itself, once resident, deliberately does
     // not validate protocolVersion (flashing is how a version mismatch gets resolved).
-    const uint16_t VERSION = 12;
+    // v13: link-ARQ hop acknowledgments (PACKET_LINK_ACK + isLinkAckedType() — see
+    // Core/Relay/LinkArq.hpp): each relay hop confirms reception of control/reply frames so
+    // per-hop loss no longer compounds geometrically with tree depth. The resident bootloader
+    // does not participate (its wire contract stays frozen); the BL-bound packet types are
+    // deliberately not hop-acked.
+    const uint16_t VERSION = 13;
 
     // Stamp a packet's PacketMeta header in place: type + protocolVersion + targetPanelIndex +
     // headerCrc. targetPanelIndex defaults to 0 (broadcast/general-call); pass the destination
@@ -100,6 +105,12 @@ namespace Protocol {
     // new layout regardless of the version-check bypass, which is exactly why such a change still
     // requires flashing controller and all panels together with no partial state observed.
     bool isVersionExemptType(packetType_t type);
+
+    // Whether a frame of this type requests a per-hop PACKET_LINK_ACK from each receiving link
+    // neighbour (the link-ARQ layer, Core/Relay/LinkArq.hpp). Both sides of every hop must agree
+    // on this table -- the sender awaits/retransmits exactly when the receiver acks. See the
+    // definition for what's deliberately excluded and why.
+    bool isLinkAckedType(packetType_t type);
 
     // Validate a received packet's header. 0 = ok; 1 = too short; 2 = bad header CRC;
     // 3 = protocol-version mismatch. validateProtocolVersion=false (the relay OTA bootloader

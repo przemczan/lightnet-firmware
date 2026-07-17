@@ -50,6 +50,7 @@
 #include "../../Core/Controller/IPacketSink.hpp"
 #include "../../Core/Common/ProtocolMeta.hpp"
 #include "../../Core/Relay/TrunkFrameReceiver.hpp"
+#include "../../Core/Relay/LinkArq.hpp"
 #include "ControllerEdgeTransport.hpp"
 
 namespace Lightnet {
@@ -58,9 +59,10 @@ namespace Lightnet {
         public:
             typedef void (*onPacketSent_t)(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size);
 
-            // Not yet bench-validated — a placeholder generous enough for the plan's own
-            // worst-case depth-50 latency estimate (a few ms) plus real-world margin.
-            static const uint32_t ACK_TIMEOUT_MS = 300;
+            // Bounds the end-to-end reply wait. Sized for deep chains WITH the link-ARQ layer's
+            // per-hop overhead: a depth-30 chunk round trip is ~155 ms of pure transit (frame +
+            // hop ack per hop, both directions) before any hop retransmissions.
+            static const uint32_t ACK_TIMEOUT_MS = 500;
 
             explicit ControllerRelayPacketSink(ControllerEdgeTransport &transport);
 
@@ -92,16 +94,33 @@ namespace Lightnet {
             );
 
         private:
+            // Sender-side link-ARQ context for one in-flight trunk frame (see
+            // Core/Relay/LinkArq.hpp): awaitFrame() retransmits `frame` while the hop ack
+            // (PACKET_LINK_ACK echoing frameCrc) hasn't arrived and attempts remain. Integrated
+            // into the one receive loop rather than a separate window so a fast end-to-end
+            // reply arriving before/instead of the hop ack is still caught, never consumed as
+            // window noise.
+            struct LinkArqTx {
+                const uint8_t *frame;
+                uint8_t        size;
+                uint16_t       frameCrc;
+                uint8_t        attemptsLeft;
+                uint32_t       lastSentAtMs;
+                bool           acked;
+            };
+
             ControllerEdgeTransport &transport;
             onPacketSent_t onPacketSentCallback;
             Lightnet::TrunkFrameReceiver replyFramer;
 
             void flushStrayBytes();
+            void emitLinkAck(uint16_t frameCrc);
             bool awaitFrame(
                 Protocol::packetType_t expectedType,
                 Protocol::PacketMeta * outBuffer,
                 uint8_t                outBufferSize,
-                uint32_t               timeoutMs
+                uint32_t               timeoutMs,
+                LinkArqTx *            arq = nullptr
             );
     };
 }  // namespace Lightnet

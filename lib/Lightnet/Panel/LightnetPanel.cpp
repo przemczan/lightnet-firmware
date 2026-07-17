@@ -2,14 +2,16 @@
 #include "LightnetPanel.hpp"
 #include "BootloaderBridge.hpp"
 #include "../Runtime/PanelClock.hpp"
+#include "../Utils/Crc.hpp"
 #include "../Utils/Debug.hpp"
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
 LightnetPanel::LightnetPanel()
     : discovery(EdgeUartTransport::EDGE_COUNT),
+    arqLink(LNEdgeTransport, *this),
     driver(discovery, LNEdgeTransport),
-    router(discovery, LNEdgeTransport),
+    router(discovery, arqLink),
     dispatcher(driver, router),
     pendingWakeMask(0),
     lastRelayActivityMs(0),
@@ -20,7 +22,8 @@ LightnetPanel::LightnetPanel()
         wakeIsrMaskedCount(0), wakeClaimGrantedCount(0), wakeClaimIgnoredCount(0),
         lastWakeEdgeSeen(NO_EDGE), diagCompletedFrames{}, diagPhantomClaims{},
         diagDeadFrameClaims{}, diagFramingErrorsByEdge{}, lastSeenFramingErrorStamp(0),
-        diagMultiBitWakeMasks(0), diagSelfClaims(0), diagClaimBytes(0), lastDiagSum(0)
+        diagMultiBitWakeMasks(0), diagSelfClaims(0), diagClaimBytes(0), diagLinkAcksSent(0),
+        diagDupFramesDropped{}, diagLastDupType(0), diagLastDupCrc(0), lastDiagSum(0)
 #endif
 {
 }
@@ -150,6 +153,50 @@ void LightnetPanel::syncWakeInterruptSuppression()
     LNEdgeTransport.setWakeInterruptsEnabled(!shouldSuppress);
 }
 
+void LightnetPanel::clearPendingWakes()
+{
+    cli();
+    this->pendingWakeMask = 0;
+    sei();
+}
+
+void LightnetPanel::onLinkWindowBegin(uint8_t edgeIndex)
+{
+    (void)edgeIndex;  // ArqEdgeLink parks the mux itself; only the wake bookkeeping is ours
+
+    LNEdgeTransport.setWakeInterruptsEnabled(false);
+    this->wakeInterruptsSuppressed = true;
+    this->clearPendingWakes();
+}
+
+void LightnetPanel::onLinkWindowEnd()
+{
+    // Transitions from the window's own traffic (the ack, or the boundary of our transmission)
+    // may have latched before the begin-mask took effect -- a survivor would be claimed by the
+    // next pollWake() as a phantom, deafening the mux for FRAME_TIMEOUT_MS.
+    this->clearPendingWakes();
+
+    // No claim can be held here (the window only ever opens outside a claim -- after a
+    // completed frame released it, or around a panel-originated send), so this re-arms.
+    this->syncWakeInterruptSuppression();
+}
+
+void LightnetPanel::sendLinkAck(uint8_t edgeIndex, uint16_t frameCrc)
+{
+    Protocol::PacketLinkAck ack =
+        Protocol::makePacket<Protocol::PacketLinkAck>(Protocol::PACKET_LINK_ACK);
+
+    ack.frameCrc = frameCrc;
+
+    // Through the decorator for uniformity -- LINK_ACK is itself exempt, so this never nests
+    // an ack window.
+    this->arqLink.sendOnEdge(edgeIndex, Protocol::packetMeta(ack), sizeof(ack));
+
+    #if DEBUG
+        this->diagLinkAcksSent++;
+    #endif
+}
+
 void LightnetPanel::flushPendingRxBusLogs()
 {
     #if DEBUG
@@ -247,6 +294,34 @@ void LightnetPanel::pollBytes(uint32_t nowMs)
 
             const Protocol::PacketMeta *frame = this->receiver.frame();
             uint8_t size  = this->receiver.frameSize();
+
+            // Link-ARQ receiver side (Core/Relay/LinkArq.hpp). A hop ack arriving outside any
+            // sender window is stale link-local noise -- consumed, never dispatched or relayed.
+            if (frame->header.type == Protocol::PACKET_LINK_ACK) {
+                processed++;
+
+                continue;
+            }
+
+            // Ack BEFORE dispatching: the upstream sender's window closes while this panel is
+            // still relaying/acting. A duplicate (hop retransmission whose previous ack was
+            // lost) is re-acked but not dispatched again -- no double relay, no double action.
+            if (Protocol::isLinkAckedType(frame->header.type)) {
+                uint16_t frameCrc = crc16(const_cast<Protocol::PacketMeta *>(frame), size);
+
+                this->sendLinkAck(this->receiver.fromEdge(), frameCrc);
+
+                if (this->linkDedup.checkAndNote(this->receiver.fromEdge(), frameCrc, nowMs)) {
+                    #if DEBUG
+                        this->diagDupFramesDropped[this->receiver.fromEdge()]++;
+                        this->diagLastDupType = (uint8_t)frame->header.type;
+                        this->diagLastDupCrc  = frameCrc;
+                    #endif
+                    processed++;
+
+                    continue;
+                }
+            }
 
             bool actLocally = this->dispatcher.onFrameArrived(
                 this->receiver.fromEdge(),
@@ -412,7 +487,11 @@ void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
     //   cmp = frames completed, phm = phantom claims (timeout, zero bytes),
     //   dead = dead-frame claims (timeout, partial frame), fe = framing faults attributed to the
     //   receiving edge (feRaw = the transport's global stamp; any drift vs the triple's total is
-    //   faults on discarded self-echo bytes), tx = frames sent (relay + own),
+    //   faults on discarded self-echo bytes), tx = frames sent (relay + own).
+    //   Link-ARQ: lack = hop acks emitted, lrtx = hop retransmissions performed, lto = frames
+    //   that exhausted every retransmission unacked; ldup (per-edge triple) = duplicates
+    //   re-acked but not re-dispatched, with dtype/dcrc = the most recent one's header type and
+    //   full-frame crc (identifies WHAT repeats when ldup climbs).
     //   mb = multi-edge wake masks, self = self-claims (bytes with no wake),
     //   dor = UART overrun faults, ign = wakes ignored while a claim was held.
     void LightnetPanel::flushRelayDiag(uint32_t nowMs)
@@ -427,13 +506,15 @@ void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
 
         uint32_t sum = (uint32_t)this->diagMultiBitWakeMasks + this->diagSelfClaims
                        + LNEdgeTransport.framingErrorStamp() + LNEdgeTransport.overrunErrorStamp()
-                       + this->wakeClaimIgnoredCount;
+                       + this->wakeClaimIgnoredCount + this->diagLinkAcksSent
+                       + this->arqLink.retransmitCount() + this->arqLink.ackTimeoutCount();
 
         for (uint8_t edge = 0; edge < EdgeUartTransport::EDGE_COUNT; edge++) {
             sum += this->diagCompletedFrames[edge];
             sum += this->diagPhantomClaims[edge];
             sum += this->diagDeadFrameClaims[edge];
             sum += this->diagFramingErrorsByEdge[edge];
+            sum += this->diagDupFramesDropped[edge];
             sum += LNEdgeTransport.txFrameCount(edge);
         }
 
@@ -464,6 +545,20 @@ void LightnetPanel::flushIdleDebugLogs(uint32_t nowMs)
                      LNEdgeTransport.txFrameCount(0),
                      LNEdgeTransport.txFrameCount(1),
                      LNEdgeTransport.txFrameCount(2),
+                     DPF("lack"),
+                     this->diagLinkAcksSent,
+                     DPF("lrtx"),
+                     this->arqLink.retransmitCount(),
+                     DPF("lto"),
+                     this->arqLink.ackTimeoutCount(),
+                     DPF("ldup"),
+                     this->diagDupFramesDropped[0],
+                     this->diagDupFramesDropped[1],
+                     this->diagDupFramesDropped[2],
+                     DPF("dtype"),
+                     this->diagLastDupType,
+                     DPF("dcrc"),
+                     this->diagLastDupCrc,
                      DPF("mb"),
                      this->diagMultiBitWakeMasks,
                      DPF("self"),
@@ -688,14 +783,16 @@ void LightnetPanel::handleFetchState()
     reply.panelState.state      = this->rgbController.on() ? 1 : 0;
     reply.panelState.color      = this->rgbController.color();
 
-    LNEdgeTransport.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(reply), sizeof(reply));
+    // Via the ARQ decorator: replies are acked types, so their first hop upstream gets the
+    // same link-level protection as every relayed hop above it.
+    this->arqLink.sendOnEdge(this->discovery.parentEdge(), Protocol::packetMeta(reply), sizeof(reply));
 }
 
 void LightnetPanel::sendAck()
 {
     Protocol::PacketMeta ack = Protocol::makeMeta(Protocol::PACKET_ACK, this->driver.assignedPanelIndex());
 
-    LNEdgeTransport.sendOnEdge(this->discovery.parentEdge(), &ack, sizeof(ack));
+    this->arqLink.sendOnEdge(this->discovery.parentEdge(), &ack, sizeof(ack));
 }
 
 void LightnetPanel::handleEnterBootloader(const Protocol::PacketEnterBootloader *packet)

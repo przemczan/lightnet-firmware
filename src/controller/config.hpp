@@ -23,7 +23,7 @@
     // don't match this module's real silkscreen (it only ever exposes raw IOxx/GPIO numbers, no
     // D-alias at all), so the label text there is misleading; these are the real GPIOs.
     #ifndef CONTROLLER_TRUNK_RX_PIN
-        #define CONTROLLER_TRUNK_RX_PIN 3
+        #define CONTROLLER_TRUNK_RX_PIN 11
     #endif
     #ifndef CONTROLLER_TRUNK_TX_PIN
         #define CONTROLLER_TRUNK_TX_PIN 5

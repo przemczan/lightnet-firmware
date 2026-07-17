@@ -203,6 +203,7 @@ a raw byte stream.
 | **v10** | relay | `PacketHeader` gains `targetPanelIndex` (0 = broadcast, else one panel) — the relay's addressing field, since flooding has no physical-bus-address equivalent; without it a flooded `FETCH_STATE` query would make every panel reply at once. `PacketDiscoveryAdvance`'s own bespoke `targetPanelIndex` payload field folds into this. Every packet grows 2 B. |
 | **v11** | relay | `PacketInitializationPull`/`PacketRegisterEdge` gain `parentEdgeIndex` — the probing panel's (or controller trunk's) own edge index for the link being offered, echoed back unchanged in the reply. Lets the controller learn *both* sides of every discovered link (needed to build `PanelGraph`'s `TopoLink[]`, see §6) without a second, independently-timed upstream frame that would race the single-active-flow invariant (§4). Both structs grow 2 B. |
 | **v12** | relay | Relay OTA bootloader control plane: `PACKET_BOOTLOADER_PING/PONG/WRITE_CHUNK/WRITE_ACK/START_APP` (see [`docs/ota.md`](ota.md)). An intermediate panel built before v12 can't frame/relay these new types at all (`packetSizeForType()` doesn't recognize them), so this still needs every panel between the controller and the flash target updated — even though the bootloader itself, once resident, deliberately skips `protocolVersion` validation (flashing is how a version mismatch gets resolved). |
+| **v13** | relay | Link-ARQ hop acknowledgments: `PACKET_LINK_ACK` + the `Protocol::isLinkAckedType()` policy table (see the *Link-ARQ* section below). Per-hop frame loss no longer compounds geometrically with tree depth for control/reply traffic. The resident bootloader's frozen wire contract is untouched — BL-bound types are deliberately not hop-acked. |
 
 !!! warning "Protocol compatibility"
     Panel and controller must be flashed together when upgrading across protocol versions — versions are not interchangeable.
@@ -234,6 +235,7 @@ that panel's index as an address filter (`PanelRouter`).
 | 22 | `FETCH_ANIM_STATE_REPLY` | P→C | 14 B | Animation status, in reply to `FETCH_ANIM_STATE` |
 | 23 | `DISCOVERY_ADVANCE` | C→P | 9 B | Flooded; target now carried in `PacketHeader.targetPanelIndex` (v10) — see §6 |
 | 24 | `DISCOVERY_DONE` | P→C | 9 B | Routed upstream — see §6 |
+| 25 | `LINK_ACK` | hop-local | 9 B | Link-ARQ hop acknowledgment (v13): echoes a CRC-16 over the acked frame's full bytes. Never relayed, never itself acked, version-exempt — see *Link-ARQ* below |
 | 200 | `RESET_DEVICE` | C→P | 7 B | WDT reset |
 | 201 | `ENTER_BOOTLOADER` | C→P | 8 B | Token must be `0xB0` |
 | 202 | `BOOTLOADER_PING` | C→bootloader | 7 B | Meta-only; presence check once a panel is resident in `RelayBootloader.cpp` (v12) |
@@ -262,6 +264,36 @@ connected edge except the one a packet arrived on). Used for:
 - `ANIMATION_START` — fires queued animations in lockstep
 - `ANIMATION_UPDATE_PARAMS` — reactive triggers, speed changes
 - `SET_PALETTE` / `SET_BASE_COLORS` / `SET_GLOBAL_BRIGHTNESS`
+
+### Link-ARQ (per-hop acknowledgment, v13)
+
+Measured per-hop frame loss (per mux receive channel: X0/PORT1 ≈ 2 %, X1/PORT2 ≈ 8 %,
+X2/PORT3 ≈ 25 % at 250 k on the rev-1 panel board) compounds **geometrically** with tree depth —
+end-to-end retries alone can't make a 30-panel chain deliver control traffic. The link-ARQ layer
+converts that into a small per-link residual: with two hop retransmissions, an 8 %-lossy hop's
+residual is 0.05 %.
+
+Mechanics (`Core/Relay/LinkArq.hpp` for the pure pieces + rationale):
+
+- After transmitting a frame whose type `Protocol::isLinkAckedType()` covers, the sender parks
+  its receiver on the egress edge and waits `LINK_ACK_TIMEOUT_MS` for a `PACKET_LINK_ACK` echoing
+  a CRC-16 over the frame's **full bytes**; on timeout it retransmits, up to `LINK_RETRANSMITS`
+  times, then gives up (end-to-end retries recover the residual). Panel side:
+  `Panel/ArqEdgeLink` (an `IEdgeLink` decorator between `PanelRouter` and the transport);
+  controller side: integrated into `ControllerRelayPacketSink`'s one receive loop, so a fast
+  end-to-end reply arriving before the hop ack is never lost to the ack window.
+- A receiver completing a valid acked-type frame **always acks first, then dispatches** — and
+  consults a `LINK_DEDUP_WINDOW_MS` duplicate window (`LinkDedup`, keyed on the same full-frame
+  CRC): a hop retransmission whose previous ack was lost is re-acked but never re-relayed or
+  re-acted on. End-to-end retries arrive far outside the window and dispatch normally.
+- **Not** hop-acked: `SET_COLOR` (60 fps self-healing stream — ack turnarounds would eat the
+  trunk at depth), the discovery control plane (own per-hop retries), and the BL-bound
+  bootloader types (`PING`/`WRITE_CHUNK`/`START_APP` — the resident bootloader doesn't speak
+  link-ARQ; its **replies** `PONG`/`WRITE_ACK` *are* protected at every panel-to-panel hop, the
+  BL simply ignores the ack its own parent sends it).
+
+Per-panel `[DIAG]` counters (`lack`/`lrtx`/`lto`/`ldup`, see `LightnetPanel::flushRelayDiag`)
+expose the layer's live behavior for link-quality regression checks.
 
 ---
 
