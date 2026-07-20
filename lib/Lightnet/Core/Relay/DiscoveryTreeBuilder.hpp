@@ -1,8 +1,8 @@
 #pragma once
 
 // DiscoveryTreeBuilder — accumulates the topology discovered by DiscoveryCoordinator into the
-// same TopoLink[]/indices[]/edgeCounts[] shape PanelGraph::build() consumes (hardware redesign
-// plan §11). DiscoveryCoordinator only tracks protocol-sequencing state (the DFS frontier/resume
+// same TopoLink[]/indices[]/edgeCounts[] shape PanelGraph::build() consumes.
+// DiscoveryCoordinator only tracks protocol-sequencing state (the DFS frontier/resume
 // stack) — it doesn't know the parent's own edge index for a link, only the parent panel's
 // *index* (frontierPanelIndex). This class is fed one (parentIndex, parentEdge, childIndex,
 // childEdge) tuple per discovered panel and turns it into a flat link list — the same

@@ -1,7 +1,7 @@
 #pragma once
 
 // ControllerRelayPacketSink — the controller's IPacketSink implementation for the relay
-// transport (protocol v10 addressing, hardware redesign plan §11.1). This is the real-hardware
+// transport (protocol v10 addressing). This is the real-hardware
 // sink: AnimationScheduler/ScenePlayer/PanelsController all take IPacketSink& and stay
 // transport-agnostic, so main.cpp is the only place that picks a concrete sink — this one on real
 // builds, ControllerPacketSink (wrapping LNBus/LightnetBusSim) under SIM_MODE, where sim panels

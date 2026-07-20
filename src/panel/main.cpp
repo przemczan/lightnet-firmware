@@ -1,8 +1,7 @@
-// Entry point for the panel build (hardware redesign plan §10/§11). No Arduino framework
-// underneath — this file provides the real int main() an Arduino build gets for free, and the
-// two hardware ISRs the design needs: PCINT0 (edge wake detection) and USART0 RX (finally
-// definable now that nothing else claims the vector — see EdgeUartTransport.hpp's class comment
-// on why MiniCore made this impossible).
+// Entry point for the panel build. No Arduino framework underneath — this file provides the
+// real int main() an Arduino build gets for free, and the two hardware ISRs the design needs:
+// PCINT0 (edge wake detection) and USART0 RX (free to define here because no framework core
+// claims the vector — see EdgeUartTransport.hpp's class comment).
 
 #ifndef LIGHTNET_TARGET_CONTROLLER
 

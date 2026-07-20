@@ -76,7 +76,8 @@ namespace Lightnet {
     }
 
     // fetchState() does a real relay round-trip per panel (bounded by
-    // ControllerRelayPacketSink::ACK_TIMEOUT_MS), so this can no longer run synchronously on the AsyncTCP task -- deferred to the
+    // ControllerRelayPacketSink::ACK_TIMEOUT_MS), so it must not run synchronously on the
+    // AsyncTCP task -- deferred to the
     // main loop, same as handlePutPanel()'s packet emission and for the same reason
     // (MainLoopQueue's own class comment). Worst case (every panel unreachable) still blocks the
     // main loop for panelCount * ACK_TIMEOUT_MS: the relay's single-active-flow design means no

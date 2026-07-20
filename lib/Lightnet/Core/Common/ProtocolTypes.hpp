@@ -106,8 +106,7 @@ namespace Protocol {
     // the controller is several hops away from most panels) — it's echoed back unchanged in the
     // PacketRegisterEdge reply below so the controller can learn both sides of the link it just
     // discovered without a second, independently-timed frame (see DiscoveryCoordinator's topology
-    // accumulation and the hardware redesign plan §11 for why a separate report would race the
-    // single-active-flow invariant).
+    // accumulation — a separate report would race the single-active-flow invariant).
     typedef struct PACK {
         PacketMeta meta;
         uint16_t   panelIndex;

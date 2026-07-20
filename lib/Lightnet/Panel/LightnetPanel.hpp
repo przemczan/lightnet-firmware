@@ -8,9 +8,8 @@
 // + PanelFrameDispatcher (the one "should I act on this locally" decision) + EdgeFrameReceiver
 // (RX edge-tagging) sit behind EdgeUartTransport (the real hardware: shared USART + mux).
 //
-// Threading model (the one real design decision made at this hardware boundary, not previously
-// covered by any pure-logic piece): EdgeFrameReceiver was built and tested as synchronous,
-// single-context logic, but three different execution contexts want to touch this panel's state
+// Threading model: EdgeFrameReceiver is synchronous, single-context logic, but three
+// different execution contexts want to touch this panel's state
 // (the PCINT wake ISR, the USART RX ISR, and the main loop). Rather than make EdgeFrameReceiver
 // itself thread-safe, every EdgeFrameReceiver/PanelDiscoveryDriver/PanelRouter/PanelFrameDispatcher
 // call happens from ONE place — the main loop (tick(), via pollWake()/pollBytes()) — and both
@@ -24,15 +23,8 @@
 //     switch (EdgeUartTransport::selectRxEdge()) both happen from pollWake() in the main loop
 //     instead of from the ISR, so they're never racing tick()'s other calls into the same
 //     objects. A second wake arriving before pollWake() drains the first overwrites it — an
-//     accepted simplification given the single-active-flow invariant (hardware redesign plan
-//     §3): only one edge should legitimately be waking at a time in correctly-functioning
-//     hardware.
-// Whether main-loop-driven mux switching reacts fast enough relative to the sender's preamble
-// byte is genuinely a bench-spike question (see the plan's step 1), not something resolved here.
-//
-// UNVALIDATED HARDWARE — no bench spike has run. This class builds and links against real
-// register-level code, but nothing in this design (here or on the now-also-cut-over controller
-// side) has been exercised on real silicon yet — no boards exist.
+//     accepted simplification given the single-active-flow invariant: only one edge should
+//     legitimately be waking at a time in correctly-functioning hardware.
 //
 // PACKET_ENTER_BOOTLOADER/PACKET_RESET_DEVICE, and the discovery control plane
 // (PACKET_INITIALIZATION_PULL/PACKET_REGISTER_EDGE/PACKET_DISCOVERY_ADVANCE/PACKET_DISCOVERY_DONE

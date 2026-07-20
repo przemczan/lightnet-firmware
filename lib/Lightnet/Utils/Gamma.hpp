@@ -2,9 +2,8 @@
 
 // This file is shared between the controller (ESP32) and panel (AVR) builds.
 // Controller: Arduino.h resolves PROGMEM/pgm_read_byte to ESP's own compatibility shim.
-// Panel: avr/pgmspace.h directly — the panel build has no Arduino.h at all (hardware redesign
-// plan §10) — see its note on this exact gotcha (swapping this blindly to avr/pgmspace.h once
-// broke the controller build, since ESP32 has no such header).
+// Panel: avr/pgmspace.h directly — the panel build has no Arduino.h at all. Don't collapse
+// this to avr/pgmspace.h for both: ESP32 has no such header.
 #ifdef LIGHTNET_TARGET_CONTROLLER
     #include <Arduino.h>
 #else

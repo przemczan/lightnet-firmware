@@ -32,9 +32,8 @@ LightnetPanel::LightnetPanel()
 void LightnetPanel::begin()
 {
     // Baud comes from src/panel.config.hpp -- must match the controller's LIGHTNET_TRUNK_BAUD.
-    // The hardware redesign plan's §5 latency budget assumes 1Mbps, but this bus's physical
-    // margin (series resistors + mux + cabling next to the +24V rail) doesn't hold up that high
-    // on real hardware: at 500kbps the panel-to-panel hop shows UART framing/overrun faults
+    // This bus's physical margin (series resistors + mux + cabling next to the +24V rail)
+    // doesn't hold up at high rates: at 500kbps the panel-to-panel hop shows UART framing/overrun faults
     // (rxErr in the heartbeat) and drops frames. 250kbps (UBRR=3, 0% baud error) is the fastest
     // rate bench-validated clean end to end; going faster is a hardware (slew/noise) problem,
     // not a firmware one.

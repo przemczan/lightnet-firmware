@@ -36,7 +36,7 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
     | Symbol | Default | Description |
     |---|---|---|
     | `DEMO_MODE` | `0` | Set to `1` to run the built-in light demo on startup |
-    | `LIGHTNET_TRUNK_BAUD` | `500000UL` | Relay trunk UART baud — must match the panels' setting; flash both sides together after changing |
+    | `LIGHTNET_TRUNK_BAUD` | `250000UL` | Relay trunk UART baud — must match the panels' setting; flash both sides together after changing. 250k is the fastest rate bench-validated clean end to end; 500k shows framing/overrun faults on the panel-to-panel hop |
     | `CONFIG_PORTAL_TIMEOUT` | `120` | Seconds the Wi-Fi captive portal stays open before timeout |
     | `SERVER_PORT` | `80` | HTTP server port |
 
@@ -68,7 +68,7 @@ Both `*.config.hpp` files ship with sane defaults, so no changes are required to
 
     | Symbol | Default | Description |
     |---|---|---|
-    | `LIGHTNET_TRUNK_BAUD` | `500000UL` | Edge-link UART baud — must match the controller's setting and the relay bootloader (re-burn the bootloader after changing); use exact 16 MHz UBRR divisors (2000000, 1000000, 500000, 250000, …) for 0% baud error |
+    | `LIGHTNET_TRUNK_BAUD` | `250000UL` | Edge-link UART baud — must match the controller's setting and the relay bootloader (re-burn the bootloader after changing); use exact 16 MHz UBRR divisors (2000000, 1000000, 500000, 250000, …) for 0% baud error. 250k is the fastest rate bench-validated clean end to end |
     | `DEBUG_SERIAL_BAUD` | `57600UL` | Baud of the bit-banged debug UART on PD7 — match your monitor's baud if overridden |
 
 ---
@@ -107,7 +107,7 @@ All environments are defined in `platformio.ini`.
     | Environment | Board | Uploader | Bootloader | Notes |
     |---|---|---|---|---|
     | `panel_atmega328_via_controller` | ATmega328P | Custom serial via controller | — | Upload `.bin` over the controller's 57600-baud serial port |
-    | `panel_atmega328pb` | ATmega328PB | USBasp | relay bootloader at `0x7000` | Every upload chip-erases (wiping any resident bootloader — re-burn via the bootloader envs when OTA testing needs it): skipping the erase with avrdude's `-D` corrupts every re-flash, since ISP writes can only clear bits and chip erase is the only erase ISP has. **Bare-metal** (hardware redesign plan §10/§11) — no `framework = arduino`. Both panel and controller have cut over to the relay protocol; builds clean but is not yet bench-validated on real hardware. |
+    | `panel_atmega328pb` | ATmega328PB | USBasp | relay bootloader at `0x7000` | Every upload chip-erases (wiping any resident bootloader — re-burn via the bootloader envs when OTA testing needs it): skipping the erase with avrdude's `-D` corrupts every re-flash, since ISP writes can only clear bits and chip erase is the only erase ISP has. **Bare-metal** — no `framework = arduino`. |
     | `panel_atmega328p` | ATmega328P | USBasp | relay bootloader at `0x7000` | Same binary as 328PB |
 
 === "Bootloader (one-time)"
@@ -122,7 +122,7 @@ All environments are defined in `platformio.ini`.
 ## Panel fuses (ATmega328PB / 328P)
 
 !!! warning "Flash fuses through the bootloader environment"
-    Wrong fuse values can lock the microcontroller. Use `pio run -e atmega328p_bootloader -t fuses` (or the `pb` variant) — don't set them by hand unless you know exactly what you're doing. If ISP stops responding to a chip right after a fuse write (works fine before, dead after — on old *and* brand-new chips), suspect an invalid `CKSEL`/clock-source fuse before anything else: with no working system clock, the target can't run the SPI programming state machine at all, so even reading the device signature times out. Standard ISP cannot recover from this — either inject an external clock signal into XTAL1 (often enough to revive ISP long enough to rewrite fuses) or use high-voltage/parallel programming, which doesn't depend on the target's own clock.
+    Wrong fuse values can lock the microcontroller. Use `pio run -e atmega328p_bootloader -t fuses` (or the `pb` variant) — don't set them by hand unless you know exactly what you're doing. If ISP stops responding to a chip right after a fuse write (works fine before, dead after — on old *and* brand-new chips), suspect an invalid `CKSEL`/clock-source fuse before anything else: with no working system clock, the target can't run the SPI programming state machine at all, so even reading the device signature times out. Standard ISP cannot recover from this — either inject an external clock signal into XTAL1 (often enough to revive ISP long enough to rewrite fuses) or use high-voltage/parallel programming, which doesn't depend on the target's own clock. The `donor_ckout_slowclock` environment turns a spare ATmega328P into such a clock donor — it emits a clean ~1 MHz square wave on CKOUT/PB0 (see `tools/recovery/ckout_divider.cpp` and the env comment in `platformio.ini`).
 
 ```
 lfuse = 0xF7  — 328P: Full Swing Crystal Oscillator (0.4-20 MHz, rail-to-rail XTAL2 swing, robust

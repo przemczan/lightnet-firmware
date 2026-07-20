@@ -1,8 +1,8 @@
 #pragma once
 
-// ControllerEdgeTransport — the controller's single physical trunk port (hardware redesign
-// plan §1: "Controller: single physical trunk port — all branching happens at panels, not the
-// controller"). No mux is needed here, unlike Panel/EdgeUartTransport's per-edge CD74HC4052 —
+// ControllerEdgeTransport — the controller's single physical trunk port; all branching
+// happens at panels, not the controller.
+// No mux is needed here, unlike Panel/EdgeUartTransport's per-edge CD74HC4052 —
 // there is exactly one edge, so this class is a thin IEdgeLink wrapper around a HardwareSerial
 // the caller has already configured (baud + pins, via Serial1.begin() in
 // PanelsInitializer::start() — see src/controller/config.hpp's CONTROLLER_TRUNK_RX_PIN/
@@ -58,5 +58,5 @@ class ControllerEdgeTransport : public Lightnet::IEdgeLink
 // The controller's one physical trunk port, shared by PanelsInitializer's discovery service and
 // main.cpp's application-traffic sink (ControllerRelayPacketSink) — both send-only and
 // receive-only use is safe over the same HardwareSerial, but there is exactly one, matching the
-// one physical trunk edge (see the hardware redesign plan §1).
+// one physical trunk edge.
 extern ControllerEdgeTransport LNTrunkTransport;

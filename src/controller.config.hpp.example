@@ -21,8 +21,9 @@
 
 // ── Relay trunk ───────────────────────────────────────────────────────────────
 // UART baud of the relay trunk (Serial1). Must match the panels' LIGHTNET_TRUNK_BAUD -- flash
-// both sides together after changing it.
-#define LIGHTNET_TRUNK_BAUD 500000UL
+// both sides together after changing it. 250k is the fastest rate bench-validated clean end to
+// end (see Panel/LightnetPanel.cpp); 500k shows framing/overrun faults on the panel-to-panel hop.
+#define LIGHTNET_TRUNK_BAUD 250000UL
 
 // ── Discovery ─────────────────────────────────────────────────────────────────
 // After the root panel registers, give up on the walk and boot with the partial
@@ -32,3 +33,10 @@
 // ── Server settings ───────────────────────────────────────────────────────────
 #define CONFIG_PORTAL_TIMEOUT 120
 #define SERVER_PORT 80
+
+// ── Panels settings ───────────────────────────────────────────────────────────
+// Per-channel multipliers applied on the panel (RGBController): a 3200K halogen white balance
+// and a typical-LED-strip correction. Use { 255, 255, 255 } / { 255, 255, 255 } for no tint.
+#define COLOR_TEMPERATURE { 255, 241, 224 }
+#define COLOR_CORRECTION { 255, 176, 240 }
+#define USE_GAMMA_CORRECTION true

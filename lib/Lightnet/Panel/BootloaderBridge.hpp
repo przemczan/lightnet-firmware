@@ -52,9 +52,8 @@
             // Disable peripherals whose interrupts could fire after the bootloader calls sei().
             // With IVSEL=0 (default, not changed by a software jump), any enabled interrupt
             // would be dispatched to the *app's* IVT, which could corrupt bootloader state.
-            // ATmega328PB has two TWI peripherals, named TWCR0/TWCR1 in raw avr-libc (no
-            // single-TWI TWCR alias the way MiniCore provided); plain ATmega328P has only one,
-            // still named TWCR. The bootloader doesn't use TWI at all, but disabling it here
+            // ATmega328PB has two TWI peripherals, named TWCR0/TWCR1 in raw avr-libc with no
+            // single-TWI TWCR alias; plain ATmega328P has only one, still named TWCR. The bootloader doesn't use TWI at all, but disabling it here
             // costs nothing and matches the same defensive intent as PCICR/TIMSK1 below.
             #if defined(__AVR_ATmega328PB__)
                 TWCR0 = 0; // disable TWI0

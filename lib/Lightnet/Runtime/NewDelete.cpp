@@ -1,8 +1,7 @@
-// Minimal C++ runtime support for a panel build with no Arduino framework underneath (see
-// hardware redesign plan §10). Arduino's core normally supplies this (its own new.cpp); avr-libc
-// itself has no C++ support beyond the compiler's own language runtime, so a from-scratch build
-// needs these ~10 lines wherever `new`/`delete` are used (LightnetPanel/LightnetPanelEdge/
-// LightnetPinger all use real `new`/`delete`, not just malloc — see the plan's §10 audit).
+// Minimal C++ runtime support for a panel build with no Arduino framework underneath.
+// Arduino's core normally supplies this (its own new.cpp); avr-libc itself has no C++ support
+// beyond the compiler's own language runtime, so a from-scratch build needs these ~10 lines
+// wherever `new`/`delete` are used.
 //
 // Backed directly by avr-libc's malloc()/free() (<stdlib.h>) — no arena, no pool, just the
 // standard AVR heap between the end of .bss/.data and the stack.

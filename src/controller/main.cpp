@@ -239,14 +239,9 @@ void sendConfiguration()
 
     while (panelNum--) {
         panel = LNPanelsInitializer.getPanels()->get(panelNum);
-
-        // Color temperature/correction tints: a 3200K halogen white balance and a typical-LED-
-        // strip correction, applied as per-channel multipliers on the panel (RGBController).
         panelsController->sendConfiguration(
             panel->index,
-            { .useGammaCorrection = true, .colorTemperature = { 255, 241, 224 }, .colorCorrection = { 255, 176, 240 } }
-            // Uncorrected: { .useGammaCorrection = false, .colorTemperature = { 255, 255, 255 }, .colorCorrection = { 255, 255, 255 } }
-
+            { .useGammaCorrection = USE_GAMMA_CORRECTION, .colorTemperature = COLOR_TEMPERATURE, .colorCorrection = COLOR_CORRECTION }
         );
     }
 }
@@ -393,9 +388,8 @@ void setup()
     DEBUG_IF(DEBUG_INIT, D_PRINTLN("Initializing..."));
 
     LNPanelsInitializer.configure(
-        // Baud comes from src/controller.config.hpp -- see Panel/LightnetPanel.cpp's own
-        // EdgeUartTransport::begin() comment for why the default is lower than the hardware
-        // redesign plan's original 1Mbps assumption.
+        // Baud comes from src/controller.config.hpp -- must match the panels' LIGHTNET_TRUNK_BAUD;
+        // see LightnetPanel::begin()'s comment for why the default is 250kbps.
         { .trunkRxPin = CONTROLLER_TRUNK_RX_PIN,
           .trunkTxPin = CONTROLLER_TRUNK_TX_PIN,
           .trunkOutputEnablePin = CONTROLLER_TRUNK_OE_PIN,
@@ -424,13 +418,7 @@ void initializeServices()
 
     selfTest();
 
-    // Filesystem mounted before WiFi so PaletteStore/AppearanceStore
-    // can read /data/palettes.db and /config/ before the captive portal blocks.
     Lightnet::Fs::begin();
-
-    // Ensure /config exists before the stores below write into it. LittleFS won't
-    // create a file whose parent directory is missing, so on a fresh filesystem every
-    // /config/*.json write would fail without this. Idempotent.
     Lightnet::Fs::mkdir("/config");
 
     paletteRepository = new Lightnet::PaletteRepository();
@@ -443,7 +431,6 @@ void initializeServices()
     scenePlayer   = new Lightnet::ScenePlayer(*animScheduler, *paletteRepository, panelsTopologyProvider);
     scenesService = new Lightnet::ScenesService(*sceneStore, *scenePlayer);
 
-    // Per-device topology config: logical root used by scene selectors.
     topologyConfig = new Lightnet::TopologyConfigStore();
     topologyConfig->load();
     scenePlayer->setLogicalRoot(topologyConfig->logicalRoot(), millis());

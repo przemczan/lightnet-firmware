@@ -10,7 +10,7 @@
 // only defense against a flood looping forever: packets carry no hop-count/TTL/visited
 // list, so termination depends entirely on the discovered topology being cycle-free.
 //
-// Pure state machine — no I/O, no transport. See docs: hardware redesign plan §2.
+// Pure state machine — no I/O, no transport.
 
 #include <stdint.h>
 

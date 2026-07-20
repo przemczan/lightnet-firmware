@@ -1,4 +1,4 @@
-// RelayBootloader — the relay network's own OTA bootloader (hardware redesign plan §8 step 5),
+// RelayBootloader — the relay network's own OTA bootloader,
 // speaking the relay's own UART/PacketMeta framing for panels flashed over the point-to-point
 // relay trunk. Lives entirely in the 4 KB boot section at BOOTLOADER_START (0x7000 on
 // ATmega328P/PB) and is a completely separate compiled image from the application — nothing here
@@ -18,7 +18,7 @@
 // cheap and avr-libc's init chain being reachable here shouldn't become a load-bearing assumption
 // for correctness.
 //
-// Design (see the hardware redesign plan §8 step 5): only one panel is ever resident in its
+// Design: only one panel is ever resident in its
 // bootloader at a time, and every other panel keeps running its normal application — full
 // PanelDiscovery/PanelRouter, already discovered and connected. So OTA traffic reaches this
 // panel exactly like any other addressed setup packet already does: flooded downstream through
@@ -37,8 +37,7 @@
 // Guarded on LIGHTNET_BUILD_RELAY_BOOTLOADER (defined only by env:atmega328p(b)_bootloader
 // in platformio.ini): this file lives under lib/Lightnet/Panel/bootloader/, so PlatformIO's
 // Library Dependency Finder would otherwise also sweep it into the normal panel app/controller
-// builds — the exact per-library trap the hardware redesign plan's §11.4 already hit once with
-// LightnetPanel.cpp/Gamma.cpp. Compiling to an empty translation unit everywhere else avoids a
+// builds. Compiling to an empty translation unit everywhere else avoids a
 // second main() and a second, incompatible ISR/register setup fighting the real one.
 #ifdef LIGHTNET_BUILD_RELAY_BOOTLOADER
 

@@ -1,9 +1,7 @@
 #pragma once
 
-// PanelFrameDispatcher — the one decision LightnetPanel's new dispatch loop needs per arrived
-// frame, extracted as pure logic so it's host-testable ahead of the panel rewrite itself
-// (hardware redesign plan §11.3/§11.4 step 4a — the real rewrite, step 4b, is a separate, larger
-// piece that also needs the framework/runtime cutover (§10) and isn't started).
+// PanelFrameDispatcher — the one decision LightnetPanel's dispatch loop needs per arrived
+// frame, extracted as pure logic so it's host-testable.
 //
 // Three rules, already individually designed elsewhere — this class only sequences them:
 //   1. Every frame *except* PACKET_INITIALIZATION_PULL and frames addressed to this panel's own

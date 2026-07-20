@@ -27,9 +27,6 @@ void EdgeUartTransport::begin(uint32_t baud)
     UCSR0A = 0;
     // RXCIE0 enables the RX-complete interrupt — without it, ISR(USART0_RX_vect) is defined and
     // linked but never actually invoked by hardware, since the interrupt-enable bit stays off.
-    // (Caught in review: earlier revisions of this file left this bit unset from the pre-cutover
-    // stub era, when nothing could define that ISR at all — see the class comment on why that's
-    // no longer true for the bare-metal relay panel build.)
     UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);  // 8N1 — TXD0/RXD0 direction is USART-owned
 
@@ -265,7 +262,7 @@ void EdgeUartTransport::pollTrunkActivityLed(uint32_t nowMs)
     static uint8_t seenStamp = 0;
 
     // A byte was drained since the last poll (readByte() bumps the stamp). This is what lights the
-    // LED now that onRxByte() no longer touches it, and it catches a burst that arrived and fully
+    // LED (onRxByte() doesn't touch it), and it catches a burst that arrived and fully
     // drained within one tick -- which available() alone, checked after pollBytes() empties the
     // ring, would miss.
     bool activity = this->rxActivityStamp != seenStamp;

@@ -17,7 +17,7 @@
 // exactly one source of truth for "what edges exist and are connected."
 //
 // Pure decision logic sitting behind IEdgeLink — no transport, no I/O beyond that seam.
-// See docs: hardware redesign plan §1/§7.
+// See docs/architecture.md (relay protocol).
 
 #include <stdint.h>
 #include "IEdgeLink.hpp"

@@ -1,18 +1,14 @@
 #pragma once
 
 // ClockedLed — drives the single on-panel LED over a two-wire clock+data protocol
-// (APA102/SK9822-style), replacing the WS2812/FastLED NRZ-timing driver. LED_SCK/LED_MOSI
-// on PC4/PC5 (see docs/hardware/schematics/Panel.png).
+// (APA102/SK9822-style). LED_SCK/LED_MOSI on PC4/PC5 (see docs/hardware/schematics/Panel.png).
 //
 // Unlike WS2812, a clocked protocol samples data on the clock edge rather than decoding pulse
-// *widths*, so it needs no interrupt-disable window around the transmission — this is what
-// removes the FastLED interrupt-disable hazard the hardware redesign plan §4 flags: a ~30 us
-// cli() window during a WS2812 update could overrun the relay USART's small hardware RX buffer;
+// *widths*, so it needs no interrupt-disable window around the transmission — an NRZ driver's
+// ~30 us cli() window per update could overrun the relay USART's small hardware RX buffer;
 // a clocked protocol never needs that disable in the first place.
 //
-// Raw AVR register access only (no Arduino API), matching EdgeUartTransport's style — this
-// keeps the door open for the eventual bare-metal panel build (§10) without needing a second
-// rewrite later.
+// Raw AVR register access only (no Arduino API), matching EdgeUartTransport's style.
 
 #include <stdint.h>
 #include <avr/io.h>

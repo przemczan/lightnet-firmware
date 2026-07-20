@@ -1,8 +1,7 @@
 #pragma once
 
 // EdgeFrameReceiver — tags a completed frame with the edge it arrived on, given one shared
-// USART + mux rather than one receiver per edge (see docs/hardware/schematics/Panel.png and the
-// hardware redesign plan §4/§11.2).
+// USART + mux rather than one receiver per edge (see docs/hardware/schematics/Panel.png).
 //
 // PanelRouter and PanelDiscoveryDriver both need to know which edge a frame arrived on
 // (`fromEdge`), but there is only one physical RX pin, muxed across a panel's edges one at a
@@ -12,7 +11,7 @@
 //   1. A wake transition on edge X (the PCINT lines, PB1/PB2/PB3) calls onEdgeWake(X, now). If no
 //      edge is currently claimed, X is latched and the caller must switch the mux to it
 //      (selectRxEdge(X)) before real bytes start arriving. A wake on a *different* edge while one
-//      is already claimed is ignored — the single-active-flow invariant (plan §3) guarantees
+//      is already claimed is ignored — the single-active-flow invariant guarantees
 //      nothing legitimate is happening on two edges at once, so this is either noise or a
 //      neighbour's own settling transient, not a real second transmission.
 //   2. Every byte belonging to the claimed edge feeds the one shared PacketFramer via onByte().

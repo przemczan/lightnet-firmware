@@ -45,7 +45,7 @@ class PacketMirror
         void clearSnapshot();
 
     private:
-        // The live ring no longer has to hold an entire scene-start PREPARE storm:
+        // The live ring doesn't have to hold an entire scene-start PREPARE storm:
         // capture() flushes early on overflow (see setServer / capture), so nothing is
         // dropped regardless of size. These caps only need to batch enough packets to
         // keep flush frequency (and thus ws.binary() calls) reasonable during a burst.

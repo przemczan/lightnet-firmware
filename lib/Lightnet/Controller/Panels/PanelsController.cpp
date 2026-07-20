@@ -122,7 +122,7 @@ uint8_t PanelsController::sendConfiguration(Lightnet::PanelIndex address, panelC
 void PanelsController::resetDevices()
 {
     // Header-level addressing (protocol v10) makes this a single broadcast flood instead of a
-    // unicast spray to every address from maxIndex down to 0 -- see the hardware redesign plan §11.3.
+    // unicast spray to every address.
     Protocol::PacketMeta resetPacket = Protocol::makeMeta(Protocol::PACKET_RESET_DEVICE);
 
     this->sink.send(0, &resetPacket, sizeof(resetPacket), false);

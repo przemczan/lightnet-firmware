@@ -6,18 +6,9 @@
 //
 // LightnetPanel calls begin()/sendOnEdge() from its real boot path, and src/panel/main.cpp
 // defines ISR(USART0_RX_vect) calling onRxByte(). This is the one and only panel transport —
-// the panel build has no Arduino framework at all (see the hardware redesign plan §10).
-//
-// USART0's RX vector was NOT free under MiniCore (the Arduino framework panel build this design
-// replaced), and gating Serial.begin() behind DEBUG did not fix that on its own — tried and
-// empirically disproven earlier in this design's history. MiniCore's HardwareSerial.h defined
-// HAVE_HWSERIAL0 (and the ISR that goes with it) purely from register existence
-// (`#if defined(UBRR0H)`), unconditionally, regardless of whether `Serial` was ever referenced by
-// user code — confirmed by wiring a real reference into the old main.cpp and observing a link
-// failure ("multiple definition of `__vector_18`") even with Serial.begin() removed. Dropping
-// Arduino/MiniCore entirely (hardware redesign plan §10) is what actually freed this vector,
-// confirmed via avr-nm on the panel build's firmware.elf showing __vector_18 bound as a real,
-// strong symbol with zero conflict.
+// the panel build has no Arduino framework at all, which is what leaves the USART0 RX vector
+// free for src/panel/main.cpp to define (an Arduino/MiniCore core claims it unconditionally —
+// see platformio.ini's panel-env comment).
 //
 // Self-echo masking: while sendOnEdge() is transmitting, onRxByte() discards every byte received
 // instead of pushing it to the RX ring. This isn't just a hygiene nicety — PanelDiscoveryDriver
@@ -26,7 +17,7 @@
 // panel's own probe could be misread as a second, rejection-worthy parent offer on the very edge
 // it just probed. Masking is broad (the whole transmit window, not scoped to whichever single
 // edge might electrically echo) — since nothing else is expected on the wire during a
-// transmission anyway (the single-active-flow invariant, see the hardware redesign plan §3).
+// transmission anyway (the single-active-flow invariant).
 //
 // Which edge a received byte belongs to (needed since RX is muxed, not one-per-edge) is
 // EdgeFrameReceiver's job, not this class's — see Core/Relay/EdgeFrameReceiver.hpp. LightnetPanel
@@ -135,8 +126,8 @@ class EdgeUartTransport : public Lightnet::IEdgeLink
         // MAX_PACKET_SIZE = 82) with margin. The ring must fit an ENTIRE frame, not just drain
         // jitter: a main-loop stall (e.g. a bit-banged debug line, ~ms) mid-frame is survivable
         // only if every byte the ISR keeps receiving has a slot -- at 64 (63 usable) the 76-byte
-        // PACKET_BOOTLOADER_WRITE_CHUNK and 72-byte PACKET_SET_PALETTE physically couldn't fit,
-        // so any such stall silently dropped exactly the large frames while small ones survived.
+        // PACKET_BOOTLOADER_WRITE_CHUNK and 72-byte PACKET_SET_PALETTE physically wouldn't fit,
+        // so any such stall would silently drop exactly the large frames while small ones survive.
         static const uint16_t RX_RING_BYTES = 128;
 
         void setEdgeEnable(uint8_t edgeIndex, bool enabled);

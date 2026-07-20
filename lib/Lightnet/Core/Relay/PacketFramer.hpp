@@ -13,8 +13,8 @@
 // unrecognized type value is treated as noise and skipped rather than accumulated. Once a
 // frame's full expected length has arrived, its header CRC is checked; a mismatch discards the
 // whole accumulated buffer and resumes scanning for a type byte from the very next byte fed
-// in. This is deliberately simple — it relies on the single-active-flow invariant (hardware
-// redesign plan §3) keeping real desyncs rare, and does not attempt to search for a valid
+// in. This is deliberately simple — it relies on the single-active-flow invariant keeping
+// real desyncs rare, and does not attempt to search for a valid
 // frame buried inside discarded bytes.
 //
 // A completed frame is consumed implicitly: the next pushByte() call starts accumulating a new

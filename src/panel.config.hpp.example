@@ -24,5 +24,6 @@
 // ── Relay trunk ───────────────────────────────────────────────────────────────
 // UART baud of the panel's edge links. Must match the controller's LIGHTNET_TRUNK_BAUD and the
 // relay bootloader (burned separately -- re-burn it after changing this). Use exact 16MHz UBRR
-// divisors (2000000, 1000000, 500000, 250000, ...) so the AVR's baud error is 0%.
-#define LIGHTNET_TRUNK_BAUD 500000UL
+// divisors (2000000, 1000000, 500000, 250000, ...) so the AVR's baud error is 0%. 250k is the
+// fastest rate bench-validated clean end to end (see Panel/LightnetPanel.cpp).
+#define LIGHTNET_TRUNK_BAUD 250000UL

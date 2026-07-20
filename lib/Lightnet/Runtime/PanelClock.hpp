@@ -1,14 +1,11 @@
 #pragma once
 
-// PanelClock — millis()/delay() for a panel build with no Arduino framework underneath (see
-// hardware redesign plan §10: dropping MiniCore for a minimal in-house runtime).
+// PanelClock — millis()/delay() for a panel build with no Arduino framework underneath.
 //
 // Uses Timer0 in CTC mode, prescaler 64, OCR0A=249 — an *exact* 1 ms tick at F_CPU=16 MHz
 // (250 counts x 4 us/count = 1000 us), so unlike Arduino's own millis() (which free-runs Timer0
 // on overflow and corrects for a 0.024 ms/tick error with a fractional accumulator), no
-// correction term is needed here. Timer1 is left untouched — it's owned by the existing
-// ping-pulse edge-timing mechanism (LightnetPinger) until that's retired by the relay discovery
-// protocol (§2/§6).
+// correction term is needed here. Timer1 is left untouched and free for other use.
 //
 // AVR-only, not portable — deliberately not part of the Core/ native-testable tree.
 

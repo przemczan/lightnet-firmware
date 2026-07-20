@@ -56,7 +56,7 @@ sequenceDiagram
   BL->>P: Jump to application
 ```
 
-Design (hardware redesign plan §8 step 5): only one panel is ever resident in its bootloader at a
+Design: only one panel is ever resident in its bootloader at a
 time, and every other panel keeps running its normal application — full `PanelDiscovery`/
 `PanelRouter`, already discovered and connected. So OTA traffic reaches the target exactly like
 any other addressed setup packet already does — flooded downstream through unmodified
