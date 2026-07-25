@@ -77,6 +77,14 @@ namespace Lightnet {
                 bool                        wantAck
             ) override;
 
+            // Timed settle delay, keeping WiFi/watchdog/mirror serviced throughout (unlike a bare
+            // delayMicroseconds()). The base IPacketSink::pace() is a no-op — the real relay carries
+            // traffic on the trunk, so pacing here is what actually gates the send rate.
+            void pace(uint16_t microseconds) override;
+
+            // One unicast hop-clear, computed from the trunk baud and the frame/ack byte counts.
+            void paceForHop(uint8_t packetSize) override;
+
             // Sends `request` to `targetPanelIndex`, then blocks (bounded by timeoutMs) for a
             // frame of type `expectedReplyType`. On success, copies up to replyBufferSize bytes
             // of the reply into replyBuffer and returns true. The caller is responsible for
@@ -114,6 +122,11 @@ namespace Lightnet {
 
             void flushStrayBytes();
             void emitLinkAck(uint16_t frameCrc);
+            // One iteration of background servicing (WiFi/TCP + task watchdog via yield(), plus the
+            // live-preview mirror) run while blocking. Shared by awaitFrame() and the pacing delays.
+            void serviceBackground();
+            // Busy-wait `microseconds`, keeping serviceBackground() running throughout.
+            void delayServiced(uint32_t microseconds);
             bool awaitFrame(
                 Protocol::packetType_t expectedType,
                 Protocol::PacketMeta * outBuffer,

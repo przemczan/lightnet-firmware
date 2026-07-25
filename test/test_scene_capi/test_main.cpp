@@ -70,7 +70,7 @@ void test_capi_load_and_play_emits_packets()
 
     TEST_ASSERT_EQUAL_INT_MESSAGE(1, ok, scene_last_error(h));
     TEST_ASSERT_EQUAL_INT(3, prepareCount);   // one PREPARE per resolved panel
-    TEST_ASSERT_TRUE(startCount >= 1);        // general-call START (double-sent)
+    TEST_ASSERT_TRUE(startCount >= 1);        // general-call START (sent redundantly)
     TEST_ASSERT_EQUAL_INT(1, backgroundCount);
     TEST_ASSERT_EQUAL_INT(1, scene_is_playing(h));
 

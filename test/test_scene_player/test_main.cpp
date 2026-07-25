@@ -35,6 +35,7 @@ struct MockSink : public IPacketSink {
     static const int MAX = 256;
     CapturedPacket   pkts[MAX];
     int              count = 0;
+    int              paceForHopCount = 0;
 
     void send(uint8_t address, const Protocol::PacketMeta *packet, uint8_t size, bool wantAck) override
     {
@@ -58,13 +59,29 @@ struct MockSink : public IPacketSink {
         }
     }
 
-    // pace() inherited as a no-op — no bus to settle.
+    // pace(microseconds) inherited as a no-op — no bus to settle here. paceForHop() is the
+    // per-hop pacing the real relay sink applies after every unicast acked send; count the calls
+    // so a test can assert every unicast is paced (no relay collision / retransmit storm).
+    void paceForHop(uint8_t /*packetSize*/) override
+    {
+        paceForHopCount++;
+    }
 
     int countOfType(uint8_t t) const
     {
         int n = 0;
 
         for (int i = 0; i < count; i++) if (pkts[i].type == t) n++;
+
+        return n;
+    }
+
+    // Unicast = addressed to one panel (address != 0); general calls use address 0.
+    int unicastSendCount() const
+    {
+        int n = 0;
+
+        for (int i = 0; i < count; i++) if (pkts[i].address != 0) n++;
 
         return n;
     }
@@ -154,9 +171,9 @@ void test_solid_scene_emits_prepare_and_start()
     );
 
     // "all" resolves to the 3 mock panels → one PREPARE each. The general-call START is
-    // deliberately double-sent for bus reliability (shared seq_id), so it appears twice.
+    // deliberately sent redundantly for reliability (shared seq_id), so it appears 3 times.
     TEST_ASSERT_EQUAL_INT(3, sink.countOfType(Protocol::PACKET_ANIMATION_PREPARE));
-    TEST_ASSERT_EQUAL_INT(2, sink.countOfType(Protocol::PACKET_ANIMATION_START));
+    TEST_ASSERT_EQUAL_INT(3, sink.countOfType(Protocol::PACKET_ANIMATION_START));
     // Scene start also pushes the compositor base + a clearing black.
     TEST_ASSERT_EQUAL_INT(1, sink.countOfType(Protocol::PACKET_SET_BACKGROUND));
     TEST_ASSERT_TRUE(player.isPlaying());
@@ -503,6 +520,42 @@ void test_bounce_reverse_fires_mid_step()
     TEST_ASSERT_TRUE(reverseStarts >= 1);
 }
 
+// Every unicast (addressed) acked send must be followed by exactly one hop-clear pace, so a
+// multi-panel burst can't outrun the tree's store-and-forward drain and collide/retransmit. The
+// solid scene resolves "all" to 3 panels → 3 unicast PREPAREs, each paced by sendPrepareToPanel().
+void test_unicast_sends_are_paced()
+{
+    SceneRecord res = {};
+    char errMsg[64];
+    bool ok = parseScene(SOLID_SCENE, strlen(SOLID_SCENE), res, errMsg, sizeof(errMsg));
+
+    TEST_ASSERT_TRUE_MESSAGE(ok, errMsg);
+
+    MockSink sink;
+    MockPalette palette;
+    MockTopo topo;
+
+    AnimationScheduler scheduler(sink);
+    ScenePlayer player(scheduler, palette, topo);
+
+    player.loadAndPlay(
+        res.layers,
+        res.layerCount,
+        res.loop,
+        res.palette,
+        res.baseColors,                             /*nowMs=*/
+        0,
+        res.speed,
+        res.background
+    );
+
+    TEST_ASSERT_EQUAL_INT(3, sink.countOfType(Protocol::PACKET_ANIMATION_PREPARE));
+    // Core invariant: exactly one hop-clear pace per unicast (addressed) send, and none on the
+    // general-call floods. Holds regardless of how many unicast sends a scene load emits.
+    TEST_ASSERT_TRUE(sink.paceForHopCount > 0);
+    TEST_ASSERT_EQUAL_INT(sink.unicastSendCount(), sink.paceForHopCount);
+}
+
 void setUp()
 {
 }
@@ -519,6 +572,7 @@ int main()
     RUN_TEST(test_user_scene_sync_barrier);
     RUN_TEST(test_user_scene_wheel_sync_barrier);
     RUN_TEST(test_bounce_reverse_fires_mid_step);
+    RUN_TEST(test_unicast_sends_are_paced);
 
     return UNITY_END();
 }

@@ -105,7 +105,7 @@ To force an explicit black instead of holding, use `{"type":"SOLID","color":"#00
 
 ## Group
 
-Groups are the synchronisation unit. When the controller fires a `GENERAL CALL START` on a group, every panel that has an animation queued for that group starts simultaneously (±2.5 µs jitter).
+Groups are the synchronisation unit. When the controller fires a `GENERAL CALL START` on a group, every panel that has an animation queued for that group starts as soon as the flood reaches it. `ANIMATION_START` is not per-hop acknowledged (see [Architecture §4, *Link-ARQ*](../architecture.md#link-arq-per-hop-acknowledgment-v13)) — the controller sends it redundantly instead — so propagation is dominated by wire transit time (roughly hop-count × the per-hop UART transit time) rather than by acknowledgment/retry turnarounds. Actual cross-panel skew scales with tree depth and fan-out and is unvalidated on real hardware (see [Hardware, *Latency & Topology Constraints*](../hardware.md#latency--topology-constraints)).
 
 A `group` may be written as a **name** (`"group": "intro"`) or a **number** (`"group": 3`). Names are the preferred, readable form; the controller maps each distinct name to an auto-assigned numeric ID (1, 2, 3…) in order of first appearance at parse time, so the on-the-wire protocol is unchanged. Numbers (1–254) still work for back-compat; 0 is reserved.
 

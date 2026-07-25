@@ -204,6 +204,7 @@ a raw byte stream.
 | **v11** | relay | `PacketInitializationPull`/`PacketRegisterEdge` gain `parentEdgeIndex` — the probing panel's (or controller trunk's) own edge index for the link being offered, echoed back unchanged in the reply. Lets the controller learn *both* sides of every discovered link (needed to build `PanelGraph`'s `TopoLink[]`, see §6) without a second, independently-timed upstream frame that would race the single-active-flow invariant (§4). Both structs grow 2 B. |
 | **v12** | relay | Relay OTA bootloader control plane: `PACKET_BOOTLOADER_PING/PONG/WRITE_CHUNK/WRITE_ACK/START_APP` (see [`docs/ota.md`](ota.md)). An intermediate panel built before v12 can't frame/relay these new types at all (`packetSizeForType()` doesn't recognize them), so this still needs every panel between the controller and the flash target updated — even though the bootloader itself, once resident, deliberately skips `protocolVersion` validation (flashing is how a version mismatch gets resolved). |
 | **v13** | relay | Link-ARQ hop acknowledgments: `PACKET_LINK_ACK` + the `Protocol::isLinkAckedType()` policy table (see the *Link-ARQ* section below). Per-hop frame loss no longer compounds geometrically with tree depth for control/reply traffic. The resident bootloader's frozen wire contract is untouched — BL-bound types are deliberately not hop-acked. |
+| **v14** | relay | `ANIMATION_START` moves out of `Protocol::isLinkAckedType()`. It floods to every panel and each relay panel forwards to all its children before dispatching locally, so hop-acking it compounded the ack/retransmit window with both tree depth and fan-out — working against every panel firing an animation at the same time. `AnimationScheduler::sendGroupStart()`'s existing redundant send (now 3 copies, up from 2) is the sole reliability mechanism for it, the same tradeoff already made for `SET_COLOR`. |
 
 !!! warning "Protocol compatibility"
     Panel and controller must be flashed together when upgrading across protocol versions — versions are not interchangeable.
@@ -223,7 +224,7 @@ that panel's index as an address filter (`PanelRouter`).
 | 10 | `FETCH_STATE` | C→P | 7 B | Meta-only request |
 | 11 | `PANEL_CONFIGURATION` | C→P | 14 B | Gamma correction + color temp/correction tint (raw RGB, v9) |
 | 12 | `ANIMATION_PREPARE` | C→P | 28 B | Unicast; buffers a layer (incl. `composeMode`/`composeOrder`/`startDelayMs`), arms for group start |
-| 13 | `ANIMATION_START` | Flood | 9 B | Fires all panels with matching group_id |
+| 13 | `ANIMATION_START` | Flood | 9 B | Fires all panels with matching group_id. Not hop-acked (v14) — sent 3× (shared seq_id) instead, see *Link-ARQ* below |
 | 14 | `ANIMATION_CONTROL` | C→P | 9 B | STOP / PAUSE / RESUME / CLEAR_QUEUE; `group_id`=0 → all slots |
 | 15 | `FETCH_ANIM_STATE` | C→P | 7 B | Meta-only request |
 | 16 | `ANIMATION_UPDATE_PARAMS` | Flood | 12 B | Trigger / brightness-mult / speed-scale |
@@ -287,10 +288,15 @@ Mechanics (`Core/Relay/LinkArq.hpp` for the pure pieces + rationale):
   CRC): a hop retransmission whose previous ack was lost is re-acked but never re-relayed or
   re-acted on. End-to-end retries arrive far outside the window and dispatch normally.
 - **Not** hop-acked: `SET_COLOR` (60 fps self-healing stream — ack turnarounds would eat the
-  trunk at depth), the discovery control plane (own per-hop retries), and the BL-bound
-  bootloader types (`PING`/`WRITE_CHUNK`/`START_APP` — the resident bootloader doesn't speak
-  link-ARQ; its **replies** `PONG`/`WRITE_ACK` *are* protected at every panel-to-panel hop, the
-  BL simply ignores the ack its own parent sends it).
+  trunk at depth), `ANIMATION_START` (v14 — a flood, and every relay panel forwards to all its
+  children before dispatching locally, so the ack/retransmit window compounded with both tree
+  depth and fan-out, working against every panel firing together; `AnimationScheduler::
+  sendGroupStart()` sends it 3× with a shared `seq_id` instead — the panel-side duplicate guard
+  absorbs the extra copies, and whichever copy arrives first is the one that fires it), the
+  discovery control plane (own per-hop retries), and the BL-bound bootloader types
+  (`PING`/`WRITE_CHUNK`/`START_APP` — the resident bootloader doesn't speak link-ARQ; its
+  **replies** `PONG`/`WRITE_ACK` *are* protected at every panel-to-panel hop, the BL simply
+  ignores the ack its own parent sends it).
 
 Per-panel `[DIAG]` counters (`lack`/`lrtx`/`lto`/`ldup`, see `LightnetPanel::flushRelayDiag`)
 expose the layer's live behavior for link-quality regression checks.
@@ -337,8 +343,9 @@ It is the **single implementation** of panel-local animation math, compiled into
 
 ### AnimationScheduler (controller side)
 
-- `playOnPanels()`: unicast PREPARE to each target panel, then General Call START twice (both
-  share one seq_id, so the panel's duplicate guard absorbs the redundant copy)
+- `playOnPanels()`: unicast PREPARE to each target panel, then General Call START 3× (all share
+  one seq_id, so the panel's duplicate guard absorbs the redundant copies — `ANIMATION_START` is
+  not hop-acked, see *Link-ARQ* above)
 - Appearance broadcasts (palette, base colors, global brightness, background) and per-panel
   CONTROL fan-out (`sendControlToPanels`) — a stateless packet-builder over `IPacketSink`
 
@@ -396,7 +403,7 @@ working estimates, not settled figures (see [`docs/hardware.md`](hardware.md#lat
 | N panels, all panel-local (BREATHE etc.) | **0 µs/frame** during animation |
 | 30 panels, REACTIVE, 120 BPM | **~140 µs per beat** (0 µs between beats) |
 | N panels, WAVE/RIPPLE/CHASE (compiled PULSE) | **0 µs/frame** during sweep (one PREPARE burst per pass) |
-| Setup: PREPARE × 30 panels + 2 General Calls | **~6.2 ms** one-time |
+| Setup: PREPARE × 30 panels + 3 General Calls | **~6.2 ms** one-time |
 
 ---
 

@@ -34,6 +34,11 @@ namespace Protocol {
     // Core/Relay/LinkArq.hpp). Deliberately NOT acked:
     //   - PACKET_SET_COLOR: 60 fps runner stream, self-healing -- ack turnarounds at every hop
     //     would eat the trunk's bandwidth at depth for frames whose loss costs one video frame.
+    //   - PACKET_ANIMATION_START: a flood, and every relay panel forwards to all its children
+    //     before dispatching locally -- hop-acking it would compound the ack/retransmit window
+    //     with both tree depth and fan-out, working against every panel firing together.
+    //     AnimationScheduler::sendGroupStart() sends it redundantly instead (shared seq_id, the
+    //     panel-side duplicate guard absorbs the extra copies).
     //   - The discovery control plane: PanelDiscoveryDriver already retries per hop
     //     (PROBE_ATTEMPTS), and its reply timing is budgeted without ack turnarounds.
     //   - The BL-bound bootloader types (PING/WRITE_CHUNK/START_APP): their receiver is the
@@ -55,7 +60,6 @@ namespace Protocol {
             case PACKET_FETCH_ANIM_STATE_REPLY:
             case PACKET_PANEL_CONFIGURATION:
             case PACKET_ANIMATION_PREPARE:
-            case PACKET_ANIMATION_START:
             case PACKET_ANIMATION_CONTROL:
             case PACKET_ANIMATION_UPDATE_PARAMS:
             case PACKET_SET_PALETTE:

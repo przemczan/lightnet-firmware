@@ -47,7 +47,13 @@ namespace Protocol {
     // per-hop loss no longer compounds geometrically with tree depth. The resident bootloader
     // does not participate (its wire contract stays frozen); the BL-bound packet types are
     // deliberately not hop-acked.
-    const uint16_t VERSION = 13;
+    // v14: PACKET_ANIMATION_START (a flood) is no longer hop-acked — every relay panel forwards
+    // to all its children before dispatching locally, so the per-hop ack/retransmit window
+    // compounded with both tree depth and fan-out, working against every panel firing an
+    // animation at the same time. The controller's existing redundant-send behaviour
+    // (AnimationScheduler::sendGroupStart) is the sole reliability mechanism for START now, the
+    // same tradeoff already made for PACKET_SET_COLOR.
+    const uint16_t VERSION = 14;
 
     // Stamp a packet's PacketMeta header in place: type + protocolVersion + targetPanelIndex +
     // headerCrc. targetPanelIndex defaults to 0 (broadcast/general-call); pass the destination

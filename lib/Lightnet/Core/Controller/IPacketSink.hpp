@@ -33,10 +33,21 @@ namespace Lightnet {
             ) = 0;
 
             // Bus settle delay between packets (lets panels process before the next send).
-            // No-op off-device; the controller impl maps it to delayMicroseconds().
+            // No-op off-device; the real-hardware sink services WiFi/watchdog/mirror while it waits.
             virtual void pace(uint16_t microseconds)
             {
                 (void)microseconds;
+            }
+
+            // Pace one relay hop-clear after a `packetSize`-byte *unicast* acked send: the time for
+            // the receiving panel to forward the frame to its single downstream branch (PanelRouter
+            // routes an addressed packet to one edge) and collect that hop's link-ack. Paced between
+            // consecutive unicasts in a burst so the next frame doesn't arrive while the panel is
+            // still relaying the previous one — which would cost a link-ARQ retransmit. Sized from
+            // the wire (baud + frame/ack bytes) by the hardware sink; no-op off-device.
+            virtual void paceForHop(uint8_t packetSize)
+            {
+                (void)packetSize;
             }
     };
 }  // namespace Lightnet

@@ -41,12 +41,26 @@ namespace Lightnet {
         prepare.animates     = animates;
 
         sink.send(panelAddress, Protocol::packetMeta(prepare), sizeof(prepare), /*wantAck=*/ false);
+
+        // Pace one hop-clear so a panel relaying this PREPARE onward isn't still deaf (mid-relay)
+        // when the next unicast arrives -- that collision would cost a link-ARQ retransmit. Applied
+        // here, at the per-panel primitive, so every caller is paced: playOnPanels' burst loop and
+        // ScenePlayer's own per-panel PREPARE loops alike.
+        sink.paceForHop(sizeof(prepare));
     }
+
+    // PACKET_ANIMATION_START is not link-acked (Protocol::isLinkAckedType) — it floods to every
+    // panel, and a relay panel forwards to all its children before dispatching locally, so
+    // hop-acking it would compound the ack/retransmit window with both tree depth and fan-out,
+    // working against every panel firing together. This redundant send is the sole reliability
+    // mechanism for it, same tradeoff as PACKET_SET_COLOR.
+    static const uint8_t START_FLOOD_SEND_COUNT = 3;
 
     void AnimationScheduler::sendGroupStart(uint8_t group_id)
     {
-        // Send General Call START twice for reliability. Both share one seq_id so the
-        // panel's duplicate guard runs exactly one execution and absorbs the redundant copy.
+        // Send General Call START START_FLOOD_SEND_COUNT times. All copies share one seq_id so
+        // the panel's duplicate guard runs exactly one execution and absorbs the redundant ones —
+        // whichever copy reaches a panel first is the one that fires it.
         Protocol::PacketAnimationStart startPkt =
             Protocol::makePacket<Protocol::PacketAnimationStart>(Protocol::PACKET_ANIMATION_START);
 
@@ -56,9 +70,7 @@ namespace Lightnet {
 
         if (nextSeqId == 0) nextSeqId = 1;
 
-        // General Call has no ack — send twice (shared seq_id) for reliability, pacing
-        // between so panels settle. Off-device sinks make pace() a no-op.
-        for (uint8_t retry = 0; retry < 2; retry++) {
+        for (uint8_t retry = 0; retry < START_FLOOD_SEND_COUNT; retry++) {
             sink.send(0x00, Protocol::packetMeta(startPkt), sizeof(startPkt), /*wantAck=*/ false);
             sink.pace(200);
         }
@@ -97,6 +109,7 @@ namespace Lightnet {
                 0,
                 animates
             );
+            // sendPrepareToPanel() paces one hop-clear itself, so the loop is already gated.
         }
 
         // Give panels time to process their PREPARE before START arrives.
@@ -168,6 +181,7 @@ namespace Lightnet {
 
         for (uint8_t i = 0; i < panelCount; i++) {
             sink.send(panelAddresses[i], Protocol::packetMeta(control), sizeof(control), /*wantAck=*/ false);
+            sink.paceForHop(sizeof(control));
         }
     }
 
@@ -254,6 +268,7 @@ namespace Lightnet {
 
         for (uint8_t i = 0; i < panelCount; i++) {
             sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
+            sink.paceForHop(sizeof(pkt));
         }
     }
 
@@ -265,6 +280,7 @@ namespace Lightnet {
 
         for (uint8_t i = 0; i < panelCount; i++) {
             sink.send(panelAddresses[i], Protocol::packetMeta(pkt), sizeof(pkt), /*wantAck=*/ false);
+            sink.paceForHop(sizeof(pkt));
         }
     }
 

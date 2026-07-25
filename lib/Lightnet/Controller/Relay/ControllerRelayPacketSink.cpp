@@ -15,6 +15,20 @@
         // window plus one per retransmission, with slack for the last ack's flight time.
         const uint32_t LINK_WINDOW_TOTAL_MS =
             (Lightnet::LINK_RETRANSMITS + 1) * Lightnet::LINK_ACK_TIMEOUT_MS + 2;
+
+        // Wire time per byte at the trunk baud (8N1 = 10 bits/byte). LIGHTNET_TRUNK_BAUD is
+        // force-included per controller build (platformio.ini -include).
+        const uint32_t TRUNK_US_PER_BYTE = 10UL * 1000000UL / LIGHTNET_TRUNK_BAUD;
+
+        // Throwaway preamble bytes prepended to every relayed frame and every link-ack (mirrors
+        // ControllerEdgeTransport / Panel::EdgeUartTransport's PREAMBLE_BYTE_COUNT).
+        const uint32_t PER_HOP_PREAMBLE_BYTES = 2;
+
+        // Slack for the receiving panel's completed-frame -> link-ack-transmit turnaround: it drains
+        // the last byte and emits the ack from its main loop before dispatching (LinkArq.hpp's
+        // budget). Generous vs. the ~0.5 ms there, so the pace stays a touch conservative but well
+        // under LINK_ACK_TIMEOUT_MS.
+        const uint32_t HOP_TURNAROUND_US = 600;
     }
 
     namespace Lightnet {
@@ -44,6 +58,41 @@
             );
         }
 
+        void ControllerRelayPacketSink::serviceBackground()
+        {
+            yield();          // feed WiFi/TCP + the task watchdog while we block
+            serviceMirror();  // keep the live-preview mirror streaming
+        }
+
+        void ControllerRelayPacketSink::delayServiced(uint32_t microseconds)
+        {
+            uint32_t start = micros();
+
+            while ((uint32_t)(micros() - start) < microseconds) {
+                this->serviceBackground();
+            }
+        }
+
+        void ControllerRelayPacketSink::pace(uint16_t microseconds)
+        {
+            this->delayServiced(microseconds);
+        }
+
+        void ControllerRelayPacketSink::paceForHop(uint8_t packetSize)
+        {
+            // One unicast hop-clear: the receiving panel forwards the frame to its single target
+            // branch and awaits that hop's link-ack, so the next unicast in a burst lands after the
+            // panel is listening again instead of colliding with its in-progress relay. Fan-out is
+            // 1 for a unicast, and pipelining keeps deeper hops one frame apart, so a single-hop
+            // pace keeps the whole chain collision-free. Stays below LINK_ACK_TIMEOUT_MS, so it is
+            // cheaper than the retransmit it prevents.
+            uint32_t frameBytes = PER_HOP_PREAMBLE_BYTES + packetSize;
+            uint32_t ackBytes   = PER_HOP_PREAMBLE_BYTES + sizeof(Protocol::PacketLinkAck);
+            uint32_t hopClearUs = (frameBytes + ackBytes) * TRUNK_US_PER_BYTE + HOP_TURNAROUND_US;
+
+            this->delayServiced(hopClearUs);
+        }
+
         bool ControllerRelayPacketSink::awaitFrame(
             Protocol::packetType_t expectedType,
             Protocol::PacketMeta * outBuffer,
@@ -57,8 +106,7 @@
             uint32_t start = millis();
 
             while ((uint32_t)(millis() - start) < timeoutMs) {
-                yield();  // feed WiFi/TCP + the task watchdog while we block
-                serviceMirror();
+                this->serviceBackground();
 
                 // Hop-retransmit while the link ack is outstanding. Deliberately not routed
                 // through onPacketSentCallback — the mirror already saw this frame once.

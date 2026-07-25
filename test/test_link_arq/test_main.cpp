@@ -38,7 +38,6 @@ void test_link_acked_policy_covers_control_and_replies()
     TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_ACK));
     TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_TURN_ON_OFF));
     TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_ANIMATION_PREPARE));
-    TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_ANIMATION_START));
     TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_SET_PALETTE));
     TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_FETCH_STATE));
     TEST_ASSERT_TRUE(Protocol::isLinkAckedType(Protocol::PACKET_FETCH_STATE_REPLY));
@@ -53,6 +52,11 @@ void test_link_acked_policy_exemptions()
 {
     // 60 fps self-healing stream.
     TEST_ASSERT_FALSE(Protocol::isLinkAckedType(Protocol::PACKET_SET_COLOR));
+
+    // A flood relayed to every child before local dispatch — hop-acking it would compound the
+    // ack/retransmit window with both depth and fan-out. Redundant sends are the reliability
+    // mechanism instead (AnimationScheduler::sendGroupStart).
+    TEST_ASSERT_FALSE(Protocol::isLinkAckedType(Protocol::PACKET_ANIMATION_START));
 
     // Discovery control plane has its own per-hop retries.
     TEST_ASSERT_FALSE(Protocol::isLinkAckedType(Protocol::PACKET_INITIALIZATION_PULL));
