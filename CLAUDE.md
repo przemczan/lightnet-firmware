@@ -225,7 +225,7 @@ wired in `main.cpp` case 0.
 ## Key facts for coding
 
 - **Source entry**: `src/main.cpp` selects the target via `LIGHTNET_TARGET_CONTROLLER`; `setup()`/`loop()` live in `src/controller/main.cpp` or `src/panel/main.cpp`.
-- **Protocol version**: v13 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**. Exception: the relay OTA bootloader's own control plane (`PACKET_BOOTLOADER_*`) deliberately skips protocol-version validation once resident — see `docs/ota.md`.
+- **Protocol version**: v14 (`Protocol::VERSION` in `Core/Common/ProtocolMeta.hpp`, included via `Common/Protocol.hpp`). Changing the protocol **requires flashing both controller and all panels together**. Exception: the relay OTA bootloader's own control plane (`PACKET_BOOTLOADER_*`) deliberately skips protocol-version validation once resident — see `docs/ota.md`.
 - **Link-ARQ (v13)**: every relay hop acknowledges control/reply frames (`PACKET_LINK_ACK`, policy in `Protocol::isLinkAckedType()`) and retransmits locally on loss, so per-hop loss no longer compounds with tree depth. `SET_COLOR` streams, the discovery control plane, and BL-bound bootloader types are exempt — see `Core/Relay/LinkArq.hpp` and `docs/architecture.md` §4.
 - **`scenePlayer->tick(millis())`** must be called in the main loop `case 1` when power is on.
 - **LittleFS** is mounted in `case 0` before the WiFi captive portal starts, so `AppearanceStore` can read `/config/appearance.db`.
