@@ -29,6 +29,16 @@ namespace {
         return (animType == Lightnet::RUN_WAVE) || (animType == Lightnet::RUN_RIPPLE) || (animType == Lightnet::RUN_CHASE);
     }
 
+    // True when firing this step claims the layer's own group_id slot on its panels — either by
+    // PREPAREing into it (panel-local animations, BOUNCE, WHEEL) or by clearing it (GAP). The
+    // sweep and particle runners spawn on pooled group_ids instead, so they leave it untouched.
+    inline bool stepUsesLayerGroup(const Lightnet::SceneStep& step)
+    {
+        if (!Lightnet::isRunnerType(step.animType)) return true;
+
+        return (step.animType == Lightnet::RUN_BOUNCE) || (step.animType == Lightnet::RUN_WHEEL);
+    }
+
     uint8_t maxSweepCountForLayer(const Lightnet::SceneLayer& layer)
     {
         uint8_t maxC = 1;
@@ -89,6 +99,7 @@ namespace Lightnet {
         memset(currentStep, 0, sizeof(currentStep));
         memset(stepStartMs, 0, sizeof(stepStartMs));
         memset(layerState, 0, sizeof(layerState));
+        memset(pendingStop, 0, sizeof(pendingStop));
         memset(bouncePhase, 0, sizeof(bouncePhase));
         memset(spawnState, 0, sizeof(spawnState));
     }
@@ -231,6 +242,7 @@ namespace Lightnet {
     {
         playing = false;
         memset(layerState, 0, sizeof(layerState)); // all → WAITING (re-armed on next play)
+        memset(pendingStop, 0, sizeof(pendingStop));
         memset(bouncePhase, 0, sizeof(bouncePhase)); // BOUNCE always restarts forward
         scheduler.broadcastStop();
         scheduler.broadcastBlack();
@@ -305,10 +317,11 @@ namespace Lightnet {
                 stepStartMs[i] = nowMs;
                 fireStep(i, nowMs);
             } else {
-                // Sequence finished — release the layer's slot so its last frame stops
+                // Sequence finished — the layer must release its slot so its last frame stops
                 // covering lower layers while we wait for the scene-cycle barrier / loop
-                // restart (mirrors the GAP handling in fireStep).
-                stopLayerGroup(i);
+                // restart (mirrors the GAP handling in fireStep). Only marked here: whether the
+                // STOP is actually needed depends on the barrier, evaluated below.
+                pendingStop[i] = true;
                 layerState[i] = LayerState::DONE;
             }
         }
@@ -320,6 +333,7 @@ namespace Lightnet {
         // Free-running (non-blocking) async layers are invisible to the scene lifecycle.
         bool anySync = false;
         bool anyBlockingAsync = false;
+        bool allSyncDone = true;
 
         for (uint8_t i = 0; i < lCount; i++) {
             if (layers[i].disabled) continue;
@@ -332,10 +346,14 @@ namespace Lightnet {
 
             anySync = true;
 
-            if (layerState[i] != LayerState::DONE) return; // a sync layer is still going
+            if (layerState[i] != LayerState::DONE) allSyncDone = false;
         }
 
+        flushPendingStops(/*restarting=*/ anySync && allSyncDone && loop);
+
         if (!anySync) return; // async-only scene — runs until explicitly stopped
+
+        if (!allSyncDone) return; // a sync layer is still going
 
         if (loop) {
             armLayers(nowMs, false); // restart sync layers together; leave async free-running
@@ -344,6 +362,47 @@ namespace Lightnet {
         }
 
         // else: sync layers play once and hold; blocking async layers keep the scene alive.
+    }
+
+    bool ScenePlayer::restartReclaimsLayerSlot(uint8_t layerIdx) const
+    {
+        const SceneLayer& layer = layers[layerIdx];
+
+        // armLayers(includeAsync=false) only re-fires enabled, ungated sync layers; the rest go
+        // back to WAITING/DONE and must release their slot.
+        if (isAsyncLayer(layerIdx) || layer.disabled || layer.stepCount == 0
+            || layer.startAfterGroupId != 0) return false;
+
+        // Step 0 takes the slot over (or clears it) the moment it fires, so there is nothing for
+        // a STOP to do that the restart doesn't already do.
+        if (stepUsesLayerGroup(layer.steps[0])) return true;
+
+        // Step 0 spawns on pooled group_ids. The STOP is only redundant if no step in the
+        // sequence ever claimed the layer's slot — otherwise a held frame from a later step
+        // (e.g. a "[CHASE, SOLID]" sequence) would keep covering lower layers for the whole of
+        // the next step 0.
+        for (uint8_t s = 1; s < layer.stepCount; s++) {
+            if (stepUsesLayerGroup(layer.steps[s])) return false;
+        }
+
+        return true;
+    }
+
+    void ScenePlayer::flushPendingStops(bool restarting)
+    {
+        for (uint8_t i = 0; i < lCount; i++) {
+            if (!pendingStop[i]) continue;
+
+            pendingStop[i] = false;
+
+            // A layer whose restart reclaims its own slot keeps it: armLayers' PREPARE replaces
+            // the slot's contents in place. Stopping first frees it, so the panel composites
+            // nothing for this layer until START lands — milliseconds of relay time, visible as
+            // a black flash at every loop seam (and lasting a whole cycle if that START is lost).
+            if (restarting && restartReclaimsLayerSlot(i)) continue;
+
+            stopLayerGroup(i);
+        }
     }
 
     void ScenePlayer::armLayers(uint32_t nowMs, bool includeAsync)

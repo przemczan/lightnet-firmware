@@ -180,6 +180,9 @@ namespace Lightnet {
             uint8_t currentStep[SCENE_MAX_LAYERS];
             uint32_t stepStartMs[SCENE_MAX_LAYERS];
             LayerState layerState[SCENE_MAX_LAYERS];
+            // Layer finished its sequence this tick and owes its panels an ANIM_CTRL_STOP.
+            // Held until the scene-cycle barrier is known — see flushPendingStops().
+            bool pendingStop[SCENE_MAX_LAYERS];
             // RUN_BOUNCE: toggled on each half-pass within a step window so the band reflects
             // at the field edges (forward leg, then reverse). Persists across scene cycles for
             // seamless pendulum motion; reset to false on stop()/load.
@@ -281,6 +284,13 @@ namespace Lightnet {
             // contributing to the composite — used when a layer hits a GAP step or finishes
             // its sequence, so a held last frame doesn't permanently cover lower layers.
             void stopLayerGroup(uint8_t layerIdx);
+            // Emit the STOPs marked in pendingStop. `restarting` = the barrier tripped and the
+            // scene loops, so layers whose restart reclaims their own slot keep it instead
+            // (their PREPARE replaces it in place, with no dark window in between).
+            void flushPendingStops(bool restarting);
+            // True when a loop restart makes this layer's STOP redundant: armLayers() re-fires
+            // it and its step 0 claims the layer's group_id slot — or no step ever does.
+            bool restartReclaimsLayerSlot(uint8_t layerIdx) const;
             // Halt WAVE/RIPPLE/CHASE pooled sweeps on this layer's panels and clear the cache.
             void stopSpawnSweeps(uint8_t layerIdx);
             // RUN_RAIN / RUN_SPARKLE / RUN_MATRIX / RUN_WAVE / RUN_RIPPLE / RUN_CHASE: emit

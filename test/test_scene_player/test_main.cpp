@@ -27,8 +27,9 @@ struct CapturedPacket {
     uint8_t type;
     uint8_t size;
     bool    wantAck;
-    uint8_t groupId; // PACKET_ANIMATION_START / PREPARE
+    uint8_t groupId; // PACKET_ANIMATION_START / PREPARE / CONTROL
     uint8_t flags;   // PACKET_ANIMATION_PREPARE only
+    uint8_t cmd;     // PACKET_ANIMATION_CONTROL only (ANIM_CTRL_*)
 };
 
 struct MockSink : public IPacketSink {
@@ -42,6 +43,7 @@ struct MockSink : public IPacketSink {
         if (count < MAX) {
             uint8_t groupId = 0;
             uint8_t flags   = 0;
+            uint8_t cmd     = 0;
 
             if (packet->header.type == Protocol::PACKET_ANIMATION_START
                 && size >= sizeof(Protocol::PacketAnimationStart)) {
@@ -52,9 +54,15 @@ struct MockSink : public IPacketSink {
 
                 groupId = prep->group_id;
                 flags   = prep->flags;
+            } else if (packet->header.type == Protocol::PACKET_ANIMATION_CONTROL
+                       && size >= sizeof(Protocol::PacketAnimationControl)) {
+                const auto *ctrl = (const Protocol::PacketAnimationControl *)packet;
+
+                groupId = ctrl->group_id;
+                cmd     = ctrl->cmd;
             }
 
-            pkts[count] = { address, (uint8_t)packet->header.type, size, wantAck, groupId, flags };
+            pkts[count] = { address, (uint8_t)packet->header.type, size, wantAck, groupId, flags, cmd };
             count++;
         }
     }
@@ -72,6 +80,30 @@ struct MockSink : public IPacketSink {
         int n = 0;
 
         for (int i = 0; i < count; i++) if (pkts[i].type == t) n++;
+
+        return n;
+    }
+
+    int stopCountForGroup(uint8_t group, int from = 0) const
+    {
+        int n = 0;
+
+        for (int i = from; i < count; i++) {
+            if (pkts[i].type == Protocol::PACKET_ANIMATION_CONTROL
+                && pkts[i].cmd == ANIM_CTRL_STOP
+                && pkts[i].groupId == group) n++;
+        }
+
+        return n;
+    }
+
+    int prepareCountForGroup(uint8_t group, int from = 0) const
+    {
+        int n = 0;
+
+        for (int i = from; i < count; i++) {
+            if (pkts[i].type == Protocol::PACKET_ANIMATION_PREPARE && pkts[i].groupId == group) n++;
+        }
 
         return n;
     }
@@ -556,6 +588,173 @@ void test_unicast_sends_are_paced()
     TEST_ASSERT_EQUAL_INT(sink.unicastSendCount(), sink.paceForHopCount);
 }
 
+static const char *LOOP_SEAM_SCENE =
+    R"({
+  "schemaVersion": 7,
+  "name": "loop seam",
+  "loop": true,
+  "layers": [
+    { "group": "breathe", "panels": "all", "sequence": [
+        { "type": "BREATHE", "colorFrom": "#FB00FF", "color": "#609DFF", "duration": 1000, "pingpong": true }
+    ] },
+    { "group": "chase", "panels": "all", "sequence": [
+        { "runner": "CHASE", "color": "#00FF00", "duration": 1000, "source": "root" }
+    ] }
+  ]
+})";
+
+// Loop seam: a layer the barrier re-arms in the same tick must NOT be stopped first. Its
+// PREPARE reuses the group's panel slot, so stopping would free the slot and leave the panel
+// composing nothing for that layer until START lands — a black flash every cycle.
+void test_loop_restart_does_not_stop_refired_layer()
+{
+    SceneRecord res = {};
+    char errMsg[128];
+    bool ok = parseScene(LOOP_SEAM_SCENE, strlen(LOOP_SEAM_SCENE), res, errMsg, sizeof(errMsg));
+
+    TEST_ASSERT_TRUE_MESSAGE(ok, errMsg);
+
+    MockSink sink;
+    MockPalette palette;
+    MockTopo topo;
+    AnimationScheduler scheduler(sink);
+    ScenePlayer player(scheduler, palette, topo);
+
+    player.loadAndPlay(res.layers, res.layerCount, res.loop, res.palette, res.baseColors, 0, res.speed, res.background);
+
+    uint8_t breatheGroup = player.groupIdForName("breathe");
+    uint8_t chaseGroup   = player.groupIdForName("chase");
+
+    TEST_ASSERT_NOT_EQUAL(0, breatheGroup);
+    TEST_ASSERT_NOT_EQUAL(0, chaseGroup);
+
+    int beforeSeam = sink.count;
+
+    for (uint32_t t = 1; t <= 1200; t++) {
+        player.tick(t);
+    }
+
+    TEST_ASSERT_EQUAL_INT(0, sink.stopCountForGroup(breatheGroup, beforeSeam));
+    TEST_ASSERT_EQUAL_INT(0, sink.stopCountForGroup(chaseGroup, beforeSeam));
+    // The restart still re-arms the layer: one PREPARE per resolved panel.
+    TEST_ASSERT_EQUAL_INT(3, sink.prepareCountForGroup(breatheGroup, beforeSeam));
+    TEST_ASSERT_TRUE(player.isPlaying());
+}
+
+static const char *GATED_LOOP_SCENE =
+    R"({
+  "schemaVersion": 7,
+  "name": "gated loop",
+  "loop": true,
+  "layers": [
+    { "group": "lead", "panels": "all", "sequence": [
+        { "type": "SOLID", "color": "#FF0000", "duration": 500 }
+    ] },
+    { "group": "follow", "panels": "all", "startAfter": "lead", "sequence": [
+        { "type": "SOLID", "color": "#0000FF", "duration": 500 }
+    ] }
+  ]
+})";
+
+// A layer the restart leaves gated (startAfter) is re-armed as WAITING, not fired, so it still
+// owes its panels the STOP — otherwise its last frame would keep covering lower layers until
+// its dependency releases it.
+void test_loop_restart_stops_gated_layer()
+{
+    SceneRecord res = {};
+    char errMsg[128];
+    bool ok = parseScene(GATED_LOOP_SCENE, strlen(GATED_LOOP_SCENE), res, errMsg, sizeof(errMsg));
+
+    TEST_ASSERT_TRUE_MESSAGE(ok, errMsg);
+
+    MockSink sink;
+    MockPalette palette;
+    MockTopo topo;
+    AnimationScheduler scheduler(sink);
+    ScenePlayer player(scheduler, palette, topo);
+
+    player.loadAndPlay(res.layers, res.layerCount, res.loop, res.palette, res.baseColors, 0, res.speed, res.background);
+
+    uint8_t leadGroup   = player.groupIdForName("lead");
+    uint8_t followGroup = player.groupIdForName("follow");
+
+    TEST_ASSERT_NOT_EQUAL(0, leadGroup);
+    TEST_ASSERT_NOT_EQUAL(0, followGroup);
+
+    // t=500: "lead" finishes while "follow" is still to run — the barrier can't trip, so the
+    // STOP goes out immediately (one per resolved panel).
+    for (uint32_t t = 1; t <= 500; t++) {
+        player.tick(t);
+    }
+
+    TEST_ASSERT_EQUAL_INT(3, sink.stopCountForGroup(leadGroup));
+
+    // t=1000: both done → loop restart. "lead" re-fires (no STOP), "follow" goes back to
+    // WAITING and must be stopped.
+    int beforeSeam = sink.count;
+
+    for (uint32_t t = 501; t <= 1000; t++) {
+        player.tick(t);
+    }
+
+    TEST_ASSERT_EQUAL_INT(3, sink.stopCountForGroup(followGroup, beforeSeam));
+    TEST_ASSERT_EQUAL_INT(0, sink.stopCountForGroup(leadGroup, beforeSeam));
+    TEST_ASSERT_EQUAL_INT(3, sink.prepareCountForGroup(leadGroup, beforeSeam));
+}
+
+static const char *MIXED_SEQUENCE_LOOP_SCENE =
+    R"({
+  "schemaVersion": 7,
+  "name": "mixed sequence",
+  "loop": true,
+  "layers": [
+    { "group": "mixed", "panels": "all", "sequence": [
+        { "runner": "CHASE", "color": "#00FF00", "duration": 500, "source": "root" },
+        { "type": "SOLID", "color": "#FF0000", "duration": 500 }
+    ] }
+  ]
+})";
+
+// Suppression at the seam is keyed on the slot being reclaimed, not merely on the layer being
+// re-armed. Here the last step (SOLID) holds the layer's slot but step 0 (CHASE) spawns on
+// pooled group_ids, so the restart never replaces it — the STOP must still go out, or the
+// frozen SOLID frame would cover lower layers for the whole of step 0 on every later cycle.
+void test_loop_restart_stops_layer_whose_first_step_uses_no_slot()
+{
+    SceneRecord res = {};
+    char errMsg[128];
+    bool ok = parseScene(MIXED_SEQUENCE_LOOP_SCENE, strlen(MIXED_SEQUENCE_LOOP_SCENE), res, errMsg, sizeof(errMsg));
+
+    TEST_ASSERT_TRUE_MESSAGE(ok, errMsg);
+
+    MockSink sink;
+    MockPalette palette;
+    MockTopo topo;
+    AnimationScheduler scheduler(sink);
+    ScenePlayer player(scheduler, palette, topo);
+
+    player.loadAndPlay(res.layers, res.layerCount, res.loop, res.palette, res.baseColors, 0, res.speed, res.background);
+
+    uint8_t mixedGroup = player.groupIdForName("mixed");
+
+    TEST_ASSERT_NOT_EQUAL(0, mixedGroup);
+
+    // t=500 hands over to SOLID, which PREPAREs on the layer's own group.
+    for (uint32_t t = 1; t <= 500; t++) {
+        player.tick(t);
+    }
+
+    TEST_ASSERT_EQUAL_INT(3, sink.prepareCountForGroup(mixedGroup));
+
+    int beforeSeam = sink.count;
+
+    for (uint32_t t = 501; t <= 1000; t++) {
+        player.tick(t);
+    }
+
+    TEST_ASSERT_EQUAL_INT(3, sink.stopCountForGroup(mixedGroup, beforeSeam));
+}
+
 void setUp()
 {
 }
@@ -573,6 +772,9 @@ int main()
     RUN_TEST(test_user_scene_wheel_sync_barrier);
     RUN_TEST(test_bounce_reverse_fires_mid_step);
     RUN_TEST(test_unicast_sends_are_paced);
+    RUN_TEST(test_loop_restart_does_not_stop_refired_layer);
+    RUN_TEST(test_loop_restart_stops_gated_layer);
+    RUN_TEST(test_loop_restart_stops_layer_whose_first_step_uses_no_slot);
 
     return UNITY_END();
 }

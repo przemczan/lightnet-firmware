@@ -84,6 +84,29 @@
     #ifndef PANELS_POWER_PIN
         #define PANELS_POWER_PIN 2
     #endif
+#elif defined(ARDUINO_ESP32S3_DEV)
+    // ARDUINO_ESP32S3_DEV is also what a genuine ESP32-S3-DevKitC-1 target would define, since
+    // env:controller_s3_zero (platformio.ini) borrows that board's stock definition purely for its
+    // ESP32-S3 chip parameters -- this is an RP2040-Zero-footprint board, not a DevKitC-1. Unlike
+    // the S2 Mini/C3 branches above, it does not plug into the relay board's D1-mini socket, so
+    // there is no physical position to derive pins from. The values below are placeholder defaults
+    // with no hardware behind them -- override in controller.config.hpp for any real wiring. GPIO21
+    // is this board's onboard WS2812 and is deliberately avoided for PANELS_POWER_PIN.
+    #ifndef CONTROLLER_TRUNK_RX_PIN
+        #define CONTROLLER_TRUNK_RX_PIN 12
+    #endif
+    #ifndef CONTROLLER_TRUNK_TX_PIN
+        #define CONTROLLER_TRUNK_TX_PIN 13
+    #endif
+    #ifndef CONTROLLER_TRUNK_OE_PIN
+        #define CONTROLLER_TRUNK_OE_PIN 14
+    #endif
+    #ifndef LED_PIN
+        #define LED_PIN 2
+    #endif
+    #ifndef PANELS_POWER_PIN
+        #define PANELS_POWER_PIN 1
+    #endif
 #elif defined(ARDUINO_ARCH_ESP32)
     #ifndef CONTROLLER_TRUNK_RX_PIN
         #define CONTROLLER_TRUNK_RX_PIN 12
