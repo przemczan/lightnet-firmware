@@ -1,0 +1,12 @@
+services:
+  devcontainer:
+    image: python:3.12-bookworm
+    command: sleep infinity
+    environment:
+      PLATFORMIO_CORE_DIR: /opt/platformio
+    volumes:
+      - platformio-core:/opt/platformio
+    working_dir: ${LOCAL_WORKSPACE_FOLDER:-/workspace}
+
+volumes:
+  platformio-core:

@@ -1,0 +1,9 @@
+{
+  "name": "lightnet-firmware",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "runServices": ["devcontainer"],
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "overrideCommand": true,
+  "shutdownAction": "stopCompose"
+}

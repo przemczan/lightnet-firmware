@@ -18,6 +18,7 @@
 Thumbs.db
 
 .pio
+.venv/
 .pioenvs
 .piolibdeps
 .clang_complete
